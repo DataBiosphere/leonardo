@@ -22,6 +22,7 @@ EXPOSE 5050
 
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
+
 # WARNING: If you are changing any versions here, update it in the reference.conf
 ENV TERRA_APP_SETUP_VERSION 0.1.0
 ENV TERRA_APP_VERSION 0.5.0
@@ -30,17 +31,9 @@ ENV GALAXY_VERSION 2.8.1
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.397
-ENV CROWELL_ON_AZURE_CHART_VERSION 0.2.397
-# These two are the new Workflows and Cromwell Runner apps to eventually replace COA (and maybe one day Cromwell):
-ENV CROMWELL_RUNNER_APP_VERSION 0.52.0
-# WORKFLOWS APP comment to prevent merge conflicts
-ENV WORKFLOWS_APP_VERSION 0.83.0
-# WDS CHART comment to prevent merge conflicts
-ENV WDS_CHART_VERSION 0.59.0
 ENV HAIL_BATCH_CHART_VERSION 0.1.9
 ENV RSTUDIO_CHART_VERSION 0.3.0
 ENV SAS_CHART_VERSION 0.3.0
-ENV LISTENER_CHART_VERSION 0.2.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -61,11 +54,10 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
     helm repo update
 
-
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
-# pulling `terra-app-setup` locally and add cert files to the chart.
-# Leonardo will install the chart from local version.
-# We are also caching charts so they are not downloaded with every helm-install
+# pulling `terra-app-setup` locally and add cert files to the chart. As a result we need to pull all GKE
+# charts locally as well so they can acess the local cert files during the helm install step, see https://helm.sh/docs/chart_template_guide/accessing_files/
+# Helm does not seem to support the direct installation of a chart located in OCI so let's pull it to a local directory for now.
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
@@ -73,14 +65,9 @@ RUN cd /leonardo && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
-    helm pull cromwell-helm/cromwell-on-azure --version $CROWELL_ON_AZURE_CHART_VERSION --untar && \
-    helm pull terra-helm/wds --version $WDS_CHART_VERSION --untar && \
-    helm pull terra-helm/workflows-app --version $WORKFLOWS_APP_VERSION --untar && \
-    helm pull terra-helm/cromwell-runner-app --version $CROMWELL_RUNNER_APP_VERSION --untar && \
     helm pull terra-helm/rstudio --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull terra-helm/sas --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
-    helm pull terra-helm/listener --version $LISTENER_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools

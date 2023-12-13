@@ -75,7 +75,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
-          ChartName("/leonardo/cromwell-on-azure"),
+          ChartName("cromwell-helm/cromwell-on-azure"),
           ChartVersion("0.2.397"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
@@ -137,7 +137,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         CromwellRunnerAppConfig(
-          ChartName("/leonardo/cromwell-runner-app"),
+          ChartName("terra-helm/cromwell-runner-app"),
           ChartVersion("0.52.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
@@ -153,8 +153,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
-          ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.83.0"),
+          ChartName("terra-helm/workflows-app"),
+          ChartVersion("0.91.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -171,7 +171,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WdsAppConfig(
-          ChartName("/leonardo/wds"),
+          ChartName("terra-helm/wds"),
           ChartVersion("0.59.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
@@ -220,7 +220,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
+        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.2.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
