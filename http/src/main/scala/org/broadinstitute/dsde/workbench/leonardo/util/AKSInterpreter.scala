@@ -183,7 +183,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.name, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
+                                        params.cloudContext,
+                                        namespaceName
+      )
 
       // Build listener helm values
       values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
@@ -413,7 +416,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.name, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
+                                        params.cloudContext,
+                                        namespaceName
+      )
 
       // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
@@ -543,7 +549,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         if (deletedNamespace) F.unit
         else {
           for {
-            client <- kubeAlg.createAzureClient(cloudContext, AKSClusterName(landingZoneResources.aksCluster.name))
+            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.aksCluster.asClusterName)
 
             kubernetesNamespace = KubernetesNamespace(app.appResources.namespace)
 
@@ -644,14 +650,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
     } yield appOk.isDone
 
-  private[util] def getHelmAuthContext(clusterName: String,
+  private[util] def getHelmAuthContext(clusterName: AKSClusterName,
                                        cloudContext: AzureCloudContext,
                                        namespaceName: NamespaceName
   )(implicit ev: Ask[F, AppContext]): F[AuthContext] =
     for {
       ctx <- ev.ask
 
-      credentials <- azureContainerService.getClusterCredentials(AKSClusterName(clusterName), cloudContext)
+      credentials <- azureContainerService.getClusterCredentials(clusterName, cloudContext)
 
       // Don't use AppContext.now for the tmp file name because we want it to be unique
       // for each helm invocation
@@ -670,7 +676,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Helm auth context for cluster ${clusterName} in cloud context ${cloudContext.asString}: ${authContext
+        s"Helm auth context for cluster ${clusterName.value} in cloud context ${cloudContext.asString}: ${authContext
             .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))}"
       )
 

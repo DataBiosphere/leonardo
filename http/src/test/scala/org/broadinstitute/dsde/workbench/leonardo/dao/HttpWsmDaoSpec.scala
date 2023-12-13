@@ -141,7 +141,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
       val expectedLandingZoneResources = LandingZoneResources(
         landingZoneId,
-        AKSCluster("lzcluster", Map.empty[String, Boolean]),
+        AKSCluster("lzcluster", Map("aks-cost-vpa-enabled" -> false)),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),
         StorageAccountName("lzstorage"),

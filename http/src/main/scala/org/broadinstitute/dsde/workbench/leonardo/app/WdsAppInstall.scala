@@ -72,6 +72,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           // azure resources configs
           raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
+          raw"config.aks.vpaEnabled=${vpaEnabled}",
 
           // Azure subscription configs currently unused
           raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
@@ -98,7 +99,6 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           // general configs
           raw"fullnameOverride=wds-${params.app.release.asString}",
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
-          raw"vpaEnabled=${vpaEnabled}",
 
           // import configs
           raw"import.dataRepoUrl=${tdrConfig.url}",
