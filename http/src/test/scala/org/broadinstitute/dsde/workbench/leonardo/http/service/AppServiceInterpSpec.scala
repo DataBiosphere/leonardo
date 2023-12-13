@@ -833,7 +833,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      chart = Chart.fromString("/leonardo/sas-0.1.0")
       savedApp <- IO(
         makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
           .copy(status = AppStatus.Running)
@@ -1213,7 +1213,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      chart = Chart.fromString("/leonardo/aou-sas-chart-0.1.0")
+      chart = Chart.fromString("/leonardo/sas-0.1.0")
       savedApp <- IO(
         makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
           .copy(status = AppStatus.Running)
@@ -2292,7 +2292,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteAppV2, LeoPubsubMessageType.DeleteAppV2)
     val deleteAppMessages = messages.map(_.asInstanceOf[DeleteAppV2Message])
-    deleteAppMessages.map(_.appId) shouldBe apps.map(_.id)
+    deleteAppMessages.map(_.appId) should contain theSameElementsAs apps.map(_.id)
     deleteAppMessages.map(_.workspaceId) shouldBe List(workspaceId, workspaceId)
     deleteAppMessages.map(_.diskId) shouldBe List(None, None)
   }

@@ -333,7 +333,7 @@ private[leonardo] object BuildHelmChartValues {
           raw"""ingress.path.sas=${ingressPath}${"(/|$)(.*)"}""",
           raw"""ingress.path.welder=${welderIngressPath}${"(/|$)(.*)"}""",
           raw"""ingress.proxyPath=${ingressPath}""",
-          raw"""ingress.referer=${config.leoUrlBase}""",
+          raw"""ingress.referer=${config.proxyConfig.getProxyServerHostName}""",
           raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://${k8sProxyHost
               .address()}""",
           raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
@@ -363,7 +363,8 @@ private[leonardo] object BuildHelmChartValues {
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
       List(
         raw"""extraEnv[$i].name=$k""",
-        raw"""extraEnv[$i].value=$v"""
+        raw"""extraEnv[$i].value=$v""",
+        raw"""replicaCount=${config.allowedAppConfig.numOfReplicas.toString}"""
       )
     }
 

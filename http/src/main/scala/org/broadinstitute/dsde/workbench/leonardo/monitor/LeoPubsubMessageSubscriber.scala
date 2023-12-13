@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppType.appTypeToFormattedByType
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.appServiceConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{AllowedAppConfig, KubernetesAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -1367,31 +1367,24 @@ class LeoPubsubMessageSubscriber[F[_]](
         F.raiseError[GetAppResult](PubsubHandleMessageError.AppNotFound(msg.appId.id, msg))
       )(F.pure)
 
-      latestAppChartVersion <- (appResult.app.appType, msg.cloudContext.cloudProvider) match {
-        case (AppType.Galaxy, CloudProvider.Gcp) =>
-          F.pure(appServiceConfig.leoKubernetesConfig.galaxyAppConfig.chartVersion)
-        case (AppType.Custom, CloudProvider.Gcp) =>
-          F.pure(appServiceConfig.leoKubernetesConfig.customAppConfig.chartVersion)
-        case (AppType.Cromwell, CloudProvider.Gcp) =>
-          F.pure(appServiceConfig.leoKubernetesConfig.cromwellAppConfig.chartVersion)
-        case (AppType.Allowed, CloudProvider.Gcp) =>
+      latestAppChartVersion <- KubernetesAppConfig.configForTypeAndCloud(appResult.app.appType,
+                                                                         msg.cloudContext.cloudProvider
+      ) match {
+        case Some(AllowedAppConfig(_, rstudioChartVersion, sasChartVersion, _, _, _, _, _, _, _)) =>
           AllowedChartName.fromChartName(appResult.app.chart.name) match {
             case Some(AllowedChartName.RStudio) =>
-              F.pure(appServiceConfig.leoKubernetesConfig.allowedAppConfig.rstudioChartVersion)
+              F.pure(rstudioChartVersion)
             case Some(AllowedChartName.Sas) =>
-              F.pure(appServiceConfig.leoKubernetesConfig.allowedAppConfig.sasChartVersion)
+              F.pure(sasChartVersion)
             case None =>
               F.raiseError[ChartVersion](
                 AppTypeNotSupportedOnCloudException(msg.cloudContext.cloudProvider, appResult.app.appType, ctx.traceId)
               )
           }
-        case (AppType.Cromwell, CloudProvider.Azure) => F.pure(ConfigReader.appConfig.azure.coaAppConfig.chartVersion)
-        case (AppType.Wds, CloudProvider.Azure)      => F.pure(ConfigReader.appConfig.azure.wdsAppConfig.chartVersion)
-        case (AppType.HailBatch, CloudProvider.Azure) =>
-          F.pure(ConfigReader.appConfig.azure.hailBatchAppConfig.chartVersion)
-        case (appType, cloud) =>
+        case Some(conf) => F.pure(conf.chartVersion)
+        case None =>
           F.raiseError[ChartVersion](
-            AppTypeNotSupportedOnCloudException(cloud, appType, ctx.traceId)
+            AppTypeNotSupportedOnCloudException(msg.cloudContext.cloudProvider, appResult.app.appType, ctx.traceId)
           )
       }
 

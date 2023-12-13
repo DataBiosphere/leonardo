@@ -28,6 +28,7 @@ failure_screenshots/
 __pycache__
 .DS_Store
 .vscode/
+.sc
 
 # Automation exclusions
 automation/chrome/

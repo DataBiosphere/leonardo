@@ -48,7 +48,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("/leonardo/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("2.5.2")
+  val galaxyChartVersion = ChartVersion("2.8.1")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -57,8 +57,8 @@ object KubernetesTestData {
   val ingressChartVersion = ChartVersion("1.41.3")
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
-  val coaChartName = ChartName("/leonardo/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.378")
+  val coaChartName = ChartName("cromwell-helm/cromwell-on-azure")
+  val coaChartVersion = ChartVersion("0.2.397")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -80,6 +80,7 @@ object KubernetesTestData {
     Map.empty,
     None,
     List.empty,
+    None,
     None
   )
 
@@ -121,6 +122,7 @@ object KubernetesTestData {
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
       extraArgs = List.empty,
+      None,
       None
     )
 
@@ -235,7 +237,8 @@ object KubernetesTestData {
       customEnvironmentVariables,
       None,
       List.empty,
-      None
+      None,
+      Some(1)
     )
   }
 

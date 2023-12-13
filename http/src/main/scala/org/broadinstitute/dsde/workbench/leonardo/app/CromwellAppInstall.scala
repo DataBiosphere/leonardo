@@ -4,8 +4,9 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
-import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
+import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -31,9 +32,9 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
 
   override def databases: List[Database] =
     List(
-      CreateDatabase("cromwell"),
-      CreateDatabase("cbas"),
-      CreateDatabase("tes")
+      ControlledDatabase("cromwell"),
+      ControlledDatabase("cbas"),
+      ControlledDatabase("tes")
     )
 
   override def buildHelmOverrideValues(
@@ -139,9 +140,13 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       cbasDao.getStatus(baseUri, authHeader).handleError(_ => false)
     ).sequence.map(_.forall(identity))
 
-  private def toCromwellAppDatabaseNames(dbNames: List[String]): Option[CromwellAppDatabaseNames] =
-    (dbNames.find(_.startsWith("cromwell")), dbNames.find(_.startsWith("cbas")), dbNames.find(_.startsWith("tes")))
-      .mapN(CromwellAppDatabaseNames)
+  private def toCromwellAppDatabaseNames(
+    dbResources: List[WsmControlledDatabaseResource]
+  ): Option[CromwellAppDatabaseNames] =
+    (getAzureDatabaseName(dbResources, "cromwell"),
+     getAzureDatabaseName(dbResources, "cbas"),
+     getAzureDatabaseName(dbResources, "tes")
+    ).mapN(CromwellAppDatabaseNames)
 }
 
 final case class CromwellAppDatabaseNames(cromwell: String, cbas: String, tes: String)

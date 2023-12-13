@@ -161,24 +161,13 @@ echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
 
-# Install relevant libraries
-
-/anaconda/envs/py38_default/bin/pip3 install igv-jupyter==2.0.1
-
-/anaconda/envs/py38_default/bin/pip3 install seaborn==0.13.0
-
-# Wait for lock to resolve before apt install, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
+# Wait for lock to resolve before any installs, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
 
 while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
   do
     echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
     sleep 5
   done
-
-
-# Update rbase
-
-echo "Y"|sudo apt install --no-install-recommends r-base=4.3.1-4.2004.0
 
 #Update kernel list
 
@@ -192,7 +181,7 @@ echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
 
 #echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
 
-echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel pydevd==2.10.0
+echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel pydevd
 
 echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 

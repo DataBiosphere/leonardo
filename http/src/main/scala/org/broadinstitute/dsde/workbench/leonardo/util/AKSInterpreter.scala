@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import org.broadinstitute.dsp.{Release, _}
+import org.broadinstitute.dsp._
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
@@ -115,33 +115,37 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
       }
 
-      // Create WSM managed identity if shared app
+      wsmResourceApi <- buildWsmResourceApiClient
+
+      // Create or fetch WSM managed identity if shared app
       wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
         case SamResourceType.SharedApp =>
-          childSpan("createWsmIdentityResource").use { implicit ev =>
-            createWsmIdentityResource(app, namespacePrefix, params.workspaceId).map(_.some)
+          // if a managed identity has already been created in the workspace use that otherwise create a new managed identity
+          retrieveWsmManagedIdentity(wsmResourceApi, app.appType, params.workspaceId.value).flatMap {
+            case Some(v) => F.pure(Option(v))
+            case None    => createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
           }
         case _ => F.pure(None)
       }
 
       // Create WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
-        createWsmDatabaseResources(
+        createOrFetchWsmDatabaseResources(
           app,
           app.appType,
           params.workspaceId,
           namespacePrefix,
-          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName),
-          landingZoneResources
+          wsmManagedIdentityOpt.map(_.wsmResourceName),
+          landingZoneResources,
+          wsmResourceApi
         )
       }
 
       // get ReferenceDatabases from WSM
-      wsmResourceApi <- buildWsmResourceApiClient
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       referenceDatabases <-
         if (referenceDatabaseNames.nonEmpty) {
-          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, params.workspaceId.value)
+          retrieveWsmDatabases(wsmResourceApi, referenceDatabaseNames, params.workspaceId.value)
         } else F.pure(List.empty)
 
       // Create WSM kubernetes namespace
@@ -150,8 +154,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           app,
           params.workspaceId,
           namespacePrefix,
-          wsmDatabases.map(_.getAzureDatabase.getMetadata.getName),
-          wsmManagedIdentityOpt.map(_.getAzureManagedIdentity.getMetadata.getName)
+          wsmDatabases.map(_.wsmDatabaseName),
+          wsmManagedIdentityOpt.map(_.wsmResourceName)
         )
       }
 
@@ -164,7 +168,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // 'googleServiceAccount' column in the APP table.
       managedIdentityName = ManagedIdentityName(
         wsmManagedIdentityOpt
-          .map(_.getAzureManagedIdentity.getAttributes.getManagedIdentityName)
+          .map(_.managedIdentityName)
           .getOrElse(app.googleServiceAccount.value.split('/').last)
       )
 
@@ -224,7 +228,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDatabases.map(_.getAzureDatabase.getAttributes.getDatabaseName) ++ referenceDatabases,
+        wsmDatabases ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -361,8 +365,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmDatabases <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
         .transaction
-      wsmDbNames <- wsmDatabases.traverse { wsmDatabase =>
+      wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
         F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
+          .map(db => WsmControlledDatabaseResource(db.getMetadata.getName, db.getAttributes.getDatabaseName))
       }
 
       // call WSM resource API to get list of ReferenceDatabases
@@ -370,7 +375,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       referenceDatabases <-
         if (referenceDatabaseNames.nonEmpty) {
-          retrieveWsmReferenceDatabases(wsmResourceApi, referenceDatabaseNames, workspaceId.value)
+          retrieveWsmDatabases(wsmResourceApi, referenceDatabaseNames, workspaceId.value)
         } else F.pure(List.empty)
 
       // Call WSM to get the Kubernetes namespace (required)
@@ -433,7 +438,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         relayPath,
         ksaName,
         managedIdentityName,
-        wsmDbNames.map(_.getAttributes.getDatabaseName) ++ referenceDatabases,
+        wsmDatabases ++ referenceDatabases,
         config
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
@@ -673,14 +678,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private def getWsmCommonFields(name: String,
                                  description: String,
-                                 app: App
+                                 app: App,
+                                 cloningInstructions: CloningInstructionsEnum
   ): bio.terra.workspace.model.ControlledResourceCommonFields = {
     val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
       .resourceId(UUID.randomUUID())
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
-      .cloningInstructions(CloningInstructionsEnum.NOTHING)
+      .cloningInstructions(cloningInstructions)
     app.samResourceId.accessScope match {
       case Some(AppAccessScope.WorkspaceShared) =>
         commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
@@ -694,6 +700,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
     }
   }
+
+  private def generateWsmNameForIdentity(appType: AppType): String = s"id${appType.toString.toLowerCase}"
+
+  private[util] def createAzureManagedIdentity(app: App, namespacePrefix: String, workspaceId: WorkspaceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[WsmManagedAzureIdentity]] =
+    childSpan("createWsmIdentityResource").use { implicit ev =>
+      createWsmIdentityResource(app, namespacePrefix, workspaceId)
+        .map(i =>
+          WsmManagedAzureIdentity(i.getAzureManagedIdentity.getMetadata.getName,
+                                  i.getAzureManagedIdentity.getAttributes.getManagedIdentityName
+          )
+        )
+        .map(_.some)
+    }
 
   private[util] def createWsmIdentityResource(app: App, namespacePrefix: String, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
@@ -715,11 +736,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // There can only be at most 1 shared app type per workspace anyway.
       // For private apps, use managed identity name to ensure uniqueness.
       wsmResourceName = app.samResourceId.resourceType match {
-        case SamResourceType.SharedApp => s"id${app.appType.toString.toLowerCase}"
+        case SamResourceType.SharedApp => generateWsmNameForIdentity(app.appType)
         case _                         => identityName
       }
 
-      identityCommonFields = getWsmCommonFields(wsmResourceName, s"Identity for Leo app ${app.appName.value}", app)
+      cloningInstructions =
+        if (app.appType == AppType.WorkflowsApp) CloningInstructionsEnum.RESOURCE else CloningInstructionsEnum.NOTHING
+
+      identityCommonFields = getWsmCommonFields(wsmResourceName,
+                                                s"Identity for Leo app ${app.appName.value}",
+                                                app,
+                                                cloningInstructions
+      )
       createIdentityParams = new AzureManagedIdentityCreationParameters().name(
         identityName
       )
@@ -746,21 +774,47 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield createIdentityResponse
 
-  private[util] def createWsmDatabaseResources(app: App,
-                                               appInstall: AppInstall[F],
-                                               workspaceId: WorkspaceId,
-                                               namespacePrefix: String,
-                                               owner: Option[String],
-                                               landingZoneResources: LandingZoneResources
-  )(implicit ev: Ask[F, AppContext]): F[List[CreatedControlledAzureDatabaseResult]] =
+  private[util] def createOrFetchWsmDatabaseResources(app: App,
+                                                      appInstall: AppInstall[F],
+                                                      workspaceId: WorkspaceId,
+                                                      namespacePrefix: String,
+                                                      owner: Option[String],
+                                                      landingZoneResources: LandingZoneResources,
+                                                      wsmResourceApi: ResourceApi
+  )(implicit ev: Ask[F, AppContext]): F[List[WsmControlledDatabaseResource]] =
     if (landingZoneResources.postgresServer.isDefined) {
       for {
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
-        res <- appInstall.databases.collect { case d @ CreateDatabase(_, _) => d }.traverse { database =>
-          createWsmDatabaseResource(app, workspaceId, database, namespacePrefix, owner, wsmApi)
-        }
-      } yield res
+        controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
+        // retrieve databases that might already be created in workspace
+        existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
+                                                                 controlledDbsForApp.map(_.prefix).toSet,
+                                                                 workspaceId.value
+        )
+        wsmControlledDBResources <- controlledDbsForApp
+          .map { controlledDbForApp =>
+            // if a database already exists (because of workspace cloning) use that otherwise create a new one
+            if (
+              existingControlledDbsInWorkspace
+                .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
+            ) {
+              F.pure(
+                existingControlledDbsInWorkspace
+                  .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
+                  .get
+              )
+            } else {
+              createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
+                db =>
+                  WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
+                                                db.getAzureDatabase.getAttributes.getDatabaseName
+                  )
+              }
+            }
+          }
+          .traverse(identity)
+      } yield wsmControlledDBResources
     } else {
       ev.ask.flatMap(ctx =>
         F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
@@ -769,7 +823,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def createWsmDatabaseResource(app: App,
                                               workspaceId: WorkspaceId,
-                                              database: CreateDatabase,
+                                              database: ControlledDatabase,
                                               namespacePrefix: String,
                                               owner: Option[String],
                                               wsmApi: ControlledAzureResourceApi
@@ -791,7 +845,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
 
     val databaseCommonFields =
-      getWsmCommonFields(wsmResourceName, s"${database.prefix} database for Leo app ${app.appName.value}", app)
+      getWsmCommonFields(wsmResourceName,
+                         s"${database.prefix} database for Leo app ${app.appName.value}",
+                         app,
+                         database.cloningInstructions
+      )
     val createDatabaseParams = new AzureDatabaseCreationParameters()
       .name(dbName)
       .allowAccessForAllWorkspaceUsers(database.allowAccessForAllWorkspaceUsers)
@@ -854,10 +912,34 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield result
   }
 
-  private def retrieveWsmReferenceDatabases(resourceApi: ResourceApi,
-                                            referenceDatabaseNames: Set[String],
-                                            workspaceId: UUID
-  ): F[List[String]] = {
+  private[util] def retrieveWsmManagedIdentity(resourceApi: ResourceApi,
+                                               appType: AppType,
+                                               workspaceId: UUID
+  ): F[Option[WsmManagedAzureIdentity]] = {
+    val wsmManagedIdentities = F.blocking(
+      resourceApi
+        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_MANAGED_IDENTITY, StewardshipType.CONTROLLED)
+        .getResources
+        .asScala
+        .toList
+    )
+    val wsmResourceName = generateWsmNameForIdentity(appType)
+    wsmManagedIdentities.map { identities =>
+      // there should be only 1 Azure managed identity per app
+      identities
+        .find(r => wsmResourceName == r.getMetadata().getName())
+        .map(r =>
+          WsmManagedAzureIdentity(r.getMetadata.getName,
+                                  r.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
+          )
+        )
+    }
+  }
+
+  private def retrieveWsmDatabases(resourceApi: ResourceApi,
+                                   databaseNames: Set[String],
+                                   workspaceId: UUID
+  ): F[List[WsmControlledDatabaseResource]] = {
     val wsmResourceDatabases = F.blocking(
       resourceApi
         .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
@@ -867,8 +949,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     )
     wsmResourceDatabases.map { dbs =>
       dbs
-        .filter(r => referenceDatabaseNames.contains(r.getMetadata().getName()))
-        .map(r => r.getResourceAttributes().getAzureDatabase().getDatabaseName())
+        .filter(r => databaseNames.contains(r.getMetadata().getName()))
+        .map(r =>
+          WsmControlledDatabaseResource(r.getMetadata().getName(),
+                                        r.getResourceAttributes().getAzureDatabase().getDatabaseName()
+          )
+        )
     }
   }
 
@@ -900,7 +986,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       namespaceCommonFields =
         getWsmCommonFields(wsmResourceName,
                            s"$namespacePrefix kubernetes namespace for Leo app ${app.appName.value}",
-                           app
+                           app,
+                           CloningInstructionsEnum.NOTHING
         )
 
       // Build createNamespace fields

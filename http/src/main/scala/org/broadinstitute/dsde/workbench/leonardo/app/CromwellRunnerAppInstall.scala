@@ -4,8 +4,9 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
-import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.{CreateDatabase, ReferenceDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
+import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.config.CromwellRunnerAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -29,8 +30,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 ) extends AppInstall[F] {
   override def databases: List[Database] =
     List(
-      CreateDatabase("cromwell"),
-      CreateDatabase("tes"),
+      ControlledDatabase("cromwell"),
+      ControlledDatabase("tes"),
       ReferenceDatabase("cromwellmetadata")
     )
 
@@ -93,7 +94,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"relay.path=${params.relayPath.renderString}",
 
         // persistence configs
-        raw"persistence.storageResourceGroup=${params.cloudContext.managedResourceGroupName.value}",
         raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
         raw"persistence.blobContainer=${storageContainer.name.value}",
         raw"persistence.leoAppInstanceName=${params.app.appName.value}",
@@ -130,12 +130,15 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false)
 
-  def toCromwellRunnerAppDatabaseNames(dbNames: List[String]): Option[CromwellRunnerAppDatabaseNames] =
-    (dbNames.find(name => name.startsWith("cromwell") && !name.startsWith("cromwellmetadata")),
-     dbNames.find(_.startsWith("tes")),
-     dbNames.find(_.startsWith("cromwellmetadata"))
-    )
-      .mapN(CromwellRunnerAppDatabaseNames)
+  def toCromwellRunnerAppDatabaseNames(
+    dbResources: List[WsmControlledDatabaseResource]
+  ): Option[CromwellRunnerAppDatabaseNames] =
+    (dbResources
+       .find(db => db.wsmDatabaseName.startsWith("cromwell") && !db.wsmDatabaseName.startsWith("cromwellmetadata"))
+       .map(_.azureDatabaseName),
+     getAzureDatabaseName(dbResources, "tes"),
+     getAzureDatabaseName(dbResources, "cromwellmetadata")
+    ).mapN(CromwellRunnerAppDatabaseNames)
 }
 
 final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellMetadata: String)

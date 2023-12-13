@@ -542,8 +542,16 @@ object MemorySize {
  * Resource constraints for a runtime.
  * See https://docs.docker.com/compose/compose-file/compose-file-v2/#cpu-and-other-resources
  * for other types of resources we may want to add here.
+ *
+ * driverMemory will be populated if it's Dataproc runtime.
+ * 
+ * Note that the memory limit includes all the sub-procesess of the Notebook server including the
+ * Notebook kernel and the Spark driver process, if any.
  */
-final case class RuntimeResourceConstraints(memoryLimit: MemorySize, totalMachineMemory: MemorySize)
+final case class RuntimeResourceConstraints(memoryLimit: MemorySize,
+                                            totalMachineMemory: MemorySize,
+                                            driverMemory: Option[MemorySize]
+)
 
 final case class RuntimeMetrics(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,

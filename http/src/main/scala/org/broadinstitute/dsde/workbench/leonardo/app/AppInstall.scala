@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
+import bio.terra.workspace.model.CloningInstructionsEnum
+import bio.terra.workspace.model.CloningInstructionsEnum.NOTHING
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
@@ -11,7 +13,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   LandingZoneResources,
   ManagedIdentityName,
-  WorkspaceId
+  WorkspaceId,
+  WsmControlledDatabaseResource
 }
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
@@ -48,15 +51,24 @@ object AppInstall {
     case AppType.CromwellRunnerApp => cromwellRunnerAppInstall
     case e                         => throw new IllegalArgumentException(s"Unexpected app type: ${e}")
   }
+
+  def getAzureDatabaseName(dbResources: List[WsmControlledDatabaseResource], dbPrefix: String): Option[String] =
+    dbResources.collectFirst {
+      case db if db.wsmDatabaseName.startsWith(dbPrefix) => db.azureDatabaseName
+    }
 }
 
 sealed trait Database
 object Database {
 
-  /** A database to be created as part of app creation. */
-  final case class CreateDatabase(prefix: String, allowAccessForAllWorkspaceUsers: Boolean = false) extends Database
+  /** A database attached to the lifecycle of app. */
+  final case class ControlledDatabase(prefix: String,
+                                      allowAccessForAllWorkspaceUsers: Boolean = false,
+                                      cloningInstructions: CloningInstructionsEnum = NOTHING
+  ) extends Database
 
-  /** A database that should _not_ be created as part of app creation, but referenced in k8s namespace creation. */
+  /** A database that should _not_ be created as part of app creation, but referenced in k8s namespace creation.
+   * It is not tied to the lifecycle of app. */
   final case class ReferenceDatabase(name: String) extends Database
 }
 
@@ -68,6 +80,6 @@ final case class BuildHelmOverrideValuesParams(app: App,
                                                relayPath: Uri,
                                                ksaName: ServiceAccountName,
                                                managedIdentityName: ManagedIdentityName,
-                                               databaseNames: List[String],
+                                               databaseNames: List[WsmControlledDatabaseResource],
                                                config: AKSInterpreterConfig
 )

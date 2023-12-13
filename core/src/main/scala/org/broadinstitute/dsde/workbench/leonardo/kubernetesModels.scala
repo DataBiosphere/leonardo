@@ -316,14 +316,22 @@ sealed abstract class AllowedChartName extends Product with Serializable {
 }
 object AllowedChartName {
   final case object RStudio extends AllowedChartName {
-    def asString: String = "aou-rstudio-chart"
+    def asString: String = "rstudio"
     def trackUsage: Boolean = false
   }
   final case object Sas extends AllowedChartName {
-    def asString: String = "aou-sas-chart"
+    def asString: String = "sas"
     def trackUsage: Boolean = true
   }
-  def stringToObject: Map[String, AllowedChartName] = sealerate.values[AllowedChartName].map(v => v.asString -> v).toMap
+
+  // We used to have different chart names for RStudio and SAS. This is to handle the old names for backwards-compatibility
+  private val deprecatedName: Map[String, AllowedChartName] = Map(
+    "aou-rstudio-chart" -> RStudio,
+    "aou-sas-chart" -> Sas
+  )
+
+  def stringToObject: Map[String, AllowedChartName] =
+    sealerate.values[AllowedChartName].map(v => v.asString -> v).toMap ++ deprecatedName
 
   // Chartname from DB has the following format: /leonardo/cromwell-0.2.291
   def fromChartName(chartName: ChartName): Option[AllowedChartName] = {
@@ -429,7 +437,8 @@ final case class App(id: AppId,
                      customEnvironmentVariables: Map[String, String],
                      descriptorPath: Option[Uri],
                      extraArgs: List[String],
-                     sourceWorkspaceId: Option[WorkspaceId]
+                     sourceWorkspaceId: Option[WorkspaceId],
+                     numOfReplicas: Option[Int]
 ) {
 
   def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =

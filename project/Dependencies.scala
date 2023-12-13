@@ -17,16 +17,16 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "2eac218"
-  val serviceTestV = s"4.1-$workbenchLibsHash"
+  private val workbenchLibsHash = "5781917"
+  val serviceTestV = s"4.2-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.30-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.34-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.7-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.35-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
   val workbenchAzureV = s"0.6-$workbenchLibsHash"
 
-  val helmScalaSdkV = "0.0.20"
+  val helmScalaSdkV = "0.0.8.5"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
@@ -127,10 +127,9 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.32"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.20.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.5" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.7" % Test // brought in for FakeStorageInterpreter
 
-  // TODO [IA-4419] bump to non-RC version when 0.15.0 releases
-  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.0-RC1"
+  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
@@ -224,7 +223,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-35973f1-SNAP"
   // You should not be using SSH functionality outside of the tests according to security team's guidance
-  val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.36.0" % "test"
+  val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
 
   val automationOverrides = List(guava)
 

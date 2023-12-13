@@ -1,11 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
+import bio.terra.workspace.model.CloningInstructionsEnum
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService}
-import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.app.Database.CreateDatabase
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
+import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
+import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -31,9 +33,9 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
 
   override def databases: List[Database] =
     List(
-      CreateDatabase("cbas"),
+      ControlledDatabase("cbas", cloningInstructions = CloningInstructionsEnum.RESOURCE),
       // Cromwell metadata database is also accessed by the cromwell-runner app
-      CreateDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
+      ControlledDatabase("cromwellmetadata", allowAccessForAllWorkspaceUsers = true)
     )
 
   override def buildHelmOverrideValues(
@@ -41,11 +43,6 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
   )(implicit ev: Ask[F, AppContext]): F[Values] =
     for {
       ctx <- ev.ask
-
-      // Resolve batch account in Azure
-      batchAccount <- azureBatchService.getBatchAccount(params.landingZoneResources.batchAccountName,
-                                                        params.cloudContext
-      )
 
       // Resolve application insights in Azure
       applicationInsightsComponent <- azureApplicationInsightsService.getApplicationInsights(
@@ -80,27 +77,18 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
       values =
         List(
           // azure resources configs
-          raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
-          raw"config.batchAccountKey=${batchAccount.getKeys().primary}",
-          raw"config.batchAccountName=${params.landingZoneResources.batchAccountName.value}",
-          raw"config.batchNodesSubnetId=${params.landingZoneResources.batchNodesSubnetName.value}",
           raw"config.drsUrl=${drsConfig.url}",
-          raw"config.landingZoneId=${params.landingZoneResources.landingZoneId}",
-          raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
-          raw"config.region=${params.landingZoneResources.region}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
 
           // relay configs
           raw"relay.path=${params.relayPath.renderString}",
 
           // persistence configs
-          raw"persistence.storageResourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
           raw"persistence.blobContainer=${storageContainer.name.value}",
           raw"persistence.leoAppInstanceName=${params.app.appName.value}",
           raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
           raw"persistence.workspaceManager.workspaceId=${params.workspaceId.value}",
-          raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
 
           // identity configs
           raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
@@ -138,9 +126,12 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
     ).sequence
       .map(_.forall(identity))
 
-  private def toWorkflowsAppDatabaseNames(dbNames: List[String]): Option[WorkflowsAppDatabaseNames] =
-    (dbNames.find(_.startsWith("cromwellmetadata")), dbNames.find(_.startsWith("cbas")))
-      .mapN(WorkflowsAppDatabaseNames)
+  private def toWorkflowsAppDatabaseNames(
+    dbResources: List[WsmControlledDatabaseResource]
+  ): Option[WorkflowsAppDatabaseNames] =
+    (getAzureDatabaseName(dbResources, "cromwellmetadata"), getAzureDatabaseName(dbResources, "cbas")).mapN(
+      WorkflowsAppDatabaseNames
+    )
 }
 
 final case class WorkflowsAppDatabaseNames(cromwellMetadata: String, cbas: String)
