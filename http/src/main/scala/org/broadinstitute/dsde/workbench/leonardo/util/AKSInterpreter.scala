@@ -678,14 +678,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private def getWsmCommonFields(name: String,
                                  description: String,
-                                 app: App
+                                 app: App,
+                                 cloningInstructions: CloningInstructionsEnum
   ): bio.terra.workspace.model.ControlledResourceCommonFields = {
     val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
       .resourceId(UUID.randomUUID())
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
-      .cloningInstructions(CloningInstructionsEnum.NOTHING)
+      .cloningInstructions(cloningInstructions)
     app.samResourceId.accessScope match {
       case Some(AppAccessScope.WorkspaceShared) =>
         commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
@@ -739,7 +740,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _                         => identityName
       }
 
-      identityCommonFields = getWsmCommonFields(wsmResourceName, s"Identity for Leo app ${app.appName.value}", app)
+      cloningInstructions =
+        if (app.appType == AppType.WorkflowsApp) CloningInstructionsEnum.RESOURCE else CloningInstructionsEnum.NOTHING
+
+      identityCommonFields = getWsmCommonFields(wsmResourceName,
+                                                s"Identity for Leo app ${app.appName.value}",
+                                                app,
+                                                cloningInstructions
+      )
       createIdentityParams = new AzureManagedIdentityCreationParameters().name(
         identityName
       )
@@ -778,7 +786,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       for {
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
-        controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _) => d }
+        controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
         // retrieve databases that might already be created in workspace
         existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
                                                                  controlledDbsForApp.map(_.prefix).toSet,
@@ -837,7 +845,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
 
     val databaseCommonFields =
-      getWsmCommonFields(wsmResourceName, s"${database.prefix} database for Leo app ${app.appName.value}", app)
+      getWsmCommonFields(wsmResourceName,
+                         s"${database.prefix} database for Leo app ${app.appName.value}",
+                         app,
+                         database.cloningInstructions
+      )
     val createDatabaseParams = new AzureDatabaseCreationParameters()
       .name(dbName)
       .allowAccessForAllWorkspaceUsers(database.allowAccessForAllWorkspaceUsers)
@@ -974,7 +986,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       namespaceCommonFields =
         getWsmCommonFields(wsmResourceName,
                            s"$namespacePrefix kubernetes namespace for Leo app ${app.appName.value}",
-                           app
+                           app,
+                           CloningInstructionsEnum.NOTHING
         )
 
       // Build createNamespace fields
