@@ -175,6 +175,7 @@ object AppV2Routes {
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
         dp <- x.downField("descriptorPath").as[Option[Uri]]
         ea <- x.downField("extraArgs").as[Option[List[String]]]
+        wsi <- x.downField("workspaceId").as[Option[WorkspaceId]]
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
 
         optStr <- x.downField("appType").as[Option[String]]
@@ -202,6 +203,7 @@ object AppV2Routes {
                                cv.getOrElse(Map.empty),
                                dp,
                                ea.getOrElse(List.empty),
+                               wsi,
                                swi
       )
     }
