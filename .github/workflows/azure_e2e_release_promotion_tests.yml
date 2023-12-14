@@ -87,10 +87,27 @@ jobs:
             { "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}", "bee-name": "${{
             env.BEE_NAME }}", "billing-project": "${{
             needs.params-gen.outputs.project-name }}"}
+  create-sam-pet-job:
+    needs:
+      - attach-landing-zone-to-bee-workflow
+      - params-gen
+    runs-on: ubuntu-latest
+    # We need to create the pet before starting the tests, otherwise all 3 will do so at the same time and interfere with each other
+    steps:
+      - name: Call Sam
+        run: |
+          SAM_URL="https://sam.${{ env.BEE_NAME }}.bee.envs-terra.bio"
+          API_URL="${{SAM_URL}}/api/google/v1/user/petServiceAccount/token"
+          # Don't echo the response, just the status code
+          RESPONSE=$(curl -s -w "%{http_code}" "$API_URL")
+          # Extract the status code
+          STATUS_CODE="${RESPONSE: -3}"   
+          echo "Result of creating Sam pet: $STATUS_CODE"
   run-wds-e2e-test-job:
     needs:
       - attach-landing-zone-to-bee-workflow
       - params-gen
+      - create-sam-pet-job
     permissions:
       contents: read
       id-token: write
@@ -104,6 +121,7 @@ jobs:
     needs:
       - params-gen
       - attach-landing-zone-to-bee-workflow
+      - create-sam-pet-job
     permissions:
       contents: read
       id-token: write
@@ -116,6 +134,7 @@ jobs:
     needs:
       - params-gen
       - attach-landing-zone-to-bee-workflow
+      - create-sam-pet-job
     permissions:
       contents: read
       id-token: write
