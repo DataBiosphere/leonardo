@@ -2017,15 +2017,23 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "create a metric for a failed condition" in {
     val mockCtx = mock[AppContext]
+
     val mockEvent = mock[Event[LeoPubsubMessage]]
-    val mockThrowable = mock[Throwable]
+    when(mockEvent.publishedTime).thenReturn(com.google.protobuf.util.Timestamps.fromMillis(System.currentTimeMillis))
+
+    val leoMessage = mock[LeoPubsubMessage]
+    when(leoMessage.messageType).thenReturn(LeoPubsubMessageType.UpdateApp)
+    when(mockEvent.msg).thenReturn(leoMessage)
+
+    val throwable = mock[Throwable]
+
     implicit val mockMetrics = mock[OpenTelemetryMetrics[IO]]
 
     println("CREATING LEO SUBSCRIBER")
     val leoSubscriber = makeLeoSubscriber()(mockMetrics)
     println("RUNNING MESSAGE_FAILURE")
     val res = for {
-      _ <- leoSubscriber.processMessageFailure(mockCtx, mockEvent, mockThrowable)(any())
+      _ <- leoSubscriber.processMessageFailure(mockCtx, mockEvent, throwable)(mock[Ask[IO, AppContext]])
     } yield verify(mockMetrics, times(1)).recordDuration(startsWith("pubsub/fail/"), any(), any())
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

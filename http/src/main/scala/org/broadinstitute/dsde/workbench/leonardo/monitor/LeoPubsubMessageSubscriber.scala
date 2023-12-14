@@ -232,7 +232,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       messageType = event.msg.messageType.asString
       metricsName = e match {
         case Some(e) =>
-          s"pubsub/fail/${messageType}/${e.getClass.toString.split(".").last}"
+          s"pubsub/fail/${messageType}/${e.getClass.toString.split('.').last}"
         case None => s"pubsub/ack/${messageType}"
       }
       _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
