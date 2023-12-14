@@ -156,11 +156,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
         val tagValue = getLandingZoneResourceTagValue(aksResource, "aks-cost-vpa-enabled")
         val tags: Map[String, Boolean] =
           Map("aks-cost-vpa-enabled" -> java.lang.Boolean.parseBoolean(tagValue.getOrElse("false")))
-        logger.info(
-          s"Landing Zone AKS has 'aks-cost-vpa-enabled' tag $tagValue."
-        )
         AKSCluster(aksName, tags)
       }
+      _ <- logger.info(s"Retrieved Landing Zone AKS cluster: ${aksCluster}")
       batchAccountName <- getLandingZoneResourceName(groupedLzResources,
                                                      "Microsoft.Batch/batchAccounts",
                                                      SHARED_RESOURCE,
