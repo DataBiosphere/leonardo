@@ -2099,6 +2099,49 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "list runtimes fails with invalid parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
+    val runtimeId1 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
+    val workspaceId1 = WorkspaceId(UUID.randomUUID)
+    val userInfo = mockUserInfo("karen@styx.hel")
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      // can read all runtimes
+      Set(runtimeId1, runtimeId2),
+      Set.empty,
+      // can read all workspaces
+      Set(WorkspaceResourceSamResourceId(workspaceId1))
+    )
+    val testService = makeInterp(authProvider = mockAuthProvider)
+    val res = for {
+      samResource1 <- IO(runtimeId1)
+      samResource2 <- IO(runtimeId2)
+      runtime1 <- IO(
+        makeCluster(1)
+          .copy(samResource = samResource1, workspaceId = Some(workspaceId1))
+          .save()
+      )
+      _ <- setRuntimetoDeleted(workspaceId1, runtime1.runtimeName)
+
+      _ <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
+      _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
+      _ <- testService.listRuntimes(userInfo,
+                                    None,
+                                    None,
+                                    Map("foo has single quote ' here" -> "not-bar", "includeDeleted" -> "true")
+      ) // miss value
+      _ <- testService.listRuntimes(userInfo,
+                                    None,
+                                    None,
+                                    Map("not-foo" -> "bar has single quote ' here", "includeDeleted" -> "true")
+      ) // miss key
+    } yield ()
+
+    the[BadRequestException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "list runtimes filtered by creator" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val wsmId1 = WsmResourceSamResourceId(WsmControlledResourceId(UUID.randomUUID))
     val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
