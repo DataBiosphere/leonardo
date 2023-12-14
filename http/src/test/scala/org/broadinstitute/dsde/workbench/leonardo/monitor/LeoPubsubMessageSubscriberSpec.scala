@@ -2015,28 +2015,53 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "create a metric for a failed condition" in {
-    val mockCtx = mock[AppContext]
+  it should "create a metric for a successful and failed condition" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+    val mockAckConsumer = mock[AckReplyConsumer]
 
-    val mockEvent = mock[Event[LeoPubsubMessage]]
-    when(mockEvent.publishedTime).thenReturn(com.google.protobuf.util.Timestamps.fromMillis(System.currentTimeMillis))
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val leoMessage = mock[LeoPubsubMessage]
-    when(leoMessage.messageType).thenReturn(LeoPubsubMessageType.UpdateApp)
-    when(mockEvent.msg).thenReturn(leoMessage)
+    // we want to validate calls to the metrics system
+    implicit val metrics = spy(this.metrics)
 
-    val throwable = mock[Throwable]
-
-    implicit val mockMetrics = mock[OpenTelemetryMetrics[IO]]
-
-    println("CREATING LEO SUBSCRIBER")
-    val leoSubscriber = makeLeoSubscriber()(mockMetrics)
-    println("RUNNING MESSAGE_FAILURE")
-    val res = for {
-      _ <- leoSubscriber.processMessageFailure(mockCtx, mockEvent, throwable)(mock[Ask[IO, AppContext]])
-    } yield verify(mockMetrics, times(1)).recordDuration(startsWith("pubsub/fail/"), any(), any())
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
+    val res =
+      for {
+        tr <- traceId.ask[TraceId]
+        msg = CreateAppMessage(
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+          Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
+          savedApp1.id,
+          savedApp1.appName,
+          Some(DiskId(-1)),
+          Map.empty,
+          AppType.Galaxy,
+          savedApp1.appResources.namespace,
+          None,
+          Some(tr),
+          false
+        )
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    verify(mockAckConsumer, times(1)).ack()
+    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/ack/createApp"), any(), any(), any())(any())
+    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/fail/createApp"), any(), any(), any())(any())
   }
 
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
