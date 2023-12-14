@@ -10,26 +10,15 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  PersistentDiskSamResourceId,
-  ProjectSamResourceId,
-  RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId,
-  WsmResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-// do not remove `projectSamResourceAction`; it is implicit
   projectSamResourceAction,
-// do not remove `runtimeSamResourceAction`; it is implicit
   runtimeSamResourceAction,
-// do not remove `workspaceSamResourceAction`; it is implicit
   workspaceSamResourceAction,
-// do not remove `wsmResourceSamResourceAction`; it is implicit
   wsmResourceSamResourceAction,
-// do not remove `AppSamResourceAction`; it is implicit
   AppSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -41,7 +30,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
-import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
@@ -53,7 +41,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              wsmDao: WsmDao[F],
                                              publisherQueue: Queue[F, LeoPubsubMessage],
                                              dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
-                                             wsmClientProvider: WsmApiClientProvider[F]
+                                             wsmClientProvider: WsmApiClientProvider[F],
+                                             samDAO: SamDAO[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -69,11 +58,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
 
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      leoAuth <- samDAO.getLeoAuthToken
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
       // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
@@ -342,10 +328,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .whenA(!hasPermission)
 
       // Query WSM for Landing Zone resources
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      leoAuth <- samDAO.getLeoAuthToken
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
       // Update DB record to Deleting status

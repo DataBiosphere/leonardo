@@ -197,7 +197,8 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO
+          appDependencies.wsmDAO,
+          appDependencies.samDAO
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -206,7 +207,8 @@ object Boot extends IOApp {
         appDependencies.wsmDAO,
         appDependencies.publisherQueue,
         appDependencies.dateAccessedUpdaterQueue,
-        appDependencies.wsmClientProvider
+        appDependencies.wsmClientProvider,
+        appDependencies.samDAO
       )
 
       val adminService = new AdminServiceInterp[IO](

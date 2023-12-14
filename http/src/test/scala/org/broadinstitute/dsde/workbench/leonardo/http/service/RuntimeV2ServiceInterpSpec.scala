@@ -70,6 +70,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   )
 
   val wsmDao = new MockWsmDAO
+  val mockSamDAO = new MockSamDAO
 
   // set up wsm to return an deletable vm state
   val state = State.READY
@@ -90,7 +91,14 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                  dateAccessedQueue: Queue[IO, UpdateDateAccessedMessage] = QueueFactory.makeDateAccessedQueue(),
                  wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
-    new RuntimeV2ServiceInterp[IO](serviceConfig, authProvider, wsmDao, queue, dateAccessedQueue, wsmClientProvider)
+    new RuntimeV2ServiceInterp[IO](serviceConfig,
+                                   authProvider,
+                                   wsmDao,
+                                   queue,
+                                   dateAccessedQueue,
+                                   wsmClientProvider,
+                                   mockSamDAO
+    )
 
   // need to set previous runtime to deleted status before creating next to avoid exception
   def setRuntimetoDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[Long] =
@@ -274,7 +282,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       new MockWsmDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
-      wsmClientProvider
+      wsmClientProvider,
+      mockSamDAO
     )
 
   val runtimeV2Service2 =
@@ -284,7 +293,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       new MockWsmDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
-      wsmClientProvider
+      wsmClientProvider,
+      mockSamDAO
     )
 
   it should "submit a create azure runtime message properly" in isolatedDbTest {

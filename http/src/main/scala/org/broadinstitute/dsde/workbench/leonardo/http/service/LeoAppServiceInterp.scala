@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
@@ -42,7 +42,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
-import org.http4s.{AuthScheme, Uri}
+import org.http4s.Uri
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
@@ -56,7 +56,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F]
+                                                wsmDao: WsmDao[F],
+                                                samDAO: SamDAO[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -598,10 +599,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       // Resolve the workspace in WSM to get the cloud context
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      leoAuth <- samDAO.getLeoAuthToken
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
@@ -791,10 +790,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     diskOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
 
     // Resolve the workspace in WSM to get the cloud context
-    userToken = org.http4s.headers.Authorization(
-      org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-    )
-    workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+    leoAuth <- samDAO.getLeoAuthToken
+    workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
     workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
     cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
       case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
