@@ -4,8 +4,8 @@
 name: Azure automation tests
 
 on:
-  pull_request:
-    branches: [ develop ]
+#  pull_request:
+#    branches: [ develop ]
   schedule:
     # run twice a day at 10:00 and 22:00 UTC every day of the week
     - cron: "0 10/12 * * *"
