@@ -97,7 +97,7 @@ jobs:
       - name: Call Sam
         run: |
           SAM_URL="https://sam.${{ env.BEE_NAME }}.bee.envs-terra.bio"
-          API_URL="${{SAM_URL}}/api/google/v1/user/petServiceAccount/token"
+          API_URL="${{env.SAM_URL}}/api/google/v1/user/petServiceAccount/token"
           # Don't echo the response, just the status code
           RESPONSE=$(curl -s -w "%{http_code}" "$API_URL")
           # Extract the status code
