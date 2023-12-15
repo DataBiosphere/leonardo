@@ -88,6 +88,9 @@ jobs:
             env.BEE_NAME }}", "billing-project": "${{
             needs.params-gen.outputs.project-name }}"}
   create-sam-pet-job:
+    permissions:
+      contents: read
+      id-token: write
     needs:
       - attach-landing-zone-to-bee-workflow
       - params-gen
