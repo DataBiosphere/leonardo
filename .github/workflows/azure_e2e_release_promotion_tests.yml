@@ -111,7 +111,7 @@ jobs:
       - name: Call Sam to create pet
         run: |
           SAM_URL="https://sam.${{ env.BEE_NAME }}.bee.envs-terra.bio"
-          API_URL="${{ SAM_URL }}/api/azure/v1/user/petManagedIdentity"
+          API_URL="${SAM_URL}/api/azure/v1/user/petManagedIdentity"
           AZURE_TOKEN="${{ steps.obtain_token.outputs.access_token }}"
           PAYLOAD='{
             "tenantId": "fad90753-2022-4456-9b0a-c7e5b934e408",
