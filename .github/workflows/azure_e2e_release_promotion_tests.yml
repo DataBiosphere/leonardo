@@ -101,8 +101,7 @@ jobs:
           inputs: >-
             { "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}", "bee-name": "${{
             env.BEE_NAME }}", "billing-project": "${{
-            needs.params-gen.outputs.project-name }}", "tenant-id": "${{ inputs.tenant-id}}",
-            "subscription-id": "${{ inputs.subscription-id}}", "mrg-id": "${{ inputs.mrg-id}}"}
+            needs.params-gen.outputs.project-name }}"}
   create-sam-pet-job:
     permissions:
       contents: read
@@ -130,9 +129,9 @@ jobs:
           API_URL="${SAM_URL}/api/azure/v1/user/petManagedIdentity"
           AZURE_TOKEN="${{ steps.obtain_token.outputs.access_token }}"
           PAYLOAD='{
-            "tenantId": "${{ inputs.tenant-id}}",
-            "subscriptionId": "${{ inputs.subscription-id}}",
-            "managedResourceGroupName": "${{ inputs.mrg-id}}"
+            "tenantId": "fad90753-2022-4456-9b0a-c7e5b934e408",
+            "subscriptionId": "f557c728-871d-408c-a28b-eb6b2141a087",
+            "managedResourceGroupName": "e2e-8n6xqg"
           }'
           # Don't echo the response, just the status code
           RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $AZURE_TOKEN" -d "$PAYLOAD" "$API_URL")
