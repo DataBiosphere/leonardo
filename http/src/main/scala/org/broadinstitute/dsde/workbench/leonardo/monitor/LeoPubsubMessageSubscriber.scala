@@ -157,39 +157,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
 
       _ <- res match {
-        case Left(e) =>
-          e match {
-            case ee: PubsubHandleMessageError =>
-              for {
-                _ <- ee match {
-                  case ee: PubsubKubernetesError =>
-                    logger.error(ctx.loggingCtx, e)(
-                      s"Encountered an error for app ${ee.appId}, ${ee.getMessage}"
-                    ) >> handleKubernetesError(
-                      ee
-                    )
-                  case ee: AzureRuntimeCreationError =>
-                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
-                  case ee: AzureRuntimeDeletionError =>
-                    azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
-                  case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
-                }
-                _ <-
-                  if (ee.isRetryable)
-                    logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F
-                      .delay(event.consumer.nack())
-                  else
-                    logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
-              } yield ()
-            case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
-              logger
-                .error(ctx.loggingCtx, e)(
-                  "Fail to process retryable pubsub message due to Google API call failure"
-                ) >> F
-                .delay(event.consumer.nack())
-            case _ =>
-              logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
-          }
+        case Left(e)  => processMessageFailure(ctx, event, e)
         case Right(_) => ack(event)
       }
     } yield ()
@@ -209,6 +177,46 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- F.delay(
         event.consumer.ack()
       )
+      _ <- recordMessageMetric(event)
+    } yield ()
+
+  private[monitor] def processMessageFailure(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = {
+    val handleErrorMessages = e match {
+      case ee: PubsubHandleMessageError =>
+        for {
+          _ <- ee match {
+            case ee: PubsubKubernetesError =>
+              logger.error(ctx.loggingCtx, e)(
+                s"Encountered an error for app ${ee.appId}, ${ee.getMessage}"
+              ) >> handleKubernetesError(ee)
+            case ee: AzureRuntimeCreationError =>
+              azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
+            case ee: AzureRuntimeDeletionError =>
+              azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
+            case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
+          }
+          _ <-
+            if (ee.isRetryable)
+              logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F.delay(
+                event.consumer.nack()
+              )
+            else
+              logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
+        } yield ()
+      case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
+        logger.error(ctx.loggingCtx, e)(
+          "Fail to process retryable pubsub message due to Google API call failure"
+        ) >> F.delay(event.consumer.nack())
+      case _ =>
+        logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
+    }
+    recordMessageMetric(event, Some(e)) >> handleErrorMessages
+  }
+
+  private[monitor] def recordMessageMetric(event: Event[LeoPubsubMessage], e: Option[Throwable] = None): F[Unit] =
+    for {
       end <- F.realTimeInstant
       duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
       distributionBucket = List(0.5 minutes,
@@ -221,7 +229,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                                 4 minutes,
                                 4.5 minutes
       )
-      metricsName = s"pubsub/ack/${event.msg.messageType.asString}"
+      messageType = event.msg.messageType.asString
+      metricsName = e match {
+        case Some(e) =>
+          s"pubsub/fail/${messageType}/${e.getClass.toString.split('.').last}"
+        case None => s"pubsub/ack/${messageType}"
+      }
       _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
     } yield ()
 
@@ -1392,29 +1405,20 @@ class LeoPubsubMessageSubscriber[F[_]](
         case CloudContext.Gcp(_) =>
           gkeAlg
             .updateAndPollApp(UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject))
-            .adaptError { case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
-                Some(msg.appId),
-                false,
-                None,
-                None,
-                None
-              )
-            }
         case CloudContext.Azure(azureContext) =>
           azurePubsubHandler
             .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
-            .adaptError { case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
-                Some(msg.appId),
-                false,
-                None,
-                None,
-                None
-              )
-            }
+      }
+
+      _ <- updateApp.adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
+          Some(msg.appId),
+          false,
+          None,
+          None,
+          None
+        )
       }
 
       _ <- asyncTasks.offer(Task(ctx.traceId, updateApp, Some(handleKubernetesError), ctx.now, "updateApp"))
