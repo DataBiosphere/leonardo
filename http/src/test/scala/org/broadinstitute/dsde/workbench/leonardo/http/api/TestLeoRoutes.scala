@@ -257,7 +257,7 @@ trait TestLeoRoutes {
     val replaced =
       cookieMaxAgeRegex.replaceAllIn(setCookie.get.value, m => s"Max-Age=${roundUpToNearestTen(m.group(1).toLong)};")
 
-    replaced shouldBe s"${expectedCookie.name}=${expectedCookie.value}; Max-Age=${age.toString}; Path=/; Secure; SameSite=None"
+    replaced shouldBe s"${expectedCookie.name}=${expectedCookie.value}; Max-Age=${age.toString}; Path=/; Secure; SameSite=None; HttpOnly"
   }
 
   protected def validateUnsetRawCookie(setCookie: Option[HttpHeader],
@@ -265,6 +265,6 @@ trait TestLeoRoutes {
   ): Unit = {
     setCookie shouldBe defined
     setCookie.get.name shouldBe "Set-Cookie"
-    setCookie.get.value shouldBe s"${tokenName}=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None"
+    setCookie.get.value shouldBe s"${tokenName}=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly"
   }
 }
