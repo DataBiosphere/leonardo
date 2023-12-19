@@ -89,7 +89,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   val lzResources = LandingZoneResources(
     UUID.fromString("5c12f64b-f4ac-4be1-ae4a-4cace5de807d"),
-    AKSClusterName("cluster"),
+    AKSCluster("cluster", Map.empty[String, Boolean]),
     BatchAccountName("batch"),
     RelayNamespace("relay"),
     StorageAccountName("storage"),
@@ -108,7 +108,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   "AKSInterpreter" should "get a helm auth context" in {
     val res = for {
-      authContext <- aksInterp.getHelmAuthContext(lzResources.clusterName, cloudContext, NamespaceName("ns"))
+      authContext <- aksInterp.getHelmAuthContext(lzResources.aksCluster.asClusterName,
+                                                  cloudContext,
+                                                  NamespaceName("ns")
+      )
     } yield {
       authContext.namespace.asString shouldBe "ns"
       authContext.kubeApiServer.asString shouldBe "server"
