@@ -2231,6 +2231,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
+
+    runtimeV2Service
+      .listRuntimes(userInfo, None, None, Map("_labels" -> "a=a'a,b'b=b"))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+      .isInstanceOf[BadRequestException] shouldBe true
   }
 
   it should "update date accessed when user has permission" in isolatedDbTest {
