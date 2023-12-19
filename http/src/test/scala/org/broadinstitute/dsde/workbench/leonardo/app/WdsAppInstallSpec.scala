@@ -38,6 +38,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "wds.environmentBase=live," +
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.aks.vpaEnabled=false," +
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
       "general.leoAppInstanceName=app1," +
@@ -72,6 +73,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "wds.environmentBase=live," +
       "config.resourceGroup=mrg," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
+      "config.aks.vpaEnabled=false," +
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
       "general.leoAppInstanceName=app1," +

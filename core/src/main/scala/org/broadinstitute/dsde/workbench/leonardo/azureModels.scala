@@ -27,12 +27,16 @@ final case class BatchAccountKey(value: String) extends AnyVal
 
 final case class PostgresServer(name: String, pgBouncerEnabled: Boolean)
 
+final case class AKSCluster(name: String, tags: Map[String, Boolean]) {
+  def asClusterName: AKSClusterName = AKSClusterName(name)
+}
+
 final case class WsmManagedAzureIdentity(wsmResourceName: String, managedIdentityName: String)
 
 final case class WsmControlledDatabaseResource(wsmDatabaseName: String, azureDatabaseName: String)
 
 final case class LandingZoneResources(landingZoneId: UUID,
-                                      clusterName: AKSClusterName,
+                                      aksCluster: AKSCluster,
                                       batchAccountName: BatchAccountName,
                                       relayNamespace: RelayNamespace,
                                       storageAccountName: StorageAccountName,

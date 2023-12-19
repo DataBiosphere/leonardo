@@ -67,7 +67,6 @@ import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
   BatchAccountName,
@@ -567,7 +566,7 @@ object CommonTestData {
 
   val landingZoneResources = LandingZoneResources(
     UUID.randomUUID(),
-    AKSClusterName("lzcluster"),
+    AKSCluster("lzcluster", Map.empty[String, Boolean]),
     BatchAccountName("lzbatch"),
     RelayNamespace("lznamespace"),
     StorageAccountName("lzstorage"),
