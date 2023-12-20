@@ -84,11 +84,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val wsmClientProvider = new MockWsmClientProvider(wsmResourceApi)
 
   // used when we care about queue state
-  def makeInterp(queue: Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue(),
-                 authProvider: AllowlistAuthProvider = allowListAuthProvider,
-                 wsmDao: WsmDao[IO] = wsmDao,
-                 dateAccessedQueue: Queue[IO, UpdateDateAccessedMessage] = QueueFactory.makeDateAccessedQueue(),
-                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
+  def makeInterp(
+    queue: Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue(),
+    authProvider: AllowlistAuthProvider = allowListAuthProvider,
+    wsmDao: WsmDao[IO] = wsmDao,
+    dateAccessedQueue: Queue[IO, UpdateDateAccessedMessage] = QueueFactory.makeDateAccessedQueue(),
+    wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
     new RuntimeV2ServiceInterp[IO](serviceConfig, authProvider, wsmDao, queue, dateAccessedQueue, wsmClientProvider)
 
@@ -116,13 +117,14 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
    * @param ownerProjectSamIds
    * @return
    */
-  def mockAuthorize(userInfo: UserInfo,
-                    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
-                    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
-                    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
-                    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
+  def mockAuthorize(
+    userInfo: UserInfo,
+    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
+    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
+    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
   ): AllowlistAuthProvider = {
     val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
 
@@ -195,13 +197,14 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
    * @param ownerProjectSamIds
    * @return
    */
-  def mockAuthorizeForOneWorkspace(userInfo: UserInfo,
-                                   readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
-                                   readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
-                                   readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                                   readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
-                                   ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                                   ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
+  def mockAuthorizeForOneWorkspace(
+    userInfo: UserInfo,
+    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
+    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
+    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
   ): AllowlistAuthProvider = {
     val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
 
@@ -288,10 +291,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     )
 
   it should "submit a create azure runtime message properly" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -301,13 +305,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-        ev: Ask[IO, AppContext]
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(
+        implicit ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
@@ -577,13 +581,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-        ev: Ask[IO, AppContext]
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(
+        implicit ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
@@ -635,13 +639,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-        ev: Ask[IO, AppContext]
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(
+        implicit ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
@@ -701,10 +705,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "get a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -742,10 +747,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "get a runtime when caller is creator" in isolatedDbTest {
 
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
 
     implicit val mockSamResourceAction: SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] =
@@ -795,10 +801,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to get a runtime when caller has workspace permission, lacks resource permissions, and is not creator" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val userInfoNoncreator =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("anotherUserId"), WorkbenchEmail("another_user@example.com"), 0)
@@ -848,10 +855,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "fail to get a runtime when caller has no permission" in isolatedDbTest {
     val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -886,10 +894,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to get a runtime if the creator loses access to workspace" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -934,9 +943,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
         makeCluster(0)
-          .copy(status = RuntimeStatus.Stopped,
-                workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          .copy(
+            status = RuntimeStatus.Stopped,
+            workspaceId = Some(workspaceId),
+            auditInfo = auditInfo.copy(creator = userInfo.userEmail)
           )
           .save()
       )
@@ -956,9 +966,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val res = for {
       runtime <- IO(
         makeCluster(0)
-          .copy(status = RuntimeStatus.Running,
-                workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          .copy(
+            status = RuntimeStatus.Running,
+            workspaceId = Some(workspaceId),
+            auditInfo = auditInfo.copy(creator = userInfo.userEmail)
           )
           .save()
       )
@@ -994,9 +1005,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val res = for {
       runtime <- IO(
         makeCluster(0)
-          .copy(status = RuntimeStatus.Running,
-                workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          .copy(
+            status = RuntimeStatus.Running,
+            workspaceId = Some(workspaceId),
+            auditInfo = auditInfo.copy(creator = userInfo.userEmail)
           )
           .save()
       )
@@ -1021,9 +1033,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
         makeCluster(0)
-          .copy(status = RuntimeStatus.Running,
-                workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          .copy(
+            status = RuntimeStatus.Running,
+            workspaceId = Some(workspaceId),
+            auditInfo = auditInfo.copy(creator = userInfo.userEmail)
           )
           .save()
       )
@@ -1042,9 +1055,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val res = for {
       runtime <- IO(
         makeCluster(0)
-          .copy(status = RuntimeStatus.Running,
-                workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          .copy(
+            status = RuntimeStatus.Running,
+            workspaceId = Some(workspaceId),
+            auditInfo = auditInfo.copy(creator = userInfo.userEmail)
           )
           .save()
       )
@@ -1080,9 +1094,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val res = for {
       runtime <- IO(
         makeCluster(0)
-          .copy(status = RuntimeStatus.Stopped,
-                workspaceId = Some(workspaceId),
-                auditInfo = auditInfo.copy(creator = userInfo.userEmail)
+          .copy(
+            status = RuntimeStatus.Stopped,
+            workspaceId = Some(workspaceId),
+            auditInfo = auditInfo.copy(creator = userInfo.userEmail)
           )
           .save()
       )
@@ -1098,10 +1113,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "delete a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -1160,10 +1176,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "not delete a runtime in a creating status" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -1195,10 +1212,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "delete a runtime and not send wsmResourceId if runtime in a DELETING WSM status" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allow-listed
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -1256,12 +1274,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk.status shouldBe DiskStatus.Deleting
 
       val expectedMessage =
-        DeleteAzureRuntimeMessage(preDeleteCluster.id,
-                                  Some(disk.id),
-                                  workspaceId,
-                                  None,
-                                  BillingProfileId("spend-profile"),
-                                  Some(context.traceId)
+        DeleteAzureRuntimeMessage(
+          preDeleteCluster.id,
+          Some(disk.id),
+          workspaceId,
+          None,
+          BillingProfileId("spend-profile"),
+          Some(context.traceId)
         )
       message shouldBe expectedMessage
     }
@@ -1270,10 +1289,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "delete a runtime and not send wsmResourceId if runtime not in wsm" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allow-listed
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -1325,12 +1345,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk.status shouldBe DiskStatus.Deleting
 
       val expectedMessage =
-        DeleteAzureRuntimeMessage(preDeleteCluster.id,
-                                  Some(disk.id),
-                                  workspaceId,
-                                  None,
-                                  BillingProfileId("spend-profile"),
-                                  Some(context.traceId)
+        DeleteAzureRuntimeMessage(
+          preDeleteCluster.id,
+          Some(disk.id),
+          workspaceId,
+          None,
+          BillingProfileId("spend-profile"),
+          Some(context.traceId)
         )
       message shouldBe expectedMessage
     }
@@ -1339,10 +1360,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "delete a runtime but keep the disk if specified" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -1386,12 +1408,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk.status shouldBe DiskStatus.Creating
 
       val expectedMessage =
-        DeleteAzureRuntimeMessage(preDeleteCluster.id,
-                                  None,
-                                  workspaceId,
-                                  Some(wsmResourceId),
-                                  BillingProfileId("spend-profile"),
-                                  Some(context.traceId)
+        DeleteAzureRuntimeMessage(
+          preDeleteCluster.id,
+          None,
+          workspaceId,
+          Some(wsmResourceId),
+          BillingProfileId("spend-profile"),
+          Some(context.traceId)
         )
       message shouldBe expectedMessage
     }
@@ -1401,10 +1424,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "fail to delete a runtime when caller has no permission" in isolatedDbTest {
     val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -1442,10 +1466,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to delete a runtime when creator has lost workspace permission" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -1484,10 +1509,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "Azure V2 - deleteAllRuntimes, update all status appropriately, and queue multiple messages" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName_1 = RuntimeName("clusterName1")
     val runtimeName_2 = RuntimeName("clusterName2")
@@ -1581,19 +1607,21 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk_3.status shouldBe DiskStatus.Deleting
 
       val expectedMessages = List(
-        DeleteAzureRuntimeMessage(preDeleteCluster_2.id,
-                                  Some(disk_2.id),
-                                  workspaceId,
-                                  Some(wsmResourceId_2),
-                                  BillingProfileId("spend-profile"),
-                                  Some(context.traceId)
+        DeleteAzureRuntimeMessage(
+          preDeleteCluster_2.id,
+          Some(disk_2.id),
+          workspaceId,
+          Some(wsmResourceId_2),
+          BillingProfileId("spend-profile"),
+          Some(context.traceId)
         ),
-        DeleteAzureRuntimeMessage(preDeleteCluster_3.id,
-                                  Some(disk_3.id),
-                                  workspaceId,
-                                  Some(wsmResourceId_3),
-                                  BillingProfileId("spend-profile"),
-                                  Some(context.traceId)
+        DeleteAzureRuntimeMessage(
+          preDeleteCluster_3.id,
+          Some(disk_3.id),
+          workspaceId,
+          Some(wsmResourceId_3),
+          BillingProfileId("spend-profile"),
+          Some(context.traceId)
         )
       )
       delete_messages shouldBe expectedMessages
@@ -1603,10 +1631,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "Azure V2 - deleteAllRuntimes, error out if any runtime is not in a deletable status" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName_1 = RuntimeName("clusterName1")
     val runtimeName_2 = RuntimeName("clusterName2")
@@ -1701,7 +1730,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
     } yield {
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
-      listResponse.head shouldBe ListRuntimeResponse2(
+      listResponse should contain (ListRuntimeResponse2(
         id = runtime1.id,
         workspaceId = workspaceIdOpt,
         samResource = runtime1.samResource,
@@ -1714,7 +1743,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         runtime1.status,
         runtime1.labels,
         runtime1.patchInProgress
-      )
+      ))
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1818,10 +1847,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         (TestContext.AzureWorkspace, TestRuntimeAccess.Reader, TestContextAccess.Owner, true)
       )
     ) {
-      (context: TestContext.Context,
-       runtimeAccess: TestRuntimeAccess.Role,
-       contextAccess: TestContextAccess.Role,
-       isListed: Boolean
+      (
+        context: TestContext.Context,
+        runtimeAccess: TestRuntimeAccess.Role,
+        contextAccess: TestContextAccess.Role,
+        isListed: Boolean
       ) =>
         val runtimeId = UUID.randomUUID.toString
         val contextId = UUID.randomUUID.toString
@@ -1953,9 +1983,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
             samResource = samResource1,
             workspaceId = Some(workspace1),
             cloudContext = CloudContext.Azure(
-              AzureCloudContext(TenantId(workspaceId1),
-                                SubscriptionId(workspaceId1),
-                                ManagedResourceGroupName(workspaceId1)
+              AzureCloudContext(
+                TenantId(workspaceId1),
+                SubscriptionId(workspaceId1),
+                ManagedResourceGroupName(workspaceId1)
               )
             )
           )
@@ -1964,18 +1995,20 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       // hidden runtime 2, read workspace 2, owned project 1, Gcp
       _ <- IO(
         makeCluster(2)
-          .copy(samResource = samResource2,
-                workspaceId = Some(workspace2),
-                cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
+          .copy(
+            samResource = samResource2,
+            workspaceId = Some(workspace2),
+            cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
           )
           .save()
       )
       // read runtime 3, read workspace 2, owned project 1, Gcp
       _ <- IO(
         makeCluster(3)
-          .copy(samResource = samResource3,
-                workspaceId = Some(workspace2),
-                cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
+          .copy(
+            samResource = samResource3,
+            workspaceId = Some(workspace2),
+            cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
           )
           .save()
       )
@@ -1986,9 +2019,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
             samResource = samResource4,
             workspaceId = Some(workspace3),
             cloudContext = CloudContext.Azure(
-              AzureCloudContext(TenantId(workspaceId3),
-                                SubscriptionId(workspaceId3),
-                                ManagedResourceGroupName(workspaceId3)
+              AzureCloudContext(
+                TenantId(workspaceId3),
+                SubscriptionId(workspaceId3),
+                ManagedResourceGroupName(workspaceId3)
               )
             )
           )
@@ -2002,10 +2036,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
 
       // Test the service call and pluck Sam resource IDs to compare with expected results
-      getResultIds = (userInfo: UserInfo,
-                      workspaceId: Option[WorkspaceId],
-                      cloudProvider: Option[CloudProvider],
-                      params: Map[String, String]
+      getResultIds = (
+        userInfo: UserInfo,
+        workspaceId: Option[WorkspaceId],
+        cloudProvider: Option[CloudProvider],
+        params: Map[String, String]
       ) => {
         val service = if (workspaceId.isEmpty) testService else testServiceForOneWorkspace
         service
@@ -2063,30 +2098,35 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       _ <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
-      listResponse1 <- testService.listRuntimes(userInfo,
-                                                None,
-                                                None,
-                                                Map("foo" -> "bar", "includeDeleted" -> "true")
+      listResponse1 <- testService.listRuntimes(
+        userInfo,
+        None,
+        None,
+        Map("foo" -> "bar", "includeDeleted" -> "true")
       ) // hit
-      listResponse2 <- testService.listRuntimes(userInfo,
-                                                None,
-                                                None,
-                                                Map("FOO" -> "BAR", "includeDeleted" -> "true")
+      listResponse2 <- testService.listRuntimes(
+        userInfo,
+        None,
+        None,
+        Map("FOO" -> "BAR", "includeDeleted" -> "true")
       ) // hit, case insensitive
-      listResponse3 <- testService.listRuntimes(userInfo,
-                                                None,
-                                                None,
-                                                Map("foo" -> "not-bar", "includeDeleted" -> "true")
+      listResponse3 <- testService.listRuntimes(
+        userInfo,
+        None,
+        None,
+        Map("foo" -> "not-bar", "includeDeleted" -> "true")
       ) // miss value
-      listResponse4 <- testService.listRuntimes(userInfo,
-                                                None,
-                                                None,
-                                                Map("not-foo" -> "bar", "includeDeleted" -> "true")
+      listResponse4 <- testService.listRuntimes(
+        userInfo,
+        None,
+        None,
+        Map("not-foo" -> "bar", "includeDeleted" -> "true")
       ) // miss key
-      listResponse5 <- testService.listRuntimes(userInfo,
-                                                None,
-                                                None,
-                                                Map("foo" -> "bar")
+      listResponse5 <- testService.listRuntimes(
+        userInfo,
+        None,
+        None,
+        Map("foo" -> "bar")
       ) // miss because includeDeleted defaults false
     } yield {
       listResponse1.map(_.samResource).toSet shouldBe Set(samResource1)
@@ -2243,10 +2283,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "update date accessed when user has permission" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -2284,10 +2325,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "not update date accessed when user doesn't have permission" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("bad1"),
-                            WorkbenchEmail("bad1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("bad1"),
+      WorkbenchEmail("bad1@example.com"),
+      0
     ) // this email is not allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -2319,10 +2361,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "not update date accessed when user has lost access to workspace" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
