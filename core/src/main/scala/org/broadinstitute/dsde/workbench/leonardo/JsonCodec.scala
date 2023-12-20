@@ -687,6 +687,7 @@ object JsonCodec {
   implicit val allowedChartNameDecoder: Decoder[AllowedChartName] =
     Decoder.decodeString.emap(x => AllowedChartName.stringToObject.get(x).toRight("chart name not allowed"))
   implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
+  implicit val aksClusterDecoder: Decoder[AKSCluster] = Decoder.forProduct2("name", "tags")(AKSCluster)
   implicit val postgresServerDecoder: Decoder[PostgresServer] =
     Decoder.forProduct2("name", "pgBouncerEnabled")(PostgresServer)
 
@@ -759,6 +760,8 @@ object JsonCodec {
   implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
   implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
+  implicit val aksClusterEncoder: Encoder[AKSCluster] =
+    Encoder.forProduct2("name", "tags")(x => (x.name, x.tags))
   implicit val postgresServerEncoder: Encoder[PostgresServer] =
     Encoder.forProduct2("name", "pgBouncerEnabled")(x => (x.name, x.pgBouncerEnabled))
 
@@ -800,7 +803,7 @@ object JsonCodec {
     "postgresName"
   )(x =>
     (x.landingZoneId,
-     x.clusterName,
+     x.aksCluster,
      x.batchAccountName,
      x.relayNamespace,
      x.storageAccountName,
