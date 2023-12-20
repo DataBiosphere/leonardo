@@ -3,32 +3,26 @@ package db
 
 import cats.data.Chain
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.Runtime
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  ProjectSamResourceId,
-  RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, RuntimeSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.GetResultInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
-import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{
-  getRuntimeQueryByUniqueKey,
-  getRuntimeQueryByWorkspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.{getRuntimeQueryByUniqueKey, getRuntimeQueryByWorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  RuntimeNotFoundByWorkspaceIdException,
-  RuntimeNotFoundException
-}
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
+import org.broadinstitute.dsde.workbench.leonardo.model.{RuntimeNotFoundByWorkspaceIdException, RuntimeNotFoundException}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import slick.jdbc.GetResult
 
+import java.util.UUID
+import java.sql.SQLDataException
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
@@ -62,18 +56,8 @@ object RuntimeServiceDbQueries {
     )
   }
 
-  implicit val getResultListRuntimeIdResponse: GetResult[ListRuntimeIdResponse] = GetResult { r =>
-    val id = r.<<[Long]
-    val samId = r.<<[RuntimeSamResourceId]
-
-    ListRuntimeIdResponse(
-      id,
-      samId
-    )
-  }
-
-  def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(implicit
-    ec: ExecutionContext
+  def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(
+    implicit ec: ExecutionContext
   ): DBIO[Option[RuntimeStatus]] = {
     val res = clusterQuery
       .filter(_.cloudProvider === cloudContext.cloudProvider)
@@ -86,8 +70,8 @@ object RuntimeServiceDbQueries {
     res.map(recs => recs.headOption)
   }
 
-  def getRuntime(cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
-    executionContext: ExecutionContext
+  def getRuntime(cloudContext: CloudContext, runtimeName: RuntimeName)(
+    implicit executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
     val activeRuntime = getRuntimeQueryByUniqueKey(cloudContext, runtimeName, None)
       .join(runtimeConfigs)
@@ -101,9 +85,10 @@ object RuntimeServiceDbQueries {
         persistentDisk = recs.headOption
           .flatMap(_._2)
           .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
-        runtime <- unmarshalGetRuntime(runtimeRecs,
-                                       runtimeConfig.runtimeConfig,
-                                       persistentDisk.map(DiskConfig.fromPersistentDisk)
+        runtime <- unmarshalGetRuntime(
+          runtimeRecs,
+          runtimeConfig.runtimeConfig,
+          persistentDisk.map(DiskConfig.fromPersistentDisk)
         ).headOption
       } yield runtime
       res.fold[DBIO[GetRuntimeResponse]](
@@ -112,8 +97,8 @@ object RuntimeServiceDbQueries {
     }
   }
 
-  def getRuntimeByWorkspaceId(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
-    executionContext: ExecutionContext
+  def getRuntimeByWorkspaceId(workspaceId: WorkspaceId, runtimeName: RuntimeName)(
+    implicit executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
     val activeRuntime = getRuntimeQueryByWorkspaceId(workspaceId, runtimeName)
       .join(runtimeConfigs)
@@ -128,9 +113,10 @@ object RuntimeServiceDbQueries {
         persistentDisk = recs.headOption
           .flatMap(_._2)
           .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
-        runtime <- unmarshalGetRuntime(runtimeRecs,
-                                       runtimeConfig.runtimeConfig,
-                                       persistentDisk.map(DiskConfig.fromPersistentDisk)
+        runtime <- unmarshalGetRuntime(
+          runtimeRecs,
+          runtimeConfig.runtimeConfig,
+          persistentDisk.map(DiskConfig.fromPersistentDisk)
         ).headOption
       } yield runtime
       res.fold[DBIO[GetRuntimeResponse]](
@@ -139,8 +125,8 @@ object RuntimeServiceDbQueries {
     }
   }
 
-  def getActiveRuntimeRecord(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
-    executionContext: ExecutionContext
+  def getActiveRuntimeRecord(workspaceId: WorkspaceId, runtimeName: RuntimeName)(
+    implicit executionContext: ExecutionContext
   ): DBIO[ClusterRecord] = {
     val activeRuntime = clusterQuery
       .filterOpt(Some(workspaceId))(_.workspaceId === _)
@@ -158,13 +144,14 @@ object RuntimeServiceDbQueries {
 
   def unmarshalGetRuntime(
     clusterRecords: Seq[
-      (ClusterRecord,
-       Option[ClusterErrorRecord],
-       Option[LabelRecord],
-       Option[ExtensionRecord],
-       Option[ClusterImageRecord],
-       Option[ScopeRecord],
-       Option[PatchRecord]
+      (
+        ClusterRecord,
+        Option[ClusterErrorRecord],
+        Option[LabelRecord],
+        Option[ExtensionRecord],
+        Option[ClusterImageRecord],
+        Option[ScopeRecord],
+        Option[PatchRecord]
       )
     ],
     runtimeConfig: RuntimeConfig,
@@ -176,12 +163,13 @@ object RuntimeServiceDbQueries {
     // See: https://typelevel.org/cats/datatypes/chain.html
     val clusterRecordMap: Map[
       ClusterRecord,
-      (Chain[ClusterErrorRecord],
-       Map[String, Chain[String]],
-       Chain[ExtensionRecord],
-       Chain[ClusterImageRecord],
-       Chain[ScopeRecord],
-       Chain[PatchRecord]
+      (
+        Chain[ClusterErrorRecord],
+        Map[String, Chain[String]],
+        Chain[ExtensionRecord],
+        Chain[ClusterImageRecord],
+        Chain[ScopeRecord],
+        Chain[PatchRecord]
       )
     ] = clusterRecords.toList.foldMap {
       case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
@@ -201,10 +189,11 @@ object RuntimeServiceDbQueries {
         val name = clusterRecord.runtimeName
         val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
-            AsyncRuntimeFields(googleId,
-                               OperationName(operationName),
-                               GcsBucketName(stagingBucket),
-                               clusterRecord.hostIp
+            AsyncRuntimeFields(
+              googleId,
+              OperationName(operationName),
+              GcsBucketName(stagingBucket),
+              clusterRecord.hostIp
             )
         }
         val clusterImages = clusterImageRecords.toList map clusterImageQuery.unmarshalClusterImage toSet
@@ -224,12 +213,13 @@ object RuntimeServiceDbQueries {
           clusterRecord.auditInfo,
           clusterRecord.kernelFoundBusyDate,
           runtimeConfig,
-          Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                              clusterRecord.cloudContext,
-                              name,
-                              clusterImages,
-                              clusterRecord.hostIp,
-                              labelMap
+          Runtime.getProxyUrl(
+            Config.proxyConfig.proxyUrlBase,
+            clusterRecord.cloudContext,
+            name,
+            clusterImages,
+            clusterRecord.hostIp,
+            labelMap
           ),
           clusterRecord.status,
           labelMap,
@@ -252,12 +242,13 @@ object RuntimeServiceDbQueries {
     }.toSeq
   }
 
-  def listRuntimes(labelMap: LabelMap,
-                   excludeStatuses: List[RuntimeStatus],
-                   creatorOnly: Option[WorkbenchEmail],
-                   cloudContext: Option[CloudContext] = None
-  )(implicit
-    ec: ExecutionContext
+  def listRuntimes(
+    labelMap: LabelMap,
+    excludeStatuses: List[RuntimeStatus],
+    creatorOnly: Option[WorkbenchEmail],
+    cloudContext: Option[CloudContext] = None
+  )(
+    implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val cloudContextFilter = cloudContext match {
       case Some(cc) => Some(Left(cc))
@@ -268,29 +259,28 @@ object RuntimeServiceDbQueries {
     )
   }
 
-  def listRuntimesForWorkspace(labelMap: LabelMap,
-                               excludeStatuses: List[RuntimeStatus],
-                               creatorOnly: Option[WorkbenchEmail],
-                               workspaceId: Option[WorkspaceId],
-                               cloudProvider: Option[CloudProvider]
+  def listRuntimesForWorkspace(
+    labelMap: LabelMap,
+    excludeStatuses: List[RuntimeStatus],
+    creatorOnly: Option[WorkbenchEmail],
+    workspaceId: Option[WorkspaceId],
+    cloudProvider: Option[CloudProvider]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val cp = cloudProvider.map(cp => Right(cp))
     listRuntimesHelper(labelMap, excludeStatuses, creatorOnly, workspaceId, cp)
   }
 
-  def listRuntimeIdsForCreator(creator: WorkbenchEmail): DBIO[Vector[ListRuntimeIdResponse]] = {
-    val sqlStatement =
-      sql"""
-        select
-          `id`,
-          `internalId`
-        from
-          `CLUSTER`
-        where
-          `creator` = ${creator.value}
-      """.stripMargin
-    sqlStatement.as[ListRuntimeIdResponse]
-  }
+  def listRuntimeIdsForCreator(creator: WorkbenchEmail)(
+    implicit ec: ExecutionContext
+  ): DBIO[Vector[ListRuntimeIdResponse]] = clusterQuery
+    .filter(_.creator === creator)
+    .map(runtime => (runtime.id, runtime.internalId))
+    .result
+    .map(records =>
+      records.map { case (id: Long, internalId: String) =>
+        ListRuntimeIdResponse(id, RuntimeSamResourceId(internalId))
+      }.toVector
+    )
 
   /**
    * List runtimes filtered by the given terms. Only return authorized resources (per reader*Ids and/or owner*Ids).
@@ -307,33 +297,244 @@ object RuntimeServiceDbQueries {
    * @return
    */
   def listAuthorizedRuntimes(
-    // Filters
-    labelMap: LabelMap,
-    excludeStatuses: List[RuntimeStatus],
-    creatorOnly: Option[WorkbenchEmail],
-    workspaceId: Option[WorkspaceId],
-    cloudProvider: Option[CloudProvider],
-
     // Authorizations
-    readerRuntimeIds: Set[SamResourceId],
-    readerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
-    ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
-    readerGoogleProjectIds: Set[ProjectSamResourceId],
-    ownerGoogleProjectIds: Set[ProjectSamResourceId]
+    ownerGoogleProjectIds: Set[ProjectSamResourceId] = Set.empty,
+    ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    readerGoogleProjectIds: Set[ProjectSamResourceId] = Set.empty,
+    readerRuntimeIds: Set[SamResourceId] = Set.empty,
+    readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+
+    // Filters
+    cloudContext: Option[CloudContext] = None,
+    cloudProvider: Option[CloudProvider] = None,
+    creatorEmail: Option[WorkbenchEmail] = None,
+    excludeStatuses: List[RuntimeStatus] = List.empty,
+    labelMap: LabelMap = Map.empty,
+    workspaceId: Option[WorkspaceId] = None
+  )(
+    implicit ec: ExecutionContext
   ): DBIO[Vector[ListRuntimeResponse2]] = {
-    val cp = cloudProvider.map(cp => Right(cp))
-    listAuthorizedRuntimesHelper(
-      labelMap,
-      excludeStatuses,
-      creatorOnly,
-      workspaceId,
-      cp,
-      readerRuntimeIds.map(_.resourceId).toList,
-      readerWorkspaceIds.map(_.resourceId).toList,
-      ownerWorkspaceIds.map(_.resourceId).toList,
-      readerGoogleProjectIds.map(_.resourceId).toList,
-      ownerGoogleProjectIds.map(_.resourceId).toList
-    )
+    // Filter to authorized runtimes
+    val runtimeInReadWorkspaces = for { runtime <- clusterQuery if
+      (runtime.internalId inSetBind readerRuntimeIds.map(readId => readId.asString)) &&
+      (runtime.workspaceId inSetBind
+        readerWorkspaceIds.map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
+      )
+    } yield runtime
+    val runtimeInReadProjects = for { runtime <- clusterQuery if
+      (runtime.internalId inSetBind readerRuntimeIds.map(readId => readId.asString)) &&
+      (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+      (runtime.cloudContextDb inSetBind
+        readerGoogleProjectIds.map(samId => CloudContextDb(samId.resourceId))
+      )
+    } yield runtime
+    val runtimeInOwnedWorkspaces = for { runtime <- clusterQuery if
+      runtime.workspaceId inSetBind
+        ownerWorkspaceIds.map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
+    } yield runtime
+    val runtimeInOwnedProjects = for { runtime <- clusterQuery if
+      (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+      (runtime.cloudContextDb inSetBind
+        ownerGoogleProjectIds.map(samId => CloudContextDb(samId.resourceId))
+      )
+    } yield runtime
+    val runtimesAuthorized = runtimeInReadWorkspaces union
+      runtimeInOwnedWorkspaces union
+      runtimeInReadProjects union
+      runtimeInOwnedProjects
+
+    // Normalize filter params
+    val provider = if (cloudProvider.isEmpty) {
+      cloudContext match {
+        case Some(cContext) => Some(cContext.cloudProvider)
+        case None => None
+      }
+    } else cloudProvider
+
+    val runtimesFilteredSimple = runtimesAuthorized
+      // Filter by params
+      .filterOpt(workspaceId) {
+        case (runtime, wId) => runtime.workspaceId === (Some(wId): Rep[Option[WorkspaceId]])
+      }
+      .filterOpt(provider) {
+        case (runtime, cProvider) => runtime.cloudProvider === cProvider
+      }
+      .filterOpt(cloudContext) {
+        case (runtime, cContext) => runtime.cloudContextDb === cContext.asCloudContextDb
+      }
+      .filterOpt(creatorEmail) {
+        case (runtime, cEmail) => runtime.creator === cEmail
+      }
+      .filterIf(!excludeStatuses.isEmpty) { runtime =>
+        excludeStatuses.map(status => runtime.status =!= status).reduce(_ && _)
+      }
+    val runtimesFiltered = if (labelMap.isEmpty)
+      runtimesFilteredSimple
+    else
+      for { (runtime, _) <-
+        runtimesFilteredSimple join labelQuery on ((r, l) =>
+          r.id === l.resourceId &&
+          labelMap.map {
+            case (key, value) =>
+              l.key === key && l.value === value
+          }.reduce(_ || _)
+      ) } yield runtime
+
+    // Assemble response
+    val runtimesJoined = runtimesFiltered
+      .join(runtimeConfigs)
+      .on((runtime, runtimeConfig) =>
+        runtime.runtimeConfigId === runtimeConfig.id
+      )
+      .joinLeft(patchQuery)
+      .on((runtimeWithConfig, runtimePatch) =>
+        runtimeWithConfig._1.id === runtimePatch.clusterId
+      )
+      .joinLeft(labelQuery)
+      .on((runtimeWithConfigWithPatch, l) =>
+        runtimeWithConfigWithPatch._1._1.id === l.resourceId &&
+        l.resourceType === LabelResourceType.runtime
+      )
+      .map {
+        case (((runtime, runtimeConfig), runtimePatch), label) =>
+          val patchInProgress = runtimePatch.map(_.inProgress).getOrElse(false)
+          val labelPair = label.map(l => (l.key, l.value))
+          (
+            runtime.id,
+            labelPair,
+            runtime.cloudContextDb,
+            runtime.cloudProvider,
+            runtime.creator,
+            runtime.createdDate,
+            runtime.destroyedDate,
+            runtime.dateAccessed,
+            runtime.hostIp,
+            runtime.internalId,
+            patchInProgress,
+            runtimeConfig,
+            runtime.runtimeName,
+            runtime.status,
+            runtime.workspaceId
+          )
+      }.groupBy(_._1)
+
+    runtimesJoined
+      .result
+      .map(records =>
+        records.map {
+          case (_, values) =>
+            case class ListRuntimesRecord(
+              val id: Long,
+              val labelPair: Option[(String, String)],
+              val cloudContextDb: CloudContextDb,
+              val cloudProvider: CloudProvider,
+              val creatorEmail: Option[WorkbenchEmail],
+              val createdDate: Instant,
+              val destroyedDate: Instant,
+              val dateAccessed: Instant,
+              val hostIp: Option[IP],
+              val internalId: String,
+              val patchInProgress: Boolean,
+              val runtimeConfig: RuntimeConfig,
+              val runtimeName: RuntimeName,
+              val status: RuntimeStatus,
+              val workspaceId: Option[WorkspaceId]
+            )
+            case class ListRuntimesMemo(
+              val id: Long,
+              val labels: Map[String, String],
+              val cloudContextDb: CloudContextDb,
+              val cloudProvider: CloudProvider,
+              val creatorEmail: Option[WorkbenchEmail],
+              val createdDate: Instant,
+              val destroyedDate: Instant,
+              val dateAccessed: Instant,
+              val hostIp: Option[IP],
+              val internalId: String,
+              val patchInProgress: Boolean,
+              val runtimeConfig: RuntimeConfig,
+              val runtimeName: RuntimeName,
+              val status: RuntimeStatus,
+              val workspaceId: Option[WorkspaceId]
+            ) {
+              def +(record: ListRuntimesRecord) = new ListRuntimesMemo(
+                record.id,
+                record.labelPair match {
+                  case Some((key, value)) => labelMap + (key -> value)
+                  case None => labelMap
+                },
+                record.cloudContextDb,
+                record.cloudProvider,
+                record.creatorEmail,
+                record.createdDate,
+                record.destroyedDate,
+                record.dateAccessed,
+                record.hostIp,
+                record.internalId,
+                patchInProgress || record.patchInProgress,
+                record.runtimeConfig,
+                record.runtimeName,
+                record.status,
+                record.workspaceId
+              )
+            }
+            object ListRuntimesMemo {
+              def apply(record: ListRuntimesRecord): ListRuntimesMemo = new ListRuntimesMemo(
+                record.id,
+                record.labelPair match {
+                  case Some((key, value)) => Map(key -> value)
+                  case None => Map.empty
+                },
+                record.cloudContextDb,
+                record.cloudProvider,
+                record.creatorEmail,
+                record.createdDate,
+                record.destroyedDate,
+                record.dateAccessed,
+                record.hostIp,
+                record.internalId,
+                record.patchInProgress,
+                record.runtimeConfig,
+                record.runtimeName,
+                record.status,
+                record.workspaceId
+              )
+            }
+            val initialMemo: ListRuntimesRecord = ListRuntimesMemo(values.head) // head doesn't work; values is not what I expect it to be here
+            val runtime: ListRuntimesMemo = values.reduceA(initialMemo)((memo: ListRuntimesMemo, b: ListRuntimesRecord) =>
+              memo + b
+            )
+            val auditInfo = AuditInfo(
+              runtime.creatorEmail.get,
+              runtime.createdDate,
+              if (runtime.destroyedDate == dummyDate) None else Some(runtime.destroyedDate),
+              runtime.dateAccessed
+            )
+            val cloudContext = (cloudProvider, runtime.cloudContextDb) match {
+              case (Some(CloudProvider.Gcp), CloudContextDb(value)) =>
+                CloudContext.Gcp(GoogleProject(value))
+              case (Some(CloudProvider.Azure), CloudContextDb(value)) =>
+                val context = AzureCloudContext.fromString(value).fold(s => throw new SQLDataException(s), identity)
+                CloudContext.Azure(context)
+            }
+            val proxyUrl = Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, cloudContext, runtime.runtimeName, Set.empty, runtime.hostIp, runtime.labels)
+            val samResourceId = RuntimeSamResourceId(runtime.internalId)
+
+            ListRuntimeResponse2(
+              runtime.id,
+              auditInfo = auditInfo,
+              cloudContext = cloudContext,
+              clusterName = runtime.runtimeName,
+              labels = runtime.labels,
+              patchInProgress = runtime.patchInProgress,
+              proxyUrl = proxyUrl,
+              runtimeConfig = runtime.runtimeConfig,
+              samResource = samResourceId,
+              status = runtime.status,
+              workspaceId = runtime.workspaceId
+            )
+        }.toVector
+      )
   }
 
   /**
@@ -367,11 +568,12 @@ object RuntimeServiceDbQueries {
   ): DBIO[Vector[ListRuntimeResponse2]] = {
 
     // Authorize: show only resources the user is permitted to see
-    val filterVisibleIds = getFilterVisibleIds(readerRuntimeIds,
-                                               readerWorkspaceIds,
-                                               ownerWorkspaceIds,
-                                               readerGoogleProjectIds,
-                                               ownerGoogleProjectIds
+    val filterVisibleIds = getFilterVisibleIds(
+      readerRuntimeIds,
+      readerWorkspaceIds,
+      ownerWorkspaceIds,
+      readerGoogleProjectIds,
+      ownerGoogleProjectIds
     )
 
     // Filter: show only user selections
@@ -522,11 +724,12 @@ object RuntimeServiceDbQueries {
     sqlStatement.as[ListRuntimeResponse2]
   }
 
-  private def listRuntimesHelper(labelMap: LabelMap,
-                                 excludeStatuses: List[RuntimeStatus],
-                                 creatorOnly: Option[WorkbenchEmail],
-                                 workspaceId: Option[WorkspaceId],
-                                 cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]]
+  private def listRuntimesHelper(
+    labelMap: LabelMap,
+    excludeStatuses: List[RuntimeStatus],
+    creatorOnly: Option[WorkbenchEmail],
+    workspaceId: Option[WorkspaceId],
+    cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]]
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByCreator = creatorOnly match {
       case Some(creator) => List(s"C.`creator` = '${creator.value}'")
@@ -678,11 +881,12 @@ object RuntimeServiceDbQueries {
    * @param ownerGoogleProjectIds List[String] Google project IDs the user has an owner role for
    * @return List[String] a one-element list with the SQL filter expression
    */
-  private def getFilterVisibleIds(readerRuntimeIds: List[String],
-                                  readerWorkspaceIds: List[String],
-                                  ownerWorkspaceIds: List[String],
-                                  readerGoogleProjectIds: List[String],
-                                  ownerGoogleProjectIds: List[String]
+  private def getFilterVisibleIds(
+    readerRuntimeIds: List[String],
+    readerWorkspaceIds: List[String],
+    ownerWorkspaceIds: List[String],
+    readerGoogleProjectIds: List[String],
+    ownerGoogleProjectIds: List[String]
   ): List[String] = {
     // is the record a readable runtime?
     val filterRuntimeIds = getInListExpression("C.`internalId`", readerRuntimeIds)
