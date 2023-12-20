@@ -168,7 +168,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     ev: Ask[F, TraceId]
   ): F[Set[SamRole]] = for {
     ctx <- ev.ask
-    _ <- metrics.incrementCounter(s"sam/getRoles/${resourceId.resourceId}")
+    _ <- metrics.incrementCounter(s"sam/getRoles/${resourceId.resourceType.asString}")
     resp <- httpClient.expectOr[Set[SamRole]](
       Request[F](
         method = Method.GET,

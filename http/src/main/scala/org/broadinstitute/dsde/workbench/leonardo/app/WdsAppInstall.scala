@@ -60,6 +60,9 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
         AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
+      // Get Vpa enabled tag
+      vpaEnabled <- F.pure(params.landingZoneResources.aksCluster.tags.getOrElse("aks-cost-vpa-enabled", false))
+
       valuesList =
         List(
           // pass enviiroment information to wds so it can properly pick its config
@@ -69,6 +72,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           // azure resources configs
           raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
           raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
+          raw"config.aks.vpaEnabled=${vpaEnabled}",
 
           // Azure subscription configs currently unused
           raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
