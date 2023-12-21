@@ -4,12 +4,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import io.circe.syntax.EncoderOps
 import io.circe.{Encoder, Printer}
-import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
-  ApplicationInsightsName,
-  BatchAccountName,
-  RelayNamespace
-}
+import org.broadinstitute.dsde.workbench.azure.{ApplicationInsightsName, BatchAccountName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
@@ -22,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
   WORKSPACE_COMPUTE_SUBNET
 }
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AKSCluster,
   BillingProfileId,
   LandingZoneResources,
   LeonardoTestSuite,
@@ -145,7 +141,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
       val expectedLandingZoneResources = LandingZoneResources(
         landingZoneId,
-        AKSClusterName("lzcluster"),
+        AKSCluster("lzcluster", Map("aks-cost-vpa-enabled" -> false)),
         BatchAccountName("lzbatch"),
         RelayNamespace("lznamespace"),
         StorageAccountName("lzstorage"),
