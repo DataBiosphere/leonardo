@@ -48,16 +48,17 @@ import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
 
-class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
-                                           diskConfig: PersistentDiskConfig,
-                                           authProvider: LeoAuthProvider[F],
-                                           serviceAccountProvider: ServiceAccountProvider[F],
-                                           dockerDAO: DockerDAO[F],
-                                           googleStorageService: GoogleStorageService[F],
-                                           googleComputeService: GoogleComputeService[F],
-                                           publisherQueue: Queue[F, LeoPubsubMessage]
-)(implicit
-  F: Async[F],
+class RuntimeServiceInterp[F[_]: Parallel](
+  config: RuntimeServiceConfig,
+  diskConfig: PersistentDiskConfig,
+  authProvider: LeoAuthProvider[F],
+  serviceAccountProvider: ServiceAccountProvider[F],
+  dockerDAO: DockerDAO[F],
+  googleStorageService: GoogleStorageService[F],
+  googleComputeService: GoogleComputeService[F],
+  publisherQueue: Queue[F, LeoPubsubMessage]
+)(
+  implicit F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext,
@@ -69,7 +70,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     cloudContext: CloudContext,
     runtimeName: RuntimeName,
     req: CreateRuntimeRequest
-  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
+  )(
+    implicit as: Ask[F, AppContext]
+  ): F[CreateRuntimeResponse] =
     for {
       context <- as.ask
       googleProject <- F.fromOption(
@@ -134,8 +137,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
                       F.pure(
                         RuntimeConfigInCreateRuntimeMessage
-                          .fromDataprocInRuntimeConfigRequest(dataproc,
-                                                              config.dataprocConfig.runtimeConfigDefaults
+                          .fromDataprocInRuntimeConfigRequest(
+                            dataproc,
+                            config.dataprocConfig.runtimeConfigDefaults
                           ): RuntimeConfigInCreateRuntimeMessage
                       )
                     case gce: RuntimeConfigRequest.GceWithPdConfig =>
@@ -161,15 +165,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                         )
                   }
               }
-            runtime = convertToRuntime(userInfo,
-                                       petSA,
-                                       CloudContext.Gcp(googleProject),
-                                       runtimeName,
-                                       samResource,
-                                       runtimeImages,
-                                       config,
-                                       req,
-                                       context.now
+            runtime = convertToRuntime(
+              userInfo,
+              petSA,
+              CloudContext.Gcp(googleProject),
+              runtimeName,
+              samResource,
+              runtimeImages,
+              config,
+              req,
+              context.now
             )
 
             userScriptUriToValidate = req.userScriptUri
@@ -203,18 +208,19 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.offer(
-              CreateRuntimeMessage.fromRuntime(runtime,
-                                               runtimeConfig,
-                                               Some(context.traceId),
-                                               req.checkToolsInterruptAfter
+              CreateRuntimeMessage.fromRuntime(
+                runtime,
+                runtimeConfig,
+                Some(context.traceId),
+                req.checkToolsInterruptAfter
               )
             )
           } yield ()
       }
     } yield CreateRuntimeResponse(context.traceId)
 
-  override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
-    as: Ask[F, AppContext]
+  override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
+    implicit as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
       ctx <- as.ask
@@ -263,48 +269,25 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
 
-      // prevent misbehaved user input, labelMap keys and values can not have a single quote
-      // keys and values are inserted directly into a SQL string which could cause sql injection
-      // story #IA-xxx will refactor the SQL string into Slick
-      _ <- F.raiseWhen(
-        labelMap.values.exists(value => value.contains("'")) || labelMap.keys.exists(key => key.contains("'"))
-      )(
-        BadRequestException(s"Invalid query parameter (single quote not allowed)", Some(ctx.traceId))
-      )
-
+      authorizedIds <- getAuthorizedIds(userInfo, creatorOnly)
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimes(labelMap, excludeStatuses, creatorOnly, cloudContext)
-        .transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
-      runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
+        .listAuthorizedRuntimes(
+          // Authorization scopes
+          ownerGoogleProjectIds = authorizedIds.ownerGoogleProjectIds,
+          ownerWorkspaceIds = authorizedIds.ownerWorkspaceIds,
+          readerGoogleProjectIds = authorizedIds.readerGoogleProjectIds,
+          readerRuntimeIds = authorizedIds.readerRuntimeIds,
+          readerWorkspaceIds = authorizedIds.readerWorkspaceIds,
+          // Filters
+          excludeStatuses = excludeStatuses,
+          creatorEmail = creatorOnly,
+          cloudContext = cloudContext
+        ).transaction
 
-      samVisibleRuntimesOpt <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
-        // TODO: refactor `filterUserVisibleWithProjectFallback` to take `cloudContext` instead
-        authProvider
-          .filterResourceProjectVisible(
-            rs,
-            userInfo
-          )
-      }
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
-      res = samVisibleRuntimesOpt match {
-        case None => Vector.empty
-        case Some(samVisibleRuntimes) =>
-          val samVisibleRuntimesSet = samVisibleRuntimes.toSet
-          runtimes
-            .filter(c =>
-              samVisibleRuntimesSet
-                .contains((GoogleProject(c.cloudContext.asString), c.samResource))
-            )
-            .toVector
-      }
-      // We authenticate actions on resources. If there are no visible runtimes,
-      // we need to check if user should be able to see the empty list.
-      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
-    } yield res
+    } yield runtimes.toVector
 
-  override def deleteRuntime(req: DeleteRuntimeRequest)(implicit
-    ev: Ask[F, AppContext]
+  override def deleteRuntime(req: DeleteRuntimeRequest)(
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -326,9 +309,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource,
-                                                                      req.googleProject,
-                                                                      req.userInfo
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(
+        runtime.samResource,
+        req.googleProject,
+        req.userInfo
       )
       hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
         listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
@@ -340,10 +324,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         else
           log.info(ctx.loggingCtx)(s"${req.userInfo.userEmail.value} has no permission to get runtime status") >> F
             .raiseError[Unit](
-              RuntimeNotFoundException(cloudContext,
-                                       req.runtimeName,
-                                       "no active runtime record in database",
-                                       Some(ctx.traceId)
+              RuntimeNotFoundException(
+                cloudContext,
+                req.runtimeName,
+                "no active runtime record in database",
+                Some(ctx.traceId)
               )
             )
 
@@ -367,10 +352,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               disk <- F.fromEither(
                 diskOpt.toRight(new RuntimeException(s"Can't find ${diskId} in PERSISTENT_DISK table"))
               )
-              detachOp <- googleComputeService.detachDisk(req.googleProject,
-                                                          disk.zone,
-                                                          InstanceName(runtime.runtimeName.asString),
-                                                          config.gceConfig.userDiskDeviceName
+              detachOp <- googleComputeService.detachDisk(
+                req.googleProject,
+                disk.zone,
+                InstanceName(runtime.runtimeName.asString),
+                config.gceConfig.userDiskDeviceName
               )
               _ <- detachOp.traverse { op =>
                 F.blocking(op.get()).void.recoverWith { case e: java.util.concurrent.ExecutionException =>
@@ -410,8 +396,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         }
     } yield ()
 
-  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
-    as: Ask[F, AppContext]
+  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -451,9 +437,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         if (hasStatusPermission) F.unit
         else
           F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext,
-                                     runtimeName,
-                                     "GetRuntimeStatus permission is required for stopRuntime"
+            RuntimeNotFoundException(
+              cloudContext,
+              runtimeName,
+              "GetRuntimeStatus permission is required for stopRuntime"
             )
           )
 
@@ -476,8 +463,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           F.raiseError[Unit](RuntimeCannotBeStoppedException(cloudContext, runtime.runtimeName, runtime.status))
     } yield ()
 
-  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
-    as: Ask[F, AppContext]
+  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -539,7 +526,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: UpdateRuntimeRequest
-  )(implicit as: Ask[F, AppContext]): F[Unit] =
+  )(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] =
     for {
       ctx <- as.ask
       // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
@@ -561,9 +550,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(RuntimeSamResourceId(runtime.internalId),
-                                                                      googleProject,
-                                                                      userInfo
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(
+        RuntimeSamResourceId(runtime.internalId),
+        googleProject,
+        userInfo
       )
 
       hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
@@ -573,9 +563,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         if (hasStatusPermission) F.unit
         else
           F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext,
-                                     runtimeName,
-                                     "GetRuntimeStatus permission is required for update runtime"
+            RuntimeNotFoundException(
+              cloudContext,
+              runtimeName,
+              "GetRuntimeStatus permission is required for update runtime"
             )
           )
 
@@ -590,9 +581,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           F.raiseError[Unit](RuntimeCannotBeUpdatedException(runtime.projectNameString, runtime.status))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       // Updating autopause is just a DB update, so we can do it here instead of sending a PubSub message
-      updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled,
-                                                              req.updateAutopauseThreshold.map(_.toMinutes.toInt),
-                                                              config.autoFreezeConfig
+      updatedAutopauseThreshold = calculateAutopauseThreshold(
+        req.updateAutopauseEnabled,
+        req.updateAutopauseThreshold.map(_.toMinutes.toInt),
+        config.autoFreezeConfig
       )
       _ <-
         if (updatedAutopauseThreshold != runtime.autopauseThreshold)
@@ -619,17 +611,20 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     now: Instant,
     toolDockerImage: Option[ContainerImage],
     welderRegistry: Option[ContainerRegistry]
-  )(implicit ev: Ask[F, TraceId]): F[Set[RuntimeImage]] =
+  )(
+    implicit ev: Ask[F, TraceId]
+  ): F[Set[RuntimeImage]] =
     for {
       // Try to autodetect the image
       autodetectedImageOpt <- toolDockerImage.traverse(image => dockerDAO.detectTool(image, petToken, now))
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
       // - else use the default jupyter image
-      defaultJupyterImage = RuntimeImage(Jupyter,
-                                         config.imageConfig.jupyterImage.imageUrl,
-                                         Some(config.imageConfig.defaultJupyterUserHome),
-                                         now
+      defaultJupyterImage = RuntimeImage(
+        Jupyter,
+        config.imageConfig.jupyterImage.imageUrl,
+        Some(config.imageConfig.defaultJupyterUserHome),
+        now
       )
       toolImage = autodetectedImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
@@ -657,10 +652,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
     } yield Set(Some(toolImage), welderImage, Some(proxyImage), cryptoDetectorImageOpt).flatten
 
-  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
-                                               userToken: String,
-                                               gcsUri: String,
-                                               traceId: TraceId
+  private[service] def validateBucketObjectUri(
+    userEmail: WorkbenchEmail,
+    userToken: String,
+    gcsUri: String,
+    traceId: TraceId
   ): F[Unit] = {
     val gcsUriOpt = google.parseGcsPath(gcsUri)
     gcsUriOpt match {
@@ -681,11 +677,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
         val res = for {
           blob <- googleStorageService
-            .getBlob(gcsPath.bucketName,
-                     GcsBlobName(gcsPath.objectName.value),
-                     credential = Some(credentials),
-                     Some(traceId),
-                     retryPolicy
+            .getBlob(
+              gcsPath.bucketName,
+              GcsBlobName(gcsPath.objectName.value),
+              credential = Some(credentials),
+              Some(traceId),
+              retryPolicy
             )
             .compile
             .last
@@ -715,11 +712,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     allowStop: Boolean,
     runtime: ClusterRecord,
     runtimeConfig: RuntimeConfig
-  )(implicit ctx: Ask[F, AppContext]): F[Unit] =
+  )(
+    implicit ctx: Ask[F, AppContext]
+  ): F[Unit] =
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
-        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
+        case (
+              RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
             ) =>
           for {
@@ -731,15 +731,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               else
                 F.pure(DiskUpdate.NoPdSizeUpdate(d): DiskUpdate)
             }
-            r <- processUpdateGceConfigRequest(newMachineType,
-                                               allowStop,
-                                               runtime,
-                                               machineType,
-                                               targetDiskSize,
-                                               context.traceId
+            r <- processUpdateGceConfigRequest(
+              newMachineType,
+              allowStop,
+              runtime,
+              machineType,
+              targetDiskSize,
+              context.traceId
             )
           } yield r
-        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
+        case (
+              RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
             ) =>
           for {
@@ -757,15 +759,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               else
                 Async[F].pure(DiskUpdate.PdSizeUpdate(disk.id, disk.name, d): DiskUpdate)
             }
-            r <- processUpdateGceConfigRequest(newMachineType,
-                                               allowStop,
-                                               runtime,
-                                               machineType,
-                                               diskUpdate,
-                                               context.traceId
+            r <- processUpdateGceConfigRequest(
+              newMachineType,
+              allowStop,
+              runtime,
+              machineType,
+              diskUpdate,
+              context.traceId
             )
           } yield r
-        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _),
+        case (
+              dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _),
               req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)
             ) =>
           processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig)
@@ -785,32 +789,35 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
     } yield ()
 
-  private[service] def processUpdateGceConfigRequest(newMachineType: Option[MachineTypeName],
-                                                     allowStop: Boolean,
-                                                     runtime: ClusterRecord,
-                                                     existingMachineType: MachineTypeName,
-                                                     targetDiskSize: Option[DiskUpdate],
-                                                     traceId: TraceId
+  private[service] def processUpdateGceConfigRequest(
+    newMachineType: Option[MachineTypeName],
+    allowStop: Boolean,
+    runtime: ClusterRecord,
+    existingMachineType: MachineTypeName,
+    targetDiskSize: Option[DiskUpdate],
+    traceId: TraceId
   ): F[Option[UpdateRuntimeMessage]] =
     for {
       // should machine type be updated?
-      targetMachineType <- getTargetMachineType(existingMachineType,
-                                                newMachineType,
-                                                runtime.projectNameString,
-                                                runtime.status,
-                                                allowStop
+      targetMachineType <- getTargetMachineType(
+        existingMachineType,
+        newMachineType,
+        runtime.projectNameString,
+        runtime.status,
+        allowStop
       )
       // if either of the above is defined, send a PubSub message
       msg <- (targetMachineType orElse targetDiskSize).traverse { _ =>
         val requiresRestart = targetMachineType.exists(x => x._2) || targetDiskSize.isDefined
 
-        val message = UpdateRuntimeMessage(runtime.id,
-                                           targetMachineType.map(_._1),
-                                           requiresRestart,
-                                           targetDiskSize,
-                                           None,
-                                           None,
-                                           Some(traceId)
+        val message = UpdateRuntimeMessage(
+          runtime.id,
+          targetMachineType.map(_._1),
+          requiresRestart,
+          targetDiskSize,
+          None,
+          None,
+          Some(traceId)
         )
         publisherQueue.offer(message).as(message)
       }
@@ -822,7 +829,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     allowStop: Boolean,
     runtime: ClusterRecord,
     dataprocConfig: RuntimeConfig.DataprocConfig
-  )(implicit ctx: Ask[F, AppContext]): F[Option[UpdateRuntimeMessage]] =
+  )(
+    implicit ctx: Ask[F, AppContext]
+  ): F[Option[UpdateRuntimeMessage]] =
     for {
       context <- ctx.ask
       // should num workers be updated?
@@ -842,8 +851,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         }
       )
       // should num preemptibles be updated?
-      targetNumPreemptibles <- traverseIfChanged(req.updatedNumberOfPreemptibleWorkers,
-                                                 dataprocConfig.numberOfPreemptibleWorkers.getOrElse(0)
+      targetNumPreemptibles <- traverseIfChanged(
+        req.updatedNumberOfPreemptibleWorkers,
+        dataprocConfig.numberOfPreemptibleWorkers.getOrElse(0)
       )(Async[F].pure)
       // should master machine type be updated?
       targetMasterMachineType <- traverseIfChanged(req.updatedMasterMachineType, dataprocConfig.masterMachineType) {
@@ -896,11 +906,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         } else F.pure(none[UpdateRuntimeMessage])
     } yield msg
 
-  private[service] def getTargetMachineType(curMachineType: MachineTypeName,
-                                            reqMachineType: Option[MachineTypeName],
-                                            projectNameString: String,
-                                            status: RuntimeStatus,
-                                            allowStop: Boolean
+  private[service] def getTargetMachineType(
+    curMachineType: MachineTypeName,
+    reqMachineType: Option[MachineTypeName],
+    projectNameString: String,
+    status: RuntimeStatus,
+    allowStop: Boolean
   ) =
     for {
       targetMachineType <- traverseIfChanged(reqMachineType, curMachineType) { mt =>
@@ -913,6 +924,76 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         else Async[F].pure((mt, true))
       }
     } yield targetMachineType
+
+  private[service] def getAuthorizedIds(userInfo: UserInfo, creatorEmail: Option[WorkbenchEmail] = None, workspaceSamId: Option[WorkspaceResourceSamResourceId] = None)(
+    implicit ev: Ask[F, AppContext]
+  ): F[AuthorizedIds] = for {
+    // Authorize: user has an active account and has accepted terms of service
+    _ <- authProvider.checkUserEnabled(userInfo)
+
+    // Authorize: get resource IDs the user can see
+    // HACK: leonardo is modeling access control here, handling inheritance
+    // of workspace and project-level permissions. Sam and WSM already do this,
+    // and should be considered the point of truth.
+
+    // HACK: leonardo short-circuits access control to grant access to runtime creators.
+    // This supports the use case where `terra-ui` requests status of runtimes that have
+    // not yet been provisioned in Sam.
+    creatorRuntimeIdsBackdoor: Set[RuntimeSamResourceId] <- creatorEmail match {
+      case Some(email: WorkbenchEmail) => RuntimeServiceDbQueries
+        .listRuntimeIdsForCreator(email)
+        .map(_.map(_.samResource).toSet)
+        .transaction
+      case None => F.pure(Set.empty: Set[RuntimeSamResourceId])
+    }
+
+    // v1 runtimes (sam resource type `notebook-cluster`) are readable only
+    // by their creators (`Creator` is the SamResource.Runtime `ownerRoleName`),
+    // if the creator also has read access to the corresponding SamResource.Project
+    creatorV1RuntimeIds: Set[RuntimeSamResourceId] <- authProvider
+      .listResourceIds[RuntimeSamResourceId](hasOwnerRole = true, userInfo)
+    readerProjectIds: Set[ProjectSamResourceId] <- authProvider
+      .listResourceIds[ProjectSamResourceId](hasOwnerRole = false, userInfo)
+
+    // v1 runtimes are discoverable by owners on the corresponding Project
+    ownerProjectIds: Set[ProjectSamResourceId] <- authProvider
+      .listResourceIds[ProjectSamResourceId](hasOwnerRole = true, userInfo)
+
+    // v2 runtimes are WSM-managed resources and they're modeled as `WsmResourceSamResource`s.
+    // HACK: accept any ID in the list of readable WSM resources as a valid
+    // readable v2 runtime ID. Some of these IDs are for non-runtime resources.
+    // TODO [] call WSM to list workspaces, then list runtimes per workspace, to get these IDs?
+
+    // v2 runtimes are readable by users with read access to both runtime and workspace
+    readerV2WsmIds: Set[WsmResourceSamResourceId] <- authProvider
+      .listResourceIds[WsmResourceSamResourceId](hasOwnerRole = false, userInfo)
+    readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- workspaceSamId match {
+      case Some(samId) =>
+        for {
+          isWorkspaceReader <- authProvider.isUserWorkspaceReader(samId, userInfo)
+          workspaceIds: Set[WorkspaceResourceSamResourceId] =
+            if (isWorkspaceReader) Set(samId) else Set.empty
+        } yield workspaceIds
+      case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
+    }
+
+    // v2 runtimes are discoverable by owners on the corresponding Workspace
+    ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- workspaceSamId match {
+      case Some(samId) =>
+        for {
+          isWorkspaceOwner <- authProvider.isUserWorkspaceOwner(samId, userInfo)
+          workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceOwner) Set(samId) else Set.empty
+        } yield workspaceIds
+      case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
+    }
+
+    // combine: to read a runtime, user needs to be at least one of:
+    // - creator of a v1 runtime (Sam-authenticated)
+    // - any role on a v2 runtime (Sam-authenticated)
+    // - creator of a runtime (in Leo db) and filtering their request by creator-only
+    readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ readerV2WsmIds ++ creatorRuntimeIdsBackdoor
+  } yield AuthorizedIds(ownerGoogleProjectIds = ownerProjectIds, ownerWorkspaceIds = ownerWorkspaceIds, readerGoogleProjectIds = readerProjectIds, readerRuntimeIds = readerRuntimeIds, readerWorkspaceIds = readerWorkspaceIds)
+
 }
 
 object RuntimeServiceInterp {
@@ -923,15 +1004,16 @@ object RuntimeServiceInterp {
       case None        => None
     }
 
-  private[service] def convertToRuntime(userInfo: UserInfo,
-                                        serviceAccountInfo: WorkbenchEmail,
-                                        cloudContext: CloudContext,
-                                        runtimeName: RuntimeName,
-                                        clusterInternalId: RuntimeSamResourceId,
-                                        clusterImages: Set[RuntimeImage],
-                                        config: RuntimeServiceConfig,
-                                        req: CreateRuntimeRequest,
-                                        now: Instant
+  private[service] def convertToRuntime(
+    userInfo: UserInfo,
+    serviceAccountInfo: WorkbenchEmail,
+    cloudContext: CloudContext,
+    runtimeName: RuntimeName,
+    clusterInternalId: RuntimeSamResourceId,
+    clusterImages: Set[RuntimeImage],
+    config: RuntimeServiceConfig,
+    req: CreateRuntimeRequest,
+    now: Instant
   ): Runtime = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
@@ -1015,8 +1097,8 @@ object RuntimeServiceInterp {
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
     diskConfig: PersistentDiskConfig
-  )(implicit
-    as: Ask[F, AppContext],
+  )(
+    implicit as: Ask[F, AppContext],
     F: Async[F],
     dbReference: DbReference[F],
     ec: ExecutionContext,
@@ -1119,8 +1201,8 @@ object RuntimeServiceInterp {
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
     diskConfig: PersistentDiskConfig
-  )(implicit
-    as: Ask[F, AppContext],
+  )(
+    implicit as: Ask[F, AppContext],
     F: Async[F],
     dbReference: DbReference[F],
     ec: ExecutionContext,
@@ -1212,9 +1294,10 @@ object RuntimeServiceInterp {
       }
     } yield disk
 
-  private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
-                                                   autopauseThreshold: Option[Int],
-                                                   autoFreezeConfig: AutoFreezeConfig
+  private[service] def calculateAutopauseThreshold(
+    autopause: Option[Boolean],
+    autopauseThreshold: Option[Int],
+    autoFreezeConfig: AutoFreezeConfig
   ): Int =
     autopause match {
       case Some(false) =>
@@ -1229,17 +1312,19 @@ object RuntimeServiceInterp {
 
 final case class PersistentDiskRequestResult(disk: PersistentDisk, creationNeeded: Boolean)
 
-final case class RuntimeServiceConfig(proxyUrlBase: String,
-                                      imageConfig: ImageConfig,
-                                      autoFreezeConfig: AutoFreezeConfig,
-                                      dataprocConfig: DataprocConfig,
-                                      gceConfig: GceConfig,
-                                      azureConfig: AzureServiceConfig
+final case class RuntimeServiceConfig(
+  proxyUrlBase: String,
+  imageConfig: ImageConfig,
+  autoFreezeConfig: AutoFreezeConfig,
+  dataprocConfig: DataprocConfig,
+  gceConfig: GceConfig,
+  azureConfig: AzureServiceConfig
 )
 
-final case class WrongCloudServiceException(runtimeCloudService: CloudService,
-                                            updateCloudService: CloudService,
-                                            traceId: TraceId
+final case class WrongCloudServiceException(
+  runtimeCloudService: CloudService,
+  updateCloudService: CloudService,
+  traceId: TraceId
 ) extends LeoException(
       s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
       StatusCodes.Conflict,
@@ -1268,10 +1353,11 @@ final case class DiskAlreadyAttachedException(cloudContext: CloudContext, name: 
       traceId = Some(traceId)
     )
 
-final case class DiskAlreadyFormattedByOtherApp(cloudContext: CloudContext,
-                                                name: DiskName,
-                                                traceId: TraceId,
-                                                formattedBy: FormattedBy
+final case class DiskAlreadyFormattedByOtherApp(
+  cloudContext: CloudContext,
+  name: DiskName,
+  traceId: TraceId,
+  formattedBy: FormattedBy
 ) extends LeoException(
       s"Persistent disk ${cloudContext.asStringWithProvider}/${name.value} is already formatted by ${formattedBy.asString}",
       StatusCodes.Conflict,

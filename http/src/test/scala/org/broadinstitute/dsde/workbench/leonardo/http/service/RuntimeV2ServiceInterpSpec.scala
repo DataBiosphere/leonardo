@@ -2114,15 +2114,21 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         userInfo,
         None,
         None,
+        Map("foo!@#$%^&*()_+=';:\"" -> "!@#$%^&*()_+=';:\"bar", "includeDeleted" -> "true")
+      ) // miss, with weird characters
+      listResponse4 <- testService.listRuntimes(
+        userInfo,
+        None,
+        None,
         Map("foo" -> "not-bar", "includeDeleted" -> "true")
       ) // miss value
-      listResponse4 <- testService.listRuntimes(
+      listResponse5 <- testService.listRuntimes(
         userInfo,
         None,
         None,
         Map("not-foo" -> "bar", "includeDeleted" -> "true")
       ) // miss key
-      listResponse5 <- testService.listRuntimes(
+      listResponse6 <- testService.listRuntimes(
         userInfo,
         None,
         None,
@@ -2134,6 +2140,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       listResponse3.map(_.samResource).toSet shouldBe Set.empty
       listResponse4.map(_.samResource).toSet shouldBe Set.empty
       listResponse5.map(_.samResource).toSet shouldBe Set.empty
+      listResponse6.map(_.samResource).toSet shouldBe Set.empty
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -2271,15 +2278,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
-
-    runtimeV2Service
-      .listRuntimes(userInfo, None, None, Map("_labels" -> "a=a'a,b'b=b"))
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-      .isInstanceOf[BadRequestException] shouldBe true
   }
 
   it should "update date accessed when user has permission" in isolatedDbTest {
