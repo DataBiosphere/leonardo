@@ -392,11 +392,11 @@ object RuntimeServiceDbQueries {
           (runtime, _) <-
             runtimesFilteredSimple join labelQuery on ((r, l) =>
               r.id === l.resourceId &&
-                labelMap
-                  .map { case (key, value) =>
-                    l.key === key && l.value === value
-                  }
-                  .reduce(_ || _)
+              labelMap
+                .map { case (key, value) =>
+                  l.key === key && l.value === value
+                }
+                .reduce(_ || _)
             )
         } yield runtime
 
@@ -465,22 +465,22 @@ object RuntimeServiceDbQueries {
             )
             values.head match {
               case (
-                    id,
-                    cloudContextDb,
-                    cloudProvider,
-                    creatorEmail,
-                    createdDate,
-                    destroyedDate,
-                    dateAccessed,
-                    hostIp,
-                    internalId,
-                    _,
-                    runtimeConfigRecord,
-                    runtimeName,
-                    status,
-                    workspaceId,
-                    _
-                  ) =>
+                id,
+                cloudContextDb,
+                cloudProvider,
+                creatorEmail,
+                createdDate,
+                destroyedDate,
+                dateAccessed,
+                hostIp,
+                internalId,
+                _,
+                runtimeConfigRecord,
+                runtimeName,
+                status,
+                workspaceId,
+                _
+              ) =>
                 val auditInfo = AuditInfo(
                   creatorEmail,
                   createdDate,
