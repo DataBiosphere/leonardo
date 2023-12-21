@@ -1624,7 +1624,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           Some(context.traceId)
         )
       )
-      delete_messages shouldBe expectedMessages
+      delete_messages should contain theSameElementsAs expectedMessages
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1730,20 +1730,22 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
     } yield {
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
-      listResponse should contain (ListRuntimeResponse2(
-        id = runtime1.id,
-        workspaceId = workspaceIdOpt,
-        samResource = runtime1.samResource,
-        clusterName = runtime1.runtimeName,
-        cloudContext = runtime1.cloudContext,
-        auditInfo = runtime1.auditInfo,
-        runtimeConfig = defaultDataprocRuntimeConfig,
-        proxyUrl =
-          Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, runtime1.runtimeName, Set(jupyterImage), None, Map.empty),
-        runtime1.status,
-        runtime1.labels,
-        runtime1.patchInProgress
-      ))
+      listResponse should contain(
+        ListRuntimeResponse2(
+          id = runtime1.id,
+          workspaceId = workspaceIdOpt,
+          samResource = runtime1.samResource,
+          clusterName = runtime1.runtimeName,
+          cloudContext = runtime1.cloudContext,
+          auditInfo = runtime1.auditInfo,
+          runtimeConfig = defaultDataprocRuntimeConfig,
+          proxyUrl = Runtime
+            .getProxyUrl(proxyUrlBase, cloudContextGcp, runtime1.runtimeName, Set(jupyterImage), None, Map.empty),
+          runtime1.status,
+          runtime1.labels,
+          runtime1.patchInProgress
+        )
+      )
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

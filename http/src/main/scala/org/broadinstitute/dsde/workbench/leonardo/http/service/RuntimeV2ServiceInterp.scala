@@ -115,7 +115,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
           creatorEmail = userEmail,
           workspaceId = Some(workspaceId),
           cloudProvider = Some(cloudContext.cloudProvider)
-        ).transaction
+        )
+        .transaction
 
       _ <- F
         .raiseError(
@@ -657,7 +658,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         .transaction >>
         clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, ctx.now).transaction.void
 
-  private def getAuthorizedIds(userInfo: UserInfo, creatorEmail: Option[WorkbenchEmail] = None, workspaceSamId: Option[WorkspaceResourceSamResourceId] = None)(
+  private def getAuthorizedIds(
+    userInfo: UserInfo,
+    creatorEmail: Option[WorkbenchEmail] = None,
+    workspaceSamId: Option[WorkspaceResourceSamResourceId] = None
+  )(
     implicit ev: Ask[F, AppContext]
   ): F[AuthorizedIds] = for {
     // Authorize: user has an active account and has accepted terms of service
@@ -672,10 +677,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     // This supports the use case where `terra-ui` requests status of runtimes that have
     // not yet been provisioned in Sam.
     creatorRuntimeIdsBackdoor: Set[RuntimeSamResourceId] <- creatorEmail match {
-      case Some(email: WorkbenchEmail) => RuntimeServiceDbQueries
-        .listRuntimeIdsForCreator(email)
-        .map(_.map(_.samResource).toSet)
-        .transaction
+      case Some(email: WorkbenchEmail) =>
+        RuntimeServiceDbQueries
+          .listRuntimeIdsForCreator(email)
+          .map(_.map(_.samResource).toSet)
+          .transaction
       case None => F.pure(Set.empty: Set[RuntimeSamResourceId])
     }
 
@@ -724,7 +730,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     // - any role on a v2 runtime (Sam-authenticated)
     // - creator of a runtime (in Leo db) and filtering their request by creator-only
     readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ readerV2WsmIds ++ creatorRuntimeIdsBackdoor
-  } yield AuthorizedIds(ownerGoogleProjectIds = ownerProjectIds, ownerWorkspaceIds = ownerWorkspaceIds, readerGoogleProjectIds = readerProjectIds, readerRuntimeIds = readerRuntimeIds, readerWorkspaceIds = readerWorkspaceIds)
+  } yield AuthorizedIds(
+    ownerGoogleProjectIds = ownerProjectIds,
+    ownerWorkspaceIds = ownerWorkspaceIds,
+    readerGoogleProjectIds = readerProjectIds,
+    readerRuntimeIds = readerRuntimeIds,
+    readerWorkspaceIds = readerWorkspaceIds
+  )
 
   private def convertToRuntime(
     workspaceId: WorkspaceId,
@@ -785,7 +797,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   }
 
 }
-
 
 final case class AuthorizedIds(
   val ownerGoogleProjectIds: Set[ProjectSamResourceId],

@@ -282,7 +282,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
           excludeStatuses = excludeStatuses,
           creatorEmail = creatorOnly,
           cloudContext = cloudContext
-        ).transaction
+        )
+        .transaction
 
     } yield runtimes.toVector
 
@@ -925,7 +926,11 @@ class RuntimeServiceInterp[F[_]: Parallel](
       }
     } yield targetMachineType
 
-  private[service] def getAuthorizedIds(userInfo: UserInfo, creatorEmail: Option[WorkbenchEmail] = None, workspaceSamId: Option[WorkspaceResourceSamResourceId] = None)(
+  private[service] def getAuthorizedIds(
+    userInfo: UserInfo,
+    creatorEmail: Option[WorkbenchEmail] = None,
+    workspaceSamId: Option[WorkspaceResourceSamResourceId] = None
+  )(
     implicit ev: Ask[F, AppContext]
   ): F[AuthorizedIds] = for {
     // Authorize: user has an active account and has accepted terms of service
@@ -940,10 +945,11 @@ class RuntimeServiceInterp[F[_]: Parallel](
     // This supports the use case where `terra-ui` requests status of runtimes that have
     // not yet been provisioned in Sam.
     creatorRuntimeIdsBackdoor: Set[RuntimeSamResourceId] <- creatorEmail match {
-      case Some(email: WorkbenchEmail) => RuntimeServiceDbQueries
-        .listRuntimeIdsForCreator(email)
-        .map(_.map(_.samResource).toSet)
-        .transaction
+      case Some(email: WorkbenchEmail) =>
+        RuntimeServiceDbQueries
+          .listRuntimeIdsForCreator(email)
+          .map(_.map(_.samResource).toSet)
+          .transaction
       case None => F.pure(Set.empty: Set[RuntimeSamResourceId])
     }
 
@@ -992,7 +998,13 @@ class RuntimeServiceInterp[F[_]: Parallel](
     // - any role on a v2 runtime (Sam-authenticated)
     // - creator of a runtime (in Leo db) and filtering their request by creator-only
     readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ readerV2WsmIds ++ creatorRuntimeIdsBackdoor
-  } yield AuthorizedIds(ownerGoogleProjectIds = ownerProjectIds, ownerWorkspaceIds = ownerWorkspaceIds, readerGoogleProjectIds = readerProjectIds, readerRuntimeIds = readerRuntimeIds, readerWorkspaceIds = readerWorkspaceIds)
+  } yield AuthorizedIds(
+    ownerGoogleProjectIds = ownerProjectIds,
+    ownerWorkspaceIds = ownerWorkspaceIds,
+    readerGoogleProjectIds = readerProjectIds,
+    readerRuntimeIds = readerRuntimeIds,
+    readerWorkspaceIds = readerWorkspaceIds
+  )
 
 }
 

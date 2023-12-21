@@ -298,9 +298,11 @@ object RuntimeServiceDbQueries {
   ): DBIO[Vector[ListRuntimeResponse2]] = {
     // Filter to authorized runtimes
     val readRuntimes: Set[String] = readerRuntimeIds.map(readId => readId.asString)
-    val readWorkspaces: Set[WorkspaceId] = readerWorkspaceIds.map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
+    val readWorkspaces: Set[WorkspaceId] =
+      readerWorkspaceIds.map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
     val readProjects: Set[CloudContextDb] = readerGoogleProjectIds.map(samId => CloudContextDb(samId.resourceId))
-    val ownedWorkspaces: Set[WorkspaceId] = ownerWorkspaceIds.map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
+    val ownedWorkspaces: Set[WorkspaceId] =
+      ownerWorkspaceIds.map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
     val ownedProjects: Set[CloudContextDb] = ownerGoogleProjectIds.map(samId => CloudContextDb(samId.resourceId))
 
     val runtimeInReadWorkspaces: Option[Query[ClusterTable, ClusterRecord, Seq]] =
@@ -309,8 +311,7 @@ object RuntimeServiceDbQueries {
       else
         Some(
           for {
-            runtime <- clusterQuery if
-              (runtime.internalId inSetBind readRuntimes) &&
+            runtime <- clusterQuery if (runtime.internalId inSetBind readRuntimes) &&
               (runtime.workspaceId inSetBind readWorkspaces)
           } yield runtime
         )
@@ -318,14 +319,14 @@ object RuntimeServiceDbQueries {
     val runtimeInReadProjects: Option[Query[ClusterTable, ClusterRecord, Seq]] =
       if (readRuntimes.isEmpty || readProjects.isEmpty)
         None
-      else Some(
-        for {
-          runtime <- clusterQuery if
-            (runtime.internalId inSetBind readRuntimes) &&
-            (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
-            (runtime.cloudContextDb inSetBind readProjects)
-        } yield runtime
-      )
+      else
+        Some(
+          for {
+            runtime <- clusterQuery if (runtime.internalId inSetBind readRuntimes) &&
+              (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+              (runtime.cloudContextDb inSetBind readProjects)
+          } yield runtime
+        )
 
     val runtimeInOwnedWorkspaces: Option[Query[ClusterTable, ClusterRecord, Seq]] =
       if (ownedWorkspaces.isEmpty)
@@ -343,8 +344,7 @@ object RuntimeServiceDbQueries {
       else
         Some(
           for {
-            runtime <- clusterQuery if
-              (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+            runtime <- clusterQuery if (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
               (runtime.cloudContextDb inSetBind ownedProjects)
           } yield runtime
         )
@@ -392,11 +392,11 @@ object RuntimeServiceDbQueries {
           (runtime, _) <-
             runtimesFilteredSimple join labelQuery on ((r, l) =>
               r.id === l.resourceId &&
-              labelMap
-                .map { case (key, value) =>
-                  l.key === key && l.value === value
-                }
-                .reduce(_ || _)
+                labelMap
+                  .map { case (key, value) =>
+                    l.key === key && l.value === value
+                  }
+                  .reduce(_ || _)
             )
         } yield runtime
 

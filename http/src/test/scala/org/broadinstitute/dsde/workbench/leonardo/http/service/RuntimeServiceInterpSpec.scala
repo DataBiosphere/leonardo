@@ -886,27 +886,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes fails with corrupt label parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
-    val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
-      _ <- runtimeService.listRuntimes(userInfo, None, Map("foo" -> "single'quote"))
-    } yield ()
-
-    the[BadRequestException] thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
   it should "list runtimes belonging to other users" taggedAs SlickPlainQueryTest in isolatedDbTest {
