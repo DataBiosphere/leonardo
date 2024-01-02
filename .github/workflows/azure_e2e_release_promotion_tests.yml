@@ -148,7 +148,7 @@ jobs:
       contents: read
       id-token: write
     uses: >-
-      broadinstitute/dsp-reusable-workflows/.github/workflows/run-e2e-tests.yaml@main
+      broadinstitute/dsp-reusable-workflows/.github/workflows/run-e2e-tests.yaml@aj-1436-wait-longer
     with:
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
@@ -162,7 +162,7 @@ jobs:
       contents: read
       id-token: write
     uses: >-
-      broadinstitute/dsp-reusable-workflows/.github/workflows/cromwell-az-e2e-test.yaml@main
+      broadinstitute/dsp-reusable-workflows/.github/workflows/cromwell-az-e2e-test.yaml@aj-1436-wait-longer
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
@@ -175,7 +175,7 @@ jobs:
       contents: read
       id-token: write
     uses: >-
-      broadinstitute/dsp-reusable-workflows/.github/workflows/run_cbas_azure_e2e_tests.yaml@main
+      broadinstitute/dsp-reusable-workflows/.github/workflows/run_cbas_azure_e2e_tests.yaml@aj-1436-wait-longer
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
