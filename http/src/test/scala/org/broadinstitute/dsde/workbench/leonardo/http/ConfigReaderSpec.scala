@@ -75,7 +75,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
-          ChartName("cromwell-helm/cromwell-on-azure"),
+          ChartName("coa-helm/cromwell-on-azure"),
           ChartVersion("0.2.397"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
