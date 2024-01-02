@@ -100,8 +100,9 @@ jobs:
           token: '${{ env.TOKEN }}'
           inputs: >-
             { "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}", "bee-name": "${{
-            env.BEE_NAME }}", "billing-project": "${{
-            needs.params-gen.outputs.project-name }}"}
+            env.BEE_NAME }}", "billing-project": "${{needs.params-gen.outputs.project-name }}", 
+            "tenant-id": "${{ inputs.tenant-id}}",
+            "subscription-id": "${{ inputs.subscription-id}}", "mrg-id": "${{ inputs.mrg-id}}"}
   create-sam-pet-job:
     permissions:
       contents: read
