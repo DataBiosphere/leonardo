@@ -146,10 +146,17 @@ object SSH {
 
   // This method is the main one for any interaction with GCP VMs
   def executeGoogleCommand(project: GoogleProject, zone: String, runtimeName: RuntimeName, cmd: String): IO[String] = {
+    val dummyCommand =
+      s"gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"ls\" -- -tt"
     val sshCommand =
       s"gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"$cmd\" -- -tt"
 
     for {
+      // Without first executing a dummy command, the output will contain a bunch of garble that google spits out because gcloud compute ssh runs ssh-keygen under the covers
+      // Unfortunately, they provide a way to pass args to the subsequent ssh call but not the keygen call, so we need to always execute a command and throw away the output before doing meaningful work
+      _ <- loggerIO.debug(s"executing dummy command to generate ssh keys...")
+      dummyOutput <- IO(dummyCommand !!)
+      _ <- loggerIO.debug(s"dummy command output: \n\t$dummyOutput")
       _ <- loggerIO.info(s"executing command: \n\t$sshCommand")
       output <- IO(sshCommand !!)
       _ <- loggerIO.info(s"cmd output: $output")
