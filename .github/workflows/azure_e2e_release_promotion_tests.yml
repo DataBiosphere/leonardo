@@ -129,9 +129,9 @@ jobs:
           API_URL="${SAM_URL}/api/azure/v1/user/petManagedIdentity"
           AZURE_TOKEN="${{ steps.obtain_token.outputs.access_token }}"
           PAYLOAD='{
-            "tenantId": "fad90753-2022-4456-9b0a-c7e5b934e408",
-            "subscriptionId": "f557c728-871d-408c-a28b-eb6b2141a087",
-            "managedResourceGroupName": "e2e-8n6xqg"
+            "tenantId": "${{ inputs.tenant-id}}",
+            "subscriptionId": "${{ inputs.subscription-id}}",
+            "managedResourceGroupName": "${{ inputs.mrg-id}}"
           }'
           # Don't echo the response, just the status code
           RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $AZURE_TOKEN" -d "$PAYLOAD" "$API_URL")
