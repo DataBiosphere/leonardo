@@ -278,7 +278,7 @@ object RuntimeServiceDbQueries {
    * @param ownerGoogleProjectIds
    * @return
    */
-  def listAuthorizedRuntimes(
+  def listRuntimes(
     // Authorizations
     ownerGoogleProjectIds: Set[ProjectSamResourceId] = Set.empty,
     ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
@@ -291,7 +291,7 @@ object RuntimeServiceDbQueries {
     cloudProvider: Option[CloudProvider] = None,
     creatorEmail: Option[WorkbenchEmail] = None,
     excludeStatuses: List[RuntimeStatus] = List.empty,
-    labelMap: LabelMap = Map.empty,
+    labelMap: LabelMap = Map.empty[String, String],
     workspaceId: Option[WorkspaceId] = None
   )(implicit ec: ExecutionContext): DBIO[Vector[ListRuntimeResponse2]] = {
     // Filter to authorized runtimes

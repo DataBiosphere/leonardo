@@ -97,7 +97,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       userEmail = Some(userInfo.userEmail)
       authorizedIds <- getAuthorizedIds(userInfo, userEmail, Some(samResource))
       runtimes <- RuntimeServiceDbQueries
-        .listAuthorizedRuntimes(
+        .listRuntimes(
           // Authorization scopes
           ownerGoogleProjectIds = authorizedIds.ownerGoogleProjectIds,
           ownerWorkspaceIds = authorizedIds.ownerWorkspaceIds,
@@ -395,7 +395,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       authorizedIds <- getAuthorizedIds(userInfo, workspaceSamId = Some(workspaceSamId))
       runtimes <- RuntimeServiceDbQueries
-        .listAuthorizedRuntimes(
+        .listRuntimes(
           // Authorization scopes
           ownerGoogleProjectIds = authorizedIds.ownerGoogleProjectIds,
           ownerWorkspaceIds = authorizedIds.ownerWorkspaceIds,
@@ -540,7 +540,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       authorizedIds <- getAuthorizedIds(userInfo, creatorEmail, maybeWorkspaceSamId)
       runtimes <- RuntimeServiceDbQueries
-        .listAuthorizedRuntimes(
+        .listRuntimes(
           // Authorization scopes
           ownerGoogleProjectIds = authorizedIds.ownerGoogleProjectIds,
           ownerWorkspaceIds = authorizedIds.ownerWorkspaceIds,

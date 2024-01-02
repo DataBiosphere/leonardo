@@ -4,7 +4,6 @@ package service
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
-import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -269,7 +268,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       authorizedIds <- getAuthorizedIds(userInfo, creatorOnly)
       runtimes <- RuntimeServiceDbQueries
-        .listAuthorizedRuntimes(
+        .listRuntimes(
           // Authorization scopes
           ownerGoogleProjectIds = authorizedIds.ownerGoogleProjectIds,
           ownerWorkspaceIds = authorizedIds.ownerWorkspaceIds,
