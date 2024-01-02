@@ -209,7 +209,7 @@ object RuntimeServiceDbQueries {
         val clusterImages = clusterImageRecords.toList map clusterImageQuery.unmarshalClusterImage toSet
         val patchInProgress = patch.headOption match {
           case Some(patchRec) => patchRec.inProgress
-          case None           => false
+          case None => false
         }
 
         val labelMap = labels.view.mapValues(_.toList.toSet.head).toMap
@@ -252,9 +252,9 @@ object RuntimeServiceDbQueries {
     }.toSeq
   }
 
-  def listRuntimeIdsForCreator(creator: WorkbenchEmail)(
-    implicit ec: ExecutionContext
-  ): DBIO[Vector[ListRuntimeIdResponse]] = clusterQuery
+  def listRuntimeIdsForCreator(
+    creator: WorkbenchEmail
+  )(implicit ec: ExecutionContext): DBIO[Vector[ListRuntimeIdResponse]] = clusterQuery
     .filter(_.creator === creator)
     .map(runtime => (runtime.id, runtime.internalId))
     .result
@@ -293,9 +293,7 @@ object RuntimeServiceDbQueries {
     excludeStatuses: List[RuntimeStatus] = List.empty,
     labelMap: LabelMap = Map.empty,
     workspaceId: Option[WorkspaceId] = None
-  )(
-    implicit ec: ExecutionContext
-  ): DBIO[Vector[ListRuntimeResponse2]] = {
+  )(implicit ec: ExecutionContext): DBIO[Vector[ListRuntimeResponse2]] = {
     // Filter to authorized runtimes
     val readRuntimes: Set[String] = readerRuntimeIds.map(readId => readId.asString)
     val readWorkspaces: Set[WorkspaceId] =
@@ -363,7 +361,7 @@ object RuntimeServiceDbQueries {
     val provider = if (cloudProvider.isEmpty) {
       cloudContext match {
         case Some(cContext) => Some(cContext.cloudProvider)
-        case None           => None
+        case None => None
       }
     } else cloudProvider
 
@@ -409,7 +407,7 @@ object RuntimeServiceDbQueries {
       .joinLeft(labelQuery)
       .on((runtimeWithConfigWithPatch, l) =>
         runtimeWithConfigWithPatch._1._1.id === l.resourceId &&
-          l.resourceType === LabelResourceType.runtime
+        l.resourceType === LabelResourceType.runtime
       )
       .map { case (((runtime, runtimeConfigRecord), runtimePatch), label) =>
         val labelPair = label.map(l => (l.key, l.value))
@@ -523,4 +521,5 @@ object RuntimeServiceDbQueries {
           .toVector
       }
   }
+
 }

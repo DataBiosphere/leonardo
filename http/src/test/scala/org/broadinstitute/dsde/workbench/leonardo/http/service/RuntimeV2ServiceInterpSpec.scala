@@ -60,6 +60,7 @@ import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
+
   val serviceConfig = RuntimeServiceConfig(
     Config.proxyConfig.proxyUrlBase,
     imageConfig,
@@ -1902,9 +1903,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
               )
           )
           runtime = context match {
-            case TestContext.GoogleProject   => projectRuntime
+            case TestContext.GoogleProject => projectRuntime
             case TestContext.GoogleWorkspace => googleWorkspaceRuntime
-            case TestContext.AzureWorkspace  => azureWorkspaceRuntime
+            case TestContext.AzureWorkspace => azureWorkspaceRuntime
           }
           _ = runtime.save()
           expectedResults = if (isListed) Set(runtime.samResource) else Set.empty
@@ -2393,6 +2394,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
+
 }
 
 object TestContext extends Enumeration {

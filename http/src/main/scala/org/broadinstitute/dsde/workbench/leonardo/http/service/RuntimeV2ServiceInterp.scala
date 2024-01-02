@@ -55,12 +55,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   wsmClientProvider: WsmApiClientProvider[F]
-)(
-  implicit F: Async[F],
-  dbReference: DbReference[F],
-  ec: ExecutionContext,
-  log: StructuredLogger[F]
-) extends RuntimeV2Service[F] {
+)(implicit F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F])
+    extends RuntimeV2Service[F] {
 
   override def createRuntime(
     userInfo: UserInfo,
@@ -68,9 +64,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     workspaceId: WorkspaceId,
     useExistingDisk: Boolean,
     req: CreateAzureRuntimeRequest
-  )(
-    implicit as: Ask[F, AppContext]
-  ): F[CreateRuntimeResponse] =
+  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
       ctx <- as.ask
 
@@ -84,7 +78,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (_, Some(gcpContext)) => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
         case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
 
@@ -286,9 +280,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     runtimeName: RuntimeName,
     workspaceId: WorkspaceId,
     req: UpdateAzureRuntimeRequest
-  )(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     F.pure(AzureUnimplementedException("patch not implemented yet"))
 
   override def deleteRuntime(
@@ -296,9 +288,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     runtimeName: RuntimeName,
     workspaceId: WorkspaceId,
     deleteDisk: Boolean
-  )(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
 
@@ -538,9 +528,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     workspaceId: Option[WorkspaceId],
     cloudProvider: Option[CloudProvider],
     params: Map[String, String]
-  )(
-    implicit as: Ask[F, AppContext]
-  ): F[Vector[ListRuntimeResponse2]] =
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
 
@@ -624,9 +612,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     creator: WorkbenchEmail,
     userInfo: UserInfo,
     wsmResourceSamResourceId: WsmResourceSamResourceId
-  )(
-    implicit ev: Ask[F, AppContext]
-  ) = if (creator == userInfo.userEmail) F.pure(true)
+  )(implicit ev: Ask[F, AppContext]) = if (creator == userInfo.userEmail) F.pure(true)
   else {
     for {
       ctx <- ev.ask
@@ -639,9 +625,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     wsmResourceSamResourceId: WsmResourceSamResourceId,
     userInfo: UserInfo,
     wsmResourceAction: WsmResourceAction
-  )(
-    implicit ctx: Ask[F, AppContext]
-  ): F[(Boolean, WsmControlledResourceId)] =
+  )(implicit ctx: Ask[F, AppContext]): F[(Boolean, WsmControlledResourceId)] =
     for {
       // TODO: generalize for google
       res <- authProvider.hasPermission(
@@ -662,9 +646,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     userInfo: UserInfo,
     creatorEmail: Option[WorkbenchEmail] = None,
     workspaceSamId: Option[WorkspaceResourceSamResourceId] = None
-  )(
-    implicit ev: Ask[F, AppContext]
-  ): F[AuthorizedIds] = for {
+  )(implicit ev: Ask[F, AppContext]): F[AuthorizedIds] = for {
     // Authorize: user has an active account and has accepted terms of service
     _ <- authProvider.checkUserEnabled(userInfo)
 

@@ -70,9 +70,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
     cloudContext: CloudContext,
     runtimeName: RuntimeName,
     req: CreateRuntimeRequest
-  )(
-    implicit as: Ask[F, AppContext]
-  ): F[CreateRuntimeResponse] =
+  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
       context <- as.ask
       googleProject <- F.fromOption(
@@ -287,9 +285,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
     } yield runtimes.toVector
 
-  override def deleteRuntime(req: DeleteRuntimeRequest)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
+  override def deleteRuntime(req: DeleteRuntimeRequest)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       cloudContext = CloudContext.Gcp(req.googleProject)
@@ -527,9 +523,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: UpdateRuntimeRequest
-  )(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
       // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
@@ -612,9 +606,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
     now: Instant,
     toolDockerImage: Option[ContainerImage],
     welderRegistry: Option[ContainerRegistry]
-  )(
-    implicit ev: Ask[F, TraceId]
-  ): F[Set[RuntimeImage]] =
+  )(implicit ev: Ask[F, TraceId]): F[Set[RuntimeImage]] =
     for {
       // Try to autodetect the image
       autodetectedImageOpt <- toolDockerImage.traverse(image => dockerDAO.detectTool(image, petToken, now))
@@ -637,7 +629,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
           Welder,
           welderRegistry match {
             case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
-            case _                                 => config.imageConfig.welderGcrImage.imageUrl
+            case _ => config.imageConfig.welderGcrImage.imageUrl
           },
           None,
           now
@@ -713,16 +705,14 @@ class RuntimeServiceInterp[F[_]: Parallel](
     allowStop: Boolean,
     runtime: ClusterRecord,
     runtimeConfig: RuntimeConfig
-  )(
-    implicit ctx: Ask[F, AppContext]
-  ): F[Unit] =
+  )(implicit ctx: Ask[F, AppContext]): F[Unit] =
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
         case (
-              RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
-              UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
-            ) =>
+          RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
+          UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
+        ) =>
           for {
             targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
               if (d.gb < existngDiskSize.gb)
@@ -742,9 +732,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
             )
           } yield r
         case (
-              RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
-              UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
-            ) =>
+          RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
+          UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
+        ) =>
           for {
             // should disk size be updated?
             diskId <- F.fromEither(
@@ -770,9 +760,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
             )
           } yield r
         case (
-              dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _),
-              req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)
-            ) =>
+          dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _),
+          req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)
+        ) =>
           processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig)
 
         case _ =>
@@ -830,9 +820,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
     allowStop: Boolean,
     runtime: ClusterRecord,
     dataprocConfig: RuntimeConfig.DataprocConfig
-  )(
-    implicit ctx: Ask[F, AppContext]
-  ): F[Option[UpdateRuntimeMessage]] =
+  )(implicit ctx: Ask[F, AppContext]): F[Option[UpdateRuntimeMessage]] =
     for {
       context <- ctx.ask
       // should num workers be updated?
@@ -930,9 +918,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
     userInfo: UserInfo,
     creatorEmail: Option[WorkbenchEmail] = None,
     workspaceSamId: Option[WorkspaceResourceSamResourceId] = None
-  )(
-    implicit ev: Ask[F, AppContext]
-  ): F[AuthorizedIds] = for {
+  )(implicit ev: Ask[F, AppContext]): F[AuthorizedIds] = for {
     // Authorize: user has an active account and has accepted terms of service
     _ <- authProvider.checkUserEnabled(userInfo)
 
@@ -1013,7 +999,7 @@ object RuntimeServiceInterp {
   private[service] def getToolFromImages(clusterImages: Set[RuntimeImage]): Option[Tool] =
     clusterImages.map(_.imageType.toString).find(Tool.namesToValuesMap.contains) match {
       case Some(value) => Tool.withNameOption(value)
-      case None        => None
+      case None => None
     }
 
   private[service] def convertToRuntime(
@@ -1317,9 +1303,10 @@ object RuntimeServiceInterp {
       case _ =>
         autopauseThreshold match {
           case Some(v) => v
-          case None    => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+          case None => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
         }
     }
+
 }
 
 final case class PersistentDiskRequestResult(disk: PersistentDisk, creationNeeded: Boolean)
