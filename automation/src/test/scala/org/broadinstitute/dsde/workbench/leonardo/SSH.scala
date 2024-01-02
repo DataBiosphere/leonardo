@@ -147,7 +147,7 @@ object SSH {
   // This method is the main one for any interaction with GCP VMs
   def executeGoogleCommand(project: GoogleProject, zone: String, runtimeName: RuntimeName, cmd: String): IO[String] = {
     val sshCommand =
-      s"gcloud compute ssh --zone '${zone}' '${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"$cmd\" -- -tt"
+      s"gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"$cmd\" -- -tt"
 
     for {
       _ <- loggerIO.info(s"executing command: \n\t$sshCommand")
