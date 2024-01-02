@@ -383,20 +383,23 @@ object RuntimeServiceDbQueries {
         excludeStatuses.map(status => runtime.status =!= status).reduce(_ && _)
       }
     val runtimesFiltered =
-      if (labelMap.isEmpty)
-        runtimesFilteredSimple
+      if (labelMap.isEmpty) runtimesFilteredSimple
       else
-        for {
-          (runtime, _) <-
-            runtimesFilteredSimple join labelQuery on ((r, l) =>
-              r.id === l.resourceId &&
-              labelMap
-                .map { case (key, value) =>
-                  l.key === key && l.value === value
-                }
-                .reduce(_ || _)
-            )
-        } yield runtime
+        labelMap
+          .map { case (key: String, value: String) =>
+            for {
+              (runtime, _) <- runtimesFilteredSimple join labelQuery on ((r, l) =>
+                l.resourceId === r.id &&
+                l.resourceType === LabelResourceType.runtime &&
+                l.key === key &&
+                l.value === value
+              )
+            } yield runtime: ClusterTable
+          }
+          .reduceOption((leftRuntime, rightRuntime) =>
+            leftRuntime.join(rightRuntime).on((left, right) => left.id === right.id).map(_._1)
+          )
+          .getOrElse(runtimesFilteredSimple)
 
     // Assemble response
     val runtimesJoined = runtimesFiltered
@@ -453,7 +456,7 @@ object RuntimeServiceDbQueries {
         records
           .groupBy(_._1)
           .map { case _ -> (values: Seq[ListRuntimesRecord]) =>
-            val labels: LabelMap = Map(values.mapFilter {
+            val allLabels: LabelMap = Map(values.mapFilter {
               case (_, _, _, _, _, _, _, _, _, _, _, _, _, _, labelPair: Option[(String, String)]) => labelPair
             }: _*)
             val patchInProgress: Boolean = values.exists((value: ListRuntimesRecord) =>
@@ -498,7 +501,7 @@ object RuntimeServiceDbQueries {
                   runtimeName,
                   Set.empty,
                   hostIp,
-                  labels
+                  allLabels
                 )
                 val runtimeConfig = runtimeConfigRecord.runtimeConfig
                 val samResourceId = RuntimeSamResourceId(internalId)
@@ -508,7 +511,7 @@ object RuntimeServiceDbQueries {
                   auditInfo = auditInfo,
                   cloudContext = cloudContext,
                   clusterName = runtimeName,
-                  labels = labels,
+                  labels = allLabels,
                   patchInProgress = patchInProgress,
                   proxyUrl = proxyUrl,
                   runtimeConfig = runtimeConfig,

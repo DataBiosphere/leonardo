@@ -95,7 +95,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     new RuntimeV2ServiceInterp[IO](serviceConfig, authProvider, wsmDao, queue, dateAccessedQueue, wsmClientProvider)
 
   // need to set previous runtime to deleted status before creating next to avoid exception
-  def setRuntimetoDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[Long] =
+  def setRuntimeDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[Long] =
     for {
       now <- IO.realTimeInstant
       runtime <- RuntimeServiceDbQueries
@@ -430,7 +430,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // set runtime status to deleted before creating next
-    setRuntimetoDeleted(workspaceId, name0).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    setRuntimeDeleted(workspaceId, name0).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     runtimeV2Service
       .createRuntime(
@@ -454,7 +454,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // set runtime status to deleted before creating next
-    setRuntimetoDeleted(workspaceId, name1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    setRuntimeDeleted(workspaceId, name1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val exc = runtimeV2Service
       .createRuntime(userInfo, name2, workspaceId, true, defaultCreateAzureRuntimeReq)
@@ -2097,7 +2097,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .copy(samResource = samResource1, workspaceId = Some(workspaceId1))
           .save()
       )
-      _ <- setRuntimetoDeleted(workspaceId1, runtime1.runtimeName)
+      _ <- setRuntimeDeleted(workspaceId1, runtime1.runtimeName)
 
       _ <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction

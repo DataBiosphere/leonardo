@@ -5,9 +5,16 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  ProjectSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId,
+  WsmResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -41,7 +48,11 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
+
+      // No runtimes exist
       list1 <- RuntimeServiceDbQueries.listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted)).transaction
+
+      // One runtime exists: c1
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(
         defaultMachineType,
@@ -53,7 +64,18 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(d1RuntimeConfig)
       )
-      list2 <- RuntimeServiceDbQueries.listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted)).transaction
+      c1WorkspaceIds = c1.workspaceId match {
+        case Some(workspaceId) => Set(WorkspaceResourceSamResourceId(workspaceId))
+        case None => Set.empty[WorkspaceResourceSamResourceId]
+      }
+      list2 <- RuntimeServiceDbQueries
+        .listRuntimes(
+          readerRuntimeIds = Set(c1.samResource),
+          readerWorkspaceIds = c1WorkspaceIds,
+          excludeStatuses = List(RuntimeStatus.Deleted)
+        )
+        .transaction
+      // Two runtimes exist: c1, c2
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       d2RuntimeConfig = RuntimeConfig.GceWithPdConfig(
         defaultMachineType,
@@ -65,7 +87,16 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
       )
-      list3 <- RuntimeServiceDbQueries.listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted)).transaction
+      bothWorkspaceIds = Set(c1.workspaceId, c2.workspaceId).collect { case Some(workspaceId) =>
+        WorkspaceResourceSamResourceId(workspaceId)
+      }
+      list3 <- RuntimeServiceDbQueries
+        .listRuntimes(
+          readerRuntimeIds = Set(c1.samResource, c2.samResource),
+          readerWorkspaceIds = bothWorkspaceIds,
+          excludeStatuses = List(RuntimeStatus.Deleted)
+        )
+        .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -73,7 +104,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       list1 shouldEqual List.empty
       val c1Expected = toListRuntimeResponse(c1, Map.empty, d1RuntimeConfig)
       val c2Expected = toListRuntimeResponse(c2, Map.empty, d2RuntimeConfig)
-      list2 shouldEqual List(c1Expected)
+      list2 shouldEqual Vector(c1Expected)
       list3.toSet shouldEqual Set(c1Expected, c2Expected)
       elapsed should be < maxElapsed
     }
@@ -112,22 +143,56 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
         "clusterName" -> c2.runtimeName.asString,
         "creator" -> c2.auditInfo.creator.value
       )
+      runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId)
+      bothProjectIds = Set(
+        ProjectSamResourceId(GoogleProject(c1.cloudContext.asString)),
+        ProjectSamResourceId(GoogleProject(c2.cloudContext.asString))
+      )
+      list0 <- RuntimeServiceDbQueries
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,
+          excludeStatuses = List(RuntimeStatus.Deleted)
+        )
+        .transaction
       list1 <- RuntimeServiceDbQueries
-        .listRuntimes(labelMap = labels1, excludeStatuses = List(RuntimeStatus.Deleted))
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,
+          labelMap = labels1,
+          excludeStatuses = List(RuntimeStatus.Deleted)
+        )
         .transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimes(labelMap = labels2, excludeStatuses = List(RuntimeStatus.Deleted))
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,
+          labelMap = labels2,
+          excludeStatuses = List(RuntimeStatus.Deleted)
+        )
         .transaction
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
       _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
       list3 <- RuntimeServiceDbQueries
-        .listRuntimes(labelMap = labels1, excludeStatuses = List(RuntimeStatus.Deleted))
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,
+          labelMap = labels1,
+          excludeStatuses = List(RuntimeStatus.Deleted)
+        )
         .transaction
       list4 <- RuntimeServiceDbQueries
-        .listRuntimes(labelMap = labels2, excludeStatuses = List(RuntimeStatus.Deleted))
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,
+          labelMap = labels2,
+          excludeStatuses = List(RuntimeStatus.Deleted)
+        )
         .transaction
       list5 <- RuntimeServiceDbQueries
         .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,
           labelMap = Map("googleProject" -> c1.cloudContext.asString),
           excludeStatuses = List(RuntimeStatus.Deleted)
         )
@@ -136,13 +201,14 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
-      list1 shouldEqual List.empty
-      list2 shouldEqual List.empty
       val c1Expected = toListRuntimeResponse(c1, labels1, c1RuntimeConfig)
       val c2Expected = toListRuntimeResponse(c2, labels2, c2RuntimeConfig)
-      list3 shouldEqual List(c1Expected)
-      list4 shouldEqual List(c2Expected)
-      list5.toSet shouldEqual Set(c1Expected, c2Expected)
+      list0.map(_.id) should contain theSameElementsAs Set(c1Expected.id, c2Expected.id)
+      list1 shouldEqual List.empty
+      list2 shouldEqual List.empty
+      list3 shouldEqual Vector(c1Expected)
+      list4 shouldEqual Vector(c2Expected)
+      list5 should contain theSameElementsAs Set(c1Expected, c2Expected)
       elapsed should be < maxElapsed
     }
 
@@ -208,8 +274,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       list2 shouldEqual List.empty
       val c1Expected = toListRuntimeResponse(c1, labels1, c1RuntimeConfig)
       val c2Expected = toListRuntimeResponse(c2, labels2, c2RuntimeConfig)
-      list3 shouldEqual List(c1Expected)
-      list4 shouldEqual List(c2Expected)
+      list3 shouldEqual Vector(c1Expected)
+      list4 shouldEqual Vector(c2Expected)
       list5.toSet shouldEqual Set(c1Expected, c2Expected)
       elapsed should be < maxElapsed
     }
@@ -610,7 +676,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       ),
       runtime.status,
       labels,
-      false
+      patchInProgress = false
     )
 
 }
