@@ -67,7 +67,6 @@ import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
   BatchAccountName,
@@ -239,7 +238,7 @@ object CommonTestData {
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
-  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680))
+  val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680), None)
   val hostToIpMapping = Ref.unsafe[IO, Map[String, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
@@ -529,6 +528,7 @@ object CommonTestData {
     AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
   val workspaceIdForCloning = WorkspaceId(UUID.randomUUID())
+  val workspaceIdForAppCreation = WorkspaceId(UUID.randomUUID())
   val workspaceIdOpt = Some(workspaceId)
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
@@ -566,7 +566,7 @@ object CommonTestData {
 
   val landingZoneResources = LandingZoneResources(
     UUID.randomUUID(),
-    AKSClusterName("lzcluster"),
+    AKSCluster("lzcluster", Map.empty[String, Boolean]),
     BatchAccountName("lzbatch"),
     RelayNamespace("lznamespace"),
     StorageAccountName("lzstorage"),

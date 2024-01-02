@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
+import bio.terra.workspace.model.CloningInstructionsEnum
+import bio.terra.workspace.model.CloningInstructionsEnum.NOTHING
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
@@ -60,7 +62,10 @@ sealed trait Database
 object Database {
 
   /** A database attached to the lifecycle of app. */
-  final case class ControlledDatabase(prefix: String, allowAccessForAllWorkspaceUsers: Boolean = false) extends Database
+  final case class ControlledDatabase(prefix: String,
+                                      allowAccessForAllWorkspaceUsers: Boolean = false,
+                                      cloningInstructions: CloningInstructionsEnum = NOTHING
+  ) extends Database
 
   /** A database that should _not_ be created as part of app creation, but referenced in k8s namespace creation.
    * It is not tied to the lifecycle of app. */

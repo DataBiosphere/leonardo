@@ -356,7 +356,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedRuntimeImage = Set(
         RuntimeImage(
           RuntimeImageType.Azure,
-          "microsoft-dsvm, ubuntu-2004, 2004-gen2, 23.01.06",
+          "microsoft-dsvm, ubuntu-2004, 2004-gen2, 23.04.24",
           None,
           context.now
         ),
@@ -2231,6 +2231,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
+
+    runtimeV2Service
+      .listRuntimes(userInfo, None, None, Map("_labels" -> "a=a'a,b'b=b"))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+      .isInstanceOf[BadRequestException] shouldBe true
   }
 
   it should "update date accessed when user has permission" in isolatedDbTest {

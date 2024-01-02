@@ -262,6 +262,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
+
+      // prevent misbehaved user input, labelMap keys and values can not have a single quote
+      // keys and values are inserted directly into a SQL string which could cause sql injection
+      // story #IA-xxx will refactor the SQL string into Slick
+      _ <- F.raiseWhen(
+        labelMap.values.exists(value => value.contains("'")) || labelMap.keys.exists(key => key.contains("'"))
+      )(
+        BadRequestException(s"Invalid query parameter (single quote not allowed)", Some(ctx.traceId))
+      )
+
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(labelMap, excludeStatuses, creatorOnly, cloudContext)
         .transaction

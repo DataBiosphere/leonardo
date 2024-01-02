@@ -183,7 +183,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
+                                        params.cloudContext,
+                                        namespaceName
+      )
 
       // Build listener helm values
       values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
@@ -255,7 +258,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
@@ -285,7 +288,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
+        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}"
       )
     } yield ()
 
@@ -413,7 +416,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
+                                        params.cloudContext,
+                                        namespaceName
+      )
 
       // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
@@ -465,13 +471,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppUpdateException(
-              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
 
       _ <- logger.info(
-        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.clusterName}"
+        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.aksCluster.name}"
       )
 
       // Update app chart version in the DB
@@ -543,7 +549,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         if (deletedNamespace) F.unit
         else {
           for {
-            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
+            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.aksCluster.asClusterName)
 
             kubernetesNamespace = KubernetesNamespace(app.appResources.namespace)
 
@@ -678,14 +684,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private def getWsmCommonFields(name: String,
                                  description: String,
-                                 app: App
+                                 app: App,
+                                 cloningInstructions: CloningInstructionsEnum
   ): bio.terra.workspace.model.ControlledResourceCommonFields = {
     val commonFieldsBase = new bio.terra.workspace.model.ControlledResourceCommonFields()
       .resourceId(UUID.randomUUID())
       .name(name)
       .description(description)
       .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
-      .cloningInstructions(CloningInstructionsEnum.NOTHING)
+      .cloningInstructions(cloningInstructions)
     app.samResourceId.accessScope match {
       case Some(AppAccessScope.WorkspaceShared) =>
         commonFieldsBase.accessScope(bio.terra.workspace.model.AccessScope.SHARED_ACCESS)
@@ -739,7 +746,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _                         => identityName
       }
 
-      identityCommonFields = getWsmCommonFields(wsmResourceName, s"Identity for Leo app ${app.appName.value}", app)
+      cloningInstructions =
+        if (app.appType == AppType.WorkflowsApp) CloningInstructionsEnum.RESOURCE else CloningInstructionsEnum.NOTHING
+
+      identityCommonFields = getWsmCommonFields(wsmResourceName,
+                                                s"Identity for Leo app ${app.appName.value}",
+                                                app,
+                                                cloningInstructions
+      )
       createIdentityParams = new AzureManagedIdentityCreationParameters().name(
         identityName
       )
@@ -778,7 +792,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       for {
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
-        controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _) => d }
+        controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
         // retrieve databases that might already be created in workspace
         existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
                                                                  controlledDbsForApp.map(_.prefix).toSet,
@@ -837,7 +851,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
 
     val databaseCommonFields =
-      getWsmCommonFields(wsmResourceName, s"${database.prefix} database for Leo app ${app.appName.value}", app)
+      getWsmCommonFields(wsmResourceName,
+                         s"${database.prefix} database for Leo app ${app.appName.value}",
+                         app,
+                         database.cloningInstructions
+      )
     val createDatabaseParams = new AzureDatabaseCreationParameters()
       .name(dbName)
       .allowAccessForAllWorkspaceUsers(database.allowAccessForAllWorkspaceUsers)
@@ -974,7 +992,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       namespaceCommonFields =
         getWsmCommonFields(wsmResourceName,
                            s"$namespacePrefix kubernetes namespace for Leo app ${app.appName.value}",
-                           app
+                           app,
+                           CloningInstructionsEnum.NOTHING
         )
 
       // Build createNamespace fields

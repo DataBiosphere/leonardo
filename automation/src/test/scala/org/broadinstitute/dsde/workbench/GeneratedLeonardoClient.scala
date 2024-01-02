@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench
 
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.api.{DisksApi, RuntimesApi}
+import org.broadinstitute.dsde.workbench.client.leonardo.api.{AppsApi, DisksApi, RuntimesApi}
 import org.broadinstitute.dsde.workbench.client.leonardo.ApiClient
 import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   ClusterStatus,
@@ -51,6 +51,12 @@ object GeneratedLeonardoClient {
     for {
       apiClient <- getClient()
       api <- IO(new DisksApi(apiClient))
+    } yield api
+
+  def generateAppsApi()(implicit accessToken: IO[AuthToken]): IO[AppsApi] =
+    for {
+      apiClient <- getClient()
+      api <- IO(new AppsApi(apiClient))
     } yield api
 
   def testProxyUrl(
