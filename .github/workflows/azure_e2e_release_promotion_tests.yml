@@ -151,7 +151,7 @@ jobs:
     with:
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
-      branch: main
+      ref: aj-1436-wait-longer
   sleep-job:
     # One test needs to run before the others and have time to do one-time tasks
     # Such as creating a k8s cluster DB entry in Leo to prevent race conditions
@@ -175,6 +175,7 @@ jobs:
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
+      ref: aj-1436-wait-longer
   run-cbas-azure-e2e-test:
     needs:
       - params-gen
@@ -189,6 +190,7 @@ jobs:
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
+      ref: aj-1436-wait-longer
   destroy-bee-workflow:
     runs-on: ubuntu-latest
     needs:
