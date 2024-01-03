@@ -144,8 +144,10 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubResourceService(Map.empty), computeService)
 
     test.firewallRulesToAdd(
-      Map("leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",
-          "leonardo-allow-https-firewall-name" -> "leonardo-ssl" -> "leonardo-allow-iap-ssh"
+      Map(
+        "leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",
+        "leonardo-allow-https-firewall-name" -> "leonardo-ssl",
+        "leonardo-allow-iap-ssh-firewall-name" -> "leonardo-allow-iap-ssh"
       )
     ) shouldBe List(expectedSshFirewallRules)
   }
