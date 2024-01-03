@@ -102,47 +102,47 @@ jobs:
             env.BEE_NAME }}", "billing-project": "${{needs.params-gen.outputs.project-name }}", 
             "tenant-id": "${{ inputs.tenant-id}}",
             "subscription-id": "${{ inputs.subscription-id}}", "mrg-id": "${{ inputs.mrg-id}}"}
-  create-sam-pet-job:
-    permissions:
-      contents: read
-      id-token: write
-    needs:
-      - attach-landing-zone-to-bee-workflow
-      - params-gen
-    runs-on: ubuntu-latest
-    # We need to create the pet before starting the tests, otherwise all 3 will do so at the same time and interfere with each other
-    steps:
-      - name: Generate OAuth2 2.0 access token for owner
-        id: 'obtain_token'
-        uses: google-github-actions/auth@v1
-        with:
-          token_format: 'access_token'
-          workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
-          service_account: 'firecloud-qa@broad-dsde-qa.iam.gserviceaccount.com'
-          access_token_scopes: 'profile, email, openid'
-          access_token_subject: 'hermione.owner@quality.firecloud.org'
-          export_environment_variables: false
+  # create-sam-pet-job:
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #   needs:
+  #     - attach-landing-zone-to-bee-workflow
+  #     - params-gen
+  #   runs-on: ubuntu-latest
+  #   # We need to create the pet before starting the tests, otherwise all 3 will do so at the same time and interfere with each other
+  #   steps:
+  #     - name: Generate OAuth2 2.0 access token for owner
+  #       id: 'obtain_token'
+  #       uses: google-github-actions/auth@v1
+  #       with:
+  #         token_format: 'access_token'
+  #         workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
+  #         service_account: 'firecloud-qa@broad-dsde-qa.iam.gserviceaccount.com'
+  #         access_token_scopes: 'profile, email, openid'
+  #         access_token_subject: 'hermione.owner@quality.firecloud.org'
+  #         export_environment_variables: false
 
-      - name: Call Sam to create pet
-        run: |
-          SAM_URL="https://sam.${{ env.BEE_NAME }}.bee.envs-terra.bio"
-          API_URL="${SAM_URL}/api/azure/v1/user/petManagedIdentity"
-          AZURE_TOKEN="${{ steps.obtain_token.outputs.access_token }}"
-          PAYLOAD='{
-            "tenantId": "${{ inputs.tenant-id}}",
-            "subscriptionId": "${{ inputs.subscription-id}}",
-            "managedResourceGroupName": "${{ inputs.mrg-id}}"
-          }'
-          # Don't echo the response, just the status code
-          RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $AZURE_TOKEN" -d "$PAYLOAD" "$API_URL")
-          # Extract the status code
-          STATUS_CODE="${RESPONSE: -3}"   
-          echo "Result of creating Sam pet: $STATUS_CODE"
+  #     - name: Call Sam to create pet
+  #       run: |
+  #         SAM_URL="https://sam.${{ env.BEE_NAME }}.bee.envs-terra.bio"
+  #         API_URL="${SAM_URL}/api/azure/v1/user/petManagedIdentity"
+  #         AZURE_TOKEN="${{ steps.obtain_token.outputs.access_token }}"
+  #         PAYLOAD='{
+  #           "tenantId": "${{ inputs.tenant-id}}",
+  #           "subscriptionId": "${{ inputs.subscription-id}}",
+  #           "managedResourceGroupName": "${{ inputs.mrg-id}}"
+  #         }'
+  #         # Don't echo the response, just the status code
+  #         RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $AZURE_TOKEN" -d "$PAYLOAD" "$API_URL")
+  #         # Extract the status code
+  #         STATUS_CODE="${RESPONSE: -3}"   
+  #         echo "Result of creating Sam pet: $STATUS_CODE"
   run-wds-e2e-test-job:
     needs:
       - attach-landing-zone-to-bee-workflow
       - params-gen
-      - create-sam-pet-job
+      # - create-sam-pet-job
     permissions:
       contents: read
       id-token: write
@@ -156,7 +156,7 @@ jobs:
     # One test needs to run before the others and have time to do one-time tasks
     # Such as creating a k8s cluster DB entry in Leo to prevent race conditions
     needs:
-      - run-wds-e2e-test-job
+      - attach-landing-zone-to-bee-workflow
     runs-on: ubuntu-latest
     steps:
       - name: Sleep for 10 seconds
@@ -165,7 +165,7 @@ jobs:
     needs:
       - params-gen
       - attach-landing-zone-to-bee-workflow
-      - create-sam-pet-job
+      # - create-sam-pet-job
       - sleep-job
     permissions:
       contents: read
@@ -179,7 +179,7 @@ jobs:
     needs:
       - params-gen
       - attach-landing-zone-to-bee-workflow
-      - create-sam-pet-job
+      # - create-sam-pet-job
       - sleep-job
     permissions:
       contents: read
