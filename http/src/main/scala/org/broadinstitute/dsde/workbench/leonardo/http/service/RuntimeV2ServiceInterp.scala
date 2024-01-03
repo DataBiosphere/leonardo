@@ -78,7 +78,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext)) => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
         case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
 
@@ -242,8 +242,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
     } yield CreateRuntimeResponse(ctx.traceId)
 
-  override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
       ctx <- as.ask
@@ -380,8 +380,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       )
     } yield ()
 
-  override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(
-    implicit as: Ask[F, AppContext]
+  override def deleteAllRuntimes(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -426,8 +426,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
           )
     } yield ()
 
-  override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(
-    implicit as: Ask[F, AppContext]
+  override def updateDateAccessed(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -460,8 +460,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         log.info(s"Queued message to update dateAccessed for runtime ${runtime.cloudContext}/$runtimeName")
     } yield ()
 
-  def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  def startRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
     hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
@@ -491,8 +491,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     _ <- publisherQueue.offer(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
   } yield ()
 
-  def stopRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  def stopRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
 

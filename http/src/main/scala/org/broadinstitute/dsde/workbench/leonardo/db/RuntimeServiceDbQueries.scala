@@ -66,8 +66,8 @@ object RuntimeServiceDbQueries {
     )
   }
 
-  def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(
-    implicit ec: ExecutionContext
+  def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(implicit
+    ec: ExecutionContext
   ): DBIO[Option[RuntimeStatus]] = {
     val res = clusterQuery
       .filter(_.cloudProvider === cloudContext.cloudProvider)
@@ -80,8 +80,8 @@ object RuntimeServiceDbQueries {
     res.map(recs => recs.headOption)
   }
 
-  def getRuntime(cloudContext: CloudContext, runtimeName: RuntimeName)(
-    implicit executionContext: ExecutionContext
+  def getRuntime(cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
+    executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
     val activeRuntime = getRuntimeQueryByUniqueKey(cloudContext, runtimeName, None)
       .join(runtimeConfigs)
@@ -107,8 +107,8 @@ object RuntimeServiceDbQueries {
     }
   }
 
-  def getRuntimeByWorkspaceId(workspaceId: WorkspaceId, runtimeName: RuntimeName)(
-    implicit executionContext: ExecutionContext
+  def getRuntimeByWorkspaceId(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
     val activeRuntime = getRuntimeQueryByWorkspaceId(workspaceId, runtimeName)
       .join(runtimeConfigs)
@@ -135,8 +135,8 @@ object RuntimeServiceDbQueries {
     }
   }
 
-  def getActiveRuntimeRecord(workspaceId: WorkspaceId, runtimeName: RuntimeName)(
-    implicit executionContext: ExecutionContext
+  def getActiveRuntimeRecord(workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    executionContext: ExecutionContext
   ): DBIO[ClusterRecord] = {
     val activeRuntime = clusterQuery
       .filterOpt(Some(workspaceId))(_.workspaceId === _)
@@ -209,7 +209,7 @@ object RuntimeServiceDbQueries {
         val clusterImages = clusterImageRecords.toList map clusterImageQuery.unmarshalClusterImage toSet
         val patchInProgress = patch.headOption match {
           case Some(patchRec) => patchRec.inProgress
-          case None => false
+          case None           => false
         }
 
         val labelMap = labels.view.mapValues(_.toList.toSet.head).toMap
@@ -361,7 +361,7 @@ object RuntimeServiceDbQueries {
     val provider = if (cloudProvider.isEmpty) {
       cloudContext match {
         case Some(cContext) => Some(cContext.cloudProvider)
-        case None => None
+        case None           => None
       }
     } else cloudProvider
 
@@ -390,9 +390,9 @@ object RuntimeServiceDbQueries {
             for {
               (runtime, _) <- runtimesFilteredSimple join labelQuery on ((r, l) =>
                 l.resourceId === r.id &&
-                l.resourceType === LabelResourceType.runtime &&
-                l.key === key &&
-                l.value === value
+                  l.resourceType === LabelResourceType.runtime &&
+                  l.key === key &&
+                  l.value === value
               )
             } yield runtime: ClusterTable
           }
@@ -410,7 +410,7 @@ object RuntimeServiceDbQueries {
       .joinLeft(labelQuery)
       .on((runtimeWithConfigWithPatch, l) =>
         runtimeWithConfigWithPatch._1._1.id === l.resourceId &&
-        l.resourceType === LabelResourceType.runtime
+          l.resourceType === LabelResourceType.runtime
       )
       .map { case (((runtime, runtimeConfigRecord), runtimePatch), label) =>
         val labelPair = label.map(l => (l.key, l.value))
@@ -466,22 +466,22 @@ object RuntimeServiceDbQueries {
             )
             values.head match {
               case (
-                id,
-                cloudContextDb,
-                cloudProvider,
-                creatorEmail,
-                createdDate,
-                destroyedDate,
-                dateAccessed,
-                hostIp,
-                internalId,
-                _,
-                runtimeConfigRecord,
-                runtimeName,
-                status,
-                workspaceId,
-                _
-              ) =>
+                    id,
+                    cloudContextDb,
+                    cloudProvider,
+                    creatorEmail,
+                    createdDate,
+                    destroyedDate,
+                    dateAccessed,
+                    hostIp,
+                    internalId,
+                    _,
+                    runtimeConfigRecord,
+                    runtimeName,
+                    status,
+                    workspaceId,
+                    _
+                  ) =>
                 val auditInfo = AuditInfo(
                   creatorEmail,
                   createdDate,

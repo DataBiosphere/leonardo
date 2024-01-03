@@ -56,8 +56,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
   googleStorageService: GoogleStorageService[F],
   googleComputeService: GoogleComputeService[F],
   publisherQueue: Queue[F, LeoPubsubMessage]
-)(
-  implicit F: Async[F],
+)(implicit
+  F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext,
@@ -216,8 +216,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
       }
     } yield CreateRuntimeResponse(context.traceId)
 
-  override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
-    implicit as: Ask[F, AppContext]
+  override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
       ctx <- as.ask
@@ -392,8 +392,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
         }
     } yield ()
 
-  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
-    implicit as: Ask[F, AppContext]
+  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -459,8 +459,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
           F.raiseError[Unit](RuntimeCannotBeStoppedException(cloudContext, runtime.runtimeName, runtime.status))
     } yield ()
 
-  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: Ask[F, AppContext]
+  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -628,7 +628,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
           Welder,
           welderRegistry match {
             case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
-            case _ => config.imageConfig.welderGcrImage.imageUrl
+            case _                                 => config.imageConfig.welderGcrImage.imageUrl
           },
           None,
           now
@@ -709,9 +709,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
         case (
-          RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
-          UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
-        ) =>
+              RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
+              UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
+            ) =>
           for {
             targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
               if (d.gb < existngDiskSize.gb)
@@ -731,9 +731,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
             )
           } yield r
         case (
-          RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
-          UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
-        ) =>
+              RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
+              UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)
+            ) =>
           for {
             // should disk size be updated?
             diskId <- F.fromEither(
@@ -759,9 +759,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
             )
           } yield r
         case (
-          dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _),
-          req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)
-        ) =>
+              dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _),
+              req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)
+            ) =>
           processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig)
 
         case _ =>
@@ -998,7 +998,7 @@ object RuntimeServiceInterp {
   private[service] def getToolFromImages(clusterImages: Set[RuntimeImage]): Option[Tool] =
     clusterImages.map(_.imageType.toString).find(Tool.namesToValuesMap.contains) match {
       case Some(value) => Tool.withNameOption(value)
-      case None => None
+      case None        => None
     }
 
   private[service] def convertToRuntime(
@@ -1094,8 +1094,8 @@ object RuntimeServiceInterp {
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
     diskConfig: PersistentDiskConfig
-  )(
-    implicit as: Ask[F, AppContext],
+  )(implicit
+    as: Ask[F, AppContext],
     F: Async[F],
     dbReference: DbReference[F],
     ec: ExecutionContext,
@@ -1198,8 +1198,8 @@ object RuntimeServiceInterp {
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
     diskConfig: PersistentDiskConfig
-  )(
-    implicit as: Ask[F, AppContext],
+  )(implicit
+    as: Ask[F, AppContext],
     F: Async[F],
     dbReference: DbReference[F],
     ec: ExecutionContext,
@@ -1302,7 +1302,7 @@ object RuntimeServiceInterp {
       case _ =>
         autopauseThreshold match {
           case Some(v) => v
-          case None => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+          case None    => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
         }
     }
 

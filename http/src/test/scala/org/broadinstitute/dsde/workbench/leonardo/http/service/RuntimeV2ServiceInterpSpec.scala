@@ -306,13 +306,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
@@ -582,13 +582,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
@@ -640,13 +640,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[Option[StorageContainerResponse]] =
         IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
 
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[LandingZoneResources] =
         IO.pure(landingZoneResources)
     }
@@ -1903,9 +1903,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
               )
           )
           runtime = context match {
-            case TestContext.GoogleProject => projectRuntime
+            case TestContext.GoogleProject   => projectRuntime
             case TestContext.GoogleWorkspace => googleWorkspaceRuntime
-            case TestContext.AzureWorkspace => azureWorkspaceRuntime
+            case TestContext.AzureWorkspace  => azureWorkspaceRuntime
           }
           _ = runtime.save()
           expectedResults = if (isListed) Set(runtime.samResource) else Set.empty

@@ -976,15 +976,15 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
-        listRuntimeResponse1,
-        listRuntimeResponse2
-      )
+      listRuntimeResponse1,
+      listRuntimeResponse2
+    )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
-        listRuntimeResponse1
-      )
+      listRuntimeResponse1
+    )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
@@ -994,8 +994,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .listRuntimes(userInfo, None, Map("_labels" -> "a=b"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
-        listRuntimeResponse2
-      )
+      listRuntimeResponse2
+    )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "baz=biz"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1004,8 +1004,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .listRuntimes(userInfo, None, Map("_labels" -> "A=B"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
-        listRuntimeResponse2
-      ) // labels are not case sensitive because MySQL
+      listRuntimeResponse2
+    ) // labels are not case sensitive because MySQL
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo%3Dbar"))
       .attempt
@@ -1364,28 +1364,28 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     ) // this email is allowlisted
 
     it should s"Process upsert labels correctly for $upsertLabels" in isolatedDbTest {
-        val res = for {
-          samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-          testRuntime <- IO(
-            makeCluster(1)
-              .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
-              .save()
-          )
-          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, Set.empty)
-          _ <- runtimeService.updateRuntime(
-            userInfo,
-            GoogleProject(testRuntime.cloudContext.asString),
-            testRuntime.runtimeName,
-            req
-          )
-          dbLabelMap <- labelQuery
-            .getAllForResource(testRuntime.id, LabelResourceType.runtime)(scala.concurrent.ExecutionContext.global)
-            .transaction
-          _ <- publisherQueue.tryTake
+      val res = for {
+        samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+        testRuntime <- IO(
+          makeCluster(1)
+            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
+            .save()
+        )
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, Set.empty)
+        _ <- runtimeService.updateRuntime(
+          userInfo,
+          GoogleProject(testRuntime.cloudContext.asString),
+          testRuntime.runtimeName,
+          req
+        )
+        dbLabelMap <- labelQuery
+          .getAllForResource(testRuntime.id, LabelResourceType.runtime)(scala.concurrent.ExecutionContext.global)
+          .transaction
+        _ <- publisherQueue.tryTake
 
-        } yield finalUpsertMaps.contains(dbLabelMap) shouldBe true
-        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      }
+      } yield finalUpsertMaps.contains(dbLabelMap) shouldBe true
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   val deleteLists: List[Set[String]] = List(
@@ -1410,25 +1410,25 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     ) // this email is allowlisted
 
     it should s"Process reqlabels correctly for $deleteLabelSet" in isolatedDbTest {
-        val res = for {
-          samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-          testRuntime <- IO(
-            makeCluster(1)
-              .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
-              .save()
-          )
-          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelSet)
-          _ <- runtimeService.updateRuntime(
-            userInfo,
-            GoogleProject(testRuntime.cloudContext.asString),
-            testRuntime.runtimeName,
-            req
-          )
-          dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
-          _ <- publisherQueue.tryTake
-        } yield finalDeleteMaps.contains(dbLabelMap) shouldBe true
-        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      }
+      val res = for {
+        samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+        testRuntime <- IO(
+          makeCluster(1)
+            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
+            .save()
+        )
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelSet)
+        _ <- runtimeService.updateRuntime(
+          userInfo,
+          GoogleProject(testRuntime.cloudContext.asString),
+          testRuntime.runtimeName,
+          req
+        )
+        dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
+        _ <- publisherQueue.tryTake
+      } yield finalDeleteMaps.contains(dbLabelMap) shouldBe true
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   List(RuntimeStatus.Creating, RuntimeStatus.Stopping, RuntimeStatus.Deleting, RuntimeStatus.Starting).foreach {
@@ -1440,16 +1440,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         0
       ) // this email is allowlisted
       it should s"fail to update a runtime in $status status" in isolatedDbTest {
-          val res = for {
-            samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-            testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
-            req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
-            fail <- runtimeService
-              .updateRuntime(userInfo, GoogleProject(testRuntime.cloudContext.asString), testRuntime.runtimeName, req)
-              .attempt
-          } yield fail shouldBe Left(RuntimeCannotBeUpdatedException(testRuntime.projectNameString, testRuntime.status))
-          res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-        }
+        val res = for {
+          samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+          testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
+          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
+          fail <- runtimeService
+            .updateRuntime(userInfo, GoogleProject(testRuntime.cloudContext.asString), testRuntime.runtimeName, req)
+            .attempt
+        } yield fail shouldBe Left(RuntimeCannotBeUpdatedException(testRuntime.projectNameString, testRuntime.status))
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      }
   }
 
   "RuntimeServiceInterp.processUpdateRuntimeConfigRequest" should "fail to update the wrong cloud service type" in {

@@ -61,7 +61,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
       c1WorkspaceIds = c1.workspaceId match {
         case Some(workspaceId) => Set(WorkspaceResourceSamResourceId(workspaceId))
-        case None => Set.empty[WorkspaceResourceSamResourceId]
+        case None              => Set.empty[WorkspaceResourceSamResourceId]
       }
       list2 <- RuntimeServiceDbQueries
         .listRuntimes(
