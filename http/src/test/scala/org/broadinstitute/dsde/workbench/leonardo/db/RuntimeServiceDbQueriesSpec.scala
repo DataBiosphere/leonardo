@@ -107,6 +107,99 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "list runtimes with many filters" taggedAs SlickPlainQueryTest in isolatedDbTest {
+    val res = for {
+      start <- IO.realTimeInstant
+
+      workspaceId1 = WorkspaceId(UUID.randomUUID())
+      workspaceId2 = WorkspaceId(UUID.randomUUID())
+
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(
+        defaultMachineType,
+        Some(d1.id),
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-west2-b"),
+        None
+      )
+      c1 <- IO(
+        makeCluster(1)
+          .copy(workspaceId = Some(workspaceId1))
+          .saveWithRuntimeConfig(c1RuntimeConfig)
+      )
+      labels1 = Map(
+        "googleProject" -> c1.cloudContext.asString,
+        "clusterName" -> c1.runtimeName.asString,
+        "creator" -> c1.auditInfo.creator.value
+      )
+      _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
+
+      d2 <- makePersistentDisk(None).save()
+      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
+      c2 <- IO(
+        makeCluster(2, cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .copy(workspaceId = Some(workspaceId2))
+          .saveWithRuntimeConfig(
+            c2RuntimeConfig
+          )
+      )
+      labels2 = Map(
+        "clusterName" -> c2.runtimeName.asString,
+        "creator" -> c2.auditInfo.creator.value
+      )
+      _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
+
+      googleProject = GoogleProject(c1.cloudContext.asString)
+      projectIds = Set(ProjectSamResourceId(googleProject))
+      runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId)
+      workspaceIds = Set(workspaceId1, workspaceId2).map(WorkspaceResourceSamResourceId)
+
+      list0 <- RuntimeServiceDbQueries
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds,
+          readerGoogleProjectIds = projectIds
+        ).transaction
+      list1 <- RuntimeServiceDbQueries
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds,
+          readerGoogleProjectIds = projectIds,
+          cloudContext = Some(CloudContext.Gcp(googleProject)),
+          cloudProvider = Some(CloudProvider.Gcp),
+          creatorEmail = Some(c1.auditInfo.creator),
+          excludeStatuses = List(RuntimeStatus.Deleted),
+          labelMap = labels1,
+          workspaceId = Some(workspaceId1)
+        )
+        .transaction
+      list2 <- RuntimeServiceDbQueries
+        .listRuntimes(
+          readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds,
+          readerGoogleProjectIds = projectIds,
+          cloudProvider = Some(CloudProvider.Azure),
+          creatorEmail = Some(c2.auditInfo.creator),
+          excludeStatuses = List(RuntimeStatus.Deleted),
+          labelMap = labels2,
+          workspaceId = Some(workspaceId2)
+        )
+        .transaction
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
+    } yield {
+      val c1Expected = toListRuntimeResponse(c1, labels1, c1RuntimeConfig, defaultHostIp)
+      val c2Expected = toListRuntimeResponse(c2, labels2, c2RuntimeConfig, defaultHostIp)
+      list0 should contain theSameElementsAs Vector(c1Expected, c2Expected)
+      list1 shouldEqual Vector(c1Expected)
+      list2 shouldEqual Vector(c2Expected)
+      elapsed should be < maxElapsed
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "list runtimes by labels" taggedAs SlickPlainQueryTest in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant

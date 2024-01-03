@@ -37,35 +37,6 @@ import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
 
-  implicit val getResultListRuntimeResponse2: GetResult[ListRuntimeResponse2] = GetResult { r =>
-    val id = r.<<[Long]
-    val workspaceId = r.<<?[WorkspaceId]
-    val runtimeName = r.<<[RuntimeName]
-    val cloudContext = r.<<[CloudContext]
-    val ip = r.<<[Option[IP]]
-    val auditInfo = r.<<[AuditInfo]
-    val status = r.<<[RuntimeStatus]
-    val samId = r.<<[RuntimeSamResourceId]
-    val runtimeConfig = r.<<[RuntimeConfig]
-    val labelMap = r.<<[LabelMap]
-    val proxyUrl =
-      Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, cloudContext, runtimeName, Set.empty, ip, labelMap)
-
-    ListRuntimeResponse2(
-      id,
-      workspaceId,
-      samId,
-      runtimeName,
-      cloudContext,
-      auditInfo,
-      runtimeConfig,
-      proxyUrl,
-      status,
-      labelMap,
-      r.nextBoolean()
-    )
-  }
-
   def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(implicit
     ec: ExecutionContext
   ): DBIO[Option[RuntimeStatus]] = {
