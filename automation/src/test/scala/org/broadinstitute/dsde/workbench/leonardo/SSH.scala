@@ -2,19 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{IO, Resource}
 import com.google.cloud.oslogin.common.OsLoginProto.SshPublicKey
-import com.google.cloud.oslogin.v1.{GetLoginProfileRequest, ImportSshPublicKeyRequest, OsLoginServiceClient}
-import liquibase.util.FileUtil
+import com.google.cloud.oslogin.v1.{ImportSshPublicKeyRequest, OsLoginServiceClient}
 import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
-import net.schmizz.sshj.userauth.password.{ConsolePasswordFinder, PasswordFinder}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import java.io.File
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.util.concurrent.TimeUnit

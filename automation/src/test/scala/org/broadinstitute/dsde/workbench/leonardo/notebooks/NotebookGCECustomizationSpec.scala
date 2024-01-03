@@ -81,10 +81,6 @@ final class NotebookGCECustomizationSpec
         val runtime = createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = true)
         for {
           getRuntime <- LeonardoApiClient.getRuntime(runtime.googleProject, runtime.clusterName)
-          _ <- loggerIO.info(
-            s"about to start ssh client, using runtime ${getRuntime.googleProject}/${getRuntime.runtimeName} with status ${getRuntime.status}"
-          )
-          _ <- loggerIO.info(s"runtime: $runtime")
 
           output <- SSH.executeGoogleCommand(getRuntime.googleProject,
                                              LeonardoApiClient.defaultCreateRequestZone.value,
