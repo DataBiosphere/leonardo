@@ -86,7 +86,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - init-github-context
-      # - create-bee-workflow
+      - create-bee-workflow
       - params-gen
     steps:
       - name: dispatch to terra-github-workflows
