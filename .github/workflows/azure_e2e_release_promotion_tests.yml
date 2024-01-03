@@ -152,11 +152,21 @@ jobs:
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       branch: main
+  sleep-job:
+    # One test needs to run before the others and have time to do one-time tasks
+    # Such as creating a k8s cluster DB entry in Leo to prevent race conditions
+    needs:
+      - run-wds-e2e-test-job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sleep for 10 seconds
+        run: echo "Sleeping..." && sleep 10
   run-cromwell-az-e2e:
     needs:
       - params-gen
       - attach-landing-zone-to-bee-workflow
       - create-sam-pet-job
+      - sleep-job
     permissions:
       contents: read
       id-token: write
@@ -170,6 +180,7 @@ jobs:
       - params-gen
       - attach-landing-zone-to-bee-workflow
       - create-sam-pet-job
+      - sleep-job
     permissions:
       contents: read
       id-token: write
