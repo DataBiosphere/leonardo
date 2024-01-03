@@ -26,8 +26,7 @@ name: Azure E2E Release Promotion Tests
         default: 'e2e-8n6xqg'
 env:
   BEE_NAME: >-
-    ${{ github.event.repository.name }}-${{ github.run_id }}-${{
-    github.run_attempt }}-dev
+    bm-aj-2023
   TOKEN: '${{ secrets.BROADBOT_TOKEN }}'
   BEE_CREATE_RUN_NAME: >-
     bee-create-${{ github.event.repository.name }}-${{ github.run_id }}-${{
@@ -61,33 +60,33 @@ jobs:
         run: |
           project_name=$(echo "tmp-billing-project-$(uuidgen)" | cut -c -30)
           echo "project_name=${project_name}" >> $GITHUB_OUTPUT
-  create-bee-workflow:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Echo Leo version
-        run: >
-          echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json
-          }}'
-      - name: dispatch to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4.0.0
-        with:
-          run-name: '${{ env.BEE_CREATE_RUN_NAME }}'
-          workflow: bee-create
-          repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
-          token: '${{ env.TOKEN }}'
-          inputs: >-
-            { "run-name": "${{ env.BEE_CREATE_RUN_NAME }}", "bee-name": "${{
-            env.BEE_NAME }}", "bee-template-name": "rawls-e2e-azure-tests", 
-            "version-template": "staging" }
+  # create-bee-workflow:
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write
+  #   steps:
+  #     - name: Echo Leo version
+  #       run: >
+  #         echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json
+  #         }}'
+  #     - name: dispatch to terra-github-workflows
+  #       uses: broadinstitute/workflow-dispatch@v4.0.0
+  #       with:
+  #         run-name: '${{ env.BEE_CREATE_RUN_NAME }}'
+  #         workflow: bee-create
+  #         repo: broadinstitute/terra-github-workflows
+  #         ref: refs/heads/main
+  #         token: '${{ env.TOKEN }}'
+  #         inputs: >-
+  #           { "run-name": "${{ env.BEE_CREATE_RUN_NAME }}", "bee-name": "${{
+  #           env.BEE_NAME }}", "bee-template-name": "rawls-e2e-azure-tests", 
+  #           "version-template": "staging" }
   attach-landing-zone-to-bee-workflow:
     runs-on: ubuntu-latest
     needs:
       - init-github-context
-      - create-bee-workflow
+      # - create-bee-workflow
       - params-gen
     steps:
       - name: dispatch to terra-github-workflows
