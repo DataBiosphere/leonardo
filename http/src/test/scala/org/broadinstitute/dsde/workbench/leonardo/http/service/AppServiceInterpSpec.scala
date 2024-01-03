@@ -118,7 +118,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       passComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -128,7 +129,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughMemoryComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -138,7 +140,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       notEnoughCpuComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
 
     for {
@@ -169,7 +172,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       noLabelsGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -199,7 +203,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -1309,7 +1314,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1459,7 +1465,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1502,7 +1509,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1544,7 +1552,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1583,7 +1592,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1628,7 +1638,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1673,7 +1684,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -2527,7 +2539,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       FakeGoogleComputeService,
       googleResourceService,
       customAppConfig,
-      wsmDao
+      wsmDao,
+      clusterSemaphore
     )
   }
 }

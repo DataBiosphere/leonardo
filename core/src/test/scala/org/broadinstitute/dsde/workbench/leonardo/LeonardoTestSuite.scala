@@ -26,6 +26,7 @@ trait LeonardoTestSuite extends Matchers {
   val dummyAuth = org.http4s.headers.Authorization(Credentials.Token(AuthScheme.Bearer, ""))
 
   val semaphore = Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  val clusterSemaphore = Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   val underlyingCache =
     Caffeine
       .newBuilder()

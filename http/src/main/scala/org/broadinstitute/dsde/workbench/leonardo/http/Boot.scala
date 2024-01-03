@@ -197,7 +197,8 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO
+          appDependencies.wsmDAO,
+          appDependencies.clusterSemaphore
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
@@ -355,6 +356,7 @@ object Boot extends IOApp {
   ): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
+      kubernetesClusterSemaphore <- Resource.eval(Semaphore[F](1))
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
       // As best practice, we should have all related metrics under same prefix separated by `/`
@@ -823,7 +825,8 @@ object Boot extends IOApp {
         listenerDao,
         wsmClientProvider,
         kubeAlg,
-        azureContainerService
+        azureContainerService,
+        kubernetesClusterSemaphore
       )
     }
 
@@ -948,5 +951,6 @@ final case class AppDependencies[F[_]](
   listenerDAO: ListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider[F],
   kubeAlg: KubernetesAlgebra[F],
-  azureContainerService: AzureContainerService[F]
+  azureContainerService: AzureContainerService[F],
+  clusterSemaphore: Semaphore[F]
 )

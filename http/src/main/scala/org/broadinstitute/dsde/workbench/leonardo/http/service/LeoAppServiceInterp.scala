@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
-import cats.effect.std.Queue
+import cats.effect.std.{Queue, Semaphore}
 import cats.mtl.Ask
 import cats.syntax.all._
 import monocle.macros.syntax.lens._
@@ -56,7 +56,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F]
+                                                wsmDao: WsmDao[F],
+                                                clusterSemaphore: Semaphore[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -164,7 +165,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
       )
 
+      _ <- clusterSemaphore.acquire
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
+      _ <- clusterSemaphore.release
+
       // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <-
         if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
@@ -650,7 +654,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       saveCluster <- F.fromEither(
         getSavableCluster(userInfo.userEmail, cloudContext, ctx.now)
       )
+      _ <- clusterSemaphore.acquire
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
+      _ <- clusterSemaphore.release
       _ <-
         if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
           F.raiseError[Unit](
