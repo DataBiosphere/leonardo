@@ -146,8 +146,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     test.firewallRulesToAdd(
       Map(
         "leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",
-        "leonardo-allow-https-firewall-name" -> "leonardo-ssl",
-        "leonardo-allow-iap-ssh-firewall-name" -> "leonardo-allow-iap-ssh"
+        "leonardo-allow-https-firewall-name" -> "leonardo-ssl"
       )
     ) shouldBe List(expectedSshFirewallRules)
   }
