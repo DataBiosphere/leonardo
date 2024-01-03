@@ -147,11 +147,10 @@ jobs:
       contents: read
       id-token: write
     uses: >-
-      broadinstitute/dsp-reusable-workflows/.github/workflows/run-e2e-tests.yaml@aj-1436-wait-longer
+      broadinstitute/dsp-reusable-workflows/.github/workflows/run-e2e-tests.yaml@b2846f630db97e9be358c533c52d70c1440b7c98
     with:
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
-      branch: aj-1436-wait-longer
   sleep-job:
     # One test needs to run before the others and have time to do one-time tasks
     # Such as creating a k8s cluster DB entry in Leo to prevent race conditions
@@ -171,11 +170,10 @@ jobs:
       contents: read
       id-token: write
     uses: >-
-      broadinstitute/dsp-reusable-workflows/.github/workflows/cromwell-az-e2e-test.yaml@aj-1436-wait-longer
+      broadinstitute/dsp-reusable-workflows/.github/workflows/cromwell-az-e2e-test.yaml@b2846f630db97e9be358c533c52d70c1440b7c98
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
-      branch: aj-1436-wait-longer
   run-cbas-azure-e2e-test:
     needs:
       - params-gen
@@ -186,11 +184,10 @@ jobs:
       contents: read
       id-token: write
     uses: >-
-      broadinstitute/dsp-reusable-workflows/.github/workflows/run_cbas_azure_e2e_tests.yaml@aj-1436-wait-longer
+      broadinstitute/dsp-reusable-workflows/.github/workflows/run_cbas_azure_e2e_tests.yaml@b2846f630db97e9be358c533c52d70c1440b7c98
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
-      branch: aj-1436-wait-longer
   destroy-bee-workflow:
     runs-on: ubuntu-latest
     needs:
