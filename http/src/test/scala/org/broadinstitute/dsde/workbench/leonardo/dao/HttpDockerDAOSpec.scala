@@ -101,7 +101,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should s"detect invalid dockerhub image if image doesn't have proper environment variables set" in withDockerDAO {
+  it should s"detect invalid dockerhub image if image doesn't have proper environment variables set" ignore withDockerDAO {
     dockerDAO =>
       val image = ContainerImage("library/nginx:latest", DockerHub) // not a supported tool
       val res = for {

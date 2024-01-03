@@ -15,10 +15,15 @@ import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+// do not remove `projectSamResourceAction`; it is implicit
   projectSamResourceAction,
+// do not remove `runtimeSamResourceAction`; it is implicit
   runtimeSamResourceAction,
+// do not remove `workspaceSamResourceAction`; it is implicit
   workspaceSamResourceAction,
+// do not remove `wsmResourceSamResourceAction`; it is implicit
   wsmResourceSamResourceAction,
+// do not remove `AppSamResourceAction`; it is implicit
   AppSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
