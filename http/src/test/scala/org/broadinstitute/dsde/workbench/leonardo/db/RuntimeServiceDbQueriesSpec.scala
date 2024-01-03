@@ -7,9 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   ProjectSamResourceId,
-  RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId,
-  WsmResourceSamResourceId
+  WorkspaceResourceSamResourceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
@@ -240,11 +238,18 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
       )
+      runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId)
+      bothProjectIds = Set(
+        ProjectSamResourceId(GoogleProject(c1.cloudContext.asString)),
+        ProjectSamResourceId(GoogleProject(c2.cloudContext.asString))
+      )
       list1 <- RuntimeServiceDbQueries
-        .listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted), cloudContext = Some(cloudContextGcp))
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,excludeStatuses = List(RuntimeStatus.Deleted), cloudContext = Some(cloudContextGcp))
         .transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted), cloudContext = Some(cloudContext2Gcp))
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = bothProjectIds,excludeStatuses = List(RuntimeStatus.Deleted), cloudContext = Some(cloudContext2Gcp))
         .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -308,8 +313,17 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           )
         )
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes().transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted)).transaction
+      runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId, c3.samResource: SamResourceId)
+      projectIds = Set(
+        ProjectSamResourceId(GoogleProject(c1.cloudContext.asString)),
+        ProjectSamResourceId(GoogleProject(c2.cloudContext.asString)),
+        ProjectSamResourceId(GoogleProject(c3.cloudContext.asString))
+      )
+
+      list1 <- RuntimeServiceDbQueries.listRuntimes(readerRuntimeIds = runtimeIds,
+        readerGoogleProjectIds = projectIds).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(readerRuntimeIds = runtimeIds,
+        readerGoogleProjectIds = projectIds,excludeStatuses = List(RuntimeStatus.Deleted)).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -361,9 +375,19 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           c3RuntimeConfig
         )
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes().transaction
+      runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId, c3.samResource: SamResourceId)
+      projectIds = Set(
+        ProjectSamResourceId(GoogleProject(c1.cloudContext.asString)),
+        ProjectSamResourceId(GoogleProject(c2.cloudContext.asString))
+      )
+      workspaceIds = Set(c3.workspaceId).collect { case Some(workspaceId) =>
+        WorkspaceResourceSamResourceId(workspaceId)
+      }
+      list1 <- RuntimeServiceDbQueries.listRuntimes(readerRuntimeIds = runtimeIds,
+        readerGoogleProjectIds = projectIds, readerWorkspaceIds = workspaceIds).transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted))
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerGoogleProjectIds = projectIds, readerWorkspaceIds = workspaceIds, excludeStatuses = List(RuntimeStatus.Deleted))
         .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -424,11 +448,16 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
             c3RuntimeConfig
           )
       )
+      runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId, c3.samResource: SamResourceId)
+      workspaceIds = Set(workspaceId1, workspaceId2).map(WorkspaceResourceSamResourceId)
+
       list1 <- RuntimeServiceDbQueries
-        .listRuntimes(workspaceId = Some(workspaceId1))
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds, workspaceId = Some(workspaceId1))
         .transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted), workspaceId = Some(workspaceId2))
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds, excludeStatuses = List(RuntimeStatus.Deleted), workspaceId = Some(workspaceId2))
         .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -509,33 +538,40 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           )
       )
       c5ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c5.cloudContext, c5.runtimeName).transaction
+      runtimeIds = Set(c1, c2, c3, c4, c5).map(_.samResource: SamResourceId)
+      workspaceIds = Set(workspaceId1, workspaceId2).map(WorkspaceResourceSamResourceId)
 
       list1 <- RuntimeServiceDbQueries
-        .listRuntimes(
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds,
           excludeStatuses = List(RuntimeStatus.Deleted),
           workspaceId = Some(workspaceId1),
           cloudProvider = Some(CloudProvider.Azure)
         )
         .transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimes(
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds,
           excludeStatuses = List(RuntimeStatus.Deleted),
           workspaceId = Some(workspaceId2),
           cloudProvider = Some(CloudProvider.Azure)
         )
         .transaction
       list3 <- RuntimeServiceDbQueries
-        .listRuntimes(
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds,
           excludeStatuses = List(RuntimeStatus.Deleted),
           workspaceId = Some(workspaceId1),
           cloudProvider = Some(CloudProvider.Gcp)
         )
         .transaction
       list4 <- RuntimeServiceDbQueries
-        .listRuntimes(excludeStatuses = List(RuntimeStatus.Deleted), cloudProvider = Some(CloudProvider.Azure))
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds, excludeStatuses = List(RuntimeStatus.Deleted), cloudProvider = Some(CloudProvider.Azure))
         .transaction
       list5 <- RuntimeServiceDbQueries
-        .listRuntimes(
+        .listRuntimes(readerRuntimeIds = runtimeIds,
+          readerWorkspaceIds = workspaceIds,
           excludeStatuses = List(RuntimeStatus.Deleted),
           creatorEmail = Some(c5ClusterRecord.get.auditInfo.creator),
           workspaceId = Some(workspaceId2),
