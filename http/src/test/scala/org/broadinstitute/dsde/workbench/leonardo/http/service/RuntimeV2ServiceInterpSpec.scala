@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   workspaceSamResourceIdDecoder,
   wsmResourceSamResourceIdDecoder
 }
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   ProjectSamResourceId,
   RuntimeSamResourceId,
@@ -761,7 +760,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     // test: user does not have access permission for this resource (but they are the creator)
     val mockAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
     // User passes isUserWorkspaceReader
-    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(true))
+    when(mockAuthProvider.isUserWorkspaceReader(any, any)(any)).thenReturn(IO.pure(true))
     // Calls to a method on a mock which is not stubbed explicitly will return null;
     // the user cannot pass mockAuthProvider.hasPermission unless we stub it
 
@@ -1695,7 +1694,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0)
 
     val runtimeId1 = UUID.randomUUID.toString
@@ -1752,7 +1751,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes, omitting runtimes for workspaces and projects user cannot read" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes, omitting runtimes for workspaces and projects user cannot read" in isolatedDbTest {
     val runtimeId1 = UUID.randomUUID.toString
     val runtimeId2 = UUID.randomUUID.toString
     val runtimeId3 = UUID.randomUUID.toString
@@ -1822,7 +1821,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes given different user permissions" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes given different user permissions" in isolatedDbTest {
     forAll(
       Table(
         ("context", "runtimeAccess", "contextAccess", "isListed"),
@@ -1917,7 +1916,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "list runtimes with a workspace and/or cloudProvider" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes with a workspace and/or cloudProvider" in isolatedDbTest {
     val runtimeId1 = UUID.randomUUID.toString
     val runtimeId2 = UUID.randomUUID.toString
     val runtimeId3 = UUID.randomUUID.toString
@@ -2075,7 +2074,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes with parameters" in isolatedDbTest {
     val runtimeId1 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val workspaceId1 = WorkspaceId(UUID.randomUUID)
@@ -2149,7 +2148,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes filtered by creator" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes filtered by creator" in isolatedDbTest {
     val wsmId1 = WsmResourceSamResourceId(WsmControlledResourceId(UUID.randomUUID))
     val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId3 = RuntimeSamResourceId(UUID.randomUUID.toString)
@@ -2211,7 +2210,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
-  it should "list runtimes belonging to other users" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes belonging to other users" in isolatedDbTest {
     val runtimeId1 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val workspaceId1 = WorkspaceId(UUID.randomUUID)
@@ -2246,7 +2245,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes, rejecting invalid label parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes, rejecting invalid label parameters" in isolatedDbTest {
     runtimeV2Service
       .listRuntimes(userInfo, None, None, Map("_labels" -> "foo=bar;bam=yes"))
       .attempt

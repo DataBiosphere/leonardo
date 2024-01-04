@@ -22,10 +22,28 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  PersistentDiskSamResourceId,
+  ProjectSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId,
+  WsmResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+  // do not remove `projectSamResourceAction`; it is implicit
+  projectSamResourceAction,
+  // do not remove `runtimeSamResourceAction`; it is implicit
+  runtimeSamResourceAction,
+  // do not remove `workspaceSamResourceAction`; it is implicit
+  workspaceSamResourceAction,
+  // do not remove `wsmResourceSamResourceAction`; it is implicit
+  wsmResourceSamResourceAction,
+  // do not remove `AppSamResourceAction`; it is implicit
+  AppSamResourceAction
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -278,7 +296,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
           // Filters
           excludeStatuses = excludeStatuses,
           creatorEmail = creatorOnly,
-          cloudContext = cloudContext
+          cloudContext = cloudContext,
+          labelMap = labelMap
         )
         .transaction
 

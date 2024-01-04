@@ -328,7 +328,8 @@ object CommonTestData {
 
   def makeCluster(index: Int,
                   creator: Option[WorkbenchEmail] = None,
-                  cloudContext: CloudContext = cloudContextGcp
+                  cloudContext: CloudContext = cloudContextGcp,
+                  samResource: RuntimeSamResourceId = runtimeSamResource
   ): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     val auditInfoUpdated = creator match {
@@ -338,7 +339,7 @@ object CommonTestData {
     Runtime(
       id = -1,
       workspaceId = Some(WorkspaceId(UUID.randomUUID())),
-      samResource = runtimeSamResource,
+      samResource = samResource,
       runtimeName = clusterName,
       cloudContext = cloudContext,
       serviceAccount = serviceAccount,

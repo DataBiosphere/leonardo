@@ -9,44 +9,34 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeComputeOperationFuture,
-  FakeGoogleComputeService,
-  FakeGooglePublisher,
-  FakeGoogleStorageInterpreter
-}
-import org.broadinstitute.dsde.workbench.google2.{
-  DataprocRole,
-  DeviceName,
-  DiskName,
-  GoogleComputeService,
-  MachineTypeName,
-  ZoneName
-}
+import io.circe.Decoder
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeComputeOperationFuture, FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleStorageInterpreter}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DeviceName, DiskName, GoogleComputeService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  projectSamResourceDecoder,
+  runtimeSamResourceDecoder,
+  workspaceSamResourceIdDecoder,
+  wsmResourceSamResourceIdDecoder
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, leonardoExceptionEq}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer, leonardoExceptionEq}
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.SlickPlainQueryTest
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
-  calculateAutopauseThreshold,
-  getToolFromImages
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{calculateAutopauseThreshold, getToolFromImages}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{AppSamResourceAction, projectSamResourceAction, runtimeSamResourceAction, workspaceSamResourceAction, wsmResourceSamResourceAction}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  DiskUpdate,
-  LeoPubsubMessage,
-  RuntimeConfigInCreateRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.mockito.ArgumentMatchers.{any, eq => isEq}
+import org.mockito.Mockito.when
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
@@ -61,9 +51,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   val publisherQueue = QueueFactory.makePublisherQueue()
 
   def makeRuntimeService(
-    publisherQueue: Queue[IO, LeoPubsubMessage],
+    publisherQueue: Queue[IO, LeoPubsubMessage] = publisherQueue,
     computeService: GoogleComputeService[IO] = FakeGoogleComputeService,
-    allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
+    authProvider: AllowlistAuthProvider = allowListAuthProvider
   ) =
     new RuntimeServiceInterp(
       RuntimeServiceConfig(
@@ -75,7 +65,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         azureServiceConfig
       ),
       ConfigReader.appConfig.persistentDisk,
-      allowListAuthProvider,
+      authProvider,
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
@@ -83,7 +73,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       publisherQueue
     )
 
-  val runtimeService = makeRuntimeService(publisherQueue)
+  val runtimeService = makeRuntimeService()
 
   val emptyCreateRuntimeReq = CreateRuntimeRequest(
     Map.empty,
@@ -100,6 +90,88 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     Map.empty,
     None
   )
+
+  /**
+   * Generate a mocked AuthProvider which will permit action on the given resource IDs by the given user.
+   * TODO: cover actions beside `checkUserEnabled` and `listResourceIds`
+   *
+   * @param userInfo
+   * @param readerRuntimeSamIds
+   * @param readerWorkspaceSamIds
+   * @param readerProjectSamIds
+   * @param ownerWorkspaceSamIds
+   * @param ownerProjectSamIds
+   * @return
+   */
+  def mockAuthorize(
+                     userInfo: UserInfo,
+                     readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+                     readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
+                     readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                     readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
+                     ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+                     ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
+                   ): AllowlistAuthProvider = {
+    val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
+
+    when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any(Ask[IO, TraceId].getClass))).thenReturn(IO.unit)
+    when(
+      mockAuthProvider.listResourceIds[RuntimeSamResourceId](isEq(true), isEq(userInfo))(
+        any(runtimeSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[RuntimeSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerRuntimeSamIds))
+    when(
+      mockAuthProvider.listResourceIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
+        any(wsmResourceSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[WsmResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerWsmSamIds))
+    when(
+      mockAuthProvider.listResourceIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
+        any(workspaceSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[WorkspaceResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    ).thenReturn(IO.pure(readerWorkspaceSamIds))
+    when(
+      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(readerProjectSamIds))
+    when(
+      mockAuthProvider.listResourceIds[WorkspaceResourceSamResourceId](isEq(true), isEq(userInfo))(
+        any(workspaceSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[WorkspaceResourceSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(ownerWorkspaceSamIds))
+    when(
+      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
+        any(projectSamResourceAction.getClass),
+        any(AppSamResourceAction.getClass),
+        any(Decoder[ProjectSamResourceId].getClass),
+        any(Ask[IO, TraceId].getClass)
+      )
+    )
+      .thenReturn(IO.pure(ownerProjectSamIds))
+
+    mockAuthProvider
+  }
+
+  def mockUserInfo(email: String = userEmail.toString()): UserInfo =
+    UserInfo(OAuth2BearerToken(""), WorkbenchUserId(s"userId-${email}"), WorkbenchEmail(email), 0)
 
   it should "fail with AuthorizationError if user doesn't have project level permission" in {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
@@ -812,115 +884,101 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     exc shouldBe a[ForbiddenError]
   }
 
-  it should "list runtimes" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
+  it should "list runtimes" in isolatedDbTest {
+    val userInfo = mockUserInfo("grendel@mom.mere")
+    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
+      readerProjectSamIds = Set(ProjectSamResourceId(project))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    val service = makeRuntimeService(authProvider = mockAuthProvider)
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
-    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+      _ <- IO(makeCluster(1, samResource = runtimeIds(0)).save())
+      _ <- IO(makeCluster(2, samResource = runtimeIds(1)).save())
+      listResponse <- service.listRuntimes(userInfo, None, Map.empty)
+    } yield listResponse.map(_.samResource) should contain theSameElementsAs runtimeIds
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with a project" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
+  it should "list runtimes filtered by project" in isolatedDbTest {
+    val userInfo = mockUserInfo("grendel@mom.mere")
+    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
+      readerProjectSamIds = Set(ProjectSamResourceId(project), ProjectSamResourceId(project2))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    val service = makeRuntimeService(authProvider = mockAuthProvider)
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
-    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+      _ <- IO(makeCluster(1).copy(samResource = runtimeIds(0)).save())
+      _ <- IO(makeCluster(2).copy(samResource = runtimeIds(1)).save())
+      _ <- IO(makeCluster(3, cloudContext = cloudContext2Gcp).copy(samResource = runtimeIds(2)).save())
+      listResponse <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
+    } yield listResponse.map(_.samResource) should contain theSameElementsAs runtimeIds.slice(0, 2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with user access to project" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
+  it should "list runtimes filtered by label" in isolatedDbTest {
+    val userInfo = mockUserInfo("grendel@mom.mere")
+    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
+      readerProjectSamIds = Set(ProjectSamResourceId(project))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    val service = makeRuntimeService(authProvider = mockAuthProvider)
 
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(makeCluster(2, cloudContext = cloudContext2Gcp).copy(samResource = samResource2).save())
-      listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
-    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "list runtimes with parameters" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
-    val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      runtime1 <- IO(makeCluster(1).copy(samResource = samResource1).save())
-      _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
+      runtime1 <- IO(makeCluster(1).copy(samResource = runtimeIds(0)).save())
+      _ <- IO(makeCluster(2).copy(samResource = runtimeIds(1)).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
-      listResponse <- runtimeService.listRuntimes(userInfo, None, Map("foo" -> "bar"))
-    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
+      listResponse <- service.listRuntimes(userInfo, None, Map("foo" -> "bar"))
+      _ = println(listResponse)
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(runtimeIds(0))
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
-  it should "list runtimes belonging to other users" taggedAs SlickPlainQueryTest in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
+  it should "list runtimes belonging to other users" in isolatedDbTest {
+    val userInfo = mockUserInfo("grendel@mere.mom")
+    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      ownerProjectSamIds = Set(ProjectSamResourceId(project))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    val service = makeRuntimeService(authProvider = mockAuthProvider)
 
     // Make runtimes belonging to different users than the calling user
     val res = for {
-      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      runtime1 = LeoLenses.runtimeToCreator.set(WorkbenchEmail("different_user1@example.com"))(
+      samResource1 <- IO(runtimeIds(0))
+      samResource2 <- IO(runtimeIds(1))
+      runtime1 = LeoLenses.runtimeToCreator.replace(WorkbenchEmail("beowulf@heorot.hall"))(
         makeCluster(1).copy(samResource = samResource1)
       )
-      runtime2 = LeoLenses.runtimeToCreator.set(WorkbenchEmail("different_user2@example.com"))(
+      runtime2 = LeoLenses.runtimeToCreator.replace(WorkbenchEmail("beowulf@heorot.hall"))(
         makeCluster(2).copy(samResource = samResource2)
       )
       _ <- IO(runtime1.save())
       _ <- IO(runtime2.save())
-      listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
+      listResponse <- service.listRuntimes(userInfo, None, Map.empty)
     } yield
-    // Since the calling user is allowlisted in the auth provider, it should return
-    // the runtimes belonging to other users.
     listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with labels" taggedAs SlickPlainQueryTest in isolatedDbTest {
+  it should "list runtimes with labels" in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     val req = emptyCreateRuntimeReq.copy(
@@ -972,41 +1030,50 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtime2.patchInProgress
     )
 
-    runtimeService
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      readerRuntimeSamIds = Set(runtime1.samResource, runtime2.samResource),
+      readerProjectSamIds = Set(ProjectSamResourceId(project))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    val service = makeRuntimeService(authProvider = mockAuthProvider)
+
+
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1,
       listRuntimeResponse2
     )
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1
     )
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
       .futureValue
       .toSet shouldBe Set(listRuntimeResponse1)
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "a=b"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     )
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "baz=biz"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set.empty
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "A=B"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     ) // labels are not case sensitive because MySQL
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo%3Dbar"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1014,7 +1081,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar;bam=yes"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1022,7 +1089,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .toOption
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1031,7 +1098,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
 
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "bogus"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1040,7 +1107,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
 
-    runtimeService
+    service
       .listRuntimes(userInfo, None, Map("_labels" -> "a,b"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1154,7 +1221,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )(implicit ev: Ask[IO, TraceId]): IO[Option[OperationFuture[Operation, Operation]]] =
         IO.pure(Some(operationFuture))
     }
-    val runtimeService = makeRuntimeService(publisherQueue, computeService)
+    val runtimeService = makeRuntimeService(computeService = computeService)
     val res = for {
       pd <- makePersistentDisk().save()
       testRuntime <- IO(
@@ -1186,7 +1253,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       WorkbenchEmail("user1@example.com"),
       0
     ) // this email is allowlisted
-    val runtimeService = makeRuntimeService(publisherQueue, allowListAuthProvider = allowListAuthProvider2)
+    val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider2)
     val res = for {
       context <- appContext.ask[AppContext]
       pd <- makePersistentDisk().save()
