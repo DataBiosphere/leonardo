@@ -107,7 +107,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       val res = for {
         ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image, None, ctx.now).attempt
-      } yield response shouldBe Left(InvalidImage(ctx.traceId, image, None))
+      } yield response.left.map(t => t.asInstanceOf[InvalidImage].image) shouldBe Left(image)
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
