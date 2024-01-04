@@ -114,8 +114,7 @@ trait TestLeoRoutes {
     FakeGoogleComputeService,
     FakeGoogleResourceService,
     Config.gkeCustomAppConfig,
-    wsmDao,
-    clusterSemaphore
+    wsmDao
   )
 
   val serviceConfig = RuntimeServiceConfig(
