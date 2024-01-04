@@ -353,24 +353,19 @@ object RuntimeServiceDbQueries {
       .filterIf(excludeStatuses.nonEmpty) { runtime =>
         excludeStatuses.map(status => runtime.status =!= status).reduce(_ && _)
       }
-    val runtimesFiltered =
-      if (labelMap.isEmpty) runtimesFilteredSimple
-      else
-        labelMap
-          .map { case (key: String, value: String) =>
-            for {
-              (runtime, _) <- runtimesFilteredSimple join labelQuery on ((r, l) =>
-                l.resourceId === r.id &&
-                  l.resourceType === LabelResourceType.runtime &&
-                  l.key === key &&
-                  l.value === value
-              )
-            } yield runtime: ClusterTable
-          }
-          .reduceOption((leftRuntime, rightRuntime) =>
-            leftRuntime.join(rightRuntime).on((left, right) => left.id === right.id).map(_._1)
-          )
-          .getOrElse(runtimesFilteredSimple)
+
+    val runtimesFiltered = labelMap
+      .foldLeft(runtimesFilteredSimple) {
+        case (someRuntimeQuery: Query[ClusterTable, ClusterRecord, Seq], (key: String, value: String)) =>
+          for {
+            (runtime, _) <- someRuntimeQuery join labelQuery on ((r, l) =>
+              l.resourceId === r.id &&
+                l.resourceType === LabelResourceType.runtime &&
+                l.key === key &&
+                l.value === value
+            )
+          } yield runtime: ClusterTable
+      }
 
     // Assemble response
     val runtimesJoined = runtimesFiltered
