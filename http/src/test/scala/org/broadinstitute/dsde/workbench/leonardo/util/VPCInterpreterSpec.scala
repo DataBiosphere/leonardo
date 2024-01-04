@@ -144,7 +144,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val expectedIapFirewallRules = FirewallRuleConfig(
       "leonardo-allow-iap-ssh",
       None,
-      allSupportedRegions
+      iapRegions
         .map(r =>
           r -> List(
             IpRange("35.235.240.0/20")

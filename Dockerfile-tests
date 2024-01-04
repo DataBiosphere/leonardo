@@ -12,6 +12,8 @@ COPY automation-tests-docker-entrypoint.sh /app
 RUN touch /app/key.json
 
 # Downloading gcloud package
+# https://cloud.google.com/sdk/docs/install#linux
+# https://stackoverflow.com/questions/28372328/how-to-install-the-google-cloud-sdk-in-a-docker-image
 RUN curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
 
 # Installing the package

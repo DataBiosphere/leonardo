@@ -41,9 +41,14 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         }
     }
 
-    // TODO: [discuss] it does not seem like automation tests should be verifying security policies
+    "should be able to install python libraries with C bindings" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
+          notebookPage.executeCell("! pip show Cython").get should include("Name: Cython")
+          notebookPage.executeCell("! pip install POT").get should include("Successfully installed POT")
+        }
+      }
+    }
 
-    // TODO: [discuss] This is an expensive test that waited on the command for 5min+ to complete...
-    // seems like a smell to be waiting on an unreliable ssh connection/selenium socket for any longer than 10 seconds
   }
 }
