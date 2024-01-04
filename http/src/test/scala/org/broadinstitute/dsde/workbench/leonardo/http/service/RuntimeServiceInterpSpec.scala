@@ -10,8 +10,20 @@ import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeComputeOperationFuture, FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleStorageInterpreter}
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DeviceName, DiskName, GoogleComputeService, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeComputeOperationFuture,
+  FakeGoogleComputeService,
+  FakeGooglePublisher,
+  FakeGoogleStorageInterpreter
+}
+import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
+  DeviceName,
+  DiskName,
+  GoogleComputeService,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   projectSamResourceDecoder,
@@ -26,11 +38,24 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{calculateAutopauseThreshold, getToolFromImages}
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{AppSamResourceAction, projectSamResourceAction, runtimeSamResourceAction, workspaceSamResourceAction, wsmResourceSamResourceAction}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
+  calculateAutopauseThreshold,
+  getToolFromImages
+}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+  projectSamResourceAction,
+  runtimeSamResourceAction,
+  workspaceSamResourceAction,
+  wsmResourceSamResourceAction,
+  AppSamResourceAction
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  DiskUpdate,
+  LeoPubsubMessage,
+  RuntimeConfigInCreateRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model._
@@ -104,14 +129,14 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
    * @return
    */
   def mockAuthorize(
-                     userInfo: UserInfo,
-                     readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
-                     readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
-                     readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                     readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
-                     ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-                     ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
-                   ): AllowlistAuthProvider = {
+    userInfo: UserInfo,
+    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
+    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
+    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
+    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
+  ): AllowlistAuthProvider = {
     val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
 
     when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any(Ask[IO, TraceId].getClass))).thenReturn(IO.unit)
@@ -886,7 +911,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "list runtimes" in isolatedDbTest {
     val userInfo = mockUserInfo("grendel@mom.mere")
-    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val runtimeIds =
+      Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
     val mockAuthProvider = mockAuthorize(
       userInfo,
       readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
@@ -906,7 +932,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "list runtimes filtered by project" in isolatedDbTest {
     val userInfo = mockUserInfo("grendel@mom.mere")
-    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString),
+                            RuntimeSamResourceId(UUID.randomUUID.toString),
+                            RuntimeSamResourceId(UUID.randomUUID.toString)
+    )
     val mockAuthProvider = mockAuthorize(
       userInfo,
       readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
@@ -927,7 +956,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "list runtimes filtered by label" in isolatedDbTest {
     val userInfo = mockUserInfo("grendel@mom.mere")
-    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val runtimeIds =
+      Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
     val mockAuthProvider = mockAuthorize(
       userInfo,
       readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
@@ -951,7 +981,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   // AoU relies on the ability for project owners to list other users' runtimes.
   it should "list runtimes belonging to other users" in isolatedDbTest {
     val userInfo = mockUserInfo("grendel@mere.mom")
-    val runtimeIds = Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val runtimeIds =
+      Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
     val mockAuthProvider = mockAuthorize(
       userInfo,
       ownerProjectSamIds = Set(ProjectSamResourceId(project))
@@ -972,8 +1003,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- IO(runtime1.save())
       _ <- IO(runtime2.save())
       listResponse <- service.listRuntimes(userInfo, None, Map.empty)
-    } yield
-    listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1037,7 +1067,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
     val service = makeRuntimeService(authProvider = mockAuthProvider)
-
 
     service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar"))

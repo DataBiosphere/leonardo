@@ -158,7 +158,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           readerRuntimeIds = runtimeIds,
           readerWorkspaceIds = workspaceIds,
           readerGoogleProjectIds = projectIds
-        ).transaction
+        )
+        .transaction
       list1 <- RuntimeServiceDbQueries
         .listRuntimes(
           readerRuntimeIds = runtimeIds,
