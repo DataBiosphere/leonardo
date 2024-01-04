@@ -274,27 +274,29 @@ object RuntimeServiceDbQueries {
     // Optimize Google project list if filtering to a specific cloud provider or context
     val ownedProjects: Set[CloudContextDb] = ((provider, cloudContext) match {
       case (Some(CloudProvider.Azure), _) => Set.empty[CloudContextDb]
-      case (Some(CloudProvider.Gcp), Some(CloudContext.Gcp(value))) => ownerGoogleProjectIds.filter(samId => samId.googleProject == value)
+      case (Some(CloudProvider.Gcp), Some(CloudContext.Gcp(value))) =>
+        ownerGoogleProjectIds.filter(samId => samId.googleProject == value)
       case _ => ownerGoogleProjectIds
-    }).map {
-      case samId: SamResourceId => CloudContextDb(samId.resourceId)
+    }).map { case samId: SamResourceId =>
+      CloudContextDb(samId.resourceId)
     }
     val readProjects: Set[CloudContextDb] = ((provider, cloudContext) match {
       case (Some(CloudProvider.Azure), _) => Set.empty[CloudContextDb]
-      case (Some(CloudProvider.Gcp), Some(CloudContext.Gcp(value))) => readerGoogleProjectIds.filter(samId => samId.googleProject == value)
+      case (Some(CloudProvider.Gcp), Some(CloudContext.Gcp(value))) =>
+        readerGoogleProjectIds.filter(samId => samId.googleProject == value)
       case _ => readerGoogleProjectIds
-    }).map {
-      case samId: SamResourceId => CloudContextDb(samId.resourceId)
+    }).map { case samId: SamResourceId =>
+      CloudContextDb(samId.resourceId)
     }
 
     // Optimize workspace list if filtering to a single workspace
     val ownedWorkspaces: Set[WorkspaceId] = (workspaceId match {
       case Some(wId) => ownerWorkspaceIds.filter(samId => WorkspaceId(UUID.fromString(samId.resourceId)) == wId)
-      case None => ownerWorkspaceIds
+      case None      => ownerWorkspaceIds
     }).map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
     val readWorkspaces: Set[WorkspaceId] = (workspaceId match {
       case Some(wId) => readerWorkspaceIds.filter(samId => WorkspaceId(UUID.fromString(samId.resourceId)) == wId)
-      case None => readerWorkspaceIds
+      case None      => readerWorkspaceIds
     }).map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
 
     val readRuntimes: Set[String] = readerRuntimeIds.map(readId => readId.asString)
