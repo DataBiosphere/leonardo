@@ -137,11 +137,20 @@ jobs:
     with:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
+  sleep-job-2:
+    # One test needs to run before the others and have time to do one-time tasks
+    # Such as creating a k8s cluster DB entry in Leo to prevent race conditions
+    needs:
+      - sleep-job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sleep for 10 seconds
+        run: echo "Sleeping..." && sleep 10
   run-cbas-azure-e2e-test:
     needs:
       - params-gen
       - attach-landing-zone-to-bee-workflow
-      - sleep-job
+      - sleep-job-2
     permissions:
       contents: read
       id-token: write
