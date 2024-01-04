@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   WorkspaceResourceSamResourceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.GetResultInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -28,7 +27,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import slick.jdbc.GetResult
 
 import java.util.UUID
 import java.sql.SQLDataException
