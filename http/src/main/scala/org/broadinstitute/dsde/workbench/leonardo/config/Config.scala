@@ -124,7 +124,6 @@ object Config {
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("customDataprocImage"),
-      config.as[DataprocCustomImage]("legacyAouCustomDataprocImage"),
       config.getAs[Double]("sparkMemoryConfigRatio"),
       config.getAs[Double]("minimumRuntimeMemoryInGb"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
