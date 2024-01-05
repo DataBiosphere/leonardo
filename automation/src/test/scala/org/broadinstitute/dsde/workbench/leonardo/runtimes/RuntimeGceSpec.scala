@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.{defaultCreateRuntime2Request, getRuntime}
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam

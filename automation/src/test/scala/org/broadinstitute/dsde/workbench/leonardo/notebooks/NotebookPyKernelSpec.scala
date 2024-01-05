@@ -2,12 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
-import org.broadinstitute.dsde.workbench.leonardo.{Leonardo, LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
-
-import scala.concurrent.duration.DurationLong
-import cats.effect.unsafe.implicits.global
 
 /**
  * This spec verifies notebook functionality specifically around the Python 3 kernel.

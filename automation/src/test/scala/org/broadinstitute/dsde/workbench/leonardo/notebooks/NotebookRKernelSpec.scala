@@ -6,8 +6,6 @@ import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDepende
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
 import org.scalatest.DoNotDiscover
 
-import scala.concurrent.duration._
-
 /**
  * This spec verifies notebook functionality specifically around the R kernel.
  */

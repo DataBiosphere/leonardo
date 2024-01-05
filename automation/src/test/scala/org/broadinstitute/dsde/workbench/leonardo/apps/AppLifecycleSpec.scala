@@ -14,7 +14,7 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
-import org.scalatest.{Assertion, DoNotDiscover}
+import org.scalatest.Assertion
 
 import scala.concurrent.duration._
 

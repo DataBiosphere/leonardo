@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{HttpHeader, Uri}
+import akka.http.scaladsl.model.Uri
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{
