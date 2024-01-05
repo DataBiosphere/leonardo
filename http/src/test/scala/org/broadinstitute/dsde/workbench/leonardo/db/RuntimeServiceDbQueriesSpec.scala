@@ -4,7 +4,11 @@ package db
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, WorkspaceResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  ProjectSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -91,15 +95,21 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           excludeStatuses = List(RuntimeStatus.Deleted)
         )
         .transaction
+
+      // no authorizations => no runtimes
+      list4 <- RuntimeServiceDbQueries
+        .listRuntimes()
+        .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
-      list1 shouldEqual List.empty
+      list1 shouldEqual Vector.empty
       val c1Expected = toListRuntimeResponse(c1, Map.empty, d1RuntimeConfig)
       val c2Expected = toListRuntimeResponse(c2, Map.empty, d2RuntimeConfig)
       list2 shouldEqual Vector(c1Expected)
       list3.toSet shouldEqual Set(c1Expected, c2Expected)
+      list4 shouldEqual Vector.empty
       elapsed should be < maxElapsed
     }
 
@@ -112,6 +122,9 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
 
       workspaceId1 = WorkspaceId(UUID.randomUUID())
       workspaceId2 = WorkspaceId(UUID.randomUUID())
+      runtimeId1 = UUID.randomUUID.toString
+      runtimeId2 = UUID.randomUUID.toString
+      runtimeId3 = UUID.randomUUID.toString
 
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(
@@ -122,7 +135,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
         None
       )
       c1 <- IO(
-        makeCluster(1)
+        makeCluster(1, samResource = RuntimeSamResourceId(runtimeId1))
           .copy(workspaceId = Some(workspaceId1))
           .saveWithRuntimeConfig(c1RuntimeConfig)
       )
@@ -133,10 +146,13 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
 
-      d2 <- makePersistentDisk(None).save()
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
       c2 <- IO(
-        makeCluster(2, cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+        makeCluster(2,
+                    samResource = RuntimeSamResourceId(runtimeId2),
+                    cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
+        )
           .copy(workspaceId = Some(workspaceId2))
           .saveWithRuntimeConfig(
             c2RuntimeConfig
@@ -148,6 +164,20 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
       _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
 
+      d3 <- makePersistentDisk(None).save()
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
+      c3 <- IO(
+        makeCluster(3,
+                    samResource = RuntimeSamResourceId(runtimeId3),
+                    cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
+        )
+          .copy(workspaceId = Some(workspaceId2))
+          .saveWithRuntimeConfig(
+            c3RuntimeConfig
+          )
+      )
+
+      // Note that c3 exists but is not visible
       googleProject = GoogleProject(c1.cloudContext.asString)
       projectIds = Set(ProjectSamResourceId(googleProject))
       runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId)

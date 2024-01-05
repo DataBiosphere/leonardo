@@ -329,7 +329,7 @@ object CommonTestData {
   def makeCluster(index: Int,
                   creator: Option[WorkbenchEmail] = None,
                   cloudContext: CloudContext = cloudContextGcp,
-                  samResource: RuntimeSamResourceId = runtimeSamResource
+                  samResource: RuntimeSamResourceId = RuntimeSamResourceId(UUID.randomUUID.toString)
   ): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     val auditInfoUpdated = creator match {

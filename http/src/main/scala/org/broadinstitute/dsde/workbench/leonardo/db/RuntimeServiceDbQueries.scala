@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import slick.lifted.CanBeQueryCondition
 
 import java.util.UUID
 import java.sql.SQLDataException
@@ -301,59 +302,53 @@ object RuntimeServiceDbQueries {
 
     val readRuntimes: Set[String] = readerRuntimeIds.map(readId => readId.asString)
 
-    val runtimeInReadWorkspaces: Option[Query[ClusterTable, ClusterRecord, Seq]] =
+    val runtimeInReadWorkspaces: Option[ClusterTable => Rep[Option[Boolean]]] =
       if (readRuntimes.isEmpty || readWorkspaces.isEmpty)
         None
       else
-        Some(
-          for {
-            runtime <- clusterQuery if (runtime.internalId inSetBind readRuntimes) &&
-              (runtime.workspaceId inSetBind readWorkspaces)
-          } yield runtime
+        Some(runtime =>
+          (runtime.internalId inSetBind readRuntimes) &&
+            (runtime.workspaceId inSetBind readWorkspaces)
         )
 
-    val runtimeInReadProjects: Option[Query[ClusterTable, ClusterRecord, Seq]] =
+    val runtimeInReadProjects: Option[ClusterTable => Rep[Option[Boolean]]] =
       if (readRuntimes.isEmpty || readProjects.isEmpty)
         None
       else
-        Some(
-          for {
-            runtime <- clusterQuery if (runtime.internalId inSetBind readRuntimes) &&
-              (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
-              (runtime.cloudContextDb inSetBind readProjects)
-          } yield runtime
+        Some(runtime =>
+          (runtime.internalId inSetBind readRuntimes) &&
+            (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+            (runtime.cloudContextDb inSetBind readProjects)
         )
 
-    val runtimeInOwnedWorkspaces: Option[Query[ClusterTable, ClusterRecord, Seq]] =
+    val runtimeInOwnedWorkspaces: Option[ClusterTable => Rep[Option[Boolean]]] =
       if (ownedWorkspaces.isEmpty)
         None
       else
-        Some(
-          for {
-            runtime <- clusterQuery if runtime.workspaceId inSetBind ownedWorkspaces
-          } yield runtime
-        )
+        Some(runtime => runtime.workspaceId inSetBind ownedWorkspaces)
 
-    val runtimeInOwnedProjects: Option[Query[ClusterTable, ClusterRecord, Seq]] =
+    val runtimeInOwnedProjects: Option[ClusterTable => Rep[Option[Boolean]]] =
       if (ownedProjects.isEmpty)
         None
       else
-        Some(
-          for {
-            runtime <- clusterQuery if (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
-              (runtime.cloudContextDb inSetBind ownedProjects)
-          } yield runtime
+        Some(runtime =>
+          (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+            (runtime.cloudContextDb inSetBind ownedProjects)
         )
 
-    val runtimesAuthorized = Seq(
-      runtimeInReadWorkspaces,
-      runtimeInOwnedWorkspaces,
-      runtimeInReadProjects,
-      runtimeInOwnedProjects
-    )
-      .mapFilter(opt => opt)
-      .reduceOption(_ ++ _)
-      .getOrElse(clusterQuery.filter(_ => false))
+    val runtimesAuthorized =
+      clusterQuery.filter[Rep[Option[Boolean]]] { runtime: ClusterTable =>
+        Seq(
+          runtimeInReadWorkspaces,
+          runtimeInOwnedWorkspaces,
+          runtimeInReadProjects,
+          runtimeInOwnedProjects
+        )
+          .mapFilter(opt => opt)
+          .map(_(runtime))
+          .reduceLeftOption(_ || _)
+          .getOrElse(Some(false): Rep[Option[Boolean]])
+      }
 
     val runtimesFilteredSimple = runtimesAuthorized
       // Filter by params
@@ -391,15 +386,17 @@ object RuntimeServiceDbQueries {
       .join(runtimeConfigs)
       .on((runtime, runtimeConfig) => runtime.runtimeConfigId === runtimeConfig.id)
       .joinLeft(patchQuery)
-      .on((runtimeWithConfig, runtimePatch) => runtimeWithConfig._1.id === runtimePatch.clusterId)
+      .on((runtimeAndConfig, patch) => runtimeAndConfig._1.id === patch.clusterId)
+      .map { case ((runtime, runtimeConfig), patch) =>
+        (runtime, runtimeConfig, patch.map(_.inProgress).getOrElse(false))
+      }
       .joinLeft(labelQuery)
-      .on((runtimeWithConfigWithPatch, l) =>
-        runtimeWithConfigWithPatch._1._1.id === l.resourceId &&
-          l.resourceType === LabelResourceType.runtime
+      .on((runtimeAndConfigAndPatch, label) =>
+        runtimeAndConfigAndPatch._1.id === label.resourceId &&
+          label.resourceType === LabelResourceType.runtime
       )
-      .map { case (((runtime, runtimeConfigRecord), runtimePatch), label) =>
+      .map { case ((runtime, runtimeConfigRecord, patchInProgress), label) =>
         val labelPair = label.map(l => (l.key, l.value))
-        val patchInProgress = runtimePatch.map(_.inProgress).getOrElse(false)
         (
           runtime.id,
           runtime.cloudContextDb,
