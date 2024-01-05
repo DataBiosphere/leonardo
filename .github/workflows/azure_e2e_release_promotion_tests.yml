@@ -1,8 +1,5 @@
 name: Azure E2E Release Promotion Tests
 'on':
-  push:
-    branches:
-      - aj-1436-e2e-staging
   workflow_dispatch:
     inputs:
       testEnv:
@@ -116,8 +113,7 @@ jobs:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       branch: main
   sleep-job:
-    # One test needs to run before the others and have time to do one-time tasks
-    # Such as creating a k8s cluster DB entry in Leo to prevent race conditions
+    # Delay start of second test to prevent race conditions
     needs:
       - attach-landing-zone-to-bee-workflow
     runs-on: ubuntu-latest
@@ -138,8 +134,7 @@ jobs:
       bee-name: '${{ needs.params-gen.outputs.bee-name }}'
       billing-project-name: '${{ needs.params-gen.outputs.project-name }}'
   sleep-job-2:
-    # One test needs to run before the others and have time to do one-time tasks
-    # Such as creating a k8s cluster DB entry in Leo to prevent race conditions
+    # Delay start of third test to prevent race conditions
     needs:
       - sleep-job
     runs-on: ubuntu-latest
