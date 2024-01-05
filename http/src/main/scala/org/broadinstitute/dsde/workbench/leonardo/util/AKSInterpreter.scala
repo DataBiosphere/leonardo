@@ -319,24 +319,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
 
       app = dbApp.app
-      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
 
       // Resolve the workspace in WSM
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      leoAuth <- samDao.getLeoAuthToken
       workspaceDescOpt <- childSpan("getWorkspace").use { implicit ev =>
-        tokenOpt.flatTraverse { token =>
-          legacyWsmDao.getWorkspace(
-            workspaceId,
-            org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-          )
-        }
+        legacyWsmDao.getWorkspace(workspaceId, leoAuth)
       }
       workspaceDesc <- F.fromOption(workspaceDescOpt,
                                     AppUpdateException(s"Workspace ${workspaceId} not found in WSM", Some(ctx.traceId))
       )
 
       // Query the Landing Zone service for the landing zone resources
-      leoAuth <- samDao.getLeoAuthToken
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
         legacyWsmDao.getLandingZoneResources(BillingProfileId(workspaceDesc.spendProfile), leoAuth)
       }
