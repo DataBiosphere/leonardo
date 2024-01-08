@@ -19,7 +19,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
   "RuntimeSystemSpec" - {
-    s"should have the workspace-related environment variables set in jupyter image" ignore { runtimeFixture =>
+    s"should have the workspace-related environment variables set in jupyter image" in { runtimeFixture =>
       // TODO: any others?
       val expectedEnvironment = Map(
         "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
@@ -46,7 +46,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-    "should have Java available" ignore { runtimeFixture =>
+    "should have Java available" in { runtimeFixture =>
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
         for {
@@ -65,7 +65,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
 
     // TODO: remove selenium from this, needs re-write
     // see https://broadworkbench.atlassian.net/browse/IA-4723
-    "should set up the users google identity on the vm" ignore { runtimeFixture =>
+    "should set up the users google identity on the vm" in { runtimeFixture =>
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
         withResourceFileInBucket(runtimeFixture.runtime.googleProject,
