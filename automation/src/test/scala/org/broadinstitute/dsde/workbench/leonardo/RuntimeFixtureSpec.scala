@@ -13,6 +13,7 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.freespec.FixtureAnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
+import scala.concurrent.duration._
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -72,12 +73,19 @@ abstract class RuntimeFixtureSpec
    * Create new runtime by Ron with all default settings
    */
   def createRonRuntime(billingProject: GoogleProject): Unit = {
-    logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
 
     val runtimeName = randomClusterName
+    logger.info(
+      s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime to be created: ${billingProject.value}/${runtimeName.asString}"
+    )
     val res = LeonardoApiClient.client.use { c =>
       implicit val client: Client[IO] = c
       for {
+        _ <- loggerIO.info("Sleeping for 3 minutes in `RuntimeFixtureSpec` before runtime creation")
+        // There are IAM propagation issues associated with pulling docker images from GCR as a google identity in a fresh project.
+        // Unfortunately, there is not an easy way to verify this has completed for a project
+        // Therefore, we wait a bit in the `beforeAll` before attempting to create this runtime.
+        _ <- IO.sleep(5 minutes)
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(
           billingProject,
           runtimeName,
