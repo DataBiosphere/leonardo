@@ -193,7 +193,7 @@ object RuntimeServiceDbQueries {
     )
   }
 
-  def unmarshalGetRuntime(
+  private def unmarshalGetRuntime(
     clusterRecords: Seq[
       (
         ClusterRecord,
@@ -309,7 +309,7 @@ object RuntimeServiceDbQueries {
    * List runtimes filtered by the given terms. Only return authorized resources (per reader*Ids and/or owner*Ids).
    * @param labelMap
    * @param excludeStatuses
-   * @param creatorOnly
+   * @param creatorEmail
    * @param workspaceId
    * @param cloudProvider
    * @param readerRuntimeIds
@@ -388,7 +388,7 @@ object RuntimeServiceDbQueries {
       else
         Some(runtime =>
           (runtime.internalId inSetBind readRuntimes) &&
-            (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+            (runtime.cloudProvider.? === (CloudProvider.Gcp: CloudProvider)) &&
             (runtime.cloudContextDb inSetBind readProjects)
         )
 
@@ -403,7 +403,7 @@ object RuntimeServiceDbQueries {
         None
       else
         Some(runtime =>
-          (runtime.cloudProvider === (CloudProvider.Gcp: CloudProvider)) &&
+          (runtime.cloudProvider.? === (CloudProvider.Gcp: CloudProvider)) &&
             (runtime.cloudContextDb inSetBind ownedProjects)
         )
 
