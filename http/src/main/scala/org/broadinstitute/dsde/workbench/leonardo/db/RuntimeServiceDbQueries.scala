@@ -27,7 +27,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 }
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import slick.lifted.CanBeQueryCondition
 
 import java.util.UUID
 import java.sql.SQLDataException
@@ -35,6 +34,78 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
+
+  case class ListRuntimesRecord(
+    id: Long,
+    cloudContextDb: CloudContextDb,
+    cloudProvider: CloudProvider,
+    creator: WorkbenchEmail,
+    createdDate: Instant,
+    destroyedDate: Instant,
+    dateAccessed: Instant,
+    hostIp: Option[IP],
+    internalId: String,
+    patchInProgress: Boolean,
+    runtimeConfig: RuntimeConfigRecord,
+    runtimeName: RuntimeName,
+    status: RuntimeStatus,
+    workspaceId: Option[WorkspaceId],
+    label: Option[(String, String)]
+  )
+
+  private type ListRuntimesProduct = (
+    Long,
+    CloudContextDb,
+    CloudProvider,
+    WorkbenchEmail,
+    Instant,
+    Instant,
+    Instant,
+    Option[IP],
+    String,
+    Boolean,
+    RuntimeConfigRecord,
+    RuntimeName,
+    RuntimeStatus,
+    Option[WorkspaceId],
+    Option[(String, String)]
+  )
+  private object ListRuntimesRecord {
+    def apply(product: ListRuntimesProduct): ListRuntimesRecord = product match {
+      case (l,
+            db,
+            provider,
+            email,
+            instant,
+            instant1,
+            instant2,
+            maybeIp,
+            str,
+            bool,
+            record,
+            name,
+            status,
+            maybeId,
+            maybeTuple
+          ) =>
+        new ListRuntimesRecord(l,
+                               db,
+                               provider,
+                               email,
+                               instant,
+                               instant1,
+                               instant2,
+                               maybeIp,
+                               str,
+                               bool,
+                               record,
+                               name,
+                               status,
+                               maybeId,
+                               maybeTuple
+        )
+    }
+  }
 
   def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(implicit
     ec: ExecutionContext
@@ -350,7 +421,7 @@ object RuntimeServiceDbQueries {
           .getOrElse(Some(false): Rep[Option[Boolean]])
       }
 
-    val runtimesFilteredSimple = runtimesAuthorized
+    val runtimesFiltered = runtimesAuthorized
       // Filter by params
       .filterOpt(workspaceId) { case (runtime, wId) =>
         runtime.workspaceId === (Some(wId): Rep[Option[WorkspaceId]])
@@ -367,36 +438,40 @@ object RuntimeServiceDbQueries {
       .filterIf(excludeStatuses.nonEmpty) { runtime =>
         excludeStatuses.map(status => runtime.status =!= status).reduce(_ && _)
       }
-
-    val runtimesFiltered = labelMap
-      .foldLeft(runtimesFilteredSimple) {
-        case (someRuntimeQuery: Query[ClusterTable, ClusterRecord, Seq], (key: String, value: String)) =>
-          for {
-            (runtime, _) <- someRuntimeQuery join labelQuery on ((r, l) =>
-              l.resourceId === r.id &&
-                l.resourceType === LabelResourceType.runtime &&
-                l.key === key &&
-                l.value === value
-            )
-          } yield runtime: ClusterTable
+      .filterIf(labelMap.nonEmpty) { runtime =>
+        labelQuery
+          .filter(l =>
+            l.resourceId === runtime.id &&
+              l.resourceType === LabelResourceType.runtime &&
+              labelMap
+                .map { case (key, value) =>
+                  l.key === key && l.value === value
+                }
+                .reduceLeft(_ || _)
+          )
+          .length === labelMap.size
       }
 
     // Assemble response
     val runtimesJoined = runtimesFiltered
       .join(runtimeConfigs)
       .on((runtime, runtimeConfig) => runtime.runtimeConfigId === runtimeConfig.id)
-      .joinLeft(patchQuery)
-      .on((runtimeAndConfig, patch) => runtimeAndConfig._1.id === patch.clusterId)
-      .map { case ((runtime, runtimeConfig), patch) =>
-        (runtime, runtimeConfig, patch.map(_.inProgress).getOrElse(false))
+      .map { case (runtime, runtimeConfig) =>
+        (
+          runtime,
+          runtimeConfig,
+          patchQuery
+            .filter(patch => runtime.id === patch.clusterId && patch.inProgress === true)
+            .map(_ => true)
+            .exists
+        )
       }
       .joinLeft(labelQuery)
-      .on((runtimeAndConfigAndPatch, label) =>
-        runtimeAndConfigAndPatch._1.id === label.resourceId &&
-          label.resourceType === LabelResourceType.runtime
-      )
-      .map { case ((runtime, runtimeConfigRecord, patchInProgress), label) =>
-        val labelPair = label.map(l => (l.key, l.value))
+      .on { case ((runtime, _, _), label) =>
+        runtime.id === label.resourceId &&
+        label.resourceType === LabelResourceType.runtime
+      }
+      .map { case ((runtime, runtimeConfig, patchInProgress), label) =>
         (
           runtime.id,
           runtime.cloudContextDb,
@@ -408,98 +483,60 @@ object RuntimeServiceDbQueries {
           runtime.hostIp,
           runtime.internalId,
           patchInProgress,
-          runtimeConfigRecord,
+          runtimeConfig,
           runtime.runtimeName,
           runtime.status,
           runtime.workspaceId,
-          labelPair
+          label.map(l => (l.key, l.value))
         )
       }
 
     runtimesJoined.result
-      .map { records =>
-        type ListRuntimesRecord = (
-          Long,
-          CloudContextDb,
-          CloudProvider,
-          WorkbenchEmail,
-          Instant,
-          Instant,
-          Instant,
-          Option[IP],
-          String,
-          Boolean,
-          RuntimeConfigRecord,
-          RuntimeName,
-          RuntimeStatus,
-          Option[WorkspaceId],
-          Option[(String, String)]
-        )
+      .map { records: Seq[ListRuntimesProduct] =>
         records
-          .groupBy(_._1)
+          .map(record => ListRuntimesRecord(record))
+          .groupBy(_.id)
           .map { case _ -> (values: Seq[ListRuntimesRecord]) =>
-            val allLabels: LabelMap = Map(values.mapFilter {
-              case (_, _, _, _, _, _, _, _, _, _, _, _, _, _, labelPair: Option[(String, String)]) => labelPair
-            }: _*)
-            val patchInProgress: Boolean = values.exists((value: ListRuntimesRecord) =>
-              value match {
-                case (_, _, _, _, _, _, _, _, _, inProgress: Boolean, _, _, _, _, _) => inProgress
-              }
-            )
+            val allLabels: LabelMap = Map(values.mapFilter(_.label): _*)
             values.head match {
-              case (
-                    id,
-                    cloudContextDb,
-                    cloudProvider,
-                    creatorEmail,
-                    createdDate,
-                    destroyedDate,
-                    dateAccessed,
-                    hostIp,
-                    internalId,
-                    _,
-                    runtimeConfigRecord,
-                    runtimeName,
-                    status,
-                    workspaceId,
-                    _
-                  ) =>
+              case record =>
                 val auditInfo = AuditInfo(
-                  creatorEmail,
-                  createdDate,
-                  if (destroyedDate == dummyDate) None else Some(destroyedDate),
-                  dateAccessed
+                  record.creator,
+                  record.createdDate,
+                  if (record.destroyedDate == dummyDate) None else Some(record.destroyedDate),
+                  record.dateAccessed
                 )
-                val cloudContext = (cloudProvider, cloudContextDb) match {
+                val cloudContext = (record.cloudProvider, record.cloudContextDb) match {
                   case (CloudProvider.Gcp, CloudContextDb(value)) =>
                     CloudContext.Gcp(GoogleProject(value))
                   case (CloudProvider.Azure, CloudContextDb(value)) =>
-                    val context = AzureCloudContext.fromString(value).fold(s => throw new SQLDataException(s), identity)
-                    CloudContext.Azure(context)
+                    val azureContext =
+                      AzureCloudContext.fromString(value).fold(s => throw new SQLDataException(s), identity)
+                    CloudContext.Azure(azureContext)
                 }
                 val proxyUrl = Runtime.getProxyUrl(
                   Config.proxyConfig.proxyUrlBase,
                   cloudContext,
-                  runtimeName,
+                  record.runtimeName,
                   Set.empty,
-                  hostIp,
+                  record.hostIp,
                   allLabels
                 )
-                val runtimeConfig = runtimeConfigRecord.runtimeConfig
-                val samResourceId = RuntimeSamResourceId(internalId)
+                val runtimeConfig = record.runtimeConfig.runtimeConfig
+                val samResourceId = RuntimeSamResourceId(record.internalId)
 
                 ListRuntimeResponse2(
-                  id,
+                  record.id,
                   auditInfo = auditInfo,
                   cloudContext = cloudContext,
-                  clusterName = runtimeName,
+                  clusterName = record.runtimeName,
                   labels = allLabels,
-                  patchInProgress = patchInProgress,
+                  patchInProgress = record.patchInProgress,
                   proxyUrl = proxyUrl,
                   runtimeConfig = runtimeConfig,
                   samResource = samResourceId,
-                  status = status,
-                  workspaceId = workspaceId
+                  status = record.status,
+                  workspaceId = record.workspaceId
                 )
             }
           }
