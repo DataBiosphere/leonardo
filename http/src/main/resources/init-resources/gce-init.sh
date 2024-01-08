@@ -478,7 +478,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # Copy gitignore into jupyter container
 
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget -N https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
 
   # Install nbstripout and set gitignore in Git Config
 
