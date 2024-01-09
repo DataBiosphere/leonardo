@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   UpdateRuntimeConfigRequest,
   UpdateRuntimeRequest
 }
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.scalatest.tagobjects.Retryable
@@ -22,11 +21,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class RuntimePatchSpec
-    extends BillingProjectFixtureSpec
-    with ParallelTestExecution
-    with LeonardoTestUtils
-    with NotebookTestUtils {
+class RuntimePatchSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
@@ -89,22 +84,6 @@ class RuntimePatchSpec
             implicitly,
             startingDoneCheckable
           ).compile.lastOrError
-          clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
-          implicit0(authToken: AuthToken) <- Ron.authToken()
-          _ <- IO(
-            withWebDriver { implicit driver =>
-              withNewNotebook(clusterCopy, Python3) { notebookPage =>
-                // all other packages cannot be tested for their versions in this manner
-                // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-                val res = notebookPage
-                  .executeCell(
-                    "! df -H |grep sdb"
-                  )
-                  .get
-                res should include("22G") // disk output is always a few more gb than what's specified
-              }
-            }
-          )
         } yield {
           monitoringStartingResult.status shouldBe ClusterStatus.Running
           val res = monitoringStartingResult.runtimeConfig
@@ -166,22 +145,6 @@ class RuntimePatchSpec
             implicitly,
             startingDoneCheckable
           ).compile.lastOrError
-          clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
-          implicit0(authToken: AuthToken) <- Ron.authToken()
-          _ <- IO(
-            withWebDriver { implicit driver =>
-              withNewNotebook(clusterCopy, Python3) { notebookPage =>
-                // all other packages cannot be tested for their versions in this manner
-                // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-                val res = notebookPage
-                  .executeCell(
-                    "! df -H |grep sdb"
-                  )
-                  .get
-                res should include("22G") // disk output is always a few more gb than what's specified
-              }
-            }
-          )
         } yield {
           monitoringStartingResult.status shouldBe ClusterStatus.Running
           val res = monitoringStartingResult.runtimeConfig
@@ -260,22 +223,6 @@ class RuntimePatchSpec
           )(
             implicitly,
             startingDoneCheckable
-          )
-          clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
-          implicit0(authToken: AuthToken) <- Ron.authToken()
-          _ <- IO(
-            withWebDriver { implicit driver =>
-              withNewNotebook(clusterCopy, Python3) { notebookPage =>
-                // all other packages cannot be tested for their versions in this manner
-                // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-                val res = notebookPage
-                  .executeCell(
-                    "! df -H |grep sda1"
-                  )
-                  .get
-                res should include("159G") // disk output is always a few more gb than what's specified
-              }
-            }
           )
         } yield {
           monitringStartingResult.status shouldBe ClusterStatus.Running

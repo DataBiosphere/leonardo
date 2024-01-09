@@ -27,15 +27,20 @@ object LeonardoConfig extends CommonConfig {
 
     val publisherConfig: PublisherConfig = PublisherConfig(GCS.pathToQAJson, topic)
 
-    val vmUser = azure.getString("leoVmUser")
-    val vmPassword = azure.getString("leoVmPassword")
-    val bastionName = azure.getString("bastionName")
-    val defaultBastionPort = azure.getInt("defaultBastionPort")
+    val serviceAccountEmail = leonardo.getString("serviceAccountEmail")
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson
   object GCS extends CommonGCS {
     val pathToQAJson = gcs.getString("qaJsonFile")
+    val leonardoServiceAccountUsername = gcs.getString("leonardoServiceAccountUsername")
+  }
+
+  object Azure {
+    val vmUser = azure.getString("leoVmUser")
+    val vmPassword = azure.getString("leoVmPassword")
+    val bastionName = azure.getString("bastionName")
+    val defaultBastionPort = azure.getInt("defaultBastionPort")
   }
 
   // TODO: this should be updated once we're able to run azure automation tests as part of CI
