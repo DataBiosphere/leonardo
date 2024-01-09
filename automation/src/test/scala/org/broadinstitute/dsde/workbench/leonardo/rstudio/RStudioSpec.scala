@@ -130,18 +130,5 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils with Notebook
         }
       }
     }
-
-    // Note this test should be last because the test infrastructure does not close the shiny app
-    // TODO: can this test be removed? how important is an rshiny app?
-    "should launch an RShiny app" ignore { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
-          rstudioPage.pressKeys(Keys.ENTER.toString)
-          rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
-            rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
-          )
-        }
-      }
-    }
   }
 }
