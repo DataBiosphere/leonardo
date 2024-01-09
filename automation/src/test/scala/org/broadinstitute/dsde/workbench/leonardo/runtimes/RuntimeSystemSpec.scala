@@ -65,7 +65,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
 
     // TODO: remove selenium from this, needs re-write
     // see https://broadworkbench.atlassian.net/browse/IA-4723
-    "should set up the users google identity on the vm" in { runtimeFixture =>
+    "should set up the users google identity on the vm" ignore { runtimeFixture =>
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
         withResourceFileInBucket(runtimeFixture.runtime.googleProject,
