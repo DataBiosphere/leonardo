@@ -66,10 +66,10 @@ jobs:
             exit 1
           fi
 
-          echo "app-version=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
-          echo "build-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
-          # echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "automation-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
+#          echo "app-version=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
+#          echo "build-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
+           echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+#          echo "automation-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
 
   #
   # Artifact Build and Promotion
@@ -154,7 +154,7 @@ jobs:
         run: |
           echo "$GITHUB_CONTEXT"
           echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ needs.leo-build-tag-publish-job.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
-      
+
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
@@ -197,7 +197,7 @@ jobs:
             tr -d '\n' |
             jq -c '.')
           echo "TEST_REPORTING=$TEST_REPORTING" >> $GITHUB_ENV
-    
+
       - name: dispatch to terra-github-workflows
         env:
           leo_test_command: "testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab"
