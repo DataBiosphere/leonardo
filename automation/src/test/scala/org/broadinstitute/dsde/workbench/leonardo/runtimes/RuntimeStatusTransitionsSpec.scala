@@ -3,9 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.JupyterServerClient
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+
+import scala.util.Try
 
 /**
  * This spec is for validating how Leonardo/Google handles cluster status transitions.
@@ -46,6 +49,11 @@ class RuntimeStatusTransitionsSpec extends BillingProjectFixtureSpec with Parall
       // wait for runtime to be running
       monitorCreateRuntime(billingProject, runtimeName, runtimeRequest)
       Leonardo.cluster.getRuntime(billingProject, runtimeName).status shouldBe ClusterStatus.Running
+
+      // verify we can hit the proxy when the runtime is running
+      val getResult = Try(JupyterServerClient.getApi(billingProject, runtimeName))
+      getResult.isSuccess shouldBe true
+      getResult.get should not include "ProxyException"
 
       // delete the runtime, but don't wait
       deleteRuntime(billingProject, runtimeName, monitor = false)

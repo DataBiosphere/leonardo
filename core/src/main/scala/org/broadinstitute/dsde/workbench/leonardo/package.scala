@@ -84,4 +84,14 @@ package object leonardo {
     RegionName("australia-southeast1"),
     RegionName("northamerica-northeast2")
   )
+
+  val iapRegions = List(
+    RegionName("us-central1"),
+    RegionName("us-east1"),
+    RegionName("us-east4"),
+    RegionName("us-west1"),
+    RegionName("us-west2"),
+    RegionName("us-west3"),
+    RegionName("us-west4")
+  )
 }

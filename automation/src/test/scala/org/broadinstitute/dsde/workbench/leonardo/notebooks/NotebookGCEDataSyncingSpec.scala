@@ -48,9 +48,9 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               notebookPage.saveNotebook()
 
               val localContent: NotebookContentItem =
-                Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
-                                         runtimeFixture.runtime.clusterName,
-                                         Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
+                JupyterServerClient.getNotebookItem(runtimeFixture.runtime.googleProject,
+                                                    runtimeFixture.runtime.clusterName,
+                                                    Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
                 )
               logger.info(s"[edit mode] local content is ${localContent}")
               val localContentSize: Int = localContent.size
@@ -101,9 +101,9 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               logger.info(s"[playground mode] original remote content size is ${originalRemoteContentSize}")
 
               val originalLocalContent: NotebookContentItem =
-                Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
-                                         runtimeFixture.runtime.clusterName,
-                                         Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
+                JupyterServerClient.getNotebookItem(runtimeFixture.runtime.googleProject,
+                                                    runtimeFixture.runtime.clusterName,
+                                                    Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
                 )
               logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
@@ -122,9 +122,9 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
               eventually(timeout(Span(5, Seconds))) {
                 val newLocalContent: NotebookContentItem =
-                  Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
-                                           runtimeFixture.runtime.clusterName,
-                                           Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
+                  JupyterServerClient.getNotebookItem(runtimeFixture.runtime.googleProject,
+                                                      runtimeFixture.runtime.clusterName,
+                                                      Welder.getLocalPath(gcsPath, isEditMode, isRStudio)
                   )
                 val newLocalContentSize: Int = newLocalContent.size
                 logger.info(s"[playground mode] new local content is ${newLocalContent}")
@@ -243,9 +243,9 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     "User should be able to create files outside of playground and safe mode" in { runtimeFixture =>
       val fileName = "mockUserFile.ipynb"
 
-      val mockUserFile: File = Notebook.createFileAtJupyterRoot(runtimeFixture.runtime.googleProject,
-                                                                runtimeFixture.runtime.clusterName,
-                                                                fileName
+      val mockUserFile: File = JupyterServerClient.createFileAtJupyterRoot(runtimeFixture.runtime.googleProject,
+                                                                           runtimeFixture.runtime.clusterName,
+                                                                           fileName
       )
 
       withWebDriver { implicit driver =>
