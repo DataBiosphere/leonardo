@@ -200,7 +200,7 @@ jobs:
 
       - name: dispatch to terra-github-workflows
         env:
-          leo_test_command: "testOnly -- -l ProdTest -l NotebooksCanaryTest -l ExcludeInFiab"
+          leo_test_command: "testOnly -- -l ExcludeFromJenkins"
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
