@@ -59,13 +59,15 @@ object LeonardoApiClient {
       client <- BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
     } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
+  val defaultCreateRequestZone = ZoneName("us-east1-b")
+
   val rootUri = Uri.unsafeFromString(LeonardoConfig.Leonardo.apiUrl)
   val defaultCreateDiskRequest = CreateDiskRequest(
     Map.empty,
     None,
     None,
     None,
-    Some(ZoneName("us-east1-b")),
+    Some(defaultCreateRequestZone),
     None
   )
 
@@ -73,7 +75,7 @@ object LeonardoApiClient {
     Map("foo" -> UUID.randomUUID().toString),
     None,
     None,
-    Some(RuntimeConfigRequest.GceConfig(None, None, Some(ZoneName("us-east1-b")), None)),
+    Some(RuntimeConfigRequest.GceConfig(None, None, Some(defaultCreateRequestZone), None)),
     None,
     None,
     None,

@@ -2,12 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
 import org.broadinstitute.dsde.workbench.leonardo.{
   BillingProjectFixtureSpec,
   LeonardoApiClient,
+  SSH,
   UserJupyterExtensionConfig
 }
 import org.http4s.headers.Authorization
@@ -15,16 +18,20 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
  * This spec verifies different cluster creation options, such as extensions, scopes, environment variables.
- *
- * TODO consider removing this spec and moving test cases to RuntimeGceSpec.
  */
 @DoNotDiscover
 final class NotebookGCECustomizationSpec
     extends BillingProjectFixtureSpec
     with ParallelTestExecution
-    with NotebookTestUtils {
+    with NotebookTestUtils
+    with LazyLogging {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
+
+  val dependencies = for {
+    storage <- google2StorageResource
+    httpClient <- LeonardoApiClient.client
+  } yield RuntimeGceSpecDependencies(httpClient, storage)
 
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:
@@ -64,20 +71,26 @@ final class NotebookGCECustomizationSpec
     }
 
     "should populate user-specified environment variables" in { billingProject =>
-      // Note: the R image includes R and Python 3 kernels
       val runtimeRequest =
         LeonardoApiClient.defaultCreateRuntime2Request.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 
-      withNewRuntime(billingProject, request = runtimeRequest) { cluster =>
-        withWebDriver { implicit driver =>
-          withNewNotebook(cluster, Python3) { notebookPage =>
-            notebookPage.executeCell("import os")
+      val res = dependencies.use { deps =>
+        implicit val httpClient = deps.httpClient
 
-            val envVar = notebookPage.executeCell("os.getenv('KEY')")
-            envVar shouldBe Some("'value'")
-          }
-        }
+        val runtimeName = randomClusterName
+        val runtime = createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = true)
+        for {
+          getRuntime <- LeonardoApiClient.getRuntime(runtime.googleProject, runtime.clusterName)
+
+          output <- SSH.executeGoogleCommand(getRuntime.googleProject,
+                                             LeonardoApiClient.defaultCreateRequestZone.value,
+                                             getRuntime.runtimeName,
+                                             "sudo docker exec -it jupyter-server printenv KEY"
+          )
+          _ <- LeonardoApiClient.deleteRuntimeWithWait(runtime.googleProject, runtimeName)
+        } yield output.trim() shouldBe "value"
       }
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 }

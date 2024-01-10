@@ -13,9 +13,10 @@ object ApiJsonDecoder {
     "blockSize"
   )(DiskConfig.apply)
 
-  implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct15(
+  implicit val getRuntimeResponseCopyDecoder: Decoder[GetRuntimeResponseCopy] = Decoder.forProduct16(
     "runtimeName",
     "googleProject",
+    "cloudContext",
     "serviceAccount",
     "auditInfo",
     "asyncRuntimeFields",
