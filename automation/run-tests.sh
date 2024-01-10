@@ -18,7 +18,6 @@
 # Downloading gcloud package
 # https://cloud.google.com/sdk/docs/install#linux
 # https://stackoverflow.com/questions/28372328/how-to-install-the-google-cloud-sdk-in-a-docker-image
-export CLOUDSDK_CORE_DISABLE_PROMPTS=1
 curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
 
 # Installing the package
