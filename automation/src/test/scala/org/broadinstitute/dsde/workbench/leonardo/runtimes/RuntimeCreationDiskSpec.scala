@@ -53,7 +53,7 @@ class RuntimeCreationDiskSpec
         RuntimeConfigRequest.GceConfig(
           None,
           Some(DiskSize(20)),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -64,25 +64,18 @@ class RuntimeCreationDiskSpec
       implicit val client = dep.httpClient
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
         implicit0(authToken: AuthToken) <- Ron.authToken()
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(clusterCopy, Python3) { notebookPage =>
-              // all other packages cannot be tested for their versions in this manner
-              // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-              val res = notebookPage
-                .executeCell(
-                  "! df -H"
-                )
-                .get
-              res should include("/dev/sdb")
-              res should include("/home/jupyter")
-            }
-          }
+        output <- SSH.executeGoogleCommand(
+          getRuntimeResponse.googleProject,
+          LeonardoApiClient.defaultCreateRequestZone.value,
+          getRuntimeResponse.runtimeName,
+          "sudo docker exec -it jupyter-server df -H"
         )
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
-      } yield ()
+      } yield {
+        output should include("/dev/sdb")
+        output should include("/home/jupyter")
+      }
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -99,7 +92,7 @@ class RuntimeCreationDiskSpec
             Some(DiskType.SSD),
             Map.empty
           ),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -128,7 +121,7 @@ class RuntimeCreationDiskSpec
             Some(DiskType.Balanced),
             Map.empty
           ),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -159,7 +152,7 @@ class RuntimeCreationDiskSpec
             None,
             Map.empty
           ),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -193,6 +186,8 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  // TODO: remove selenium from this, needs re-write
+  // see https://broadworkbench.atlassian.net/browse/IA-4723
   "create runtime and attach an existing persistent disk or clone" taggedAs Retryable in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName =
@@ -217,7 +212,7 @@ class RuntimeCreationDiskSpec
               None,
               Map.empty
             ),
-            defaultCreateDiskRequest.zone,
+            Some(LeonardoApiClient.defaultCreateRequestZone),
             None
           )
         )
@@ -237,7 +232,7 @@ class RuntimeCreationDiskSpec
               None,
               Map.empty
             ),
-            defaultCreateDiskRequest.zone,
+            Some(LeonardoApiClient.defaultCreateRequestZone),
             None
           )
         )
