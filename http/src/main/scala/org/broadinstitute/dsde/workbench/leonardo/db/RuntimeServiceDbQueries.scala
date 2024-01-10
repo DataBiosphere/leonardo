@@ -3,15 +3,15 @@ package db
 
 import cats.data.Chain
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.Runtime
+import org.broadinstitute.dsde.workbench.leonardo.{LabelMap, Runtime}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.GetResultInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -25,51 +25,86 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   RuntimeNotFoundByWorkspaceIdException,
   RuntimeNotFoundException
 }
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import slick.jdbc.GetResult
 
+import java.util.UUID
+import java.sql.SQLDataException
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 object RuntimeServiceDbQueries {
 
-  implicit val getResultListRuntimeResponse2: GetResult[ListRuntimeResponse2] = GetResult { r =>
-    val id = r.<<[Long]
-    val workspaceId = r.<<?[WorkspaceId]
-    val runtimeName = r.<<[RuntimeName]
-    val cloudContext = r.<<[CloudContext]
-    val ip = r.<<[Option[IP]]
-    val auditInfo = r.<<[AuditInfo]
-    val status = r.<<[RuntimeStatus]
-    val samId = r.<<[RuntimeSamResourceId]
-    val runtimeConfig = r.<<[RuntimeConfig]
-    val labelMap = r.<<[LabelMap]
-    val proxyUrl =
-      Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, cloudContext, runtimeName, Set.empty, ip, labelMap)
+  case class ListRuntimesRecord(
+    id: Long,
+    cloudContextDb: CloudContextDb,
+    cloudProvider: CloudProvider,
+    creator: WorkbenchEmail,
+    createdDate: Instant,
+    destroyedDate: Instant,
+    dateAccessed: Instant,
+    hostIp: Option[IP],
+    internalId: String,
+    patchInProgress: Boolean,
+    runtimeConfig: RuntimeConfigRecord,
+    runtimeName: RuntimeName,
+    status: RuntimeStatus,
+    workspaceId: Option[WorkspaceId],
+    label: Option[(String, String)]
+  )
 
-    ListRuntimeResponse2(
-      id,
-      workspaceId,
-      samId,
-      runtimeName,
-      cloudContext,
-      auditInfo,
-      runtimeConfig,
-      proxyUrl,
-      status,
-      labelMap,
-      r.nextBoolean()
-    )
-  }
-
-  implicit val getResultListRuntimeIdResponse: GetResult[ListRuntimeIdResponse] = GetResult { r =>
-    val id = r.<<[Long]
-    val samId = r.<<[RuntimeSamResourceId]
-
-    ListRuntimeIdResponse(
-      id,
-      samId
-    )
+  private type ListRuntimesProduct = (
+    Long,
+    CloudContextDb,
+    CloudProvider,
+    WorkbenchEmail,
+    Instant,
+    Instant,
+    Instant,
+    Option[IP],
+    String,
+    Boolean,
+    RuntimeConfigRecord,
+    RuntimeName,
+    RuntimeStatus,
+    Option[WorkspaceId],
+    Option[(String, String)]
+  )
+  private object ListRuntimesRecord {
+    def apply(product: ListRuntimesProduct): ListRuntimesRecord = product match {
+      case (l,
+            db,
+            provider,
+            email,
+            instant,
+            instant1,
+            instant2,
+            maybeIp,
+            str,
+            bool,
+            record,
+            name,
+            status,
+            maybeId,
+            maybeTuple
+          ) =>
+        new ListRuntimesRecord(l,
+                               db,
+                               provider,
+                               email,
+                               instant,
+                               instant1,
+                               instant2,
+                               maybeIp,
+                               str,
+                               bool,
+                               record,
+                               name,
+                               status,
+                               maybeId,
+                               maybeTuple
+        )
+    }
   }
 
   def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(implicit
@@ -101,9 +136,10 @@ object RuntimeServiceDbQueries {
         persistentDisk = recs.headOption
           .flatMap(_._2)
           .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
-        runtime <- unmarshalGetRuntime(runtimeRecs,
-                                       runtimeConfig.runtimeConfig,
-                                       persistentDisk.map(DiskConfig.fromPersistentDisk)
+        runtime <- unmarshalGetRuntime(
+          runtimeRecs,
+          runtimeConfig.runtimeConfig,
+          persistentDisk.map(DiskConfig.fromPersistentDisk)
         ).headOption
       } yield runtime
       res.fold[DBIO[GetRuntimeResponse]](
@@ -128,9 +164,10 @@ object RuntimeServiceDbQueries {
         persistentDisk = recs.headOption
           .flatMap(_._2)
           .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
-        runtime <- unmarshalGetRuntime(runtimeRecs,
-                                       runtimeConfig.runtimeConfig,
-                                       persistentDisk.map(DiskConfig.fromPersistentDisk)
+        runtime <- unmarshalGetRuntime(
+          runtimeRecs,
+          runtimeConfig.runtimeConfig,
+          persistentDisk.map(DiskConfig.fromPersistentDisk)
         ).headOption
       } yield runtime
       res.fold[DBIO[GetRuntimeResponse]](
@@ -156,15 +193,16 @@ object RuntimeServiceDbQueries {
     )
   }
 
-  def unmarshalGetRuntime(
+  private def unmarshalGetRuntime(
     clusterRecords: Seq[
-      (ClusterRecord,
-       Option[ClusterErrorRecord],
-       Option[LabelRecord],
-       Option[ExtensionRecord],
-       Option[ClusterImageRecord],
-       Option[ScopeRecord],
-       Option[PatchRecord]
+      (
+        ClusterRecord,
+        Option[ClusterErrorRecord],
+        Option[LabelRecord],
+        Option[ExtensionRecord],
+        Option[ClusterImageRecord],
+        Option[ScopeRecord],
+        Option[PatchRecord]
       )
     ],
     runtimeConfig: RuntimeConfig,
@@ -176,12 +214,13 @@ object RuntimeServiceDbQueries {
     // See: https://typelevel.org/cats/datatypes/chain.html
     val clusterRecordMap: Map[
       ClusterRecord,
-      (Chain[ClusterErrorRecord],
-       Map[String, Chain[String]],
-       Chain[ExtensionRecord],
-       Chain[ClusterImageRecord],
-       Chain[ScopeRecord],
-       Chain[PatchRecord]
+      (
+        Chain[ClusterErrorRecord],
+        Map[String, Chain[String]],
+        Chain[ExtensionRecord],
+        Chain[ClusterImageRecord],
+        Chain[ScopeRecord],
+        Chain[PatchRecord]
       )
     ] = clusterRecords.toList.foldMap {
       case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
@@ -201,10 +240,11 @@ object RuntimeServiceDbQueries {
         val name = clusterRecord.runtimeName
         val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
-            AsyncRuntimeFields(googleId,
-                               OperationName(operationName),
-                               GcsBucketName(stagingBucket),
-                               clusterRecord.hostIp
+            AsyncRuntimeFields(
+              googleId,
+              OperationName(operationName),
+              GcsBucketName(stagingBucket),
+              clusterRecord.hostIp
             )
         }
         val clusterImages = clusterImageRecords.toList map clusterImageQuery.unmarshalClusterImage toSet
@@ -224,12 +264,13 @@ object RuntimeServiceDbQueries {
           clusterRecord.auditInfo,
           clusterRecord.kernelFoundBusyDate,
           runtimeConfig,
-          Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                              clusterRecord.cloudContext,
-                              name,
-                              clusterImages,
-                              clusterRecord.hostIp,
-                              labelMap
+          Runtime.getProxyUrl(
+            Config.proxyConfig.proxyUrlBase,
+            clusterRecord.cloudContext,
+            name,
+            clusterImages,
+            clusterRecord.hostIp,
+            labelMap
           ),
           clusterRecord.status,
           labelMap,
@@ -252,51 +293,23 @@ object RuntimeServiceDbQueries {
     }.toSeq
   }
 
-  def listRuntimes(labelMap: LabelMap,
-                   excludeStatuses: List[RuntimeStatus],
-                   creatorOnly: Option[WorkbenchEmail],
-                   cloudContext: Option[CloudContext] = None
-  )(implicit
-    ec: ExecutionContext
-  ): DBIO[List[ListRuntimeResponse2]] = {
-    val cloudContextFilter = cloudContext match {
-      case Some(cc) => Some(Left(cc))
-      case None     => None
-    }
-    listRuntimesHelper(labelMap, excludeStatuses, creatorOnly, None, cloudContextFilter).map(
-      _.toList
+  def listRuntimeIdsForCreator(
+    creator: WorkbenchEmail
+  )(implicit ec: ExecutionContext): DBIO[Vector[ListRuntimeIdResponse]] = clusterQuery
+    .filter(_.creator === creator)
+    .map(runtime => (runtime.id, runtime.internalId))
+    .result
+    .map(records =>
+      records.map { case (id: Long, internalId: String) =>
+        ListRuntimeIdResponse(id, RuntimeSamResourceId(internalId))
+      }.toVector
     )
-  }
-
-  def listRuntimesForWorkspace(labelMap: LabelMap,
-                               excludeStatuses: List[RuntimeStatus],
-                               creatorOnly: Option[WorkbenchEmail],
-                               workspaceId: Option[WorkspaceId],
-                               cloudProvider: Option[CloudProvider]
-  ): DBIO[Vector[ListRuntimeResponse2]] = {
-    val cp = cloudProvider.map(cp => Right(cp))
-    listRuntimesHelper(labelMap, excludeStatuses, creatorOnly, workspaceId, cp)
-  }
-
-  def listRuntimeIdsForCreator(creator: WorkbenchEmail): DBIO[Vector[ListRuntimeIdResponse]] = {
-    val sqlStatement =
-      sql"""
-        select
-          `id`,
-          `internalId`
-        from
-          `CLUSTER`
-        where
-          `creator` = ${creator.value}
-      """.stripMargin
-    sqlStatement.as[ListRuntimeIdResponse]
-  }
 
   /**
    * List runtimes filtered by the given terms. Only return authorized resources (per reader*Ids and/or owner*Ids).
    * @param labelMap
    * @param excludeStatuses
-   * @param creatorOnly
+   * @param creatorEmail
    * @param workspaceId
    * @param cloudProvider
    * @param readerRuntimeIds
@@ -306,411 +319,229 @@ object RuntimeServiceDbQueries {
    * @param ownerGoogleProjectIds
    * @return
    */
-  def listAuthorizedRuntimes(
-    // Filters
-    labelMap: LabelMap,
-    excludeStatuses: List[RuntimeStatus],
-    creatorOnly: Option[WorkbenchEmail],
-    workspaceId: Option[WorkspaceId],
-    cloudProvider: Option[CloudProvider],
-
+  def listRuntimes(
     // Authorizations
-    readerRuntimeIds: Set[SamResourceId],
-    readerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
-    ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
-    readerGoogleProjectIds: Set[ProjectSamResourceId],
-    ownerGoogleProjectIds: Set[ProjectSamResourceId]
-  ): DBIO[Vector[ListRuntimeResponse2]] = {
-    val cp = cloudProvider.map(cp => Right(cp))
-    listAuthorizedRuntimesHelper(
-      labelMap,
-      excludeStatuses,
-      creatorOnly,
-      workspaceId,
-      cp,
-      readerRuntimeIds.map(_.resourceId).toList,
-      readerWorkspaceIds.map(_.resourceId).toList,
-      ownerWorkspaceIds.map(_.resourceId).toList,
-      readerGoogleProjectIds.map(_.resourceId).toList,
-      ownerGoogleProjectIds.map(_.resourceId).toList
-    )
-  }
+    ownerGoogleProjectIds: Set[ProjectSamResourceId] = Set.empty,
+    ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
+    readerGoogleProjectIds: Set[ProjectSamResourceId] = Set.empty,
+    readerRuntimeIds: Set[SamResourceId] = Set.empty,
+    readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
 
-  /**
-   * Query the runtimes (CLUSTER) table with the given filters. Only return authorized resources (per reader*Ids and/or owner*Ids).
-   * @param labelMap
-   * @param excludeStatuses
-   * @param creatorOnly
-   * @param workspaceId
-   * @param cloudContextOrCloudProvider
-   * @param readerRuntimeIds
-   * @param readerWorkspaceIds
-   * @param ownerWorkspaceIds
-   * @param readerGoogleProjectIds
-   * @param ownerGoogleProjectIds
-   * @return
-   */
-  private def listAuthorizedRuntimesHelper(
     // Filters
-    labelMap: LabelMap,
-    excludeStatuses: List[RuntimeStatus],
-    creatorOnly: Option[WorkbenchEmail],
-    workspaceId: Option[WorkspaceId],
-    cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]],
+    cloudContext: Option[CloudContext] = None,
+    cloudProvider: Option[CloudProvider] = None,
+    creatorEmail: Option[WorkbenchEmail] = None,
+    excludeStatuses: List[RuntimeStatus] = List.empty,
+    labelMap: LabelMap = Map.empty[String, String],
+    workspaceId: Option[WorkspaceId] = None
+  )(implicit ec: ExecutionContext): DBIO[Vector[ListRuntimeResponse2]] = {
+    // Normalize filter params
+    val provider = if (cloudProvider.isEmpty) {
+      cloudContext match {
+        case Some(cContext) => Some(cContext.cloudProvider)
+        case None           => None
+      }
+    } else cloudProvider
 
-    // Authorizations
-    readerRuntimeIds: List[String],
-    readerWorkspaceIds: List[String],
-    ownerWorkspaceIds: List[String],
-    readerGoogleProjectIds: List[String],
-    ownerGoogleProjectIds: List[String]
-  ): DBIO[Vector[ListRuntimeResponse2]] = {
-
-    // Authorize: show only resources the user is permitted to see
-    val filterVisibleIds = getFilterVisibleIds(readerRuntimeIds,
-                                               readerWorkspaceIds,
-                                               ownerWorkspaceIds,
-                                               readerGoogleProjectIds,
-                                               ownerGoogleProjectIds
-    )
-
-    // Filter: show only user selections
-    val filterWorkspaceId = workspaceId match {
-      case Some(wid) =>
-        List(s"C.`workspaceId` = '${wid.value.toString}'")
-      case None => List.empty
+    // Optimize Google project list if filtering to a specific cloud provider or context
+    val ownedProjects: Set[CloudContextDb] = ((provider, cloudContext) match {
+      case (Some(CloudProvider.Azure), _) => Set.empty[CloudContextDb]
+      case (Some(CloudProvider.Gcp), Some(CloudContext.Gcp(value))) =>
+        ownerGoogleProjectIds.filter(samId => samId.googleProject == value)
+      case _ => ownerGoogleProjectIds
+    }).map { case samId: SamResourceId =>
+      CloudContextDb(samId.resourceId)
+    }
+    val readProjects: Set[CloudContextDb] = ((provider, cloudContext) match {
+      case (Some(CloudProvider.Azure), _) => Set.empty[CloudContextDb]
+      case (Some(CloudProvider.Gcp), Some(CloudContext.Gcp(value))) =>
+        readerGoogleProjectIds.filter(samId => samId.googleProject == value)
+      case _ => readerGoogleProjectIds
+    }).map { case samId: SamResourceId =>
+      CloudContextDb(samId.resourceId)
     }
 
-    val filterCloud = cloudContextOrCloudProvider match {
-      case Some(Left(CloudContext.Gcp(gp))) =>
-        List(s"C.`cloudProvider` = ${CloudProvider.Gcp} AND C.`cloudContext` = '${gp.value}'")
-      case Some(Left(CloudContext.Azure(actx))) =>
-        List(s"C.`cloudProvider` = ${CloudProvider.Azure} AND C.`cloudContext` = '${actx.asString}'")
-      case Some(Right(cloudProvider)) => List(s"C.`cloudProvider` = '${cloudProvider.asString}'")
-      case None                       => List.empty
-    }
+    // Optimize workspace list if filtering to a single workspace
+    val ownedWorkspaces: Set[WorkspaceId] = (workspaceId match {
+      case Some(wId) => ownerWorkspaceIds.filter(samId => WorkspaceId(UUID.fromString(samId.resourceId)) == wId)
+      case None      => ownerWorkspaceIds
+    }).map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
+    val readWorkspaces: Set[WorkspaceId] = (workspaceId match {
+      case Some(wId) => readerWorkspaceIds.filter(samId => WorkspaceId(UUID.fromString(samId.resourceId)) == wId)
+      case None      => readerWorkspaceIds
+    }).map(samId => WorkspaceId(UUID.fromString(samId.resourceId)))
 
-    val filterNotExcludedStatus = excludeStatuses.map(s => s"C.`status` != '${s.toString}'")
+    val readRuntimes: Set[String] = readerRuntimeIds.map(readId => readId.asString)
 
-    val filterCreator = creatorOnly match {
-      case Some(creator) => List(s"C.`creator` = '${creator.value}'")
-      case None          => List.empty
-    }
+    val runtimeInReadWorkspaces: Option[ClusterTable => Rep[Option[Boolean]]] =
+      if (readRuntimes.isEmpty || readWorkspaces.isEmpty)
+        None
+      else
+        Some(runtime =>
+          (runtime.internalId inSetBind readRuntimes) &&
+            (runtime.workspaceId inSetBind readWorkspaces)
+        )
 
-    val filterClusters = (
-      filterVisibleIds ++
-        filterWorkspaceId ++
-        filterCloud ++
-        filterNotExcludedStatus ++ filterCreator
-    ).filterNot(_.isEmpty).mkString(") AND (")
+    val runtimeInReadProjects: Option[ClusterTable => Rep[Option[Boolean]]] =
+      if (readRuntimes.isEmpty || readProjects.isEmpty)
+        None
+      else
+        Some(runtime =>
+          (runtime.internalId inSetBind readRuntimes) &&
+            (runtime.cloudProvider.? === (CloudProvider.Gcp: CloudProvider)) &&
+            (runtime.cloudContextDb inSetBind readProjects)
+        )
 
-    val whereFilterClusters = if (filterClusters.isEmpty) "" else s"where (${filterClusters})"
+    val runtimeInOwnedWorkspaces: Option[ClusterTable => Rep[Option[Boolean]]] =
+      if (ownedWorkspaces.isEmpty)
+        None
+      else
+        Some(runtime => runtime.workspaceId inSetBind ownedWorkspaces)
 
-    val whereFilterLabels =
-      if (labelMap.isEmpty)
-        ""
-      else {
-        val query = labelMap
-          .map { case (k, v) =>
-            s"(LABEL.key = '${k}' and LABEL.value = '${v}')"
-          }
-          .mkString(" or ")
+    val runtimeInOwnedProjects: Option[ClusterTable => Rep[Option[Boolean]]] =
+      if (ownedProjects.isEmpty)
+        None
+      else
+        Some(runtime =>
+          (runtime.cloudProvider.? === (CloudProvider.Gcp: CloudProvider)) &&
+            (runtime.cloudContextDb inSetBind ownedProjects)
+        )
 
-        s"""where (
-           |   select
-           |     count(1)
-           |   from
-           |     `LABEL`
-           |   where
-           |     (`resourceId` = FILTERED_CLUSTER.id)
-           |     AND (`resourceType` = 'runtime')
-           |     AND (${query})
-           |    ) = ${labelMap.size}""".stripMargin
+    val runtimesAuthorized =
+      clusterQuery.filter[Rep[Option[Boolean]]] { runtime: ClusterTable =>
+        Seq(
+          runtimeInReadWorkspaces,
+          runtimeInOwnedWorkspaces,
+          runtimeInReadProjects,
+          runtimeInOwnedProjects
+        )
+          .mapFilter(opt => opt)
+          .map(_(runtime))
+          .reduceLeftOption(_ || _)
+          .getOrElse(Some(false): Rep[Option[Boolean]])
       }
 
-    // Create full query
-    val sqlStatement =
-      sql"""
-         select
-          LABEL_FILTERED.`id`,
-          LABEL_FILTERED.`workspaceId`,
-          LABEL_FILTERED.`runtimeName`,
-          LABEL_FILTERED.`cloudProvider`,
-          LABEL_FILTERED.`cloudContext`,
-          LABEL_FILTERED.`hostIp`,
-          LABEL_FILTERED.`creator`,
-          LABEL_FILTERED.`createdDate`,
-          LABEL_FILTERED.`destroyedDate`,
-          LABEL_FILTERED.`dateAccessed`,
-          LABEL_FILTERED.`status`,
-          LABEL_FILTERED.`internalId`,
-          RG.`cloudService`,
-          RG.`numberOfWorkers`,
-          RG.`machineType`,
-          RG.`diskSize`,
-          RG.`bootDiskSize`,
-          RG.`workerMachineType`,
-          RG.`workerDiskSize`,
-          RG.`numberOfWorkerLocalSSDs`,
-          RG.`numberOfPreemptibleWorkers`,
-          RG.`dataprocProperties`,
-          RG.`persistentDiskId`,
-          RG.`zone`,
-          RG.`region`,
-          RG.`gpuType`,
-          RG.`numOfGpus`,
-          RG.`componentGatewayEnabled`,
-          RG.`workerPrivateAccess`,
-          GROUP_CONCAT(labelKey) labelKeys,
-          GROUP_CONCAT(labelValue) labelValues,
-          CP.`inProgress`
-        from
-          (
-            select
-              `id`,
-              `status`,
-              `cloudContext`,
-              `serviceAccount`,
-              `dateAccessed`,
-              `createdDate`,
-              `deletedFrom`,
-              `destroyedDate`,
-              `autopauseThreshold`,
-              `hostIp`,
-              `internalId`,
-              `workspaceId`,
-              `cloudProvider`,
-              `runtimeName`,
-              `kernelFoundBusyDate`,
-              `creator`,
-              `proxyHostName`,
-              `runtimeConfigId`,
-              L.`key` as labelKey,
-              L.`value` as labelValue
-            from
-              (
-                select
-                  C.`status`,
-                  C.`cloudContext`,
-                  C.`serviceAccount`,
-                  C.`dateAccessed`,
-                  C.`createdDate`,
-                  C.`deletedFrom`,
-                  C.`destroyedDate`,
-                  C.`autopauseThreshold`,
-                  C.`hostIp`,
-                  C.`internalId`,
-                  C.`workspaceId`,
-                  C.`cloudProvider`,
-                  C.`id`,
-                  C.`runtimeName`,
-                  C.`kernelFoundBusyDate`,
-                  C.`creator`,
-                  C.`proxyHostName`,
-                  C.`runtimeConfigId`
-                from
-                  `CLUSTER` AS C
-                #${whereFilterClusters}
-              ) AS FILTERED_CLUSTER
-              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) and (L.`resourceType` = 'runtime')
-              #${whereFilterLabels}
-          ) AS LABEL_FILTERED
-          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.runtimeConfigId = RG.`id`
-          left join `CLUSTER_PATCH` CP on LABEL_FILTERED.id = CP.`clusterId`
-          GROUP BY LABEL_FILTERED.id""".stripMargin
-
-    sqlStatement.as[ListRuntimeResponse2]
-  }
-
-  private def listRuntimesHelper(labelMap: LabelMap,
-                                 excludeStatuses: List[RuntimeStatus],
-                                 creatorOnly: Option[WorkbenchEmail],
-                                 workspaceId: Option[WorkspaceId],
-                                 cloudContextOrCloudProvider: Option[Either[CloudContext, CloudProvider]]
-  ): DBIO[Vector[ListRuntimeResponse2]] = {
-    val runtimeQueryFilteredByCreator = creatorOnly match {
-      case Some(creator) => List(s"C.`creator` = '${creator.value}'")
-      case None          => List.empty
-    }
-    val runtimeQueryFilteredByDeletion = excludeStatuses.map(s => s"C.`status` != '${s.toString}'")
-
-    val runtimeQueryFilteredByWorkspace = workspaceId match {
-      case Some(wid) =>
-        List(s"C.`workspaceId` = '${wid.value.toString}'")
-      case None => List.empty
-    }
-
-    val runtimeQueryFilteredByCloud = cloudContextOrCloudProvider match {
-      case Some(Left(CloudContext.Gcp(gp)))     => List(s"C.`cloudContext` = '${gp.value}'")
-      case Some(Left(CloudContext.Azure(actx))) => List(s"C.`cloudContext` = '${actx.asString}'")
-      case Some(Right(cloudProvider))           => List(s"C.`cloudProvider` = '${cloudProvider.asString}'")
-      case None                                 => List.empty
-    }
-
-    val clusterFilters =
-      (runtimeQueryFilteredByCreator ++ runtimeQueryFilteredByDeletion ++ runtimeQueryFilteredByWorkspace ++ runtimeQueryFilteredByCloud)
-        .mkString(" AND ")
-
-    val clusterFiltersFinal = if (clusterFilters.isEmpty) "" else s"where ${clusterFilters}"
-
-    val labelMapFilters =
-      if (labelMap.isEmpty)
-        ""
-      else {
-        val query = labelMap
-          .map { case (k, v) =>
-            s"(LABEL.key = '${k}' and LABEL.value = '${v}')"
-          }
-          .mkString(" or ")
-
-        s"""where (
-           |   select
-           |     count(1)
-           |   from
-           |     `LABEL`
-           |   where
-           |     (`resourceId` = FILTERED_CLUSTER.id)
-           |     AND (`resourceType` = 'runtime')
-           |     AND (${query})
-           |    ) = ${labelMap.size}""".stripMargin
+    val runtimesFiltered = runtimesAuthorized
+      // Filter by params
+      .filterOpt(workspaceId) { case (runtime, wId) =>
+        runtime.workspaceId === (Some(wId): Rep[Option[WorkspaceId]])
+      }
+      .filterOpt(provider) { case (runtime, cProvider) =>
+        runtime.cloudProvider === cProvider
+      }
+      .filterOpt(cloudContext) { case (runtime, cContext) =>
+        runtime.cloudContextDb === cContext.asCloudContextDb
+      }
+      .filterOpt(creatorEmail) { case (runtime, cEmail) =>
+        runtime.creator === cEmail
+      }
+      .filterIf(excludeStatuses.nonEmpty) { runtime =>
+        excludeStatuses.map(status => runtime.status =!= status).reduce(_ && _)
+      }
+      .filterIf(labelMap.nonEmpty) { runtime =>
+        labelQuery
+          .filter(l =>
+            l.resourceId === runtime.id &&
+              l.resourceType === LabelResourceType.runtime &&
+              labelMap
+                .map { case (key, value) =>
+                  l.key === key && l.value === value
+                }
+                .reduceLeft(_ || _)
+          )
+          .length === labelMap.size
       }
 
-    val sqlStatement =
-      sql"""
-         select
-          LABEL_FILTERED.`id`,
-          LABEL_FILTERED.`workspaceId`,
-          LABEL_FILTERED.`runtimeName`,
-          LABEL_FILTERED.`cloudProvider`,
-          LABEL_FILTERED.`cloudContext`,
-          LABEL_FILTERED.`hostIp`,
-          LABEL_FILTERED.`creator`,
-          LABEL_FILTERED.`createdDate`,
-          LABEL_FILTERED.`destroyedDate`,
-          LABEL_FILTERED.`dateAccessed`,
-          LABEL_FILTERED.`status`,
-          LABEL_FILTERED.`internalId`,
-          RG.`cloudService`,
-          RG.`numberOfWorkers`,
-          RG.`machineType`,
-          RG.`diskSize`,
-          RG.`bootDiskSize`,
-          RG.`workerMachineType`,
-          RG.`workerDiskSize`,
-          RG.`numberOfWorkerLocalSSDs`,
-          RG.`numberOfPreemptibleWorkers`,
-          RG.`dataprocProperties`,
-          RG.`persistentDiskId`,
-          RG.`zone`,
-          RG.`region`,
-          RG.`gpuType`,
-          RG.`numOfGpus`,
-          RG.`componentGatewayEnabled`,
-          RG.`workerPrivateAccess`,
-          GROUP_CONCAT(labelKey) labelKeys,
-          GROUP_CONCAT(labelValue) labelValues,
-          CP.`inProgress`
-        from
-          (
-            select
-              `id`,
-              `status`,
-              `cloudContext`,
-              `serviceAccount`,
-              `dateAccessed`,
-              `createdDate`,
-              `deletedFrom`,
-              `destroyedDate`,
-              `autopauseThreshold`,
-              `hostIp`,
-              `internalId`,
-              `workspaceId`,
-              `cloudProvider`,
-              `runtimeName`,
-              `kernelFoundBusyDate`,
-              `creator`,
-              `proxyHostName`,
-              `runtimeConfigId`,
-              L.`key` as labelKey,
-              L.`value` as labelValue
-            from
-              (
-                select
-                  C.`status`,
-                  C.`cloudContext`,
-                  C.`serviceAccount`,
-                  C.`dateAccessed`,
-                  C.`createdDate`,
-                  C.`deletedFrom`,
-                  C.`destroyedDate`,
-                  C.`autopauseThreshold`,
-                  C.`hostIp`,
-                  C.`internalId`,
-                  C.`workspaceId`,
-                  C.`cloudProvider`,
-                  C.`id`,
-                  C.`runtimeName`,
-                  C.`kernelFoundBusyDate`,
-                  C.`creator`,
-                  C.`proxyHostName`,
-                  C.`runtimeConfigId`
-                from
-                  `CLUSTER` AS C
-                #${clusterFiltersFinal}
-              ) AS FILTERED_CLUSTER
-              left join `LABEL` L on (L.`resourceId` = FILTERED_CLUSTER.id) and (L.`resourceType` = 'runtime')
-              #${labelMapFilters}
-          ) AS LABEL_FILTERED
-          inner join `RUNTIME_CONFIG` RG on LABEL_FILTERED.runtimeConfigId = RG.`id`
-          left join `CLUSTER_PATCH` CP on LABEL_FILTERED.id = CP.`clusterId`
-          GROUP BY LABEL_FILTERED.id""".stripMargin
+    // Assemble response
+    val runtimesJoined = runtimesFiltered
+      .join(runtimeConfigs)
+      .on((runtime, runtimeConfig) => runtime.runtimeConfigId === runtimeConfig.id)
+      .map { case (runtime, runtimeConfig) =>
+        (
+          runtime,
+          runtimeConfig,
+          patchQuery
+            .filter(patch => runtime.id === patch.clusterId && patch.inProgress === true)
+            .map(_ => true)
+            .exists
+        )
+      }
+      .joinLeft(labelQuery)
+      .on { case ((runtime, _, _), label) =>
+        runtime.id === label.resourceId &&
+        label.resourceType === LabelResourceType.runtime
+      }
+      .map { case ((runtime, runtimeConfig, patchInProgress), label) =>
+        (
+          runtime.id,
+          runtime.cloudContextDb,
+          runtime.cloudProvider,
+          runtime.creator,
+          runtime.createdDate,
+          runtime.destroyedDate,
+          runtime.dateAccessed,
+          runtime.hostIp,
+          runtime.internalId,
+          patchInProgress,
+          runtimeConfig,
+          runtime.runtimeName,
+          runtime.status,
+          runtime.workspaceId,
+          label.map(l => (l.key, l.value))
+        )
+      }
 
-    sqlStatement.as[ListRuntimeResponse2]
+    runtimesJoined.result
+      .map { records: Seq[ListRuntimesProduct] =>
+        records
+          .map(record => ListRuntimesRecord(record))
+          .groupBy(_.id)
+          .map { case _ -> (values: Seq[ListRuntimesRecord]) =>
+            val allLabels: LabelMap = Map(values.mapFilter(_.label): _*)
+            values.head match {
+              case record =>
+                val auditInfo = AuditInfo(
+                  record.creator,
+                  record.createdDate,
+                  if (record.destroyedDate == dummyDate) None else Some(record.destroyedDate),
+                  record.dateAccessed
+                )
+                val cloudContext = (record.cloudProvider, record.cloudContextDb) match {
+                  case (CloudProvider.Gcp, CloudContextDb(value)) =>
+                    CloudContext.Gcp(GoogleProject(value))
+                  case (CloudProvider.Azure, CloudContextDb(value)) =>
+                    val azureContext =
+                      AzureCloudContext.fromString(value).fold(s => throw new SQLDataException(s), identity)
+                    CloudContext.Azure(azureContext)
+                }
+                val proxyUrl = Runtime.getProxyUrl(
+                  Config.proxyConfig.proxyUrlBase,
+                  cloudContext,
+                  record.runtimeName,
+                  Set.empty,
+                  record.hostIp,
+                  allLabels
+                )
+                val runtimeConfig = record.runtimeConfig.runtimeConfig
+                val samResourceId = RuntimeSamResourceId(record.internalId)
+
+                ListRuntimeResponse2(
+                  record.id,
+                  auditInfo = auditInfo,
+                  cloudContext = cloudContext,
+                  clusterName = record.runtimeName,
+                  labels = allLabels,
+                  patchInProgress = record.patchInProgress,
+                  proxyUrl = proxyUrl,
+                  runtimeConfig = runtimeConfig,
+                  samResource = samResourceId,
+                  status = record.status,
+                  workspaceId = record.workspaceId
+                )
+            }
+          }
+          .toVector
+      }
   }
 
-  /**
-   * Build the filter expression which shows only runtimes the user has permission to read. If any of the parameter
-   * lists is blank, the user is assumed to have no permissions (can see nothing).
-   * @param readerRuntimeIds List[String] runtime IDs the user has any Sam role for
-   * @param readerWorkspaceIds List[String] workspace IDs the user has any Sam role for
-   * @param ownerWorkspaceIds List[String] Google project IDs the user has an owner role for
-   * @param readerGoogleProjectIds List[String] Google project IDs the user has any Sam role for
-   * @param ownerGoogleProjectIds List[String] Google project IDs the user has an owner role for
-   * @return List[String] a one-element list with the SQL filter expression
-   */
-  private def getFilterVisibleIds(readerRuntimeIds: List[String],
-                                  readerWorkspaceIds: List[String],
-                                  ownerWorkspaceIds: List[String],
-                                  readerGoogleProjectIds: List[String],
-                                  ownerGoogleProjectIds: List[String]
-  ): List[String] = {
-    // is the record a readable runtime?
-    val filterRuntimeIds = getInListExpression("C.`internalId`", readerRuntimeIds)
-    // is the record in a readable workspace?
-    val filterReaderWorkspaceIds = getInListExpression("C.`workspaceId`", readerWorkspaceIds)
-    // is the record in a readable Google project?
-    val filterReaderGoogleProjectIds = getInGoogleProjectIdsExpression(readerGoogleProjectIds)
-    // is the record in an owned workspace?
-    val filterOwnerWorkspaceIds = getInListExpression("C.`workspaceId`", ownerWorkspaceIds)
-    // is the record in an owned Google project?
-    val filterOwnerGoogleProjectIds = getInGoogleProjectIdsExpression(ownerGoogleProjectIds)
-
-    // is the runtime readable and in a readable workspace/project?
-    val filterReader = s"${filterRuntimeIds} AND ( ${filterReaderWorkspaceIds} OR ${filterReaderGoogleProjectIds} )"
-    // is the runtime in an owned workspace/project?
-    val filterOwner = s"${filterOwnerWorkspaceIds} OR ${filterOwnerGoogleProjectIds}"
-
-    // is the runtime visible via direct read permissions or inference from container ownership?
-    val filterVisibleIds = s"(${filterReader}) OR (${filterOwner})"
-    List(filterVisibleIds)
-  }
-
-  private def getInGoogleProjectIdsExpression(projectIds: List[String]): String =
-    if (projectIds.isEmpty)
-      "0 = 1"
-    else
-      s"C.`cloudProvider` = '${CloudProvider.Gcp}' AND ${getInListExpression("C.`cloudContext`", projectIds)}"
-
-  private def getInListExpression(field: String, terms: List[String]): String =
-    if (terms.isEmpty) "0 = 1" else s"${field} IN('${terms.mkString("','")}')"
 }
