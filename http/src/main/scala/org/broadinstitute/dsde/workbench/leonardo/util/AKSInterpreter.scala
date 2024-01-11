@@ -335,14 +335,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Get the optional storage container for the workspace
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
       storageContainerOpt <- childSpan("getWorkspaceStorageContainer").use { implicit ev =>
-        tokenOpt.flatTraverse { token =>
           wsmDao.getWorkspaceStorageContainer(
             workspaceId,
-            org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
+            leoAuth
           )
-        }
       }
 
       // Build WSM client
