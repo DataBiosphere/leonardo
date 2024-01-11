@@ -336,10 +336,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Get the optional storage container for the workspace
       storageContainerOpt <- childSpan("getWorkspaceStorageContainer").use { implicit ev =>
-          wsmDao.getWorkspaceStorageContainer(
-            workspaceId,
-            leoAuth
-          )
+        wsmDao.getWorkspaceStorageContainer(
+          workspaceId,
+          leoAuth
+        )
       }
 
       // Build WSM client
