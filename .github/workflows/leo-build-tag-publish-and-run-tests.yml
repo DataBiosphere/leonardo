@@ -207,6 +207,7 @@ jobs:
           workflow: leonardo-swat-tests
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
+          wait-for-completion-timeout: 75m
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
               "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
