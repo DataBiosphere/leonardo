@@ -67,7 +67,6 @@ import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
   BatchAccountName,
@@ -234,20 +233,18 @@ object CommonTestData {
     RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val customDataprocImage =
     RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
-  val legacyAouCustomDataprocImage =
-    RuntimeImage(BootSource, "legacy_aou_custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584), MemorySize.fromMb(7680), None)
   val hostToIpMapping = Ref.unsafe[IO, Map[String, IP]](Map.empty)
-
+  val defaultHostIp = Some(IP("numbers.and.dots"))
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(
       ProxyHostName(UUID.randomUUID().toString),
       OperationName("operationName" + index.toString),
       GcsBucketName("stagingbucketname" + index.toString),
-      Some(IP("numbers.and.dots"))
+      defaultHostIp
     )
   val defaultMachineType = MachineTypeName("n1-standard-4")
   val defaultDataprocRuntimeConfig =
@@ -329,7 +326,8 @@ object CommonTestData {
 
   def makeCluster(index: Int,
                   creator: Option[WorkbenchEmail] = None,
-                  cloudContext: CloudContext = cloudContextGcp
+                  cloudContext: CloudContext = cloudContextGcp,
+                  samResource: RuntimeSamResourceId = RuntimeSamResourceId(UUID.randomUUID.toString)
   ): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
     val auditInfoUpdated = creator match {
@@ -339,14 +337,14 @@ object CommonTestData {
     Runtime(
       id = -1,
       workspaceId = Some(WorkspaceId(UUID.randomUUID())),
-      samResource = runtimeSamResource,
+      samResource = samResource,
       runtimeName = clusterName,
       cloudContext = cloudContext,
       serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfoUpdated,
       kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContextGcp, clusterName, Set(jupyterImage), None, Map.empty),
+      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, clusterName, Set(jupyterImage), None, Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
       userScriptUri = None,
@@ -567,7 +565,7 @@ object CommonTestData {
 
   val landingZoneResources = LandingZoneResources(
     UUID.randomUUID(),
-    AKSClusterName("lzcluster"),
+    AKSCluster("lzcluster", Map.empty[String, Boolean]),
     BatchAccountName("lzbatch"),
     RelayNamespace("lznamespace"),
     StorageAccountName("lzstorage"),

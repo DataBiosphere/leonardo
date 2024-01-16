@@ -183,7 +183,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
+                                        params.cloudContext,
+                                        namespaceName
+      )
 
       // Build listener helm values
       values = BuildHelmChartValues.buildListenerChartOverrideValuesString(
@@ -255,7 +258,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
@@ -285,7 +288,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}"
+        s"Finished app creation for app ${params.appName.value} in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}"
       )
     } yield ()
 
@@ -316,24 +319,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
 
       app = dbApp.app
-      referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
 
       // Resolve the workspace in WSM
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+      leoAuth <- samDao.getLeoAuthToken
       workspaceDescOpt <- childSpan("getWorkspace").use { implicit ev =>
-        tokenOpt.flatTraverse { token =>
-          legacyWsmDao.getWorkspace(
-            workspaceId,
-            org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-          )
-        }
+        legacyWsmDao.getWorkspace(workspaceId, leoAuth)
       }
       workspaceDesc <- F.fromOption(workspaceDescOpt,
                                     AppUpdateException(s"Workspace ${workspaceId} not found in WSM", Some(ctx.traceId))
       )
 
       // Query the Landing Zone service for the landing zone resources
-      leoAuth <- samDao.getLeoAuthToken
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
         legacyWsmDao.getLandingZoneResources(BillingProfileId(workspaceDesc.spendProfile), leoAuth)
       }
@@ -413,7 +409,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Authenticate helm client
-      authContext <- getHelmAuthContext(landingZoneResources.clusterName, params.cloudContext, namespaceName)
+      authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
+                                        params.cloudContext,
+                                        namespaceName
+      )
 
       // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
@@ -465,13 +464,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         else
           F.raiseError[Unit](
             AppUpdateException(
-              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.clusterName.value} in cloud context ${params.cloudContext.asString}",
+              s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
 
       _ <- logger.info(
-        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.clusterName}"
+        s"Update app operation has finished for app ${app.appName.value} in cluster ${landingZoneResources.aksCluster.name}"
       )
 
       // Update app chart version in the DB
@@ -543,7 +542,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         if (deletedNamespace) F.unit
         else {
           for {
-            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.clusterName)
+            client <- kubeAlg.createAzureClient(cloudContext, landingZoneResources.aksCluster.asClusterName)
 
             kubernetesNamespace = KubernetesNamespace(app.appResources.namespace)
 

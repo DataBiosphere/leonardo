@@ -143,7 +143,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
 
   val landingZoneResources = LandingZoneResources(
     UUID.randomUUID(),
-    AKSClusterName("cluster-name"),
+    AKSCluster("cluster-name", Map.empty[String, Boolean]),
     BatchAccountName("batch-account"),
     RelayNamespace("relay-ns"),
     StorageAccountName("storage-account"),

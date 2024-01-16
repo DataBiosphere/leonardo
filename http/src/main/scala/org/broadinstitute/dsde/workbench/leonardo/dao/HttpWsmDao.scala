@@ -5,12 +5,7 @@ import cats.data.OptionT
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
-  ApplicationInsightsName,
-  BatchAccountName,
-  RelayNamespace
-}
+import org.broadinstitute.dsde.workbench.azure.{ApplicationInsightsName, BatchAccountName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.{
@@ -153,12 +148,17 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       groupedLzResources = lzResourcesByPurpose.foldMap(a =>
         a.deployedResources.groupBy(b => (a.purpose, b.resourceType.toLowerCase))
       )
-
-      aksClusterName <- getLandingZoneResourceName(groupedLzResources,
-                                                   "Microsoft.ContainerService/managedClusters",
-                                                   SHARED_RESOURCE,
-                                                   false
+      aksResource <- getLandingZoneResource(groupedLzResources,
+                                            "Microsoft.ContainerService/managedClusters",
+                                            SHARED_RESOURCE
       )
+      aksCluster <- getLandingZoneResourceName(aksResource, useParent = false).map { aksName =>
+        val tagValue = getLandingZoneResourceTagValue(aksResource, "aks-cost-vpa-enabled")
+        val tags: Map[String, Boolean] =
+          Map("aks-cost-vpa-enabled" -> java.lang.Boolean.parseBoolean(tagValue.getOrElse("false")))
+        AKSCluster(aksName, tags)
+      }
+      _ <- logger.info(s"Retrieved Landing Zone AKS cluster: ${aksCluster}")
       batchAccountName <- getLandingZoneResourceName(groupedLzResources,
                                                      "Microsoft.Batch/batchAccounts",
                                                      SHARED_RESOURCE,
@@ -198,7 +198,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       }
     } yield LandingZoneResources(
       landingZoneId,
-      AKSClusterName(aksClusterName),
+      aksCluster,
       BatchAccountName(batchAccountName),
       RelayNamespace(relayNamespace),
       StorageAccountName(storageAccountName),
