@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package model
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
+import bio.terra.workspace.model.State
 import org.broadinstitute.dsde.workbench.leonardo.http.errorReportSource
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchEmail, WorkbenchException}
@@ -112,6 +113,13 @@ case class RuntimeCannotBeDeletedException(cloudContext: CloudContext,
                                            status: RuntimeStatus = RuntimeStatus.Creating
 ) extends LeoException(
       s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status} status",
+      StatusCodes.Conflict,
+      traceId = None
+    )
+
+case class RuntimeCannotBeDeletedWsmException(cloudContext: CloudContext, runtimeName: RuntimeName, status: WsmState)
+    extends LeoException(
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status.value} status",
       StatusCodes.Conflict,
       traceId = None
     )

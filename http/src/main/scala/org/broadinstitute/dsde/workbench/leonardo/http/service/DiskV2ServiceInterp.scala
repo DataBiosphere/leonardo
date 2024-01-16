@@ -26,7 +26,8 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                           authProvider: LeoAuthProvider[F],
                                           wsmDao: WsmDao[F],
                                           samDAO: SamDAO[F],
-                                          publisherQueue: Queue[F, LeoPubsubMessage]
+                                          publisherQueue: Queue[F, LeoPubsubMessage],
+                                          wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -81,15 +82,6 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         F.pure
       )
 
-      // check that workspaceId is not null
-      workspaceId <- F.fromOption(disk.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
-
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
       // check read permission first
       listOfPermissions <- authProvider.getActions(disk.samResource, userInfo)
       hasReadPermission = listOfPermissions.toSet.contains(
@@ -98,12 +90,6 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- F
         .raiseError[Unit](DiskNotFoundByIdException(diskId, ctx.traceId))
         .whenA(!hasReadPermission)
-
-      // check if disk is deletable
-      _ <- F
-        .raiseUnless(disk.status.isDeletable)(
-          DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
-        )
 
       // check delete permission
       hasDeletePermission = listOfPermissions.toSet.contains(
@@ -114,6 +100,22 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .whenA(!hasDeletePermission)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure disk permission")))
+
+      // check that workspaceId is not null
+      workspaceId <- F.fromOption(disk.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
+
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+      wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(diskId, ctx.traceId))
+      deletable <- isDiskDeletable(wsmResourceId, disk.status, workspaceId, userInfo)
+      // TODO (LM) Should I have different exceptions for Leo vs. WSM deletable?
+      _ <- F.raiseUnless(deletable)(
+        DiskCannotBeDeletedException(disk.id, disk.status.toString, disk.cloudContext, ctx.traceId)
+      )
 
       // check that disk isn't attached to a runtime
       isAttached <- persistentDiskQuery.isDiskAttached(diskId).transaction
@@ -133,6 +135,20 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         )
       )
     } yield ()
+
+  override def isDiskDeletable(wsmResourceId: WsmControlledResourceId,
+                               diskStatus: DiskStatus,
+                               workspaceId: WorkspaceId,
+                               userInfo: UserInfo
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Boolean] = for {
+
+    // check if disk is deletable in WSM
+    wsmState <- wsmClientProvider.getVmState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+
+    // only deletable if deletable in Leo and WSM
+  } yield wsmState.isDeletable && diskStatus.isDeletable
 }
 case class DiskCannotBeDeletedAttachedException(id: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
@@ -144,6 +160,13 @@ case class DiskCannotBeDeletedAttachedException(id: DiskId, workspaceId: Workspa
 case class DiskWithoutWorkspaceException(id: DiskId, traceId: TraceId)
     extends LeoException(
       s"Persistent disk ${id.value} cannot be deleted. Disk record has no workspaceId",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class DiskWithoutWsmResourceIdException(id: DiskId, traceId: TraceId)
+    extends LeoException(
+      s"Persistent disk ${id.value} cannot be deleted. Disk record has no wsmResourceId",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

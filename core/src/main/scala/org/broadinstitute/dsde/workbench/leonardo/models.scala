@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import bio.terra.workspace.model.{AzureDatabaseResource, AzureDiskResource, AzureVmResource, ResourceMetadata, State}
 
 import java.util.UUID
 
@@ -57,3 +58,21 @@ object StagingBucket {
     override def asString: String = s"${storageContainerName.value}"
   }
 }
+
+/**
+ * Can't extend final enum State from WSM, so made a wrapper
+ * WSM state can be BROKEN, CREATING, DELETING, READY, UPDATING or None
+ * if None --> it is deletable (already deleted in WSM)
+ */
+case class WsmState(value: Option[String]) {
+  def getValue: String = value.getOrElse("DELETED")
+
+  def isDeletable: Boolean = value match {
+    case Some(s) => Set("BROKEN", "READY") contains s
+    case _       => false
+  }
+}
+//object WsmState {
+//  def apply(value: Option[WsmState]): WsmState = WsmState(value.map(_.value))
+//}
+

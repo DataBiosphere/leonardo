@@ -16,4 +16,12 @@ trait DiskV2Service[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 
+  def isDiskDeletable(wsmResourceId: WsmControlledResourceId,
+                      diskStatus: DiskStatus,
+                      workspaceId: WorkspaceId,
+                      userInfo: UserInfo
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Boolean]
+
 }

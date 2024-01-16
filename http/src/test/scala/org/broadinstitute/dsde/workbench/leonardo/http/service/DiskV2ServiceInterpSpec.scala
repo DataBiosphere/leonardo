@@ -184,7 +184,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       )
       err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(
-      DiskCannotBeDeletedException(disk.id, DiskStatus.Deleting, cloudContextAzure, ctx.traceId)
+      DiskCannotBeDeletedException(disk.id, DiskStatus.Deleting.toString, cloudContextAzure, ctx.traceId)
     )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
