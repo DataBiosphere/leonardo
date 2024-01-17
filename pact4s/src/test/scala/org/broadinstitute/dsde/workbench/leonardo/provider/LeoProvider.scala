@@ -6,22 +6,12 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.defaultUserInfo
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{auditInfo, defaultUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
+import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetAppResponse, GetRuntimeResponse}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  CloudContext,
-  KubernetesRuntimeConfig,
-  NumNodes
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, KubernetesRuntimeConfig, NumNodes, RuntimeError, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
@@ -48,6 +38,8 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object States {
   val AppExists = "there is an app in a Google project"
+  val RuntimeExists = "there is a runtime in a Google project"
+  val RuntimeDoesNotExist = "there is not a runtime in a Google project"
 }
 
 class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
@@ -109,6 +101,36 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
             None,
             Map.empty[String, String]
           )
+        })
+    case ProviderState(States.RuntimeExists, _) =>
+      when(mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName]))
+        .thenReturn(IO {
+          GetRuntimeResponse(
+            -1,
+            runtimeSamResource,
+            name1,
+            cloudContextGcp,
+            serviceAccountEmail,
+            Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
+            auditInfo.copy(createdDate = date, dateAccessed = date),
+            Some(date),
+            defaultGceRuntimeConfig,
+            new URL("https://leo.org/proxy"),
+            RuntimeStatus.Running,
+            Map("foo" -> "bar"),
+            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
+            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
+            List.empty[RuntimeError],
+            None,
+            30,
+            Some("clientId"),
+            Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
+            defaultScopes,
+            true,
+            true,
+            Map("ev1" -> "a", "ev2" -> "b"),
+            Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
+    )
         })
     case _ =>
       loggerIO.debug("other state")
