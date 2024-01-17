@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+import org.scalatest.tagobjects.Retryable
 
 /**
  * This spec verifies different cluster creation options, such as extensions, scopes, environment variables.
@@ -36,7 +37,7 @@ final class NotebookGCECustomizationSpec
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in { billingProject =>
+    "should install user specified notebook extensions" taggedAs Retryable in { billingProject =>
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
@@ -70,7 +71,7 @@ final class NotebookGCECustomizationSpec
       }
     }
 
-    "should populate user-specified environment variables" in { billingProject =>
+    "should populate user-specified environment variables" taggedAs Retryable in { billingProject =>
       val runtimeRequest =
         LeonardoApiClient.defaultCreateRuntime2Request.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 

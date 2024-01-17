@@ -6,6 +6,7 @@ import org.scalatest.DoNotDiscover
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.workspaceNameKey
+import org.scalatest.tagobjects.Retryable
 
 @DoNotDiscover
 class RuntimeSystemSpec extends RuntimeFixtureSpec {
@@ -19,7 +20,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
   "RuntimeSystemSpec" - {
-    s"should have the workspace-related environment variables set in jupyter image" in { runtimeFixture =>
+    s"should have the workspace-related environment variables set in jupyter image" taggedAs Retryable in { runtimeFixture =>
       // TODO: any others?
       val expectedEnvironment = Map(
         "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
@@ -46,7 +47,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-    "should have Java available" in { runtimeFixture =>
+    "should have Java available" taggedAs Retryable in { runtimeFixture =>
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
         for {

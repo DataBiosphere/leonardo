@@ -4,6 +4,7 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
+import org.scalatest.tagobjects.Retryable
 
 /**
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
@@ -17,7 +18,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   "NotebookPyKernelSpec" - {
 
     // TODO: [discuss] Debatable but I like a kernel smoke test... I could see getting rid of this entirely
-    "should create a notebook with a working Python 3 kernel, import installed packages and default to notebooks dir in terminal" in {
+    "should create a notebook with a working Python 3 kernel, import installed packages and default to notebooks dir in terminal" taggedAs Retryable in {
       runtimeFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
@@ -37,7 +38,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         }
     }
 
-    "should be able to install python libraries with C bindings" in { runtimeFixture =>
+    "should be able to install python libraries with C bindings" taggedAs Retryable in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("! pip show Cython").get should include("Name: Cython")

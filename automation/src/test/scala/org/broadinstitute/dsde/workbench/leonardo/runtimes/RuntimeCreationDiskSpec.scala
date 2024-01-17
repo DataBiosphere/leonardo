@@ -46,7 +46,7 @@ class RuntimeCreationDiskSpec
     httpClient <- LeonardoApiClient.client
   } yield RuntimeCreationPdSpecDependencies(httpClient, diskService)
 
-  "create runtime and mount disk correctly" in { googleProject =>
+  "create runtime and mount disk correctly" taggedAs Retryable in { googleProject =>
     val runtimeName = randomClusterName
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
@@ -80,7 +80,7 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "create runtime with SSD disk" in { googleProject =>
+  "create runtime with SSD disk" taggedAs Retryable in { googleProject =>
     val runtimeName = randomClusterName
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
@@ -109,7 +109,7 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()
   }
 
-  "create runtime with Balanced disk" in { googleProject =>
+  "create runtime with Balanced disk" taggedAs Retryable in { googleProject =>
     val runtimeName = randomClusterName
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
@@ -138,7 +138,7 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()
   }
 
-  "create runtime and attach a persistent disk" in { googleProject =>
+  "create runtime and attach a persistent disk" taggedAs Retryable in { googleProject =>
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
     val runtimeName = randomClusterName

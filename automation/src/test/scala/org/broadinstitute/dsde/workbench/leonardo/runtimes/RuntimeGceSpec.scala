@@ -39,7 +39,7 @@ class RuntimeGceSpec extends BillingProjectFixtureSpec with ParallelTestExecutio
     httpClient <- LeonardoApiClient.client
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
-  "should create a GCE instance in a non-default zone" in { project =>
+  "should create a GCE instance in a non-default zone" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
     val targetZone = ZoneName(

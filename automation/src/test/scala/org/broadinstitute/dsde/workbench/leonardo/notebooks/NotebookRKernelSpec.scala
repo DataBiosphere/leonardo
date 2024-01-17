@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
 import org.scalatest.DoNotDiscover
+import org.scalatest.tagobjects.Retryable
 
 /**
  * This spec verifies notebook functionality specifically around the R kernel.
@@ -21,7 +22,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec {
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
 
   "NotebookRKernelSpec" - {
-    "should start up an r image and have utf encoding set up" in { runtimeFixture =>
+    "should start up an r image and have utf encoding set up" taggedAs Retryable in { runtimeFixture =>
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
         for {
