@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="ladieu" id="create_app_chart_version_table">
+        <createTable tableName="APP_CHART_VERSION">
+            <column name="chartName" type="VARCHAR(254)">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="chartVersion" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="appTargetVersion" type="VARCHAR(254)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="timestamp" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseColumnNames="chartName" baseTableName="APP_CHART_VERSION"
+                                 constraintName="FK_APP_CHART_VERSION_APP_NAME" deferrable="false"
+                                 initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION"
+                                 referencedColumnNames="appName" referencedTableName="APP"/>
+    </changeSet>
+</databaseChangeLog>
