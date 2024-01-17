@@ -107,7 +107,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
         })
     case ProviderState(States.RuntimeExists, _) => {
       val date = Instant.parse("2020-11-20T17:23:24.650Z")
-      when(mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName]))
+      when(mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName])(any[Ask[IO, AppContext]]))
         .thenReturn(IO {
           GetRuntimeResponse(
             -1,
