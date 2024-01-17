@@ -6,12 +6,14 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{auditInfo, defaultUserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{auditInfo, cloudContextGcp, cryptoDetectorImage, defaultGceRuntimeConfig, defaultScopes, defaultUserInfo, jupyterImage, makeAsyncRuntimeFields, name1, proxyImage, runtimeSamResource, serviceAccountEmail, welderImage}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetAppResponse, GetRuntimeResponse}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, KubernetesRuntimeConfig, NumNodes, RuntimeError, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, DiskType, KubernetesRuntimeConfig, NumNodes, RuntimeError, RuntimeName, RuntimeStatus, UserScriptPath}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
@@ -20,6 +22,7 @@ import org.broadinstitute.dsp.ChartName
 import org.mockito.ArgumentMatchers.{any, anyLong, anyString}
 import org.mockito.Mockito.{reset, when}
 import org.mockito.stubbing.OngoingStubbing
+import org.scalacheck.Gen.uuid
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
@@ -102,7 +105,8 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
             Map.empty[String, String]
           )
         })
-    case ProviderState(States.RuntimeExists, _) =>
+    case ProviderState(States.RuntimeExists, _) => {
+      val date = Instant.parse("2020-11-20T17:23:24.650Z")
       when(mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName]))
         .thenReturn(IO {
           GetRuntimeResponse(
@@ -131,7 +135,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
             Map("ev1" -> "a", "ev2" -> "b"),
             Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
     )
-        })
+        })}
     case _ =>
       loggerIO.debug("other state")
   }
