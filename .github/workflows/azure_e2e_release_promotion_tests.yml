@@ -174,7 +174,7 @@ jobs:
           inputs: '{ "bee-name": "${{ env.BEE_NAME }}" }'
   report-workflow:
     uses: broadinstitute/sherlock/.github/workflows/client-report-workflow.yaml@main
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/develop'
     with:
       notify-slack-channels-upon-workflow-completion: '#dsde-qa'
     permissions:
