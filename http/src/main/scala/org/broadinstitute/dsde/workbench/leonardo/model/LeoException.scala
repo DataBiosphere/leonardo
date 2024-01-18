@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package model
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import bio.terra.workspace.model.State
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.http.errorReportSource
 import org.broadinstitute.dsde.workbench.model.google.GcsPath

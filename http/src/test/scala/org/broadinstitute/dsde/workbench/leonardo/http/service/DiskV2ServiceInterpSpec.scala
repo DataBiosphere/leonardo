@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpWsmClientProvider, MockWsmDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -18,23 +18,25 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Delet
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar.mock
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val wsmDao = new MockWsmDAO
+  val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
 
   private def makeDiskV2Service(queue: Queue[IO, LeoPubsubMessage],
                                 allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
                                 wsmDao: WsmDao[IO] = wsmDao
   ) =
-    new DiskV2ServiceInterp[IO](
-      ConfigReader.appConfig.persistentDisk.copy(),
-      allowlistAuthProvider,
-      wsmDao,
-      mockSamDAO,
-      queue
+    new DiskV2ServiceInterp[IO](ConfigReader.appConfig.persistentDisk.copy(),
+                                allowlistAuthProvider,
+                                wsmDao,
+                                mockSamDAO,
+                                queue,
+                                wsmClientProvider
     )
 
   val diskV2Service = makeDiskV2Service(QueueFactory.makePublisherQueue(), wsmDao = new MockWsmDAO)
@@ -184,7 +186,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       )
       err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(
-      DiskCannotBeDeletedException(disk.id, DiskStatus.Deleting.toString, cloudContextAzure, ctx.traceId)
+      DiskCannotBeDeletedWsmException(disk.id, WsmState(Some("Deleting")), cloudContextAzure, ctx.traceId)
     )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

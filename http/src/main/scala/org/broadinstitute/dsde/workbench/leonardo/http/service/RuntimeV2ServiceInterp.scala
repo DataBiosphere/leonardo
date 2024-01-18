@@ -322,8 +322,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         diskWsmId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(disk.id, ctx.traceId))
         wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, diskWsmId)
         _ <- F
-          .raiseUnless(wsmState.isDeletable && disk.status.isDeletable)(
-            DiskCannotBeDeletedException(disk.id, disk.status.toString, disk.cloudContext, ctx.traceId)
+          .raiseUnless(wsmState.isDeletable)(
+            DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
           )
         _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction
       } yield ()
@@ -344,7 +344,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       // only pass wsmResourceId if vm isn't already deleted in WSM
       // won't send the delete to WSM if vm is deleted
-      wsmVMResourceSamId = if (wsmState.getValue == "DELETED") None else Some(wsmResourceId)
+      wsmVMResourceSamId = if (wsmState.isDeleted) None else Some(wsmResourceId)
 
       // Query WSM for Landing Zone resources
       userToken = org.http4s.headers.Authorization(
@@ -520,6 +520,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
+      state = WsmState(Some("READY"))
+
       // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
@@ -622,9 +624,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         userInfo
       )
     } yield (res, wsmResourceSamResourceId.controlledResourceId)
-
-  // private def isRuntimeDeletable(wsmResourceId: WsmControlledResourceId, workspaceId: WorkspaceId, userInfo: UserInfo): Boolean =
-  //
 
   private def errorHandler(runtimeId: Long, ctx: AppContext): Throwable => F[Unit] =
     e =>

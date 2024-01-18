@@ -110,19 +110,16 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-      // check if deletable in Leo and WSM
-      _ <- F.raiseUnless(disk.status.isDeletable)(
-        DiskCannotBeDeletedException(disk.id, disk.status.toString, disk.cloudContext, ctx.traceId)
-      )
+      // check if disk resource is deletable in WSM
       wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(diskId, ctx.traceId))
       wsmStatus <- wsmClientProvider.getVmState(userInfo.accessToken.token, workspaceId, wsmResourceId)
 
       _ <- F.raiseUnless(wsmStatus.isDeletable)(
-        DiskCannotBeDeletedException(disk.id, wsmStatus.getValue, disk.cloudContext, ctx.traceId)
+        DiskCannotBeDeletedWsmException(disk.id, wsmStatus, disk.cloudContext, ctx.traceId)
       )
 
       // only send wsmResourceId to back leo if disk isn't already deleted in WSM
-      wsmDiskResourceId = if (wsmStatus.getValue == "DELETED") None else Some(wsmResourceId)
+      wsmDiskResourceId = if (wsmStatus.isDeleted) None else Some(wsmResourceId)
 
       // check that disk isn't attached to a runtime
       isAttached <- persistentDiskQuery.isDiskAttached(diskId).transaction
@@ -142,20 +139,6 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         )
       )
     } yield ()
-
-  override def isDiskDeletable(wsmResourceId: WsmControlledResourceId,
-                               diskStatus: DiskStatus,
-                               workspaceId: WorkspaceId,
-                               userInfo: UserInfo
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[Boolean] = for {
-
-    // check if disk is deletable in WSM
-    wsmState <- wsmClientProvider.getVmState(userInfo.accessToken.token, workspaceId, wsmResourceId)
-
-    // only deletable if deletable in Leo and WSM
-  } yield wsmState.isDeletable && diskStatus.isDeletable
 }
 case class DiskCannotBeDeletedAttachedException(id: DiskId, workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(

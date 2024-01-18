@@ -65,10 +65,6 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
 sealed abstract class WsmResourceType
 
 object WsmResourceType {
-
-  case object AzureVm extends WsmResourceType {
-    override def toString: String = "AZURE_VM"
-  }
   case object AzureDisk extends WsmResourceType {
     override def toString: String = "AZURE_DISK"
   }

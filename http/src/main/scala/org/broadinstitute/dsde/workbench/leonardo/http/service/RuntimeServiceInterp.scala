@@ -356,7 +356,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
       _ <-
         if (runtime.status.isDeletable) F.unit
         else
-          F.raiseError[Unit](RuntimeCannotBeDeletedException(cloudContext, runtime.runtimeName, runtime.status))
+          F.raiseError[Unit](
+            RuntimeCannotBeDeletedException(cloudContext, runtime.runtimeName, runtime.status.toString)
+          )
       // delete the runtime
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       persistentDiskToDelete <- runtimeConfig match {

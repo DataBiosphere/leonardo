@@ -817,12 +817,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           diskWsmId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(disk.id, ctx.traceId))
           wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, diskWsmId)
           _ <- F
-            .raiseUnless(wsmState.isDeletable && disk.status.isDeletable)(
-              DiskCannotBeDeletedException(disk.id, disk.status.toString, disk.cloudContext, ctx.traceId)
+            .raiseUnless(wsmState.isDeletable)(
+              DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
             )
           _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
         } yield ()
       case (true, None) => AppRequiresDiskException(cloudContext, app.appName, app.appType, ctx.traceId)
+      case _            => F.unit
     }
 
     _ <-
@@ -856,7 +857,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           .transaction
         _ <- wsmResources.traverse { resource =>
           for {
-            wsmState <- resourceType match {
+            // unchecked match here because resourceType can ONLY be those in the set above
+            wsmState <- (resourceType: @unchecked) match {
               case WsmResourceType.AzureDatabase =>
                 wsmClientProvider.getDatabaseState(userInfo.accessToken.token, workspaceId, resource.resourceId)
               case WsmResourceType.AzureKubernetesNamespace =>
