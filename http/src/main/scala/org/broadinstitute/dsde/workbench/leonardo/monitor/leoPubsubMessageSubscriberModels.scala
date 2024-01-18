@@ -1094,6 +1094,16 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
+  final case class AzureDiskResourceDeletionError(id: Either[Long, WsmControlledResourceId],
+                                                  workspaceId: WorkspaceId,
+                                                  errorMsg: String
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\tAssociated disk resource: ${id} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
+
+    val isRetryable: Boolean = false
+  }
+
   final case class AzureRuntimeCreationError(runtimeId: Long,
                                              workspaceId: WorkspaceId,
                                              errorMsg: String,

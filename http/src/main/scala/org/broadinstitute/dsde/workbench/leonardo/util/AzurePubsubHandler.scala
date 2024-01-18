@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskWithoutWsmResourceIdException
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -602,7 +603,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       deleteDiskAction = msg.diskIdToDelete.traverse { diskId =>
         for {
-          _ <- deleteDiskResource(Left(runtime.id), msg.workspaceId, auth)
+          runtimeRecordOpt <- controlledResourceQuery
+            .getWsmRecordForRuntime(msg.runtimeId, WsmResourceType.AzureDisk)
+            .transaction
+          runtimeRecord <- F.fromOption(
+            runtimeRecordOpt,
+            AzureDiskResourceDeletionError(Left(msg.runtimeId),
+                                           msg.workspaceId,
+                                           "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
+            )
+          )
+          _ <- deleteDiskResource(runtimeRecord.resourceId, msg.workspaceId, auth)
           _ <- dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
           _ <- logger.info(ctx.loggingCtx)(s"runtime disk ${diskId} is deleted successfully")
         } yield ()
@@ -762,7 +773,18 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- e.useExistingDisk match {
         case false =>
           for {
-            _ <- deleteDiskResource(Left(e.runtimeId), e.workspaceId, auth)
+            runtimeRecordOpt <- controlledResourceQuery
+              .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
+              .transaction
+            runtimeRecord <- F.fromOption(
+              runtimeRecordOpt,
+              AzureDiskResourceDeletionError(
+                Left(e.runtimeId),
+                e.workspaceId,
+                "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
+              )
+            )
+            _ <- deleteDiskResource(runtimeRecord.resourceId, e.workspaceId, auth)
             _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
           } yield ()
 
@@ -861,60 +883,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
     } yield ()
 
-  private def deleteDiskResource(id: Either[Long,
-                                            WsmControlledResourceId
-                                 ], // can be either runtimeId or diskResourceId in order to get WSMcontrolled resource
-                                 workspaceId: WorkspaceId,
-                                 auth: Authorization
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] =
+  private def deleteDiskResource(wsmResourceId: WsmControlledResourceId, workspaceId: WorkspaceId, auth: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[WsmJobId] =
     for {
       ctx <- ev.ask
-      diskResourceOpt <- id match {
-        case Left(runtimeId) =>
-          controlledResourceQuery
-            .getWsmRecordForRuntime(runtimeId, WsmResourceType.AzureDisk)
-            .transaction
-        case Right(diskResourceId) =>
-          controlledResourceQuery
-            .getWsmRecordFromResourceId(diskResourceId, WsmResourceType.AzureDisk)
-            .transaction
-      }
-      diskResource <- F.fromOption(
-        diskResourceOpt,
-        AzureDiskResourceDeletionError(id,
-                                       workspaceId,
-                                       "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
-        )
-      )
-      jobId = getWsmJobId("delete-disk", diskResource.resourceId)
+      jobId = getWsmJobId("delete-disk", wsmResourceId)
 
-      _ <- diskResourceOpt.traverse { disk =>
-        for {
-          _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${disk.resourceId.value}")
-          _ <- wsmDao
-            .deleteDisk(
-              DeleteWsmResourceRequest(
-                workspaceId,
-                disk.resourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(jobId)
-                )
-              ),
-              auth
+      _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${wsmResourceId.value}")
+      _ <- wsmDao
+        .deleteDisk(
+          DeleteWsmResourceRequest(
+            workspaceId,
+            wsmResourceId,
+            DeleteControlledAzureResourceRequest(
+              WsmJobControl(jobId)
             )
-            .void
-            .adaptError(e =>
-              AzureDiskDeletionError(
-                disk.resourceId,
-                workspaceId,
-                s"${ctx.traceId.asString} | WSM call to delete disk failed due to ${e.getMessage}. Please retry delete again"
-              )
-            )
-        } yield ()
-      }.void
-    } yield ()
+          ),
+          auth
+        )
+        .void
+        .adaptError(e =>
+          AzureDiskDeletionError(
+            wsmResourceId,
+            workspaceId,
+            s"${ctx.traceId.asString} | WSM call to delete disk failed due to ${e.getMessage}. Please retry delete again"
+          )
+        )
+    } yield jobId
 
   override def deleteDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     implicit val wsmDeleteDiskDoneCheckable: DoneCheckable[GetDeleteJobResult] = (v: GetDeleteJobResult) =>
@@ -923,69 +919,69 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
 
-      wsmResourceId <- F.fromOption(
-        msg.wsmResourceId,
-        DiskDeletionError(
-          msg.diskId,
-          msg.workspaceId,
-          s"No associated WsmResourceId found for Azure disk"
-        )
-      )
+      _ <- msg.wsmResourceId match {
+        case Some(wsmResourceId) =>
+          for {
+            jobId <- deleteDiskResource(wsmResourceId, msg.workspaceId, auth)
+            getDeleteJobResult = wsmDao.getDeleteDiskJobResult(
+              GetJobResultRequest(msg.workspaceId, jobId),
+              auth
+            )
 
-      _ <- deleteDiskResource(Right(wsmResourceId), msg.workspaceId, auth)
+            // We need to wait until WSM deletion job to be done to update the database
+            taskToRun = for {
+              resp <- streamFUntilDone(
+                getDeleteJobResult,
+                config.deleteDiskPollConfig.maxAttempts,
+                config.deleteDiskPollConfig.interval
+              ).compile.lastOrError
 
-      deleteJobId = getWsmJobId("delete-disk", wsmResourceId)
-      getDeleteJobResult = wsmDao.getDeleteDiskJobResult(
-        GetJobResultRequest(msg.workspaceId, deleteJobId),
-        auth
-      )
-
-      taskToRun = for {
-        // We need to wait until WSM deletion job to be done to update the database
-        resp <- streamFUntilDone(
-          getDeleteJobResult,
-          config.deleteDiskPollConfig.maxAttempts,
-          config.deleteDiskPollConfig.interval
-        ).compile.lastOrError
-
-        _ <- resp.jobReport.status match {
-          case WsmJobStatus.Succeeded =>
-            for {
-              _ <- logger.info(ctx.loggingCtx)(s"disk ${msg.diskId.value} is deleted successfully")
-              _ <- dbRef.inTransaction(persistentDiskQuery.delete(msg.diskId, ctx.now))
+              _ <- resp.jobReport.status match {
+                case WsmJobStatus.Succeeded =>
+                  for {
+                    _ <- logger.info(ctx.loggingCtx)(s"disk ${msg.diskId.value} is deleted successfully")
+                    _ <- dbRef.inTransaction(persistentDiskQuery.delete(msg.diskId, ctx.now))
+                  } yield ()
+                case WsmJobStatus.Failed =>
+                  F.raiseError[Unit](
+                    DiskDeletionError(
+                      msg.diskId,
+                      msg.workspaceId,
+                      s"WSM delete disk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                    )
+                  )
+                case WsmJobStatus.Running =>
+                  F.raiseError[Unit](
+                    DiskDeletionError(
+                      msg.diskId,
+                      msg.workspaceId,
+                      s"WSM delete disk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                    )
+                  )
+              }
             } yield ()
-          case WsmJobStatus.Failed =>
-            F.raiseError[Unit](
-              DiskDeletionError(
-                msg.diskId,
-                msg.workspaceId,
-                s"WSM delete disk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
-              )
-            )
-          case WsmJobStatus.Running =>
-            F.raiseError[Unit](
-              DiskDeletionError(
-                msg.diskId,
-                msg.workspaceId,
-                s"WSM delete disk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
-              )
-            )
-        }
-      } yield ()
 
-      _ <- asyncTasks.offer(
-        Task(
-          ctx.traceId,
-          taskToRun,
-          Some { e =>
-            handleAzureDiskDeletionError(
-              DiskDeletionError(msg.diskId, msg.workspaceId, s"Fail to delete disk due to ${e.getMessage}")
+            _ <- asyncTasks.offer(
+              Task(
+                ctx.traceId,
+                taskToRun,
+                Some { e =>
+                  handleAzureDiskDeletionError(
+                    DiskDeletionError(msg.diskId, msg.workspaceId, s"Fail to delete disk due to ${e.getMessage}")
+                  )
+                },
+                ctx.now,
+                "deleteDiskV2"
+              )
             )
-          },
-          ctx.now,
-          "deleteDiskV2"
-        )
-      )
+          } yield ()
+        case None =>
+          for {
+            _ <- logger.info(s"No WSM resource found for Azure disk ${msg.diskId}, skipping deletion in WSM")
+            _ <- dbRef.inTransaction(persistentDiskQuery.delete(msg.diskId, ctx.now))
+            _ <- logger.info(ctx.loggingCtx)(s"disk ${msg.diskId.value} is deleted successfully")
+          } yield ()
+      }
     } yield ()
   }
 

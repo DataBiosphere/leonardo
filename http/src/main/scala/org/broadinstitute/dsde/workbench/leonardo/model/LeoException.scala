@@ -3,6 +3,7 @@ package model
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import bio.terra.workspace.model.State
+import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.http.errorReportSource
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchEmail, WorkbenchException}
@@ -108,11 +109,9 @@ case class RuntimeCannotBeStoppedException(cloudContext: CloudContext, runtimeNa
       traceId = None
     )
 
-case class RuntimeCannotBeDeletedException(cloudContext: CloudContext,
-                                           runtimeName: RuntimeName,
-                                           status: RuntimeStatus = RuntimeStatus.Creating
-) extends LeoException(
-      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status} status",
+case class RuntimeCannotBeDeletedException(cloudContext: CloudContext, runtimeName: RuntimeName, status: String)
+    extends LeoException(
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in $status status",
       StatusCodes.Conflict,
       traceId = None
     )
@@ -216,4 +215,15 @@ case class NonDeletableRuntimesInWorkspaceFoundException(
       StatusCodes.Conflict,
       extraMessageInLogging = s"Details: ${msg}",
       traceId = traceId
+    )
+
+case class AppResourceCannotBeDeletedException(wsmResourceId: WsmControlledResourceId,
+                                               appId: AppId,
+                                               status: String,
+                                               wsmResourceType: WsmResourceType,
+                                               traceId: TraceId
+) extends LeoException(
+      s"Azure ${wsmResourceType.toString} with id ${wsmResourceId.value} associated with ${appId.id} cannot be deleted in $status status",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )

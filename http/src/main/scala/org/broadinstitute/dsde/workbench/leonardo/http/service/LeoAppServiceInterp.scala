@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
@@ -57,7 +57,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F]
+                                                wsmDao: WsmDao[F],
+                                                wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -784,17 +785,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       if (hasDeletePermission) F.unit
       else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-    canDelete = AppStatus.deletableStatuses.contains(app.status)
-    _ <-
-      if (canDelete) F.unit
-      else
-        F.raiseError[Unit](
-          AppCannotBeDeletedByWorkspaceIdException(workspaceId, app.appName, app.status, ctx.traceId)
-        )
-
-    // Get the disk to delete if specified
-    diskOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
-
     // Resolve the workspace in WSM to get the cloud context
     userToken = org.http4s.headers.Authorization(
       org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
@@ -806,6 +796,34 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
       case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
     }
+    // check if databases, namespaces and managed identities associated with the database can be deleted
+    _ <- checkIfSubResourcesAreDeletable(app.id, userInfo, workspaceId)
+
+    canDelete = AppStatus.deletableStatuses.contains(app.status)
+    _ <-
+      if (canDelete) F.unit
+      else
+        F.raiseError[Unit](
+          AppCannotBeDeletedByWorkspaceIdException(workspaceId, app.appName, app.status, ctx.traceId)
+        )
+
+    // Get the disk and check if its deletable (if disk is being deleted)
+    diskIdOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
+    _ = (deleteDisk, diskIdOpt) match {
+      case (true, Some(diskId)) =>
+        for {
+          diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
+          disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId)))(F.pure)
+          diskWsmId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(disk.id, ctx.traceId))
+          wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, diskWsmId)
+          _ <- F
+            .raiseUnless(wsmState.isDeletable && disk.status.isDeletable)(
+              DiskCannotBeDeletedException(disk.id, disk.status.toString, disk.cloudContext, ctx.traceId)
+            )
+          _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+        } yield ()
+      case (true, None) => AppRequiresDiskException(cloudContext, app.appName, app.appType, ctx.traceId)
+    }
 
     _ <-
       for {
@@ -815,12 +833,51 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           app.appName,
           workspaceId,
           cloudContext,
-          diskOpt,
+          diskIdOpt,
           BillingProfileId(workspaceDesc.spendProfile),
           Some(ctx.traceId)
         )
         _ <- publisherQueue.offer(deleteMessage)
       } yield ()
+  } yield ()
+
+  private def checkIfSubResourcesAreDeletable(appId: AppId, userInfo: UserInfo, workspaceId: WorkspaceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    wsmResourceTypes = Set(WsmResourceType.AzureDatabase,
+                           WsmResourceType.AzureManagedIdentity,
+                           WsmResourceType.AzureKubernetesNamespace
+    )
+    _ = wsmResourceTypes.foreach { resourceType =>
+      for {
+        wsmResources <- appControlledResourceQuery
+          .getAllForAppByType(appId.id, resourceType)
+          .transaction
+        _ <- wsmResources.traverse { resource =>
+          for {
+            wsmState <- resourceType match {
+              case WsmResourceType.AzureDatabase =>
+                wsmClientProvider.getDatabaseState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+              case WsmResourceType.AzureKubernetesNamespace =>
+                wsmClientProvider.getNamespaceState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+              case WsmResourceType.AzureManagedIdentity =>
+                wsmClientProvider.getIdentityState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+            }
+            _ <- F
+              .raiseUnless(wsmState.isDeletable)(
+                AppResourceCannotBeDeletedException(resource.resourceId,
+                                                    appId,
+                                                    wsmState.getValue,
+                                                    resourceType,
+                                                    ctx.traceId
+                )
+              )
+          } yield ()
+        }
+      } yield ()
+    }
+
   } yield ()
 
   private[service] def getSavableCluster(

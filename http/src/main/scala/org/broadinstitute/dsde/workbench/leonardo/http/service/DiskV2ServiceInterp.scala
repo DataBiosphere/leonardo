@@ -110,12 +110,19 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
-      wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(diskId, ctx.traceId))
-      deletable <- isDiskDeletable(wsmResourceId, disk.status, workspaceId, userInfo)
-      // TODO (LM) Should I have different exceptions for Leo vs. WSM deletable?
-      _ <- F.raiseUnless(deletable)(
+      // check if deletable in Leo and WSM
+      _ <- F.raiseUnless(disk.status.isDeletable)(
         DiskCannotBeDeletedException(disk.id, disk.status.toString, disk.cloudContext, ctx.traceId)
       )
+      wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(diskId, ctx.traceId))
+      wsmStatus <- wsmClientProvider.getVmState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+
+      _ <- F.raiseUnless(wsmStatus.isDeletable)(
+        DiskCannotBeDeletedException(disk.id, wsmStatus.getValue, disk.cloudContext, ctx.traceId)
+      )
+
+      // only send wsmResourceId to back leo if disk isn't already deleted in WSM
+      wsmDiskResourceId = if (wsmStatus.getValue == "DELETED") None else Some(wsmResourceId)
 
       // check that disk isn't attached to a runtime
       isAttached <- persistentDiskQuery.isDiskAttached(diskId).transaction
@@ -130,7 +137,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           disk.id,
           workspaceId,
           disk.cloudContext,
-          disk.wsmResourceId,
+          wsmDiskResourceId,
           Some(ctx.traceId)
         )
       )

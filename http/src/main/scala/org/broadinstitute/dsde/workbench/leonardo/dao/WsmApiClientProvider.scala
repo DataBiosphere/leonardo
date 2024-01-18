@@ -35,8 +35,16 @@ trait WsmApiClientProvider[F[_]] {
     ev: Ask[F, AppContext]
   ): F[WsmState]
 
-  def getDatabaseState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-    implicit ev: Ask[F, AppContext]
+  def getDatabaseState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[WsmState]
+
+  def getNamespaceState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[WsmState]
+
+  def getIdentityState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[F, AppContext]
   ): F[WsmState]
 }
 
@@ -92,6 +100,28 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
   ): F[WsmState] = for {
     wsmApi <- getControlledAzureResourceApi(token)
     attempt <- F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmResourceId.value)).attempt
+    state = attempt match {
+      case Right(result) => Some(result.getMetadata.getState.getValue)
+      case Left(_)       => None
+    }
+  } yield WsmState(state)
+
+  override def getNamespaceState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
+    implicit ev: Ask[F, AppContext]
+  ): F[WsmState] = for {
+    wsmApi <- getControlledAzureResourceApi(token)
+    attempt <- F.delay(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmResourceId.value)).attempt
+    state = attempt match {
+      case Right(result) => Some(result.getMetadata.getState.getValue)
+      case Left(_)       => None
+    }
+  } yield WsmState(state)
+
+  override def getIdentityState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
+    implicit ev: Ask[F, AppContext]
+  ): F[WsmState] = for {
+    wsmApi <- getControlledAzureResourceApi(token)
+    attempt <- F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmResourceId.value)).attempt
     state = attempt match {
       case Right(result) => Some(result.getMetadata.getState.getValue)
       case Left(_)       => None

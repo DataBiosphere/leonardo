@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
-import bio.terra.workspace.model.{AzureDatabaseResource, AzureDiskResource, AzureVmResource, ResourceMetadata, State}
 
 import java.util.UUID
 
@@ -75,4 +74,3 @@ case class WsmState(value: Option[String]) {
 //object WsmState {
 //  def apply(value: Option[WsmState]): WsmState = WsmState(value.map(_.value))
 //}
-
