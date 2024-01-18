@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
+import org.scalatest.tagobjects.Retryable
 
 /**
  * This spec verifies Hail and Spark functionality.
@@ -20,6 +21,6 @@ class NotebookHailSpec extends RuntimeFixtureSpec {
 
   "NotebookHailSpec" - {
     // This test is not a no-op, the fixture it mixes in creates a runtime by default with the `toolDockerImage` we override
-    "should create a hail runtime" in { _ => }
+    "should create a hail runtime" taggedAs Retryable in { _ => }
   }
 }

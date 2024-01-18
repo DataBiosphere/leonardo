@@ -20,31 +20,32 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
   "RuntimeSystemSpec" - {
-    s"should have the workspace-related environment variables set in jupyter image" taggedAs Retryable in { runtimeFixture =>
-      // TODO: any others?
-      val expectedEnvironment = Map(
-        "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
-        "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
-        "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
-        "WORKSPACE_NAME" -> sys.props.getOrElse(workspaceNameKey, "workspace")
-      )
+    s"should have the workspace-related environment variables set in jupyter image" taggedAs Retryable in {
+      runtimeFixture =>
+        // TODO: any others?
+        val expectedEnvironment = Map(
+          "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
+          "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
+          "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
+          "WORKSPACE_NAME" -> sys.props.getOrElse(workspaceNameKey, "workspace")
+        )
 
-      val res = dependencies.use { deps =>
-        implicit val httpClient = deps.httpClient
-        for {
-          runtime <- LeonardoApiClient.getRuntime(runtimeFixture.runtime.googleProject,
-                                                  runtimeFixture.runtime.clusterName
-          )
-          outputs <- expectedEnvironment.keys.toList.traverse(envVar =>
-            SSH.executeGoogleCommand(runtime.googleProject,
-                                     RuntimeFixtureSpec.runtimeFixtureZone.value,
-                                     runtime.runtimeName,
-                                     s"sudo docker exec -it jupyter-server printenv $envVar"
+        val res = dependencies.use { deps =>
+          implicit val httpClient = deps.httpClient
+          for {
+            runtime <- LeonardoApiClient.getRuntime(runtimeFixture.runtime.googleProject,
+                                                    runtimeFixture.runtime.clusterName
             )
-          )
-        } yield outputs.map(_.trim).sorted shouldBe expectedEnvironment.values.toList.sorted
-      }
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+            outputs <- expectedEnvironment.keys.toList.traverse(envVar =>
+              SSH.executeGoogleCommand(runtime.googleProject,
+                                       RuntimeFixtureSpec.runtimeFixtureZone.value,
+                                       runtime.runtimeName,
+                                       s"sudo docker exec -it jupyter-server printenv $envVar"
+              )
+            )
+          } yield outputs.map(_.trim).sorted shouldBe expectedEnvironment.values.toList.sorted
+        }
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
     "should have Java available" taggedAs Retryable in { runtimeFixture =>
