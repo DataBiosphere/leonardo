@@ -16,7 +16,7 @@ import org.broadinstitute.dsp.Release
 import org.http4s.Uri
 import slick.lifted.Tag
 
-import java.sql.SQLIntegrityConstraintViolationException
+import java.sql.{SQLIntegrityConstraintViolationException, Timestamp}
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
@@ -315,11 +315,13 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def updateDateAccessed(appName: AppName, cloudContext: CloudContext, now: Instant): DBIO[Int] =
     cloudContext match {
       case CloudContext.Gcp(_) =>
-        // This query isn't efficient because appName isn't indexed. Future optimization is needed for findActiveByNameQuery method
-        findActiveByNameQuery(appName)
-          .filter(r => r.workspaceId.isEmpty)
-          .map(a => a.dateAccessed)
-          .update(now)
+        sql"""
+            UPDATE APP
+            JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+            JOIN KUBERNETES_CLUSTER ON KUBERNETES_CLUSTER.id = NODEPOOL.clusterId
+            SET APP.dateAccessed = ${Timestamp.from(now)}
+            where APP.appName = ${appName.value} AND cloudContext = ${cloudContext.asCloudContextDb.value}
+         """.asUpdate
       case CloudContext.Azure(_) =>
         DBIO.failed(new RuntimeException("Please don't use this query for Azure apps"))
     }
