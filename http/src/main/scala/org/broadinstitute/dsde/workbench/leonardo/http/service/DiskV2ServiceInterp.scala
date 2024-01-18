@@ -112,7 +112,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
       // check if disk resource is deletable in WSM
       wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(diskId, ctx.traceId))
-      wsmStatus <- wsmClientProvider.getVmState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+      wsmStatus <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
 
       _ <- F.raiseUnless(wsmStatus.isDeletable)(
         DiskCannotBeDeletedWsmException(disk.id, wsmStatus, disk.cloudContext, ctx.traceId)

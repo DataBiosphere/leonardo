@@ -797,7 +797,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
     }
     // check if app can be deleted (Leo manages apps, so checking the leo status)
-    _ <- F.raiseUnless(app.status.isDeletable)(AppCannotBeDeletedException(cloudContext, app.appName, app.status, ctx.traceId))
+    _ <- F.raiseUnless(app.status.isDeletable)(
+      AppCannotBeDeletedException(cloudContext, app.appName, app.status, ctx.traceId)
+    )
 
     // check if databases, namespaces and managed identities associated with the app can be deleted
     _ <- checkIfSubResourcesAreDeletable(app.id, userInfo, workspaceId)
@@ -818,7 +820,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
         } yield ()
       case (true, None) => AppRequiresDiskException(cloudContext, app.appName, app.appType, ctx.traceId)
-      case _            => F.unit
+      // Do nothing if deleteDisk is false
+      case _ => F.unit
     }
 
     _ <-

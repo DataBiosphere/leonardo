@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+// do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
   runtimeSamResourceAction,
@@ -516,8 +517,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
-
-      state = WsmState(Some("READY"))
 
       // Parameters: parse search filters from request
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))

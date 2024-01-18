@@ -612,6 +612,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                            "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
             )
           )
+          // TODO: Add polling on disk deletion
           _ <- deleteDiskResource(runtimeRecord.resourceId, msg.workspaceId, auth)
           _ <- dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
           _ <- logger.info(ctx.loggingCtx)(s"runtime disk ${diskId} is deleted successfully")
@@ -784,6 +785,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
               )
             )
+            // TODO: Add polling on disk deletion
             _ <- deleteDiskResource(runtimeRecord.resourceId, e.workspaceId, auth)
             _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
           } yield ()
