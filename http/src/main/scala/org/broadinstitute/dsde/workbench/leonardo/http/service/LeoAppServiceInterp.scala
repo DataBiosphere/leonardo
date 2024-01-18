@@ -796,16 +796,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
       case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
     }
-    // check if databases, namespaces and managed identities associated with the database can be deleted
-    _ <- checkIfSubResourcesAreDeletable(app.id, userInfo, workspaceId)
+    // check if app can be deleted (Leo manages apps, so checking the leo status)
+    _ <- F.raiseUnless(app.status.isDeletable)(AppCannotBeDeletedException(cloudContext, app.appName, app.status, ctx.traceId))
 
-    canDelete = AppStatus.deletableStatuses.contains(app.status)
-    _ <-
-      if (canDelete) F.unit
-      else
-        F.raiseError[Unit](
-          AppCannotBeDeletedByWorkspaceIdException(workspaceId, app.appName, app.status, ctx.traceId)
-        )
+    // check if databases, namespaces and managed identities associated with the app can be deleted
+    _ <- checkIfSubResourcesAreDeletable(app.id, userInfo, workspaceId)
 
     // Get the disk and check if its deletable (if disk is being deleted)
     diskIdOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None

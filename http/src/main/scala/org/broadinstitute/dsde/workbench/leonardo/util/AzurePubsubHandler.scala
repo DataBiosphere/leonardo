@@ -619,6 +619,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }.void
 
       // Delete the VM in WSM
+      // TODO: Check if VM is deleted in WSM here instead of passing through id from front leo
       _ <- msg.wsmResourceId.fold(
         for {
           // Error'd runtimes might not have a WSM resourceId and therefore no WsmJobStatus.
@@ -918,6 +919,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
 
+      // TODO: Check if VM is deleted in WSM here instead of passing through id from front leo
       _ <- msg.wsmResourceId match {
         case Some(wsmResourceId) =>
           for {
