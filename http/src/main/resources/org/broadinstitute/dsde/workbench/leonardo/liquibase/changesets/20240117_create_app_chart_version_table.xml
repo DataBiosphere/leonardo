@@ -10,7 +10,7 @@
             <column name="chartVersion" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="appTargetVersion" type="VARCHAR(254)">
+            <column name="appVersion" type="VARCHAR(254)">
                 <constraints nullable="true"/>
             </column>
             <column name="timestamp" type="TIMESTAMP">
