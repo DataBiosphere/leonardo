@@ -4,54 +4,16 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
-  auditInfo,
-  cloudContextGcp,
-  cryptoDetectorImage,
-  defaultGceRuntimeConfig,
-  defaultScopes,
-  defaultUserInfo,
-  jupyterImage,
-  makeAsyncRuntimeFields,
-  name1,
-  proxyImage,
-  runtimeSamResource,
-  serviceAccountEmail,
-  welderImage
-}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetAppResponse, GetRuntimeResponse}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  CloudContext,
-  DiskType,
-  KubernetesRuntimeConfig,
-  NumNodes,
-  RuntimeError,
-  RuntimeName,
-  RuntimeStatus,
-  UserScriptPath
-}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsp.ChartName
 import org.mockito.ArgumentMatchers.{any, anyLong, anyString}
 import org.mockito.Mockito.{reset, when}
 import org.mockito.stubbing.OngoingStubbing
-import org.scalacheck.Gen.uuid
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.time.SpanSugar.convertIntToGrainOfTime
@@ -64,15 +26,7 @@ import pact4s.provider._
 import pact4s.scalatest.PactVerifier
 
 import java.lang.Thread.sleep
-import java.net.URL
-import java.time.Instant
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-
-object States {
-  val AppExists = "there is an app in a Google project"
-  val RuntimeExists = "there is a runtime in a Google project"
-  val RuntimeDoesNotExist = "there is not a runtime in a Google project"
-}
 
 class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
@@ -113,62 +67,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     )
 
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
-    case ProviderState(States.AppExists, _) =>
-      when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
-        .thenReturn(IO {
-          GetAppResponse(
-            None,
-            AppName("exampleApp"),
-            CloudContext.Gcp(GoogleProject("exampleProject")),
-            RegionName("exampleRegion"),
-            KubernetesRuntimeConfig(NumNodes(8), MachineTypeName("exampleMachine"), autoscalingEnabled = true),
-            List.empty[AppError],
-            AppStatus.Unspecified,
-            Map.empty[KubernetesSerializableName.ServiceName, URL],
-            Some(DiskName("exampleDiskName")),
-            Map.empty[String, String],
-            AuditInfo(WorkbenchEmail(""), Instant.now(), None, Instant.now()),
-            AppType.CromwellRunnerApp,
-            ChartName(""),
-            None,
-            Map.empty[String, String]
-          )
-        })
-    case ProviderState(States.RuntimeExists, _) =>
-      val date = Instant.parse("2020-11-20T17:23:24.650Z")
-      when(
-        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName])(any[Ask[IO, AppContext]])
-      )
-        .thenReturn(IO {
-          GetRuntimeResponse(
-            -1,
-            runtimeSamResource,
-            name1,
-            cloudContextGcp,
-            serviceAccountEmail,
-            Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
-            auditInfo.copy(createdDate = date, dateAccessed = date),
-            Some(date),
-            defaultGceRuntimeConfig,
-            new URL("https://leo.org/proxy"),
-            RuntimeStatus.Running,
-            Map("foo" -> "bar"),
-            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
-            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
-            List.empty[RuntimeError],
-            None,
-            30,
-            Some("clientId"),
-            Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
-            defaultScopes,
-            true,
-            true,
-            Map("ev1" -> "a", "ev2" -> "b"),
-            Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
-          )
-        })
-    case _ =>
-      loggerIO.debug("other state")
+    RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService))
   }
 
   lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
