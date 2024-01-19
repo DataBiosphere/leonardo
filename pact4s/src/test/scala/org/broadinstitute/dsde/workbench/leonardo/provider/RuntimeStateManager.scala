@@ -74,7 +74,7 @@ object RuntimeStateManager {
             defaultGceRuntimeConfig,
             new URL("https://leo.org/proxy"),
             RuntimeStatus.Running,
-            Map("foo" -> "bar"),
+            Map("sampleLabel" -> "sampleValue"),
             Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
             Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
             List.empty[RuntimeError],
