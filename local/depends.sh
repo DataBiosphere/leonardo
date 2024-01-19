@@ -96,7 +96,7 @@ render_configs() {
 
 	local _cluster=terra-dev
 	echo "Configuring access to ${_cluster}..."
-	echo "(Note: VPN is required when working remotely)"
+	echo "(Note: non-split-tunnel VPN is required when working remotely)"
 	gcloud container clusters get-credentials --zone us-central1-a --project broad-dsde-dev ${_cluster}
 
 	# Get CloudSQL proxy GOOGLE_PROJECT and CLOUDSQL_ZONE from dev as defaults,

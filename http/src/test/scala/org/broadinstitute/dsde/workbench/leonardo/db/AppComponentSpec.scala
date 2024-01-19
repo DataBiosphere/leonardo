@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
 
+import java.time.Instant
 import java.util.UUID
 
 class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
@@ -72,6 +73,23 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
     }
     getApp.get.app.status shouldEqual AppStatus.Running
+  }
+
+  it should "update dateAccessed properly" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val app1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = app1.save()
+    val dateAccessed = Instant.ofEpochMilli(2000)
+
+    savedApp1.status shouldEqual app1.status
+    dbFutureValue(appQuery.updateDateAccessed(app1.appName, savedCluster1.cloudContext, dateAccessed)) shouldEqual 1
+
+    val getApp = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+    }
+    getApp.get.app.auditInfo.dateAccessed shouldEqual dateAccessed
   }
 
   it should "fail to save an app without a nodepool" in isolatedDbTest {
