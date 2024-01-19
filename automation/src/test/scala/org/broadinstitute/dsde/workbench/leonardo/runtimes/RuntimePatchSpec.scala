@@ -21,7 +21,11 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class RuntimePatchSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+class RuntimePatchSpec
+    extends BillingProjectFixtureSpec
+    with ParallelTestExecution
+    with LeonardoTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =

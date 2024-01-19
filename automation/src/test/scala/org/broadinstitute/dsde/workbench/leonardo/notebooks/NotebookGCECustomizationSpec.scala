@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDepende
 import org.broadinstitute.dsde.workbench.leonardo.{
   BillingProjectFixtureSpec,
   LeonardoApiClient,
+  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
   SSH,
   UserJupyterExtensionConfig
 }
@@ -25,7 +26,8 @@ final class NotebookGCECustomizationSpec
     extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with NotebookTestUtils
-    with LazyLogging {
+    with LazyLogging
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
@@ -37,7 +39,7 @@ final class NotebookGCECustomizationSpec
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" taggedAs Retryable in { billingProject =>
+    "should install user specified notebook extensions" in { billingProject =>
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
@@ -71,7 +73,7 @@ final class NotebookGCECustomizationSpec
       }
     }
 
-    "should populate user-specified environment variables" taggedAs Retryable in { billingProject =>
+    "should populate user-specified environment variables" in { billingProject =>
       val runtimeRequest =
         LeonardoApiClient.defaultCreateRuntime2Request.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 

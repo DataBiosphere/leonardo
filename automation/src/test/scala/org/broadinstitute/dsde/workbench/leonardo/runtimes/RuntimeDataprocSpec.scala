@@ -40,7 +40,8 @@ class RuntimeDataprocSpec
     extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with NotebookTestUtils {
+    with NotebookTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 

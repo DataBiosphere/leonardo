@@ -257,7 +257,6 @@ final class LeonardoSuite
 //      new AppLifecycleSpec //TODO: test
     )
     with TestSuite
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
 
 final class LeonardoTerraDockerSuite
@@ -268,5 +267,4 @@ final class LeonardoTerraDockerSuite
       new RStudioSpec
     )
     with TestSuite
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution

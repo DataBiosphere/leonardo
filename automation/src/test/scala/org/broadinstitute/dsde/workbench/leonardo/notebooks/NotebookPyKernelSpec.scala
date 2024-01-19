@@ -2,7 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  LeonardoConfig,
+  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
+  RuntimeFixtureSpec
+}
 import org.scalatest.DoNotDiscover
 import org.scalatest.tagobjects.Retryable
 
@@ -10,7 +14,10 @@ import org.scalatest.tagobjects.Retryable
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
  */
 @DoNotDiscover
-class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
+class NotebookPyKernelSpec
+    extends RuntimeFixtureSpec
+    with NotebookTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
@@ -18,7 +25,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   "NotebookPyKernelSpec" - {
 
     // TODO: [discuss] Debatable but I like a kernel smoke test... I could see getting rid of this entirely
-    "should create a notebook with a working Python 3 kernel, import installed packages and default to notebooks dir in terminal" taggedAs Retryable in {
+    "should create a notebook with a working Python 3 kernel, import installed packages and default to notebooks dir in terminal" in {
       runtimeFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
@@ -38,7 +45,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         }
     }
 
-    "should be able to install python libraries with C bindings" taggedAs Retryable in { runtimeFixture =>
+    "should be able to install python libraries with C bindings" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("! pip show Cython").get should include("Name: Cython")

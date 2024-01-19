@@ -81,11 +81,6 @@ abstract class RuntimeFixtureSpec
     val res = LeonardoApiClient.client.use { c =>
       implicit val client: Client[IO] = c
       for {
-        _ <- loggerIO.info("Sleeping for 5 minutes in `RuntimeFixtureSpec` before runtime creation")
-        // There are IAM propagation issues associated with pulling docker images from GCR as a google identity in a fresh project.
-        // Unfortunately, there is not an easy way to verify this has completed for a project
-        // Therefore, we wait a bit in the `beforeAll` before attempting to create this runtime.
-        _ <- IO.sleep(5 minutes)
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(
           billingProject,
           runtimeName,

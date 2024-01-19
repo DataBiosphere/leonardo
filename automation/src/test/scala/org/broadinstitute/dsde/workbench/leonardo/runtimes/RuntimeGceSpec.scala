@@ -30,7 +30,11 @@ import java.nio.charset.{Charset, StandardCharsets}
 import java.util.UUID
 
 @DoNotDiscover
-class RuntimeGceSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+class RuntimeGceSpec
+    extends BillingProjectFixtureSpec
+    with ParallelTestExecution
+    with LeonardoTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
@@ -39,7 +43,7 @@ class RuntimeGceSpec extends BillingProjectFixtureSpec with ParallelTestExecutio
     httpClient <- LeonardoApiClient.client
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
-  "should create a GCE instance in a non-default zone" taggedAs Retryable in { project =>
+  "should create a GCE instance in a non-default zone" in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
     val targetZone = ZoneName(

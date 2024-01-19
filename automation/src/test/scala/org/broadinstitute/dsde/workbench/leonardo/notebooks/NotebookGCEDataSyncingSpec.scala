@@ -21,19 +21,22 @@ import scala.concurrent.duration._
  * and welder localization/delocalization.
  */
 @DoNotDiscover
-class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils {
+class NotebookGCEDataSyncingSpec
+    extends RuntimeFixtureSpec
+    with NotebookTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   override def enableWelder: Boolean = true
 
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   "NotebookGCEDataSyncingSpec" - {
 
-    "Welder should be up" taggedAs Retryable in { runtimeFixture =>
+    "Welder should be up" in { runtimeFixture =>
       val resp = Welder.getWelderStatus(runtimeFixture.runtime)
       resp.attempt.unsafeRunSync().isRight shouldBe true
     }
 
-    "open notebook in edit mode should work" taggedAs Retryable in { runtimeFixture =>
+    "open notebook in edit mode should work" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
       val isRStudio = false
@@ -163,7 +166,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
       }
     }
 
-    "Sync issues and make a copy handled transition correctly" taggedAs Retryable in { runtimeFixture =>
+    "Sync issues and make a copy handled transition correctly" in { runtimeFixture =>
       val fileName = "gcsFile3" // we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
@@ -202,7 +205,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
       }
     }
 
-    "Locked by another user and playground mode transition handled correctly" taggedAs Retryable in { runtimeFixture =>
+    "Locked by another user and playground mode transition handled correctly" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile4.ipynb")
       val isEditMode = true
       val isRStudio = false
@@ -240,7 +243,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     }
 
     // this test is important to make sure all components exit gracefully when their functionality is not needed
-    "User should be able to create files outside of playground and safe mode" taggedAs Retryable in { runtimeFixture =>
+    "User should be able to create files outside of playground and safe mode" in { runtimeFixture =>
       val fileName = "mockUserFile.ipynb"
 
       val mockUserFile: File = JupyterServerClient.createFileAtJupyterRoot(runtimeFixture.runtime.googleProject,

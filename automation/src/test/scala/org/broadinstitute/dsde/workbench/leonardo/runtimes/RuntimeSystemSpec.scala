@@ -1,7 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  LeonardoApiClient,
+  LeonardoConfig,
+  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
+  RuntimeFixtureSpec,
+  SSH
+}
 import org.scalatest.DoNotDiscover
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.ResourceFile
@@ -9,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.work
 import org.scalatest.tagobjects.Retryable
 
 @DoNotDiscover
-class RuntimeSystemSpec extends RuntimeFixtureSpec {
+class RuntimeSystemSpec extends RuntimeFixtureSpec with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
@@ -20,7 +26,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
   "RuntimeSystemSpec" - {
-    s"should have the workspace-related environment variables set in jupyter image" taggedAs Retryable in {
+    s"should have the workspace-related environment variables set in jupyter image" in {
       runtimeFixture =>
         // TODO: any others?
         val expectedEnvironment = Map(
@@ -48,7 +54,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec {
         res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-    "should have Java available" taggedAs Retryable in { runtimeFixture =>
+    "should have Java available" in { runtimeFixture =>
       val res = dependencies.use { deps =>
         implicit val httpClient = deps.httpClient
         for {

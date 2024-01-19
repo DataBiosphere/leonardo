@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, RuntimeFixtureSpec}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, NewBillingProjectAndWorkspaceBeforeAndAfterAll, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
 import org.scalatest.tagobjects.Retryable
 
@@ -11,7 +11,7 @@ import org.scalatest.tagobjects.Retryable
  * This spec verifies Hail and Spark functionality.
  */
 @DoNotDiscover
-class NotebookHailSpec extends RuntimeFixtureSpec {
+class NotebookHailSpec extends RuntimeFixtureSpec with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
@@ -21,6 +21,6 @@ class NotebookHailSpec extends RuntimeFixtureSpec {
 
   "NotebookHailSpec" - {
     // This test is not a no-op, the fixture it mixes in creates a runtime by default with the `toolDockerImage` we override
-    "should create a hail runtime" taggedAs Retryable in { _ => }
+    "should create a hail runtime" in { _ => }
   }
 }

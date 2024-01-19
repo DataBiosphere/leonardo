@@ -9,7 +9,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   ClusterStatus,
   Leonardo,
   LeonardoApiClient,
-  LeonardoTestUtils
+  LeonardoTestUtils,
+  NewBillingProjectAndWorkspaceBeforeAndAfterAll
 }
 import org.http4s.headers.Authorization
 import org.scalatest.time.{Minutes, Seconds, Span}
@@ -18,7 +19,11 @@ import scala.concurrent.duration._
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 @DoNotDiscover
-class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+class RuntimeAutopauseSpec
+    extends BillingProjectFixtureSpec
+    with ParallelTestExecution
+    with LeonardoTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit val rat: AuthToken = ronAuthToken.unsafeRunSync()
   implicit val ra: Authorization = ronAuthorization.unsafeRunSync()

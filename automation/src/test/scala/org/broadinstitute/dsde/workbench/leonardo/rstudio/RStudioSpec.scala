@@ -14,7 +14,11 @@ import cats.syntax.all._
 import org.scalatest.tagobjects.Retryable
 
 @DoNotDiscover
-class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils with NotebookTestUtils {
+class RStudioSpec
+    extends RuntimeFixtureSpec
+    with RStudioTestUtils
+    with NotebookTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl)
@@ -26,7 +30,7 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils with Notebook
 
   "RStudioSpec" - {
 
-    "environment variables should be available in RStudio" taggedAs Retryable in { runtimeFixture =>
+    "environment variables should be available in RStudio" in { runtimeFixture =>
       val expectedEnvironment = Map(
         "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
         "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
@@ -52,12 +56,12 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils with Notebook
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-    "Welder should be up" taggedAs Retryable in { runtimeFixture =>
+    "Welder should be up" in { runtimeFixture =>
       val resp = Welder.getWelderStatus(runtimeFixture.runtime)
       resp.attempt.unsafeRunSync().isRight shouldBe true
     }
 
-    "test Rmd file syncing" taggedAs Retryable in { runtimeFixture =>
+    "test Rmd file syncing" in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.Rmd")
       val isEditMode = false
       val isRStudio = true

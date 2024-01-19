@@ -17,7 +17,11 @@ import scala.util.Try
  * should exercise the most commonly used paths through the system.
  */
 @DoNotDiscover
-class RuntimeStatusTransitionsSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+class RuntimeStatusTransitionsSpec
+    extends BillingProjectFixtureSpec
+    with ParallelTestExecution
+    with LeonardoTestUtils
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "RuntimeStatusTransitionsSpec" - {
