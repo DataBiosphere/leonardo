@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreat
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -40,8 +39,9 @@ class RuntimeDataprocSpec
     extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with NotebookTestUtils
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+      
+class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
@@ -98,9 +98,6 @@ class RuntimeDataprocSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  // TODO: IA-4516, fix this test...
-  //  separate out user script testing (should be covered elsewhere)
-  //
   "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 

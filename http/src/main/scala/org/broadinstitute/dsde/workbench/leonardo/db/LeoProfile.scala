@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release
 import org.http4s.Uri
-import slick.jdbc.MySQLProfile
+import slick.jdbc.{MySQLProfile, SetParameter}
 import slick.jdbc.MySQLProfile.api._
 
 import java.nio.file.{Path, Paths}
@@ -310,6 +310,9 @@ private[leonardo] object LeoProfile extends MySQLProfile {
           AppControlledResourceStatus.stringToObject
             .getOrElse(s, throw ColumnDecodingException(s"invalid app controlled resource status ${s}"))
       )
+
+    implicit val instantSetParameter: SetParameter[Instant] =
+      SetParameter.SetTimestamp.contramap(instant => java.sql.Timestamp.from(instant))
   }
 
   case class ColumnDecodingException(message: String) extends Exception

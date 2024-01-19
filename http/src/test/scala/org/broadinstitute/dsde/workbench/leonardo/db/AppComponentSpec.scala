@@ -7,7 +7,6 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -81,15 +80,25 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
 
     val app1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = app1.save()
+
+    val deletedApp = makeApp(1, savedNodepool1.id).copy(auditInfo = auditInfo.copy(destroyedDate = Some(Instant.now())),
+                                                        status = AppStatus.Deleted
+    )
+    val savedDeletedApp = deletedApp.save()
+
     val dateAccessed = Instant.ofEpochMilli(2000)
 
-    savedApp1.status shouldEqual app1.status
     dbFutureValue(appQuery.updateDateAccessed(app1.appName, savedCluster1.cloudContext, dateAccessed)) shouldEqual 1
 
     val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+      KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedApp1.id)
     }
-    getApp.get.app.auditInfo.dateAccessed shouldEqual dateAccessed
+    getApp.get.app.auditInfo.dateAccessed shouldBe dateAccessed
+
+    val getDeletedApp = dbFutureValue {
+      KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedDeletedApp.id)
+    }
+    getDeletedApp.get.app.auditInfo.dateAccessed should not be dateAccessed
   }
 
   it should "fail to save an app without a nodepool" in isolatedDbTest {

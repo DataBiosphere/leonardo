@@ -7,9 +7,11 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAutho
 import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoConfig,
   NewBillingProjectAndWorkspaceBeforeAndAfterAll,
-  RuntimeFixtureSpec
+  RuntimeFixtureSpec,
+  SSH
 }
 import org.http4s.headers.Authorization
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec.runtimeFixtureZone
 import org.scalatest.DoNotDiscover
 
 /**
@@ -29,7 +31,6 @@ class NotebookPyKernelSpec
 
   "NotebookPyKernelSpec" - {
 
-    // TODO: [discuss] Debatable but I like a kernel smoke test... I could see getting rid of this entirely
     "should create a notebook with a working Python 3 kernel, import installed packages and default to notebooks dir in terminal" in {
       runtimeFixture =>
         withWebDriver { implicit driver =>
@@ -51,11 +52,22 @@ class NotebookPyKernelSpec
     }
 
     "should be able to install python libraries with C bindings" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          notebookPage.executeCell("! pip show Cython").get should include("Name: Cython")
-          notebookPage.executeCell("! pip install POT").get should include("Successfully installed POT")
-        }
+      for {
+        cythonOutput <- SSH.executeGoogleCommand(
+          runtimeFixture.runtime.googleProject,
+          runtimeFixtureZone.value,
+          runtimeFixture.runtime.clusterName,
+          "sudo docker exec -it jupyter-server pip show Cython"
+        )
+        potOutput <- SSH.executeGoogleCommand(
+          runtimeFixture.runtime.googleProject,
+          runtimeFixtureZone.value,
+          runtimeFixture.runtime.clusterName,
+          "sudo docker exec -it jupyter-server pip install POT"
+        )
+      } yield {
+        cythonOutput should include("Name: Cython")
+        potOutput should include("Successfully installed POT")
       }
     }
 

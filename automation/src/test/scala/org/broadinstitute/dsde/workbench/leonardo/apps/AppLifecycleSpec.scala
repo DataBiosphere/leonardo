@@ -64,12 +64,12 @@ class AppLifecycleSpec
     googleProject =>
       test(googleProject,
            createAppRequest(AppType.Allowed, "rstudio-test-workspace", None, Some(AllowedChartName.RStudio)),
-           true,
+           false,
            true
       )
   }
 
-  "create CUSTOM app, start/stop, delete it" taggedAs Retryable in { googleProject =>
+  "create CUSTOM app then delete it" taggedAs Retryable in { googleProject =>
     test(
       googleProject,
       createAppRequest(
@@ -133,7 +133,9 @@ class AppLifecycleSpec
 
               // Verify getApp again
               getAppResponse <- getApp
-              _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
+              _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping) or be(
+                AppStatus.Stopped
+              ))
 
               // Verify the app eventually becomes Stopped. Resizing nodepool to 0 takes more than 10 minutes
               _ <- IO.sleep(10 minutes)

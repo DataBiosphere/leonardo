@@ -255,7 +255,6 @@ final class LeonardoSuite
       new NotebookGCEDataSyncingSpec,
       new RuntimeDataprocSpec,
       new RuntimeGceSpec
-//      new AppLifecycleSpec //TODO: test
     )
     with TestSuite
     with ParallelTestExecution

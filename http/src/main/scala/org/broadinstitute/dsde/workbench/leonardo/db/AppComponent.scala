@@ -7,8 +7,8 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -16,7 +16,7 @@ import org.broadinstitute.dsp.Release
 import org.http4s.Uri
 import slick.lifted.Tag
 
-import java.sql.{SQLIntegrityConstraintViolationException, Timestamp}
+import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
@@ -319,8 +319,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
             UPDATE APP
             JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
             JOIN KUBERNETES_CLUSTER ON KUBERNETES_CLUSTER.id = NODEPOOL.clusterId
-            SET APP.dateAccessed = ${Timestamp.from(now)}
-            where APP.appName = ${appName.value} AND cloudContext = ${cloudContext.asCloudContextDb.value}
+            SET APP.dateAccessed = ${now}
+            where APP.appName = ${appName.value} AND
+                  KUBERNETES_CLUSTER.cloudContext = ${cloudContext.asCloudContextDb.value} AND
+                  APP.destroyedDate = ${dummyDate} AND
+                  APP.status != 'DELETED'
          """.asUpdate
       case CloudContext.Azure(_) =>
         DBIO.failed(new RuntimeException("Please don't use this query for Azure apps"))
