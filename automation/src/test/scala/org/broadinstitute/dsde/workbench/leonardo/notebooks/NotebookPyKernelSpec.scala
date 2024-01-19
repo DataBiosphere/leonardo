@@ -2,7 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec.runtimeFixtureZone
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec, SSH}
 import org.scalatest.DoNotDiscover
 
 /**
@@ -16,7 +17,6 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   "NotebookPyKernelSpec" - {
 
-    // TODO: [discuss] Debatable but I like a kernel smoke test... I could see getting rid of this entirely
     "should create a notebook with a working Python 3 kernel, import installed packages and default to notebooks dir in terminal" in {
       runtimeFixture =>
         withWebDriver { implicit driver =>
@@ -38,11 +38,22 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should be able to install python libraries with C bindings" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          notebookPage.executeCell("! pip show Cython").get should include("Name: Cython")
-          notebookPage.executeCell("! pip install POT").get should include("Successfully installed POT")
-        }
+      for {
+        cythonOutput <- SSH.executeGoogleCommand(
+          runtimeFixture.runtime.googleProject,
+          runtimeFixtureZone.value,
+          runtimeFixture.runtime.clusterName,
+          "sudo docker exec -it jupyter-server pip show Cython"
+        )
+        potOutput <- SSH.executeGoogleCommand(
+          runtimeFixture.runtime.googleProject,
+          runtimeFixtureZone.value,
+          runtimeFixture.runtime.clusterName,
+          "sudo docker exec -it jupyter-server pip install POT"
+        )
+      } yield {
+        cythonOutput should include("Name: Cython")
+        potOutput should include("Successfully installed POT")
       }
     }
 
