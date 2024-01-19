@@ -24,7 +24,8 @@ class RuntimeAutopauseSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
-  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
+  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
+    getAuthTokenAndAuthorization(Ron)
   implicit val rat: AuthToken = ronAuthToken.unsafeRunSync()
   implicit val ra: Authorization = ronAuthorization.unsafeRunSync()
 

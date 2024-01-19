@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 
 import java.io.File
@@ -9,7 +10,9 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.http4s.headers.Authorization
 import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.tagobjects.Retryable
@@ -27,6 +30,8 @@ class NotebookGCEDataSyncingSpec
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
   override def enableWelder: Boolean = true
 
+  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
+    getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   "NotebookGCEDataSyncingSpec" - {

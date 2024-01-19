@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
+import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -11,7 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDepende
 import org.openqa.selenium.Keys
 import org.scalatest.DoNotDiscover
 import cats.syntax.all._
-import org.scalatest.tagobjects.Retryable
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.http4s.headers.Authorization
 
 @DoNotDiscover
 class RStudioSpec
@@ -19,6 +21,9 @@ class RStudioSpec
     with RStudioTestUtils
     with NotebookTestUtils
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+
+  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
+    getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl)

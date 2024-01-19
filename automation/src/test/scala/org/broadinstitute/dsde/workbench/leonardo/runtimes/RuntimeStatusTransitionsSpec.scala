@@ -19,9 +19,9 @@ import scala.util.Try
 @DoNotDiscover
 class RuntimeStatusTransitionsSpec
     extends BillingProjectFixtureSpec
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
-    with LeonardoTestUtils
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+    with LeonardoTestUtils {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "RuntimeStatusTransitionsSpec" - {

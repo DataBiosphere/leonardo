@@ -1,17 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, NewBillingProjectAndWorkspaceBeforeAndAfterAll, RuntimeFixtureSpec}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  CloudService,
+  LeonardoConfig,
+  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
+  RuntimeFixtureSpec
+}
+import org.http4s.headers.Authorization
 import org.scalatest.DoNotDiscover
-import org.scalatest.tagobjects.Retryable
 
 /**
  * This spec verifies Hail and Spark functionality.
  */
 @DoNotDiscover
 class NotebookHailSpec extends RuntimeFixtureSpec with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
+    getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile

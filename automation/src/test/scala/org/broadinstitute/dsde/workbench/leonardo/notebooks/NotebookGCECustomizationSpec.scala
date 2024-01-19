@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-import org.scalatest.tagobjects.Retryable
 
 /**
  * This spec verifies different cluster creation options, such as extensions, scopes, environment variables.
@@ -28,7 +27,8 @@ final class NotebookGCECustomizationSpec
     with NotebookTestUtils
     with LazyLogging
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
-  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
+  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
+    getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   val dependencies = for {

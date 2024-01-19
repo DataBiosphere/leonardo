@@ -6,10 +6,11 @@ import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
@@ -137,7 +138,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
+  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def beforeAll(): Unit = {
     val res = for {

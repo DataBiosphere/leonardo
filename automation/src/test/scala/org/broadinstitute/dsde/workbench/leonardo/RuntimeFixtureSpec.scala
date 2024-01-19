@@ -13,7 +13,6 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.freespec.FixtureAnyFreeSpec
 import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
-import scala.concurrent.duration._
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.

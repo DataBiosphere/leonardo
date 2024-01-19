@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoApiClient,
@@ -12,10 +13,14 @@ import org.scalatest.DoNotDiscover
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.workspaceNameKey
-import org.scalatest.tagobjects.Retryable
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
+import org.http4s.headers.Authorization
 
 @DoNotDiscover
 class RuntimeSystemSpec extends RuntimeFixtureSpec with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+
+  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
+    getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
@@ -26,32 +31,31 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec with NewBillingProjectAndWork
   } yield RuntimeGceSpecDependencies(httpClient, storage)
 
   "RuntimeSystemSpec" - {
-    s"should have the workspace-related environment variables set in jupyter image" in {
-      runtimeFixture =>
-        // TODO: any others?
-        val expectedEnvironment = Map(
-          "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
-          "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
-          "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
-          "WORKSPACE_NAME" -> sys.props.getOrElse(workspaceNameKey, "workspace")
-        )
+    s"should have the workspace-related environment variables set in jupyter image" in { runtimeFixture =>
+      // TODO: any others?
+      val expectedEnvironment = Map(
+        "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
+        "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
+        "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
+        "WORKSPACE_NAME" -> sys.props.getOrElse(workspaceNameKey, "workspace")
+      )
 
-        val res = dependencies.use { deps =>
-          implicit val httpClient = deps.httpClient
-          for {
-            runtime <- LeonardoApiClient.getRuntime(runtimeFixture.runtime.googleProject,
-                                                    runtimeFixture.runtime.clusterName
+      val res = dependencies.use { deps =>
+        implicit val httpClient = deps.httpClient
+        for {
+          runtime <- LeonardoApiClient.getRuntime(runtimeFixture.runtime.googleProject,
+                                                  runtimeFixture.runtime.clusterName
+          )
+          outputs <- expectedEnvironment.keys.toList.traverse(envVar =>
+            SSH.executeGoogleCommand(runtime.googleProject,
+                                     RuntimeFixtureSpec.runtimeFixtureZone.value,
+                                     runtime.runtimeName,
+                                     s"sudo docker exec -it jupyter-server printenv $envVar"
             )
-            outputs <- expectedEnvironment.keys.toList.traverse(envVar =>
-              SSH.executeGoogleCommand(runtime.googleProject,
-                                       RuntimeFixtureSpec.runtimeFixtureZone.value,
-                                       runtime.runtimeName,
-                                       s"sudo docker exec -it jupyter-server printenv $envVar"
-              )
-            )
-          } yield outputs.map(_.trim).sorted shouldBe expectedEnvironment.values.toList.sorted
-        }
-        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+          )
+        } yield outputs.map(_.trim).sorted shouldBe expectedEnvironment.values.toList.sorted
+      }
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
     "should have Java available" in { runtimeFixture =>
