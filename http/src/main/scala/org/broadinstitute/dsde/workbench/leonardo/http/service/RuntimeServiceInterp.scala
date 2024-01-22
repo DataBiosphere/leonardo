@@ -26,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   ProjectSamResourceId,
   RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId,
+  WorkspaceResourceSamResourceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
