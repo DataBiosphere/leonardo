@@ -19,6 +19,7 @@ import org.scalatest.DoNotDiscover
  */
 @DoNotDiscover
 class NotebookHailSpec extends RuntimeFixtureSpec with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+  // REMOVE ME
   implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
     getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
