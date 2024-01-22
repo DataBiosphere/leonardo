@@ -27,7 +27,6 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId,
-  WsmResourceSamResourceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
@@ -39,8 +38,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   runtimeSamResourceAction,
 // do not remove `workspaceSamResourceAction`; it is implicit
   workspaceSamResourceAction,
-// do not remove `wsmResourceSamResourceAction`; it is implicit
-  wsmResourceSamResourceAction,
 // do not remove `AppSamResourceAction`; it is implicit
   AppSamResourceAction
 }
