@@ -934,8 +934,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
   private[service] def getAuthorizedIds(
     userInfo: UserInfo,
-    creatorEmail: Option[WorkbenchEmail] = None,
-    workspaceSamId: Option[WorkspaceResourceSamResourceId] = None
+    creatorEmail: Option[WorkbenchEmail] = None
   )(implicit ev: Ask[F, AppContext]): F[AuthorizedIds] = for {
     // Authorize: user has an active account and has accepted terms of service
     _ <- authProvider.checkUserEnabled(userInfo)
@@ -969,45 +968,17 @@ class RuntimeServiceInterp[F[_]: Parallel](
     ownerProjectIds: Set[ProjectSamResourceId] <- authProvider
       .listResourceIds[ProjectSamResourceId](hasOwnerRole = true, userInfo)
 
-    // v2 runtimes are WSM-managed resources and they're modeled as `WsmResourceSamResource`s.
-    // HACK: accept any ID in the list of readable WSM resources as a valid
-    // readable v2 runtime ID. Some of these IDs are for non-runtime resources.
-    // TODO [] call WSM to list workspaces, then list runtimes per workspace, to get these IDs?
-
-    // v2 runtimes are readable by users with read access to both runtime and workspace
-    readerV2WsmIds: Set[WsmResourceSamResourceId] <- authProvider
-      .listResourceIds[WsmResourceSamResourceId](hasOwnerRole = false, userInfo)
-    readerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- workspaceSamId match {
-      case Some(samId) =>
-        for {
-          isWorkspaceReader <- authProvider.isUserWorkspaceReader(samId, userInfo)
-          workspaceIds: Set[WorkspaceResourceSamResourceId] =
-            if (isWorkspaceReader) Set(samId) else Set.empty
-        } yield workspaceIds
-      case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = false, userInfo)
-    }
-
-    // v2 runtimes are discoverable by owners on the corresponding Workspace
-    ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId] <- workspaceSamId match {
-      case Some(samId) =>
-        for {
-          isWorkspaceOwner <- authProvider.isUserWorkspaceOwner(samId, userInfo)
-          workspaceIds: Set[WorkspaceResourceSamResourceId] = if (isWorkspaceOwner) Set(samId) else Set.empty
-        } yield workspaceIds
-      case None => authProvider.listResourceIds[WorkspaceResourceSamResourceId](hasOwnerRole = true, userInfo)
-    }
-
     // combine: to read a runtime, user needs to be at least one of:
     // - creator of a v1 runtime (Sam-authenticated)
     // - any role on a v2 runtime (Sam-authenticated)
     // - creator of a runtime (in Leo db) and filtering their request by creator-only
-    readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ readerV2WsmIds ++ creatorRuntimeIdsBackdoor
+    readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ creatorRuntimeIdsBackdoor
   } yield AuthorizedIds(
     ownerGoogleProjectIds = ownerProjectIds,
-    ownerWorkspaceIds = ownerWorkspaceIds,
+    ownerWorkspaceIds = Set.empty,
     readerGoogleProjectIds = readerProjectIds,
     readerRuntimeIds = readerRuntimeIds,
-    readerWorkspaceIds = readerWorkspaceIds
+    readerWorkspaceIds = Set.empty
   )
 
 }
