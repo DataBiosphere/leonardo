@@ -27,11 +27,7 @@ import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class RuntimeCreationDiskSpec
-    extends BillingProjectFixtureSpec
-    with ParallelTestExecution
-    with LeonardoTestUtils
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+class RuntimeCreationDiskSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =

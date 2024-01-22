@@ -6,11 +6,10 @@ import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
-import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
@@ -138,7 +137,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
+  implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
 
   override def beforeAll(): Unit = {
     val res = for {
@@ -244,27 +243,50 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
     } else IO.unit
 }
 
-final class LeonardoSuite
+final class LeonardoSuite1
     extends Suites(
       new RuntimeCreationDiskSpec,
       new RuntimeAutopauseSpec,
-      new RuntimePatchSpec,
+      new RuntimePatchSpec
+    )
+    with TestSuite
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+    with ParallelTestExecution
+
+final class LeonardoSuite2
+    extends Suites(
       new RuntimeSystemSpec,
       new RuntimeStatusTransitionsSpec,
-      new NotebookGCECustomizationSpec,
+      new NotebookGCECustomizationSpec
+    )
+    with TestSuite
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+    with ParallelTestExecution
+
+final class LeonardoSuite3
+    extends Suites(
       new NotebookGCEDataSyncingSpec,
       new RuntimeDataprocSpec,
       new RuntimeGceSpec
     )
     with TestSuite
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
 
-final class LeonardoTerraDockerSuite
+final class LeonardoTerraDockerPythonSuite
     extends Suites(
       new NotebookHailSpec,
-      new NotebookPyKernelSpec,
+      new NotebookPyKernelSpec
+    )
+    with TestSuite
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+    with ParallelTestExecution
+
+final class LeonardoTerraDockerRstudioSuite
+    extends Suites(
       new NotebookRKernelSpec,
       new RStudioSpec
     )
     with TestSuite
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution

@@ -1,16 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  LeonardoConfig,
-  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
-  RuntimeFixtureSpec,
-  SSH
-}
-import org.http4s.headers.Authorization
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec, SSH}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec.runtimeFixtureZone
 import org.scalatest.DoNotDiscover
 
@@ -18,13 +10,8 @@ import org.scalatest.DoNotDiscover
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
  */
 @DoNotDiscover
-class NotebookPyKernelSpec
-    extends RuntimeFixtureSpec
-    with NotebookTestUtils
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
-  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
-    getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)

@@ -14,6 +14,7 @@ import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.Assertion
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 
 import scala.concurrent.duration._
 
@@ -23,7 +24,7 @@ class AppLifecycleSpec
     with BillingProjectUtils
     with TableDrivenPropertyChecks
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
-  implicit override val ronAuthorization: IO[Authorization] = getAuthTokenAndAuthorization(Ron)._2
+  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))

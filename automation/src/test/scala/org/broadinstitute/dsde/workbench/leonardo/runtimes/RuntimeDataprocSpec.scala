@@ -35,11 +35,7 @@ import java.util.UUID
 import scala.jdk.CollectionConverters._
 
 @DoNotDiscover
-class RuntimeDataprocSpec
-    extends BillingProjectFixtureSpec
-    with ParallelTestExecution
-    with LeonardoTestUtils
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 

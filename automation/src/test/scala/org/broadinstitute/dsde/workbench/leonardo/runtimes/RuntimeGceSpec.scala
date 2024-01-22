@@ -30,11 +30,7 @@ import java.nio.charset.{Charset, StandardCharsets}
 import java.util.UUID
 
 @DoNotDiscover
-class RuntimeGceSpec
-    extends BillingProjectFixtureSpec
-    with ParallelTestExecution
-    with LeonardoTestUtils
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+class RuntimeGceSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 

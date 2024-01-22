@@ -1,28 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
-import org.broadinstitute.dsde.workbench.leonardo.{
-  LeonardoApiClient,
-  LeonardoConfig,
-  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
-  RuntimeFixtureSpec,
-  SSH
-}
-import org.http4s.headers.Authorization
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
 import org.scalatest.DoNotDiscover
 
 /**
  * This spec verifies notebook functionality specifically around the R kernel.
  */
 @DoNotDiscover
-class NotebookRKernelSpec extends RuntimeFixtureSpec with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+class NotebookRKernelSpec extends RuntimeFixtureSpec {
 
-  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
-    getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   val dependencies = for {

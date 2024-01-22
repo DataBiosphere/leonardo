@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDepende
 import org.broadinstitute.dsde.workbench.leonardo.{
   BillingProjectFixtureSpec,
   LeonardoApiClient,
-  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
   SSH,
   UserJupyterExtensionConfig
 }
@@ -25,10 +24,8 @@ final class NotebookGCECustomizationSpec
     extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with NotebookTestUtils
-    with LazyLogging
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
-  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
-    getAuthTokenAndAuthorization(Ron)
+    with LazyLogging {
+  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   val dependencies = for {

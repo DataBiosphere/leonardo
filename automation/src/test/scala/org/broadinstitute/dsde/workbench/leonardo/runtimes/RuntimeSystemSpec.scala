@@ -1,26 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
-import cats.effect.IO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{
-  LeonardoApiClient,
-  LeonardoConfig,
-  NewBillingProjectAndWorkspaceBeforeAndAfterAll,
-  RuntimeFixtureSpec,
-  SSH
-}
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
 import org.scalatest.DoNotDiscover
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.workspaceNameKey
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.http4s.headers.Authorization
 
 @DoNotDiscover
-class RuntimeSystemSpec extends RuntimeFixtureSpec with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
-
-  implicit override val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) =
-    getAuthTokenAndAuthorization(Ron)
+class RuntimeSystemSpec extends RuntimeFixtureSpec {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
