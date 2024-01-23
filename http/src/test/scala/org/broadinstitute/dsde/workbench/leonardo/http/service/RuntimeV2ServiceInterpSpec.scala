@@ -3,47 +3,25 @@ package http
 package service
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import bio.terra.workspace.api.ControlledAzureResourceApi
-import bio.terra.workspace.model.{AzureVmResource, ResourceMetadata, State}
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.azure._
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
-  projectSamResourceDecoder,
-  runtimeSamResourceDecoder,
-  workspaceSamResourceIdDecoder,
-  wsmResourceSamResourceIdDecoder
-}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  ProjectSamResourceId,
-  RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId,
-  WsmResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{projectSamResourceDecoder, runtimeSamResourceDecoder, workspaceSamResourceIdDecoder, wsmResourceSamResourceIdDecoder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, RuntimeSamResourceId, WorkspaceResourceSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-  projectSamResourceAction,
-  runtimeSamResourceAction,
-  workspaceSamResourceAction,
-  wsmResourceSamResourceAction,
-  AppSamResourceAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{AppSamResourceAction, projectSamResourceAction, runtimeSamResourceAction, workspaceSamResourceAction, wsmResourceSamResourceAction}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage, StartRuntimeMessage, StopRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -70,18 +48,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   )
 
   val wsmDao = new MockWsmDAO
-
-  // set up wsm to return an deletable vm state
-  val state = State.READY
-  val resourceMetaData = new ResourceMetadata()
-  resourceMetaData.setState(state)
-  val azureVmResource = new AzureVmResource()
-  azureVmResource.setMetadata(resourceMetaData)
-
-  val wsmResourceApi = mock[ControlledAzureResourceApi]
-  when(wsmResourceApi.getAzureVm(any(), any())).thenReturn(azureVmResource)
-
-  val wsmClientProvider = new MockWsmClientProvider(wsmResourceApi)
+  val wsmClientProvider = new MockWsmClientProvider()
 
   // used when we care about queue state
   def makeInterp(
@@ -193,7 +160,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
    * @param readerRuntimeSamIds
    * @param readerWorkspaceSamIds
    * @param readerProjectSamIds
-   * @param ownerWorkspaceSamIds
+   * @param ownerWorkspaceSamIdsq
    * @param ownerProjectSamIds
    * @return
    */
@@ -493,7 +460,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       runtime <- clusterQuery.getClusterWithDiskId(disk.id).transaction
       _ <- clusterQuery.updateClusterStatus(runtime.get.id, RuntimeStatus.Deleted, now).transaction
 
-      err <- runtimeV2Service
+      _ <- runtimeV2Service
         .createRuntime(userInfo, name1, workspaceId, true, defaultCreateAzureRuntimeReq)
     } yield ()
 
@@ -1136,6 +1103,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
+      disks <- DiskServiceDbQueries
+        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .transaction
+      disk = disks.head
+      _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
+
       _ <- publisherQueue.tryTake // clean out create msg
       preDeleteCluster <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
@@ -1175,7 +1148,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "not delete a runtime in a creating status" in isolatedDbTest {
+  it should "not delete a runtime in a creating status in Wsm" in isolatedDbTest {
     val userInfo = UserInfo(
       OAuth2BearerToken(""),
       WorkbenchUserId("userId"),
@@ -1185,7 +1158,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val azureService = makeInterp()
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[WsmState] =
+        IO.pure(WsmState(Some("CREATING")))
+    }
+    val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
 
     val res = for {
       _ <- azureService
@@ -1196,48 +1175,33 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
-      preDeleteClusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      preDeleteCluster = preDeleteClusterOpt.get
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
     } yield ()
 
-    the[RuntimeCannotBeDeletedException] thrownBy {
+    the[RuntimeCannotBeDeletedWsmException] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
-  it should "delete a runtime and not send wsmResourceId if runtime in a DELETING WSM status" in isolatedDbTest {
+  it should "not delete a runtime in a updating status in Wsm" in isolatedDbTest {
     val userInfo = UserInfo(
       OAuth2BearerToken(""),
       WorkbenchUserId("userId"),
       WorkbenchEmail("user1@example.com"),
       0
-    ) // this email is allow-listed
+    ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    // set up wsm to return an un-deletable vm state
-    val state = State.DELETING
-    val resourceMetaData = new ResourceMetadata()
-    resourceMetaData.setState(state)
-    val azureVmResource = new AzureVmResource()
-    azureVmResource.setMetadata(resourceMetaData)
-
-    val wsmResourceApi = mock[ControlledAzureResourceApi]
-    when(wsmResourceApi.getAzureVm(any(), any())).thenReturn(azureVmResource)
-
-    val wsmClientProvider = new MockWsmClientProvider(wsmResourceApi)
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[WsmState] =
+        IO.pure(WsmState(Some("UPDATING")))
+    }
+    val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
 
     val res = for {
-      context <- appContext.ask[AppContext]
-
       _ <- azureService
         .createRuntime(
           userInfo,
@@ -1246,49 +1210,93 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      _ <- publisherQueue.tryTake // clean out create msg
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
-      preDeleteClusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      preDeleteCluster = preDeleteClusterOpt.get
-      _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
-
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
+    } yield ()
 
-      message <- publisherQueue.take
-
-      postDeleteClusterOpt <- clusterQuery
-        .getClusterById(preDeleteCluster.id)
-        .transaction
-
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster.runtimeConfigId).transaction
-      diskOpt <- persistentDiskQuery
-        .getById(runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId.get)
-        .transaction
-      disk = diskOpt.get
-    } yield {
-      postDeleteClusterOpt.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
-      disk.status shouldBe DiskStatus.Deleting
-
-      val expectedMessage =
-        DeleteAzureRuntimeMessage(
-          preDeleteCluster.id,
-          Some(disk.id),
-          workspaceId,
-          None,
-          BillingProfileId("spend-profile"),
-          Some(context.traceId)
-        )
-      message shouldBe expectedMessage
+    the[RuntimeCannotBeDeletedWsmException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "delete a runtime and not send wsmResourceId if runtime not in wsm" in isolatedDbTest {
+  it should "not delete a runtime in a deleting status in Wsm" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[WsmState] =
+        IO.pure(WsmState(Some("DELETING")))
+    }
+    val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
+
+    val res = for {
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq
+        )
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
+    } yield ()
+
+    the[RuntimeCannotBeDeletedWsmException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "not delete a runtime if the disk cannot be deleted in Wsm" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[WsmState] =
+        IO.pure(WsmState(Some("CREATING")))
+    }
+    val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq
+        )
+      disks <- DiskServiceDbQueries
+        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .transaction
+      disk = disks.head
+      _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
+
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
+    } yield ()
+
+    the[DiskCannotBeDeletedWsmException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "delete a runtime and not send wsmResourceId if runtime is deleted in WSM" in isolatedDbTest {
     val userInfo = UserInfo(
       OAuth2BearerToken(""),
       WorkbenchUserId("userId"),
@@ -1298,12 +1306,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    // set up wsm to return null
-    val wsmResourceApi = mock[ControlledAzureResourceApi]
-    when(wsmResourceApi.getAzureVm(any(), any())).thenThrow(new Error("Runtime not found"))
-
-    val wsmClientProvider = new MockWsmClientProvider(wsmResourceApi)
     val publisherQueue = QueueFactory.makePublisherQueue()
+
+    // make VM be deleted in WSM
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[WsmState] =
+        IO.pure(WsmState(None))
+    }
     val azureService = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
 
     val res = for {
@@ -1317,6 +1328,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
+      disks <- DiskServiceDbQueries
+        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .transaction
+      disk = disks.head
+      _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
+
       _ <- publisherQueue.tryTake // clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       preDeleteClusterOpt <- clusterQuery
@@ -1525,6 +1542,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val res = for {
       context <- appContext.ask[AppContext]
+      azureCloudContextOpt <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext = CloudContext.Azure(azureCloudContextOpt.get)
+
 
       _ <- azureService
         .createRuntime(
@@ -1557,19 +1577,28 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
         )
 
+      disks <- DiskServiceDbQueries
+        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .transaction
+
+      disk1 <- persistentDiskQuery.getActiveByName(azureCloudContext, DiskName("diskName1")).transaction
+      disk2 <- persistentDiskQuery.getActiveByName(azureCloudContext, DiskName("diskName2")).transaction
+      disk3 <- persistentDiskQuery.getActiveByName(azureCloudContext, DiskName("diskName3")).transaction
+
+      _ <- persistentDiskQuery.updateWSMResourceId(disk1.get.id, wsmResourceId, context.now).transaction
+      _ <- persistentDiskQuery.updateWSMResourceId(disk2.get.id, wsmResourceId, context.now).transaction
+      _ <- persistentDiskQuery.updateWSMResourceId(disk3.get.id, wsmResourceId, context.now).transaction
+
       _ <- publisherQueue.tryTakeN(Some(3)) // clean out create msg
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+
       preDeleteCluster_1 <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName_1).transaction
-
       preDeleteCluster_2 <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName_2).transaction
-
       preDeleteCluster_3 <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName_3).transaction
 
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_1.id, RuntimeStatus.Deleted, context.now).transaction
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_2.id, RuntimeStatus.Running, context.now).transaction
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster_3.id, RuntimeStatus.Error, context.now).transaction
 
-      wsmResourceId_1 = WsmControlledResourceId(UUID.fromString(preDeleteCluster_1.internalId))
       wsmResourceId_2 = WsmControlledResourceId(UUID.fromString(preDeleteCluster_2.internalId))
       wsmResourceId_3 = WsmControlledResourceId(UUID.fromString(preDeleteCluster_3.internalId))
 

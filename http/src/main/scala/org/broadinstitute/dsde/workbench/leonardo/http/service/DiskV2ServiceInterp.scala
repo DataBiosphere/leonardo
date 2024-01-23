@@ -8,10 +8,7 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  PersistentDiskSamResourceId,
-  WorkspaceResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -76,11 +73,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       ctx <- as.ask
       diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
 
-      disk <- diskOpt.fold(
-        F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId))
-      )(
-        F.pure
-      )
+      disk <- F.fromOption(diskOpt, DiskNotFoundByIdException(diskId, ctx.traceId))
 
       // check read permission first
       listOfPermissions <- authProvider.getActions(disk.samResource, userInfo)
@@ -111,7 +104,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       // check if disk resource is deletable in WSM
-      wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(diskId, ctx.traceId))
+      wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(disk.id, ctx.traceId))
       wsmStatus <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
 
       _ <- F.raiseUnless(wsmStatus.isDeletable)(
