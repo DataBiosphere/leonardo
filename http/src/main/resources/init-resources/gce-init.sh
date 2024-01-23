@@ -139,8 +139,8 @@ INIT_BUCKET_NAME=$(initBucketName)
 CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
-GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gcloud'
+GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
+GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
 
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   export SHOULD_BACKGROUND_SYNC="true"
