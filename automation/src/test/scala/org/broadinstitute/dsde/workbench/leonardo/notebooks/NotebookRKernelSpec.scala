@@ -11,7 +11,6 @@ import org.scalatest.DoNotDiscover
  */
 @DoNotDiscover
 class NotebookRKernelSpec extends RuntimeFixtureSpec {
-
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   val dependencies = for {

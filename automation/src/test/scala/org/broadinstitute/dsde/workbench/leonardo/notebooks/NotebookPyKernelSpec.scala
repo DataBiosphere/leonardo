@@ -11,7 +11,6 @@ import org.scalatest.DoNotDiscover
  */
 @DoNotDiscover
 class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
-
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
