@@ -802,7 +802,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
 
     // check if databases, namespaces and managed identities associated with the app can be deleted
-    _ <- checkIfSubResourcesAreDeletable(app.id, userInfo, workspaceId)
+    _ <- checkIfDeletable(app.id, WsmResourceType.AzureDatabase, userInfo, workspaceId)
+    _ <- checkIfDeletable(app.id, WsmResourceType.AzureManagedIdentity, userInfo, workspaceId)
+    _ <- checkIfDeletable(app.id, WsmResourceType.AzureKubernetesNamespace, userInfo, workspaceId)
 
     // Get the disk and check if its deletable (if disk is being deleted)
     diskIdOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
@@ -840,44 +842,42 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       } yield ()
   } yield ()
 
-  private def checkIfSubResourcesAreDeletable(appId: AppId, userInfo: UserInfo, workspaceId: WorkspaceId)(implicit
+  private def checkIfDeletable(appId: AppId,
+                               resourceType: WsmResourceType,
+                               userInfo: UserInfo,
+                               workspaceId: WorkspaceId
+  )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
-    wsmResourceTypes = Set(WsmResourceType.AzureDatabase,
-                           WsmResourceType.AzureManagedIdentity,
-                           WsmResourceType.AzureKubernetesNamespace
-    )
-    _ = wsmResourceTypes.foreach { resourceType =>
+    wsmResources <- appControlledResourceQuery
+      .getAllForAppByType(appId.id, resourceType)
+      .transaction
+    _ <- wsmResources.traverse { resource =>
       for {
-        wsmResources <- appControlledResourceQuery
-          .getAllForAppByType(appId.id, resourceType)
-          .transaction
-        _ <- wsmResources.traverse { resource =>
-          for {
-            // unchecked match here because resourceType can ONLY be those in the set above
-            wsmState <- (resourceType: @unchecked) match {
-              case WsmResourceType.AzureDatabase =>
-                wsmClientProvider.getDatabaseState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-              case WsmResourceType.AzureKubernetesNamespace =>
-                wsmClientProvider.getNamespaceState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-              case WsmResourceType.AzureManagedIdentity =>
-                wsmClientProvider.getIdentityState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-            }
-            _ <- F
-              .raiseUnless(wsmState.isDeletable)(
-                AppResourceCannotBeDeletedException(resource.resourceId,
-                                                    appId,
-                                                    wsmState.getValue,
-                                                    resourceType,
-                                                    ctx.traceId
-                )
-              )
-          } yield ()
+        wsmState <- resourceType match {
+          case WsmResourceType.AzureDatabase =>
+            wsmClientProvider.getDatabaseState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureKubernetesNamespace =>
+            wsmClientProvider.getNamespaceState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureManagedIdentity =>
+            wsmClientProvider.getIdentityState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureDisk =>
+            wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureStorageContainer =>
+            F.pure(WsmState(None)) // no get endpoint for a storage container in WSM yet
         }
+        _ <- F
+          .raiseUnless(wsmState.isDeletable)(
+            AppResourceCannotBeDeletedException(resource.resourceId,
+                                                appId,
+                                                wsmState.getValue,
+                                                resourceType,
+                                                ctx.traceId
+            )
+          )
       } yield ()
     }
-
   } yield ()
 
   private[service] def getSavableCluster(

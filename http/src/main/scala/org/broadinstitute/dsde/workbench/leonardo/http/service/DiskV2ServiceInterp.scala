@@ -8,7 +8,10 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, WorkspaceResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  PersistentDiskSamResourceId,
+  WorkspaceResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._

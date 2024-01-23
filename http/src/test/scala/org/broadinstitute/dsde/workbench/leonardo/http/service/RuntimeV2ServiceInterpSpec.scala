@@ -11,17 +11,38 @@ import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{projectSamResourceDecoder, runtimeSamResourceDecoder, workspaceSamResourceIdDecoder, wsmResourceSamResourceIdDecoder}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, RuntimeSamResourceId, WorkspaceResourceSamResourceId, WsmResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  projectSamResourceDecoder,
+  runtimeSamResourceDecoder,
+  workspaceSamResourceIdDecoder,
+  wsmResourceSamResourceIdDecoder
+}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  ProjectSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId,
+  WsmResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{AppSamResourceAction, projectSamResourceAction, runtimeSamResourceAction, workspaceSamResourceAction, wsmResourceSamResourceAction}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
+  projectSamResourceAction,
+  runtimeSamResourceAction,
+  workspaceSamResourceAction,
+  wsmResourceSamResourceAction,
+  AppSamResourceAction
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage, StartRuntimeMessage, StopRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAzureRuntimeMessage,
+  DeleteAzureRuntimeMessage,
+  StartRuntimeMessage,
+  StopRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage, UpdateTarget}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -1544,7 +1565,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       context <- appContext.ask[AppContext]
       azureCloudContextOpt <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       azureCloudContext = CloudContext.Azure(azureCloudContextOpt.get)
-
 
       _ <- azureService
         .createRuntime(
