@@ -602,25 +602,27 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       deleteDiskAction = msg.diskIdToDelete.traverse { diskId =>
         for {
-          runtimeRecordOpt <- controlledResourceQuery
+          diskRecordOpt <- controlledResourceQuery
             .getWsmRecordForRuntime(msg.runtimeId, WsmResourceType.AzureDisk)
             .transaction
-          runtimeRecord <- F.fromOption(
-            runtimeRecordOpt,
-            AzureDiskResourceDeletionError(Left(msg.runtimeId),
-                                           msg.workspaceId,
-                                           "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
-            )
-          )
           // TODO: Add polling on disk deletion
-          _ <- deleteDiskResource(runtimeRecord.resourceId, msg.workspaceId, auth)
-          _ <- dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
-          _ <- logger.info(ctx.loggingCtx)(s"runtime disk ${diskId} is deleted successfully")
+          _ <- diskRecordOpt match {
+            case Some(diskRecord) =>
+              for {
+                _ <- deleteDiskResource(diskRecord.resourceId, msg.workspaceId, auth)
+                _ <- dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
+                _ <- logger.info(ctx.loggingCtx)(s"runtime disk ${diskId.value} is deleted successfully")
+              } yield ()
+            case _ =>
+              // if the disk hasn't been created in WSM yet, skip disk deletion
+              logger.info(
+                s"No disk resource found for runtime ${msg.runtimeId.toString} in ${msg.workspaceId.value}. No-op for wsmDao.deleteDisk."
+              )
+          }
         } yield ()
       }.void
 
       // Delete the VM in WSM
-      // TODO: Check if VM is deleted in WSM here instead of passing through id from front leo
       _ <- msg.wsmResourceId.fold(
         for {
           // Error'd runtimes might not have a WSM resourceId and therefore no WsmJobStatus.
@@ -774,20 +776,23 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- e.useExistingDisk match {
         case false =>
           for {
-            runtimeRecordOpt <- controlledResourceQuery
+            diskRecordOpt <- controlledResourceQuery
               .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
               .transaction
-            runtimeRecord <- F.fromOption(
-              runtimeRecordOpt,
-              AzureDiskResourceDeletionError(
-                Left(e.runtimeId),
-                e.workspaceId,
-                "No disk resource found for delete azure disk. No-op for wsmDao.deleteDisk."
-              )
-            )
-            // TODO: Add polling on disk deletion
-            _ <- deleteDiskResource(runtimeRecord.resourceId, e.workspaceId, auth)
-            _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
+            _ <- diskRecordOpt match {
+              case Some(diskRecord) =>
+                for {
+                  // TODO: Add polling on disk deletion
+                  _ <- deleteDiskResource(diskRecord.resourceId, e.workspaceId, auth)
+                  _ <- clusterQuery.updateDiskStatus(e.runtimeId, now).transaction
+                  _ <- logger.info(ctx.loggingCtx)(s"disk for runtime ${e.runtimeId} is deleted successfully")
+                } yield ()
+              case _ =>
+                // if the disk hasn't been created in WSM yet, skip disk deletion
+                logger.info(
+                  s"No disk resource found for runtime ${e.runtimeId.toString} in ${e.workspaceId.value}. No-op for wsmDao.deleteDisk."
+                )
+            }
           } yield ()
 
         case true => F.unit

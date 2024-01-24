@@ -802,9 +802,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
 
     // check if databases, namespaces and managed identities associated with the app can be deleted
-    _ <- checkIfDeletable(app.id, WsmResourceType.AzureDatabase, userInfo, workspaceId)
-    _ <- checkIfDeletable(app.id, WsmResourceType.AzureManagedIdentity, userInfo, workspaceId)
-    _ <- checkIfDeletable(app.id, WsmResourceType.AzureKubernetesNamespace, userInfo, workspaceId)
+    _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDatabase, userInfo, workspaceId)
+    _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureManagedIdentity, userInfo, workspaceId)
+    _ <- checkIfSubresourceDeletable(app.id, WsmResourceType.AzureKubernetesNamespace, userInfo, workspaceId)
 
     // Get the disk and check if its deletable (if disk is being deleted)
     diskIdOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
@@ -842,10 +842,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       } yield ()
   } yield ()
 
-  private def checkIfDeletable(appId: AppId,
-                               resourceType: WsmResourceType,
-                               userInfo: UserInfo,
-                               workspaceId: WorkspaceId
+  private def checkIfSubresourcesDeletable(appId: AppId,
+                                           resourceType: WsmResourceType,
+                                           userInfo: UserInfo,
+                                           workspaceId: WorkspaceId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
@@ -869,12 +869,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
         _ <- F
           .raiseUnless(wsmState.isDeletable)(
-            AppResourceCannotBeDeletedException(resource.resourceId,
-                                                appId,
-                                                wsmState.getValue,
-                                                resourceType,
-                                                ctx.traceId
-            )
+            AppResourceCannotBeDeletedException(resource.resourceId, appId, wsmState.value, resourceType, ctx.traceId)
           )
       } yield ()
     }

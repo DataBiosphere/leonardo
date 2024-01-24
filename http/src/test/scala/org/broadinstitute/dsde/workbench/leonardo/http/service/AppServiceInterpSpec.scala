@@ -2496,7 +2496,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
   */
 
-  it should "error on delete if database is in a status that cannot be deleted" in isolatedDbTest {
+  it should "error on delete if app subresource is in a status that cannot be deleted" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getDatabaseState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
@@ -2522,13 +2522,24 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
     dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
+    // add database record
+    dbFutureValue(
+      appControlledResourceQuery
+        .insert(
+          appResultPreStatusUpdate.get.app.id.id,
+          wsmResourceId,
+          WsmResourceType.AzureDatabase,
+          AppControlledResourceStatus.Creating
+        )
+    )
+
     val appResultPreDelete = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
     }
     appResultPreDelete.get.app.status shouldEqual AppStatus.Running
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    an[DiskCannotBeDeletedWsmException] should be thrownBy {
+    an[AppResourceCannotBeDeletedException] should be thrownBy {
       appServiceInterp
         .deleteAppV2(userInfo, workspaceId, appName, true)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

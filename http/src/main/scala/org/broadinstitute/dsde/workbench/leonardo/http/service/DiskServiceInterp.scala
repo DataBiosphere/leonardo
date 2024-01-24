@@ -457,7 +457,7 @@ case class DiskCannotBeDeletedException(id: DiskId, status: DiskStatus, cloudCon
 
 case class DiskCannotBeDeletedWsmException(id: DiskId, status: WsmState, cloudContext: CloudContext, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${id.value} cannot be deleted in ${status.getValue} status. CloudContext: ${cloudContext.asStringWithProvider}",
+      s"Persistent disk ${id.value} cannot be deleted in ${status.value} status. CloudContext: ${cloudContext.asStringWithProvider}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

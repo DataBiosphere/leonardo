@@ -117,7 +117,7 @@ case class RuntimeCannotBeDeletedException(cloudContext: CloudContext, runtimeNa
 
 case class RuntimeCannotBeDeletedWsmException(cloudContext: CloudContext, runtimeName: RuntimeName, status: WsmState)
     extends LeoException(
-      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status.getValue} status",
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status.value} status",
       StatusCodes.Conflict,
       traceId = None
     )

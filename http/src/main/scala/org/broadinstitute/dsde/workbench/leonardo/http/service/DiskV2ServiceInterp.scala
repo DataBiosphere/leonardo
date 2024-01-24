@@ -116,6 +116,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
       // only send wsmResourceId to back leo if disk isn't already deleted in WSM
       wsmDiskResourceId = if (wsmStatus.isDeleted) None else Some(wsmResourceId)
+      x = wsmStatus.value
 
       // check that disk isn't attached to a runtime
       isAttached <- persistentDiskQuery.isDiskAttached(diskId).transaction
