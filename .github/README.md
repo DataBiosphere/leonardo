@@ -9,7 +9,7 @@ The [automerge workflow](workflows/automerge.yml) is ran against PRs with the la
 The [azure automation test workflow](workflows/azure_automation_test.yml) is run twice a day and on-demand. It runs tests in the `LeonardoAzureSuite` automation test suite against a dynamically created BEE. 
 It triggers a downstream action in the repo [terra-github-workflows](https://github.com/broadinstitute/terra-github-workflows) that provisions the BEE, and provides an Azure billing project to the test suite. The BEE created by this job is configured to clean up any resources created via the tests.
 
-## Azure e2e app tests
+## Azure data plane app tests
 The [Azure app tests](workflows/azure_e2e_release_promotion_tests.yml) are run on a beehive hook when leonardo is promoted to staging. These tests deploy various apps via Leonardo to a test workspace. These tests live in the Leonardo repo, but are not maintained by the IA team. They are maintained by Analysis Journeys, and deal with WDS and Cromwell apps.
 
 ## Leonardo contract tests against external systems
@@ -23,7 +23,7 @@ An example of this would be modeling and verifying AOU's dependency on Leo endpo
 ## Custom Image generation
 The [custom image generaton](workflows/custom_image_generation.yml) can be run on-demand to generate the custom VM image (Dataproc or GCE) that is used as the ISO, or disk image, for VMs provisioned by Leonardo. These jobs cache the docker images used by users of these VMs on the disk image to improve VM creation times.
 
-## Leonardo build, publish and test
+## Leonardo build, tag, publish, and test
 This [job](workflows/leo-build-tag-publish-and-run-tests.yml) builds Leonardo, tags and publishes the image, provisions a BEE with that image of Leonardo, and then runs the GCP automation test suite against that BEE. It also reports the build to Sherlock for future promotion. 
 Very similar to the Azure job and will likely be consolidated with it soon. They don't differ much; a copy-paste with a different sbt test command. They both rely on the same downstream [terra-github-workflows](https://github.com/broadinstitute/terra-github-workflows) jobs.
 
@@ -35,7 +35,7 @@ This will run on any PR commits/commits to dev. To iterate on the swagger page/c
 ```
 
 ## Tag
-This [job](workflows/tag.yml) is responsible for generating the tag associated with build artifacts for various workflows. It is a broad extension of [github-tag-action](github-tag-action), and can be found in this [repo](https://github.com/DataBiosphere/github-actions/tree/master/actions/bumper) 
+This [job](workflows/tag.yml) is responsible for generating the tag associated with build artifacts and consumed by multiple workflows in this repo. It is a broad extension of [github-tag-action](github-tag-action), and can be found in this [repo](https://github.com/DataBiosphere/github-actions/tree/master/actions/bumper) 
 
 ## Trivy
 This [job](workflows/trivy.yml) is an action maintained by the Security team. It runs scans on the Leonardo Dockerfile to ensure security concerns are not violated. See further details in the [trivy repo](https://github.com/broadinstitute/dsp-appsec-trivy-action).
