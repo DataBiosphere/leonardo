@@ -28,8 +28,8 @@ This [job](workflows/leo-build-tag-publish-and-run-tests.yml) builds Leonardo, t
 Very similar to the Azure job and will likely be consolidated with it soon. They don't differ much; a copy-paste with a different sbt test command. They both rely on the same downstream [terra-github-workflows](https://github.com/broadinstitute/terra-github-workflows) jobs.
 
 ## Publish Java client
-This [job](workflows/publish_java_client.yml) publishes a swagger-generated client for leonardo to artifactory consumable by any JVM application. It is used in our automation tests, and by other teams within the broad in their automation tests. 
-This will run on any PR commits/commits to dev. To iterate on the swagger page/client config, it publishes `-SNAP` versions you can consume in your project dependencies. An example of an sbt import can be found below.
+This [job](workflows/publish_java_client.yml) publishes a swagger-generated client for leonardo to artifactory consumable by any JVM application. It is used in our automation tests, and by other teams that depend on leonardo API calls in their application or tests. 
+This will run on both PR commits and commits to dev. The purpose of it running on PR commits is it can help iterate on the swagger page/client changes or fixes. Any versions published against a PR will be suffixed with `-SNAP`. An example of an sbt import can be found below. To find a specific version, you can look at the logs for a run.
 ```
 "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-35973f1-SNAP"
 ```
