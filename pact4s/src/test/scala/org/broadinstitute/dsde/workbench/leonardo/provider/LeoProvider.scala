@@ -27,6 +27,7 @@ import pact4s.scalatest.PactVerifier
 
 import java.lang.Thread.sleep
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
+import java.time.Instant
 
 class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
@@ -100,6 +101,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
                           .PactBrokerWithSelectors(pactBrokerUrl)
                           .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
                           .withPendingPacts(true)
+                          .withWipPactsSince(WipPactsSince.instant(Instant.ofEpochSecond(1706112088)))
     )
       .withStateManagementFunction(
         providerStatesHandler
