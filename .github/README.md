@@ -12,11 +12,11 @@ It triggers a downstream action in the repo [terra-github-workflows](https://git
 ## Azure e2e app tests
 The [Azure app tests](workflows/azure_e2e_release_promotion_tests.yml) are run on a beehive hook when leonardo is promoted to staging. These tests deploy various apps via Leonardo to a test workspace. These tests live in the Leonardo repo, but are not maintained by the IA team. They are maintained by Analysis Journeys, and deal with WDS and Cromwell apps.
 
-## Consumer Contract tests
+## Leonardo contract tests against external systems
 The [consumer contract tests](workflows/consumer_contract_tests.yml) are documented extensively in the workflow file itself. This handles **Leo's dependencies on external systems**.
 Specifically, the main contract they verify is that between Sam and Leo. They do this via Pact.IO. This workflow creates and pushes contracts based on those dependencies to Pact Broker.
 
-## Consumer contract verification
+## External contract tests against Leonardo
 This [job](workflows/verify_consumer_contracts.yml) handles **external system's dependencies on Leo**. It pulls contracts from Pact Broker, and then makes sure Leonardo's endpoints work the way the external callers expect.
 An example of this would be modeling and verifying AOU's dependency on Leo endpoints.
 
