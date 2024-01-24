@@ -43,30 +43,4 @@ class RStudioPage(override val url: String)(implicit
       await notVisible popupPanel
     }
   }
-
-  // Opens an example app from the shiny package.
-  // Valid examples are:
-  //   "01_hello", "02_text", "03_reactivity", "04_mpg", "05_sliders", "06_tabsets",
-  //   "07_widgets", "08_html", "09_upload", "10_download", "11_timer"
-  def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T = {
-    // Enter commands to launch the shiny app
-    switchToNewTab {
-      val loadShiny = "library(shiny)"
-      pressKeys(loadShiny)
-      dismissPopupPanel()
-      pressKeys(Keys.ENTER.toString)
-
-      val launchCommand = s"""runExample("$exampleName", launch.browser = T)"""
-      pressKeys(launchCommand)
-      dismissPopupPanel()
-      pressKeys(Keys.ENTER.toString)
-
-      await condition windowHandles.size == 2
-    }
-
-    // Do verifications
-    val rshinyPage = new RShinyPage(currentUrl).awaitLoaded()
-    val result = Try(testCode(rshinyPage))
-    result.get
-  }
 }
