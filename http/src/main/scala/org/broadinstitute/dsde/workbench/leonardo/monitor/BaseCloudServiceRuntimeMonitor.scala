@@ -112,7 +112,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
                     mainInstance: Option[DataprocInstance],
-                    deleteRuntime: Boolean = true
+                    deleteRuntime: Boolean = false
   )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
