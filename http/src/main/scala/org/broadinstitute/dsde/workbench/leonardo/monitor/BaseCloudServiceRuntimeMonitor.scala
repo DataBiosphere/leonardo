@@ -539,7 +539,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
                                         mainDataprocInstance: Option[DataprocInstance],
-                                        deleteRuntimeOnFail: Boolean,
+                                        deleteRuntimeOnFail: Boolean = false,
                                         checkToolsInterruptAfter: Option[FiniteDuration]
   ) // only applies to dataproc
   (implicit
