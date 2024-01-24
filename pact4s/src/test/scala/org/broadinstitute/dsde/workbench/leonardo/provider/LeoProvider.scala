@@ -141,6 +141,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
                         PactSource
                           .PactBrokerWithSelectors(pactBrokerUrl)
                           .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
+                          .withPendingPacts(true)
     )
       .withStateManagementFunction(
         providerStatesHandler
