@@ -63,7 +63,7 @@ object RuntimeStateManager {
       )
         .thenReturn(IO {
           GetRuntimeResponse(
-            -1,
+            -2,
             runtimeSamResource,
             name1,
             cloudContextGcp,
