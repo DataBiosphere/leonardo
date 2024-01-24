@@ -802,28 +802,28 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
 
     // check if databases, namespaces and managed identities associated with the app can be deleted
-    _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDatabase, userInfo, workspaceId)
-    _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureManagedIdentity, userInfo, workspaceId)
-    _ <- checkIfSubresourceDeletable(app.id, WsmResourceType.AzureKubernetesNamespace, userInfo, workspaceId)
+    // (but only for Azure apps)
+    _ <-
+      if (cloudContext.cloudProvider == CloudProvider.Azure) {
+        for {
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDatabase, userInfo, workspaceId)
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureManagedIdentity, userInfo, workspaceId)
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureKubernetesNamespace, userInfo, workspaceId)
+        } yield ()
+      } else F.unit
 
     // Get the disk and check if its deletable (if disk is being deleted)
     diskIdOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
-    _ = (deleteDisk, diskIdOpt) match {
-      case (true, Some(diskId)) =>
+    _ = (deleteDisk, diskIdOpt, cloudContext.cloudProvider) match {
+      // only check WSM state for Azure apps (Azure apps don't have disks currently, but they are coming...)
+      case (true, Some(diskId), CloudProvider.Azure) =>
         for {
-          diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
-          disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId)))(F.pure)
-          diskWsmId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(disk.id, ctx.traceId))
-          wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, diskWsmId)
-          _ <- F
-            .raiseUnless(wsmState.isDeletable)(
-              DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
-            )
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDisk, userInfo, workspaceId)
           _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
         } yield ()
-      case (true, None) => AppRequiresDiskException(cloudContext, app.appName, app.appType, ctx.traceId)
-      // Do nothing if deleteDisk is false
-      case _ => F.unit
+      case (true, None, _) =>
+        log.info(s"No disk found to delete for app ${app.id}, ${app.appName}. No-op for deleteDisk")
+      case _ => F.unit // Do nothing if deleteDisk is false
     }
 
     _ <-
