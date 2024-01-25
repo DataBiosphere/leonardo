@@ -224,7 +224,7 @@ object Dependencies {
   val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-35973f1-SNAP"
   // You should not be using SSH functionality outside of the tests according to security team's guidance
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
-  val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
+  val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.33.0" % "test"
 
   val automationOverrides = List(guava)
 
