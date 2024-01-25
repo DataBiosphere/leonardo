@@ -703,7 +703,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       _ <- clusterImageQuery.upsert(id, welderImage)
     } yield ()
 
-  def updateDiskStatus(runtimeId: Long, dateAccessed: Instant)(implicit
+  def setDiskDeleted(runtimeId: Long, dateAccessed: Instant)(implicit
     ec: ExecutionContext
   ): DBIO[Unit] =
     for {
@@ -712,7 +712,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         .result
         .headOption
       diskIdOpt <- runtimeConfigId.flatTraverse(rid => RuntimeConfigQueries.getDiskId(rid))
-      _ <- diskIdOpt.traverse(diskId => persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, dateAccessed))
+      _ <- diskIdOpt.traverse(diskId => persistentDiskQuery.delete(diskId, dateAccessed))
     } yield ()
 
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =
