@@ -145,8 +145,24 @@ object SSH {
   def executeGoogleCommand(project: GoogleProject, zone: String, runtimeName: RuntimeName, cmd: String): IO[String] = {
     val dummyCommand =
       s"gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"ls\" -- -tt"
+
+    // This command is a bit special.
+    // It needs to go through 4 layers of interpolation:
+    // 1 scala """...""",
+    // 2 bash on the GHA node,
+    // 3 bash on the VM leo creates, and
+    // 4 finally bash within the docker container
+    //
+    // Syntax for the `--command='...'` is specific to this situation and ensures desired behavior
+    // For example, to use command with echo that is executed in bash at layer 3 with quotes that persist into layer 4 `sudo docker exec -it jupyter-server bash -c "echo \\\"this should save\\\" > /home/jupyter/test.txt"`
     val sshCommand =
-      s"gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"$cmd\" -- -tt"
+      s"""
+          gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --verbosity=error --command='$cmd' -- -tt
+      """
+
+    val outWriter = new StringBuilder
+    val errWriter = new StringBuilder
+    val logger = ProcessLogger((out: String) => outWriter.append(out), (err: String) => errWriter.append(err))
 
     for {
       // Without first executing a dummy command, the output will contain a bunch of garble that google spits out because gcloud compute ssh runs ssh-keygen under the covers
@@ -155,8 +171,15 @@ object SSH {
       dummyOutput <- IO(dummyCommand !!)
       _ <- loggerIO.debug(s"dummy command output: \n\t$dummyOutput")
       _ <- loggerIO.info(s"executing command: \n\t$sshCommand")
-      output <- IO(sshCommand !!)
-      _ <- loggerIO.info(s"cmd output: $output")
+      exitCode <- IO(sshCommand.!(logger))
+      output = outWriter.toString
+      error = errWriter.toString
+      _ <-
+        if (exitCode == 0) loggerIO.info(s"cmd output: \n\tcmd: $sshCommand \n\toutput: $output")
+        else
+          loggerIO.error(
+            s"error occurred during command execution. \n\tcmd: $sshCommand \n\tstdOut: $output \n\tstdErr: $error"
+          )
     } yield output
   }
 

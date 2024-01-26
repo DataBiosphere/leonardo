@@ -50,19 +50,10 @@ class NotebooksListPage(override val url: String)(implicit
 
   override def open(implicit webDriver: WebDriver): NotebooksListPage = super.open.asInstanceOf[NotebooksListPage]
 
-  val uploadNewButton: Query = cssSelector("[title='Click to browse for a file to upload.']")
   val finishUploadButton: Query = cssSelector("[class='btn btn-primary btn-xs upload_button']")
   val newButton: Query = cssSelector("[id='new-buttons']")
   val newFolder: Query = cssSelector("ul#new-menu > li[id='new-folder'] > a")
   val rowItems: Query = cssSelector("[class='item_name']")
-
-  def findUntitledFolder: Option[Element] =
-    findAll(rowItems).find(_.text == "Untitled Folder")
-
-  def upload(file: File): Unit = {
-    uploadNewButton.findElement.get.underlying.sendKeys(file.getAbsolutePath)
-    click on (await enabled finishUploadButton)
-  }
 
   def withOpenNotebook[T](file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     // corresponds to either the file name if just a name is specified, or the first directory if a path is specified
@@ -103,18 +94,4 @@ class NotebooksListPage(override val url: String)(implicit
         logger.error(s"Error occurred shutting down ${kernel} kernel on attempt ${attempt}", e)
         shutDownKernel(page, kernel, attempt + 1)
       }
-
-  def withSubFolder[T](timeout: FiniteDuration = 1.minutes)(testCode: NotebooksListPage => T): T = {
-    if (!findUntitledFolder.isDefined) {
-      await visible (newButton, timeout.toSeconds)
-      click on newButton
-      await visible (newFolder, timeout.toSeconds)
-      click on newFolder
-    }
-    await condition (findUntitledFolder.isDefined, timeout.toSeconds)
-    click on findUntitledFolder.get
-    await condition (!findUntitledFolder.isDefined, timeout.toSeconds)
-    val newListPage = new NotebooksListPage(currentUrl)
-    testCode(newListPage)
-  }
 }
