@@ -971,7 +971,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                     DiskDeletionError(
                       msg.diskId,
                       msg.workspaceId,
-                      s"WSM delete disk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                      s"WSM delete VM disk was not completed within ${config.deleteDiskPollConfig.maxAttempts} attempts with ${config.deleteDiskPollConfig.interval} delay"
                     )
                   )
               }
