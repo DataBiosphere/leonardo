@@ -68,7 +68,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/52aab3b7f252667f73b23682062ab3e0d9d533b9/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:bd50dbc",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:ae65380",
             VMCredential(username = "username", password = "password")
           )
         ),
@@ -220,7 +220,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.2.0"))
+        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.3.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
