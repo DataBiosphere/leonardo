@@ -7,8 +7,8 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -315,11 +315,16 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def updateDateAccessed(appName: AppName, cloudContext: CloudContext, now: Instant): DBIO[Int] =
     cloudContext match {
       case CloudContext.Gcp(_) =>
-        // This query isn't efficient because appName isn't indexed. Future optimization is needed for findActiveByNameQuery method
-        findActiveByNameQuery(appName)
-          .filter(r => r.workspaceId.isEmpty)
-          .map(a => a.dateAccessed)
-          .update(now)
+        sql"""
+            UPDATE APP
+            JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+            JOIN KUBERNETES_CLUSTER ON KUBERNETES_CLUSTER.id = NODEPOOL.clusterId
+            SET APP.dateAccessed = ${now}
+            where APP.appName = ${appName.value} AND
+                  KUBERNETES_CLUSTER.cloudContext = ${cloudContext.asCloudContextDb.value} AND
+                  APP.destroyedDate = ${dummyDate} AND
+                  APP.status != 'DELETED'
+         """.asUpdate
       case CloudContext.Azure(_) =>
         DBIO.failed(new RuntimeException("Please don't use this query for Azure apps"))
     }

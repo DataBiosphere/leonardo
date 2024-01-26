@@ -37,25 +37,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testCode(notebooksListPage.open)
   }
 
-  def withFileUpload[T](cluster: ClusterCopy, file: File)(
-    testCode: NotebooksListPage => T
-  )(implicit webDriver: WebDriver, token: AuthToken): T =
-    withNotebooksListPage(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName)) {
-      notebooksListPage =>
-        notebooksListPage.upload(file)
-        testCode(notebooksListPage)
-    }
-
-  def withNotebookUpload[T](cluster: ClusterCopy, file: File, timeout: FiniteDuration = 2.minutes)(
-    testCode: NotebookPage => T
-  )(implicit webDriver: WebDriver, token: AuthToken): T =
-    withFileUpload(cluster, file) { notebooksListPage =>
-      logger.info(
-        s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
-      )
-      notebooksListPage.withOpenNotebook(file, timeout)(notebookPage => testCode(notebookPage))
-    }
-
   def withNewNotebook[T](cluster: ClusterCopy, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 3.minutes)(
     testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
@@ -89,38 +70,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
         )
       }
     }
-    Await.result(result, 10 minutes)
-  }
-
-  // Creates a notebook with the directory structure:
-  //   ~jupyter-user/notebooks/Untitled Folder/Untitled Folder/Untitled.ipynb
-  // This roughly simulates an real-life directory structure like:
-  //   ~jupyter-user/notebooks/Workspace Name/edit/notebook.ipynb
-  // Ideally we would name the directories similarly but the Jupyter UI doesn't make that easy.
-  def withNewNotebookInSubfolder[T](
-    cluster: ClusterCopy,
-    kernel: NotebookKernel = Python3,
-    timeout: FiniteDuration = 2.minutes
-  )(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    // Note we retry the entire notebook creation when we encounter KernelNotReadyException
-    val result =
-      retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
-                                                                                                      2 minutes
-      ) { () =>
-        withNotebooksListPage(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName)) {
-          notebooksListPage =>
-            notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
-              notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
-                logger.info(
-                  s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
-                )
-                Future(
-                  notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
-                )
-              }
-            }
-        }
-      }
     Await.result(result, 10 minutes)
   }
 

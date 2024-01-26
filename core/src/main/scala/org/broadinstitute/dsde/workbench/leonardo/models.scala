@@ -69,7 +69,7 @@ case class WsmState(state: Option[String]) extends AnyVal {
   def value: String = state.getOrElse("DELETED").toUpperCase()
 
   /** Any in-progress state cannot be deleted: CREATING, DELETING, UPDATING */
-  def isDeletable: Boolean = Set("BROKEN", "READY") contains this.value
+  def isDeletable: Boolean = Set("BROKEN", "READY", "DELETED") contains this.value
 
   def isDeleted: Boolean = this.value == "DELETED"
 }
