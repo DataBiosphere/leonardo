@@ -181,7 +181,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
    * @param readerRuntimeSamIds
    * @param readerWorkspaceSamIds
    * @param readerProjectSamIds
-   * @param ownerWorkspaceSamIdsq
+   * @param ownerWorkspaceSamIds
    * @param ownerProjectSamIds
    * @return
    */

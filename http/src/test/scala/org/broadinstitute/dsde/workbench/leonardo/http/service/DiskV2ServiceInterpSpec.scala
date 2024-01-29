@@ -136,19 +136,15 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   it should "delete a disk" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskV2Service = makeDiskV2Service(publisherQueue)
-    // val diskWsmResourceId = Some(WsmControlledResourceId(UUID.randomUUID()))
 
     val res = for {
       ctx <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
-      // diskWsmResource <- IO(WsmControlledResourceId(UUID.randomUUID()))
       disk <- makePersistentDisk()
         .copy(samResource = diskSamResource)
         .save()
 
       _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, ctx.now).transaction
-
-      // disk <- makePersistentDisk(None).copy(samResource = diskSamResource, wsmResourceId = Some(wsmResourceId)).save()
 
       _ <- diskV2Service.deleteDisk(userInfo, disk.id)
       dbDiskOpt <- persistentDiskQuery

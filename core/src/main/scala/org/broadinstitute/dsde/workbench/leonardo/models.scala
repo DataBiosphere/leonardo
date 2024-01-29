@@ -64,8 +64,9 @@ object StagingBucket {
  * if None --> it is deletable and is deleted
  * (already deleted in WSM, need to clean up leo resources)
  */
-case class WsmState(state: Option[String]) extends AnyVal {
+case class WsmState(state: Option[String]) {
 
+  val deletableStatuses: Set[String] = Set("BROKEN", "READY", "DELETED")
   def value: String = state.getOrElse("DELETED").toUpperCase()
 
   /** Any in-progress state cannot be deleted: CREATING, DELETING, UPDATING */

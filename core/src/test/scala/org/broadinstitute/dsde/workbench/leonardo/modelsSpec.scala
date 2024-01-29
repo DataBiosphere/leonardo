@@ -23,13 +23,3 @@ class modelsSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
     WsmState(Some("anything else")).isDeletable shouldBe false
   }
 }
-
-//class kubernetesModelsSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
-//  it should "convert chartName to AllowedChartName correctly" in {
-//    AllowedChartName.fromChartName(ChartName("/leonardo/cromwell")) shouldBe None
-//    AllowedChartName.fromChartName(ChartName("/leonardo/sas")) shouldBe Some(AllowedChartName.Sas)
-//    AllowedChartName.fromChartName(ChartName("/leonardo/rstudio")) shouldBe Some(
-//      AllowedChartName.RStudio
-//    )
-//  }
-//}
