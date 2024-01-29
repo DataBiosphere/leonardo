@@ -17,14 +17,14 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "5781917"
+  private val workbenchLibsHash = "8537f171-SNAP"
   val serviceTestV = s"4.2-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.30-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.35-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.36-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
-  val workbenchAzureV = s"0.6-$workbenchLibsHash"
+  val workbenchAzureV = s"0.7-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.20"
 
@@ -218,6 +218,7 @@ object Dependencies {
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
+   // "io.circe" %% "circe-generic" % "0.14.5"
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
