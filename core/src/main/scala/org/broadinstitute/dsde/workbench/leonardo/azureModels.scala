@@ -35,7 +35,8 @@ final case class WsmManagedAzureIdentity(wsmResourceName: String, managedIdentit
 
 final case class WsmControlledDatabaseResource(wsmDatabaseName: String,
                                                azureDatabaseName: String,
-                                               controlledResourceId: Option[UUID] = None)
+                                               controlledResourceId: Option[UUID] = None
+)
 
 final case class LandingZoneResources(landingZoneId: UUID,
                                       aksCluster: AKSCluster,
