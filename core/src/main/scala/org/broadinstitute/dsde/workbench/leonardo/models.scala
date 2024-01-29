@@ -1,8 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import bio.terra.workspace.model.State
 import ca.mrvisser.sealerate
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
 
@@ -64,13 +67,73 @@ object StagingBucket {
  * if None --> it is deletable and is deleted
  * (already deleted in WSM, need to clean up leo resources)
  */
-case class WsmState(state: Option[String]) {
+case class WsmState(state: Option[String])(implicit log: StructuredLogger[IO]) {
 
   val deletableStatuses: Set[String] = Set("BROKEN", "READY", "DELETED")
+  val possibleStatuses: Array[String] = State.values().map(_.toString) :+ "DELETED"
+
+  def apply(): Unit =
+    if (!possibleStatuses.contains(this.value)) {
+      log.warn(s"Unrecognized WSM state $state, WSM resource may not be processed correctly")
+    }
   def value: String = state.getOrElse("DELETED").toUpperCase()
 
   /** Any in-progress state cannot be deleted: CREATING, DELETING, UPDATING */
-  def isDeletable: Boolean = Set("BROKEN", "READY", "DELETED") contains this.value
+  def isDeletable: Boolean = deletableStatuses contains this.value
 
   def isDeleted: Boolean = this.value == "DELETED"
 }
+
+//sealed trait WsmStatus {
+//  val value: String
+//}
+//
+//object WsmStatus {
+//  case object BROKEN extends WsmStatus {
+//    val value = "BROKEN"
+//  }
+//
+//  case object READY extends WsmStatus {
+//    val value = "READY"
+//  }
+//
+//  case object DELETED extends WsmStatus {
+//    val value = "DELETED"
+//  }
+//
+//  case object CREATING extends WsmStatus {
+//    val value = "CREATING"
+//  }
+//
+//  case object DELETING extends WsmStatus {
+//    val value = "DELETING"
+//  }
+//
+//  case object UPDATING extends WsmStatus {
+//    val value = "UPDATING"
+//  }
+//
+//  case object UNKNOWN extends WsmStatus {
+//    val value = "UNKNOWN"
+//  }
+//
+//  // Function to create a WsmStatus instance from a string
+//  def apply(value: Option[String]): WsmStatus =
+//    value match {
+//      case "BROKEN"   => BROKEN
+//      case "READY"    => READY
+//      case "CREATING" => CREATING
+//      case "DELETING" => DELETING
+//      case "UPDATING" => UPDATING
+//      case None       => DELETED
+//      case _          => UNKNOWN
+//    }
+//
+//  val deletableStatuses: Set[WsmStatus] = Set(READY, BROKEN, DELETED)
+//
+//  implicit class EnrichedWsmStatus(status: WsmStatus) {
+//    def isDeletable: Boolean = deletableStatuses contains status
+//    def isDeleted: Boolean = status == DELETED
+//
+//  }
+//}

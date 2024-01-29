@@ -19,7 +19,7 @@ class modelsSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
     WsmState(Some("UPDATING")).isDeletable shouldBe false
   }
   it should "determine if WSM state is deleted" in {
-    WsmState(None).isDeletable shouldBe true
-    WsmState(Some("anything else")).isDeletable shouldBe false
+    WsmState(None).isDeleted shouldBe true
+    WsmState(Some("READY")).isDeleted shouldBe false
   }
 }
