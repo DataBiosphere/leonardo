@@ -26,6 +26,8 @@ import pact4s.provider._
 import pact4s.scalatest.PactVerifier
 
 import java.lang.Thread.sleep
+import java.net.URL
+import java.time.Instant
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import java.time.Instant
 

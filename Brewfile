@@ -1,7 +1,7 @@
 # Please read README.md
 # https://openfolder.sh/macos-migrations-with-brewfile
 
-brew "git"
+#brew "git"
 brew "gh"
 
 # https://developer.hashicorp.com/vault/tutorials/getting-started/getting-started-install
@@ -11,8 +11,8 @@ brew "hashicorp/tap/vault"
 
 # https://github.com/sdkman/homebrew-tap
 # see url for post-install steps
-tap "sdkman/tap"
-brew "sdkman-cli"
+#tap "sdkman/tap"
+#brew "sdkman-cli"
 
 # https://formulae.brew.sh/formula/mysql-client
 brew "mysql-client"

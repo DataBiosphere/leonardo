@@ -112,7 +112,7 @@ class AzureRuntimeSpec
           callGetRuntime,
           60,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 0 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 10 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
 
         _ <- loggerIO.info(
