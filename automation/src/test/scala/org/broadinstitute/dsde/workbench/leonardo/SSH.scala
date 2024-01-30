@@ -144,7 +144,7 @@ object SSH {
   // This method is the main one for any interaction with GCP VMs
   def executeGoogleCommand(project: GoogleProject, zone: String, runtimeName: RuntimeName, cmd: String): IO[String] = {
     val dummyCommand =
-      s"gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"ls\" -- -tt"
+      s"gcloud compute ssh --zone '${zone}' --ssh-flag='-vvv' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --command=\"ls\" -- -tt"
 
     // This command is a bit special.
     // It needs to go through 4 layers of interpolation:
@@ -157,7 +157,7 @@ object SSH {
     // For example, to use command with echo that is executed in bash at layer 3 with quotes that persist into layer 4 `sudo docker exec -it jupyter-server bash -c "echo \\\"this should save\\\" > /home/jupyter/test.txt"`
     val sshCommand =
       s"""
-          gcloud compute ssh --zone '${zone}' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --verbosity=error --command='$cmd' -- -tt
+          gcloud compute ssh --zone '${zone}' --ssh-flag='-vvv' '${LeonardoConfig.GCS.leonardoServiceAccountUsername}@${runtimeName.asString}' --project '${project.value}' --tunnel-through-iap -q --verbosity=error --command='$cmd' -- -tt
       """
 
     val outWriter = new StringBuilder
