@@ -17,27 +17,12 @@ import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleProjectDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO
-}
+import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{
-  credentialResource,
-  Event,
-  GKEService,
-  GoogleComputeService,
-  GoogleDataprocService,
-  GoogleDiskService,
-  GooglePublisher,
-  GoogleResourceService,
-  GoogleStorageService,
-  GoogleSubscriber
-}
+import org.broadinstitute.dsde.workbench.google2.{GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GooglePublisher, GoogleResourceService, GoogleStorageService, GoogleSubscriber, credentialResource}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.LeoPublisher
 import org.broadinstitute.dsde.workbench.leonardo.app._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -46,13 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  BuildTimeVersion,
-  GCPModeSpecificServices,
-  HttpRoutes,
-  LivenessRoutes,
-  StandardUserInfoDirectives
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, GCPModeSpecificServices, HttpRoutes, LivenessRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -62,11 +41,12 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.messaging._
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
+import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
@@ -614,8 +594,8 @@ object Boot extends IOApp {
             googleResourceService <-
               GoogleResourceService.resource[IO](credentialPath, semaphore)
             googleStorage <- GoogleStorageService.resource[IO](credPathString, Some(semaphore))
-            googlePublisher <- GooglePublisher.resource[IO](publisherConfig(credentialPath))
-            cryptoMiningUserPublisher <- GooglePublisher.resource[IO](cryptominingTopicPublisherConfig(credentialPath))
+            googlePublisher <- GooglePublisher.cloudPublisherResource[IO](publisherConfig(credentialPath))
+            cryptoMiningUserPublisher <- GooglePublisher.cloudPublisherResource[IO](cryptominingTopicPublisherConfig(credentialPath))
             gkeService <- GKEService.resource(credentialPath, semaphore)
 
             // Retry 400 responses from Google, as those can occur when resources aren't ready yet
@@ -648,11 +628,11 @@ object Boot extends IOApp {
 
             googleDiskService <- GoogleDiskService.resource(credPathString, semaphore)
 
-            subscriberQueue <- Resource.eval(Queue.bounded[IO, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
+            subscriberQueue <- Resource.eval(Queue.bounded[IO, ReceivedMessage[LeoPubsubMessage]](pubsubConfig.queueSize))
             subscriber <- GoogleSubscriber.resource(subscriberConfig(credentialPath), subscriberQueue)
 
             nonLeoMessageSubscriberQueue <- Resource.eval(
-              Queue.bounded[IO, Event[NonLeoMessage]](pubsubConfig.queueSize)
+              Queue.bounded[IO, ReceivedMessage[NonLeoMessage]](pubsubConfig.queueSize)
             )
             nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig(credentialPath),
                                                                  nonLeoMessageSubscriberQueue
@@ -749,18 +729,37 @@ object Boot extends IOApp {
               nonLeoMessageSubscriber
             )
           }
+          //This where Azure Dependencies are created when hosting Leonardo on Azure.
         case None =>
-          val publisher = new LeoPublisher(publisherQueue, new AzurePublisher[IO] {}) // TODO: Jesus will fix this
+          val pubConfig = AzureServiceBusPublisherConfig(
+            azurePubSubConfig.topic,
+            azurePubSubConfig.connectionString,
+            azurePubSubConfig.namespace
+          )
 
-          Resource.pure[IO, CloudDependencies](
+          val subConfig = AzureServiceBusSubscriberConfig(
+            azurePubSubConfig.topic,
+            azurePubSubConfig.subscription,
+            azurePubSubConfig.connectionString,
+            azurePubSubConfig.namespace
+          )
+
+          for{
+            subscriberQueue <- Resource.eval(Queue.bounded[IO, ReceivedMessage[LeoPubsubMessage]](azurePubSubConfig.queueSize))
+
+            cloudSubscriber <- AzureSubscriberInterpreter.subscriber(subConfig, subscriberQueue)
+
+            publisher <- AzurePublisherInterpreter.publisher(pubConfig)
+
+            leoPublisher = new LeoPublisher(publisherQueue, publisher)
+
+          }yield{
             CloudDependencies.Azure(
-              leoPublisher = publisher,
-              new AzureSubscriber[IO, LeoPubsubMessage] {
-                def messages: Stream[IO, AzureEvent[LeoPubsubMessage]] = ???
-              }, // TODO: Jesus will fix this
+              leoPublisher,
+              cloudSubscriber,
               gcpModeSpecificDependencies = None
             )
-          )
+          }
       }
     } yield {
       val kubeAlg = new KubernetesInterpreter[IO](
@@ -768,6 +767,7 @@ object Boot extends IOApp {
       )
 
       val cromwellAppInstall = new CromwellAppInstall[IO](
+
         ConfigReader.appConfig.azure.coaAppConfig,
         ConfigReader.appConfig.drs,
         samDao,
@@ -974,18 +974,18 @@ object CloudDependencies {
     dataprocInterp: DataprocInterpreter[IO],
     googleResourceService: GoogleResourceService[IO],
     leoPublisher: LeoPublisher[IO], // TODO: Jesus is working on fix this
-    messageSubscriber: GoogleSubscriber[IO, LeoPubsubMessage],
-    cryptoMiningUserPublisher: GooglePublisher[IO],
+    messageSubscriber: CloudSubscriber[IO, LeoPubsubMessage],
+    cryptoMiningUserPublisher: CloudPublisher[IO],
     gkeAlg: GKEAlgebra[IO],
     googleDiskService: GoogleDiskService[IO],
     googleProjectDAO: GoogleProjectDAO,
     gcpModeSpecificDependencies: Option[GCPModeSpecificDependencies[IO]],
-    nonLeoMessageGoogleSubscriber: GoogleSubscriber[IO, NonLeoMessage]
+    nonLeoMessageGoogleSubscriber: CloudSubscriber[IO, NonLeoMessage]
   ) extends CloudDependencies
 
   final case class Azure(
     leoPublisher: LeoPublisher[IO],
-    messageSubscriber: AzureSubscriber[IO, LeoPubsubMessage],
+    messageSubscriber: CloudSubscriber[IO, LeoPubsubMessage],
     gcpModeSpecificDependencies: Option[GCPModeSpecificDependencies[IO]]
   ) extends CloudDependencies
 }

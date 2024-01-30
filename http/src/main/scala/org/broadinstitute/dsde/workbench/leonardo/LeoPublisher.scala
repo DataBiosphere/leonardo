@@ -4,23 +4,24 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.syntax.all._
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.leonardo.dao.CloudTopicPublisher
+import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 /**
- * dequeue from publisherQueue and transform it into a native google pubsub message;
+ * dequeue from publisherQueue and sends it via the Cloud Publisher
  * After pubsub message is published, we update database when necessary
  */
 final class LeoPublisher[F[_]](
   publisherQueue: Queue[F, LeoPubsubMessage],
-  publisher: CloudTopicPublisher[F]
+  publisher: CloudPublisher[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -35,7 +36,7 @@ final class LeoPublisher[F[_]](
           Stream
             .eval(F.pure(event))
             .covary[F]
-            .through(publisher.publishMessagePipe)
+            .through(publisher.publish)
             .evalMap(_ => updateDatabase(event))
             .handleErrorWith { t =>
               val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
