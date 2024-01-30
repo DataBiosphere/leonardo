@@ -552,6 +552,8 @@ class GKEInterpreter[F[_]](
           F.raiseError(AppCreationException(s"App type ${app.appType} not supported on GCP"))
       }
 
+      readyTime <- F.realTimeInstant
+      _ <- appUsageQuery.recordStart(params.appId, readyTime)
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
@@ -1172,8 +1174,7 @@ class GKEInterpreter[F[_]](
             startTime <- F.realTimeInstant
             // The app is Running at this point and can be used
             _ <- appQuery.updateStatus(dbApp.app.id, AppStatus.Running).transaction
-            trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
-            _ <- appUsageQuery.recordStart(dbApp.app.id, startTime).whenA(trackUsage)
+            _ <- appUsageQuery.recordStart(dbApp.app.id, startTime)
             // If autoscaling should be enabled, enable it now. Galaxy can still be used while this is in progress
             _ <-
               if (dbApp.app.numOfReplicas.isEmpty && dbApp.nodepool.autoscalingEnabled) {
@@ -1553,7 +1554,7 @@ class GKEInterpreter[F[_]](
             s"AoU app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getClusterId.toString}"
           logger.error(ctx.loggingCtx)(msg) >>
             F.raiseError[Unit](AppCreationException(msg))
-        } else appUsageQuery.recordStart(appId, readyTime).whenA(allowedChart.trackUsage)
+        } else F.unit
 
     } yield ()
 

@@ -421,9 +421,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               diskOpt,
               Some(ctx.traceId)
             )
-            trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
-            _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage).recoverWith {
-              case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+            _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).recoverWith { case e: FailToRecordStoptime =>
+              log.error(ctx.loggingCtx)(e.getMessage)
             }
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
@@ -558,8 +557,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         cloudContext.value,
         Some(ctx.traceId)
       )
-      trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
-      _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage)
+      _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now)
       _ <- publisherQueue.offer(message)
     } yield ()
 
