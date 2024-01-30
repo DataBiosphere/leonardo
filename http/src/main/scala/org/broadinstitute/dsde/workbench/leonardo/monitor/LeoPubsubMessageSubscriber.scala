@@ -16,9 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
   streamUntilDoneOrTimeout,
   DiskName,
-  Event,
   GoogleDiskService,
-  GoogleSubscriber,
   MachineTypeName,
   ZoneName
 }
@@ -27,21 +25,16 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.{AllowedAppConfig, KubernetesAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AppNotFoundException,
-  AppTypeNotSupportedOnCloudException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, AppTypeNotSupportedOnCloudException}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
-import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{
-  getGalaxyPostgresDiskName,
-  getOldStyleGalaxyPostgresDiskName
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{getGalaxyPostgresDiskName, getOldStyleGalaxyPostgresDiskName}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.ChartVersion
 
 import java.time.Instant
@@ -167,21 +160,18 @@ class LeoPubsubMessageSubscriber[F[_]](
         } yield resp
     }
 
-  private[monitor] def messageHandler(event: CloudPubsubEvent[LeoPubsubMessage]): F[Unit] = {
+  private[monitor] def messageHandler(event: ReceivedMessage[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
-    implicit val ev = Ask.const[F, AppContext](AppContext(traceId, event.publishedTime, span = None))
+    implicit val ev = Ask.const[F, AppContext](AppContext(traceId, event.publishedTime.getOrElse(Instant.now()), span = None))
     childSpan(event.msg.messageType.asString).use { implicit ev =>
       messageHandlerWithContext(event)
     }
   }
 
   private[monitor] def messageHandlerWithContext(
-    event: CloudPubsubEvent[LeoPubsubMessage]
+    event: ReceivedMessage[LeoPubsubMessage]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val consumerHandler = event match {
-      case CloudPubsubEvent.GCP(event) => Some(event.consumer)
-      case CloudPubsubEvent.Azure(_)   => None
-    }
+
     val res = for {
       res <- messageResponder(event.msg)
         .timeout(config.timeout)
@@ -192,6 +182,46 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
 
       _ <- res match {
+        case Left(e) =>
+          e match {
+            case ee: PubsubHandleMessageError =>
+              for {
+                _ <- ee match {
+                  case ee: PubsubKubernetesError =>
+                    logger.error(ctx.loggingCtx, e)(
+                      s"Encountered an error for app ${ee.appId}, ${ee.getMessage}"
+                    ) >> handleKubernetesError(
+                      ee
+                    )
+                  case ee: AzureRuntimeCreationError =>
+                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
+                  case ee: AzureRuntimeDeletionError =>
+                    azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
+                  case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
+                }
+                _ <-
+                  if (ee.isRetryable)
+                    logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F
+                     .delay(event.ackHandler.nack())
+                  else
+                    logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
+              } yield ()
+            case ee: WorkbenchException if ee.getMessage.contains("Call to Messaging API failed") =>
+              logger
+                .error(ctx.loggingCtx, e)(
+                  "Fail to process retryable pubsub message due to Messaging API call failure"
+                ) >> F.blocking(event.ackHandler.nack())
+            case _ =>
+              logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
+          }
+        case Right(_) => ack(event)
+      }
+    } yield ()
+
+    res.handleErrorWith(e =>
+      logger.error(e)("Fail to process pubsub message for some reason") >>
+        F.blocking(event.ackHandler.nack())
+    )
         case Left(e)  => processMessageFailure(ctx, event, e)
         case Right(_) => ack(event)
       }
@@ -262,18 +292,17 @@ class LeoPubsubMessageSubscriber[F[_]](
       .parEvalMapUnordered(config.concurrency)(messageHandler)
       .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
-  private def ack(event: CloudPubsubEvent[LeoPubsubMessage]): F[Unit] =
+  private def ack(event: ReceivedMessage[LeoPubsubMessage]): F[Unit] =
     for {
       _ <- logger.info(s"acking message: ${event}")
-      _ <- event match {
-        case CloudPubsubEvent.GCP(event) =>
-          F.delay(
-            event.consumer.ack()
-          )
-        case CloudPubsubEvent.Azure(_) => F.unit
-      }
+
+      _ <- F.delay(event.ackHandler.ack())
+
       end <- F.realTimeInstant
-      duration = (end.toEpochMilli - event.publishedTime.toEpochMilli).millis
+      // A zero duration means the publishing time is not available, this should never be case
+      // and it must be debugged if it happens.
+      duration = Duration.create( end.toEpochMilli - event.publishedTime.getOrElse(Instant.now()).toEpochMilli,
+                                  TimeUnit.MILLISECONDS)
       distributionBucket = List(0.5 minutes,
                                 1 minutes,
                                 1.5 minutes,

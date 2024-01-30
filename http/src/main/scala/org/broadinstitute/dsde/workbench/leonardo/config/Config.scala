@@ -2,25 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
-import com.typesafe.config.{Config => TypeSafeConfig, ConfigFactory}
+import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
-import org.broadinstitute.dsde.workbench.google2.{
-  DeviceName,
-  FirewallRuleName,
-  KubernetesName,
-  Location,
-  MachineTypeName,
-  MaxRetries,
-  NetworkName,
-  PublisherConfig,
-  RegionName,
-  SubnetworkName,
-  SubscriberConfig,
-  SubscriberDeadLetterPolicy,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DeviceName, FirewallRuleName, KubernetesName, Location, MachineTypeName, MaxRetries, NetworkName, PublisherConfig, RegionName, SubnetworkName, SubscriberConfig, SubscriberDeadLetterPolicy, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
@@ -30,18 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AppServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  CreateDiskTimeout,
-  DateAccessedUpdaterConfig,
-  InterruptablePollMonitorConfig,
-  LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitorConfig,
-  PollMonitorConfig
-}
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor._
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{DataprocInterpreterConfig, GceInterpreterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -901,4 +877,15 @@ object Config {
       gkeGalaxyDiskConfig
     )
 
-}
+  implicit private val azurePubSubConfigReader: ValueReader[AzurePubSubConfig] = ValueReader.relative { config =>
+    AzurePubSubConfig(
+      config.as[String]("topic"),
+      config.as[String]("subscription"),
+      config.as[Option[String]]("namespace"),
+      config.as[Option[String]]("connectionString")
+    )
+  }
+
+  val azurePubSubConfig: AzurePubSubConfig = config.as[AzurePubSubConfig]("azureHosting.pubsub")
+
+  }
