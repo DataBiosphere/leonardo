@@ -4,14 +4,13 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.syntax.all._
 import fs2.Stream
-import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.typelevel.log4cats.StructuredLogger
-
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 

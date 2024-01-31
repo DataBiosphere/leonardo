@@ -323,7 +323,7 @@ class RuntimeCreationDiskSpec extends BillingProjectFixtureSpec with ParallelTes
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  private def verifyDisk(clusterCopyWithData: ClusterCopy)(implicit authToken: AuthToken) =
+  private def verifyDisk(clusterCopyWithData: ClusterCopy) =
     for {
       fileOutput <- SSH.executeGoogleCommand(
         clusterCopyWithData.googleProject,
