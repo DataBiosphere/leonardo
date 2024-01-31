@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeRe
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalacheck.Gen.uuid
 import pact4s.provider._
@@ -18,7 +18,7 @@ import java.net.URL
 import java.time.Instant
 
 object RuntimeStateManager {
-  private object States {
+  object States {
     final val RuntimeExists = "there is a runtime in a Google project"
     final val RuntimeDoesNotExist = "there is not a runtime in a Google project"
   }
@@ -26,7 +26,7 @@ object RuntimeStateManager {
     case ProviderState(States.RuntimeExists, _) =>
       val date = Instant.parse("2020-11-20T17:23:24.650Z")
       when(
-        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName])(any[Ask[IO, AppContext]])
+        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(any[Ask[IO, AppContext]])
       )
         .thenReturn(IO {
           GetRuntimeResponse(
