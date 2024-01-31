@@ -12,32 +12,18 @@ import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{
-  isSuccess,
-  streamUntilDoneOrTimeout,
-  DiskName,
-  Event,
-  GoogleDiskService,
-  GoogleSubscriber,
-  MachineTypeName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, Event, GoogleDiskService, GoogleSubscriber, MachineTypeName, ZoneName, isSuccess, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.appTypeToFormattedByType
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.config.{AllowedAppConfig, KubernetesAppConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AppNotFoundException,
-  AppTypeNotSupportedOnCloudException
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppNotFoundException, AppTypeNotSupportedOnCloudException}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
-import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{
-  getGalaxyPostgresDiskName,
-  getOldStyleGalaxyPostgresDiskName
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{getGalaxyPostgresDiskName, getOldStyleGalaxyPostgresDiskName}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
@@ -70,7 +56,8 @@ class LeoPubsubMessageSubscriber[F[_]](
   authProvider: LeoAuthProvider[F],
   gkeAlg: GKEAlgebra[F],
   azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
-  operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]]
+  operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]],
+  samDAO: SamDAO[F]
 )(implicit
   executionContext: ExecutionContext,
   F: Async[F],
@@ -458,6 +445,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
@@ -468,6 +456,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
+      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
       _ <- runtime.cloudContext match {
         case CloudContext.Gcp(_) =>
           for {
@@ -495,8 +484,9 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
           } yield ()
         case CloudContext.Azure(azureContext) =>
+
           azurePubsubHandler
-            .startAndMonitorRuntime(runtime, azureContext)
+            .startAndMonitorRuntime(runtime, azureContext, tokenOpt)
             .handleErrorWith(e =>
               azurePubsubHandler.handleAzureRuntimeStartError(
                 AzureRuntimeStartingError(

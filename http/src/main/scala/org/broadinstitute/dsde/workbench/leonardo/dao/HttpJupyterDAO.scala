@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import akka.http.scaladsl.server.directives.Credentials
 import cats.effect.Async
 import cats.syntax.all._
 import io.circe.Decoder
@@ -12,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
-import org.http4s.headers.Authorization
 import org.http4s.{Header, Headers, Method, Request}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.Logger

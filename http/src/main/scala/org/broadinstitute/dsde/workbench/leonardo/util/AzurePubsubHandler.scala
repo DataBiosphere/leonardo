@@ -211,7 +211,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
 
-  override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+  override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext, tokenOpt: Option[String])(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
@@ -229,7 +229,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       case Some(mono) =>
         val task = for {
           _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
-          isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
+          isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName, tokenOpt)
           _ <- streamUntilDoneOrTimeout(
             isJupyterUp,
             config.createVmPollConfig.maxAttempts,
@@ -468,8 +468,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => x
       }
 
-      isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName, tokenOpt)
-      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName, tokenOpt)
+      isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName, params.tokenOpt)
+      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName, params.tokenOpt)
 
       taskToRun = for {
         _ <- F.sleep(

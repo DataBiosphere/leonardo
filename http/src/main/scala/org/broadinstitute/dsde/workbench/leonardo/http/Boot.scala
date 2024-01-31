@@ -783,7 +783,8 @@ object Boot extends IOApp {
         authProvider,
         gkeAlg,
         azureAlg,
-        operationFutureCache
+        operationFutureCache,
+        samDao
       )
 
       AppDependencies(

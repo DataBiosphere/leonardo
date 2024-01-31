@@ -30,7 +30,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
+  def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext, tokenOpt: Option[String])(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 

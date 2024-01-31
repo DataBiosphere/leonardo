@@ -21,10 +21,10 @@ object ToolDAO {
       clusterTool match {
         case JupyterService =>
           (cloudContext: CloudContext, runtimeName: RuntimeName) =>
-            jupyterDAO.isProxyAvailable(cloudContext, runtimeName)
+            jupyterDAO.isProxyAvailable(cloudContext, runtimeName, None)
         case WelderService =>
           (cloudContext: CloudContext, runtimeName: RuntimeName) =>
-            welderDAO.isProxyAvailable(cloudContext, runtimeName)
+            welderDAO.isProxyAvailable(cloudContext, runtimeName, None)
         case RStudioService =>
           (cloudContext: CloudContext, runtimeName: RuntimeName) =>
             rstudioDAO.isProxyAvailable(cloudContext, runtimeName)
