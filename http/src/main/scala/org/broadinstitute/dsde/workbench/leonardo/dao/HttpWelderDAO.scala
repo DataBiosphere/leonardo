@@ -60,7 +60,7 @@ class HttpWelderDAO[F[_]: Logger](
       headers <- cloudContext match {
         case _: CloudContext.Azure =>
           //samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
-          F.pure(Headers(Header("Authorization", s"Bearer ${tokenOpt.get}")) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+          F.pure(Headers(Header.Raw(CIString("Authorization"), s"Bearer ${tokenOpt.get}")) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
 
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
