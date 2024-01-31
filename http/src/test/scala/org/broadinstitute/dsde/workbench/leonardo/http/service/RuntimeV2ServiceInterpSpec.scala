@@ -53,6 +53,7 @@ import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar
+import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -1181,7 +1182,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext]
+        ev: Ask[IO, AppContext],
+        logger: StructuredLogger[IO]
       ): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
@@ -1216,7 +1218,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext]
+        ev: Ask[IO, AppContext],
+        logger: StructuredLogger[IO]
       ): IO[WsmState] =
         IO.pure(WsmState(Some("UPDATING")))
     }
@@ -1251,7 +1254,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext]
+        ev: Ask[IO, AppContext],
+        logger: StructuredLogger[IO]
       ): IO[WsmState] =
         IO.pure(WsmState(Some("DELETING")))
     }
@@ -1286,7 +1290,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-        implicit ev: Ask[IO, AppContext]
+        implicit
+        ev: Ask[IO, AppContext],
+        logger: StructuredLogger[IO]
       ): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
@@ -1332,7 +1338,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     // make VM be deleted in WSM
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext]
+        ev: Ask[IO, AppContext],
+        logger: StructuredLogger[IO]
       ): IO[WsmState] =
         IO.pure(WsmState(None))
     }

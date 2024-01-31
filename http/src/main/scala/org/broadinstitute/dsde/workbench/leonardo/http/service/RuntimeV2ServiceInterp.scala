@@ -324,19 +324,27 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
           RuntimeCannotBeDeletedWsmException(runtime.cloudContext, runtime.runtimeName, wsmState)
         )
 
-      // check if disk is deletable in WSM if disk is being deleted
-      _ <-
+      // pass the disk to delete to publisher and set Leo status (if deleting disk)
+      diskIdToDeleteOpt <-
         if (deleteDisk) for {
+          // check if disk is deletable in WSM if disk is being deleted
           diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
           disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId)))(F.pure)
-          diskWsmId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(disk.id, ctx.traceId))
-          wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, diskWsmId)
-          _ <- F
-            .raiseUnless(wsmState.isDeletable)(
-              DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
-            )
-        } yield ()
-        else F.unit
+          diskIdToDelete <- disk.wsmResourceId match {
+            case Some(wsmResourceId) =>
+              for {
+                wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+                _ <- F
+                  .raiseUnless(wsmState.isDeletable)(
+                    DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
+                  )
+                _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+              } yield if (wsmState.isDeleted) F.pure(none[DiskId]) else Some(diskId)
+            // if disk hasn't been created in WSM, don't pass id to back leo
+            case None => F.pure(none[DiskId])
+          }
+        } yield Some(diskId)
+        else F.pure(none[DiskId])
 
       // only pass wsmResourceId if vm isn't already deleted in WSM
       // won't send the delete to WSM if vm is deleted
@@ -349,19 +357,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
-      // pass the disk to delete to publisher and set Leo status (if deleting disk)
-      diskIdToDelete <-
-        if (deleteDisk)
-          persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction.as(diskIdOpt)
-        else F.pure(none[DiskId])
-
       // Update DB record to Deleting status
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
       _ <- publisherQueue.offer(
         DeleteAzureRuntimeMessage(
           runtime.id,
-          diskIdToDelete,
+          diskIdToDeleteOpt,
           workspaceId,
           wsmVMResourceSamId,
           BillingProfileId(workspaceDesc.spendProfile),

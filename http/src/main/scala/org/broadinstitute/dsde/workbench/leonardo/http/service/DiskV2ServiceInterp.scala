@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
@@ -31,7 +32,8 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
-  ec: ExecutionContext
+  ec: ExecutionContext,
+  log: StructuredLogger[F]
 ) extends DiskV2Service[F] {
 
   // backwards compatible with v1 getDisk route
@@ -107,16 +109,18 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       // check if disk resource is deletable in WSM
-      wsmResourceId <- F.fromOption(disk.wsmResourceId, DiskWithoutWsmResourceIdException(disk.id, ctx.traceId))
-      wsmStatus <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
-
-      _ <- F.raiseUnless(wsmStatus.isDeletable)(
-        DiskCannotBeDeletedWsmException(disk.id, wsmStatus, disk.cloudContext, ctx.traceId)
-      )
-
-      // only send wsmResourceId to back leo if disk isn't already deleted in WSM
-      wsmDiskResourceId = if (wsmStatus.isDeleted) None else Some(wsmResourceId)
-      x = wsmStatus.value
+      wsmDiskResourceId <- disk.wsmResourceId match {
+        case Some(wsmResourceId) =>
+          for {
+            wsmStatus <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+            _ <- F.raiseUnless(wsmStatus.isDeletable)(
+              DiskCannotBeDeletedWsmException(disk.id, wsmStatus, disk.cloudContext, ctx.traceId)
+            )
+            // only send wsmResourceId to back leo if disk isn't already deleted in WSM
+          } yield if (wsmStatus.isDeleted) None else Some(wsmResourceId)
+        // if disk hasn't been created in WSM, don't pass id to back leo
+        case None => F.pure(None)
+      }
 
       // check that disk isn't attached to a runtime
       isAttached <- persistentDiskQuery.isDiskAttached(diskId).transaction

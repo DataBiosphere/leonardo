@@ -51,6 +51,7 @@ import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar.mock
+import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -2499,9 +2500,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   it should "error on delete if app subresource is in a status that cannot be deleted" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getDatabaseState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-        implicit ev: Ask[IO, AppContext]
-      ): IO[WsmState] =
+      override def getDatabaseState(token: String,
+                                    workspaceId: WorkspaceId,
+                                    wsmResourceId: WsmControlledResourceId
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
     val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)

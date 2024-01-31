@@ -2,11 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import bio.terra.workspace.model.State
 import ca.mrvisser.sealerate
-import cats.effect.IO
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
-import org.typelevel.log4cats.StructuredLogger
-
 import java.util.UUID
 
 final case class WorkspaceId(value: UUID) extends AnyVal
@@ -67,15 +64,15 @@ object StagingBucket {
  * if None --> it is deletable and is deleted
  * (already deleted in WSM, need to clean up leo resources)
  */
-case class WsmState(state: Option[String])(implicit log: StructuredLogger[IO]) {
+case class WsmState(state: Option[String]) {
 
   val deletableStatuses: Set[String] = Set("BROKEN", "READY", "DELETED")
   val possibleStatuses: Array[String] = State.values().map(_.toString) :+ "DELETED"
 
-  def apply(): Unit =
-    if (!possibleStatuses.contains(this.value)) {
-      log.warn(s"Unrecognized WSM state $state, WSM resource may not be processed correctly")
-    }
+//  def apply(): Unit =
+//    if (!possibleStatuses.contains(this.value)) {
+//      log.warn(s"Unrecognized WSM state $state, WSM resource may not be processed correctly")
+//    }
   def value: String = state.getOrElse("DELETED").toUpperCase()
 
   /** Any in-progress state cannot be deleted: CREATING, DELETING, UPDATING */

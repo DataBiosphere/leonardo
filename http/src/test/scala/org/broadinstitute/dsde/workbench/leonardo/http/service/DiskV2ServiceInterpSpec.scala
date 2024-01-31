@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Delet
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.flatspec.AnyFlatSpec
+import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -168,7 +169,9 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     val publisherQueue = QueueFactory.makePublisherQueue()
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-        implicit ev: Ask[IO, AppContext]
+        implicit
+        ev: Ask[IO, AppContext],
+        log: StructuredLogger[IO]
       ): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
@@ -197,7 +200,9 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     val publisherQueue = QueueFactory.makePublisherQueue()
     val wsmClientProvider = new MockWsmClientProvider() {
       override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-        implicit ev: Ask[IO, AppContext]
+        implicit
+        ev: Ask[IO, AppContext],
+        log: StructuredLogger[IO]
       ): IO[WsmState] =
         IO.pure(WsmState(None))
     }
