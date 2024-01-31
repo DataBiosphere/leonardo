@@ -56,38 +56,38 @@ object RuntimeStateManager {
             Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
           )
         })
-    case ProviderState(States.RuntimeDoesNotExist, _) =>
-      val date = Instant.parse("2020-11-20T17:23:24.650Z")
-      when(
-        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName])(any[Ask[IO, AppContext]])
-      )
-        .thenReturn(IO {
-          GetRuntimeResponse(
-            -2,
-            runtimeSamResource,
-            name1,
-            cloudContextGcp,
-            serviceAccountEmail,
-            Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
-            auditInfo.copy(createdDate = date, dateAccessed = date),
-            Some(date),
-            defaultGceRuntimeConfig,
-            new URL("https://leo.org/proxy"),
-            RuntimeStatus.Running,
-            Map("sampleLabel" -> "sampleValue"),
-            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
-            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
-            List.empty[RuntimeError],
-            None,
-            30,
-            Some("clientId"),
-            Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
-            defaultScopes,
-            welderEnabled = true,
-            patchInProgress = true,
-            Map("ev1" -> "a", "ev2" -> "b"),
-            Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
-          )
-        })
+//    case ProviderState(States.RuntimeDoesNotExist, _) =>
+//      val date = Instant.parse("2020-11-20T17:23:24.650Z")
+//      when(
+//        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], any[RuntimeName])(any[Ask[IO, AppContext]])
+//      )
+//        .thenReturn(IO {
+//          GetRuntimeResponse(
+//            -2,
+//            runtimeSamResource,
+//            name1,
+//            cloudContextGcp,
+//            serviceAccountEmail,
+//            Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
+//            auditInfo.copy(createdDate = date, dateAccessed = date),
+//            Some(date),
+//            defaultGceRuntimeConfig,
+//            new URL("https://leo.org/proxy"),
+//            RuntimeStatus.Running,
+//            Map("sampleLabel" -> "sampleValue"),
+//            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
+//            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
+//            List.empty[RuntimeError],
+//            None,
+//            30,
+//            Some("clientId"),
+//            Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
+//            defaultScopes,
+//            welderEnabled = true,
+//            patchInProgress = true,
+//            Map("ev1" -> "a", "ev2" -> "b"),
+//            Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
+//          )
+//        })
   }
 }
