@@ -70,7 +70,9 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     )
 
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
-    RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService))
+    RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService)).orElse({
+    case _ =>
+      loggerIO.debug("Whoops: other state")})
   }
 
   lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
