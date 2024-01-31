@@ -29,7 +29,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(1, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autoDeleteThresholdInMinutes = 1
+                autodeleteThresholdInMinutes = 1
           )
           .save()
       )
@@ -55,7 +55,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(2, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autoDeleteThresholdInMinutes = 6
+                autodeleteThresholdInMinutes = 6
           )
           .save()
       )
@@ -74,7 +74,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
     publisherQueue: Queue[IO, LeoPubsubMessage],
     authProvider: LeoAuthProvider[IO]
   )(waitDuration: FiniteDuration): IO[Unit] = {
-    val monitorProcess = AutoDeleteAppMonitor.process[IO](autoDeleteConfig, publisherQueue, authProvider)
+    val monitorProcess = AutoDeleteAppMonitor.process[IO](autodeleteConfig, publisherQueue, authProvider)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val signal = Stream.sleep[IO](waitDuration).evalMap(_ => signalToStop.complete(())).void
       val p = Stream(monitorProcess.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)

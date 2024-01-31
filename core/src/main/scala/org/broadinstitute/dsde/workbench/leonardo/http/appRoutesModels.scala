@@ -34,8 +34,13 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   customEnvironmentVariables: Map[String, String],
                                   descriptorPath: Option[Uri],
                                   extraArgs: List[String],
+<<<<<<< HEAD
                                   sourceWorkspaceId: Option[WorkspaceId],
-                                  autoDeleteThresholdDuration: Option[Duration]
+                                  autodeleteThresholdDuration: Option[Duration]
+=======
+                                  workspaceId: Option[WorkspaceId],
+                                  sourceWorkspaceId: Option[WorkspaceId]
+>>>>>>> origin
 )
 
 final case class GetAppResponse(

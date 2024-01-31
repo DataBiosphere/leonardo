@@ -42,8 +42,8 @@ class AutoDeleteAppMonitor[F[_]](
   openTelemetry: OpenTelemetryMetrics[F]
 ) extends BackgroundProcess[F, AppToAutoDelete] {
   override def name: String =
-    "autoDeleteApp" //
-  override def interval: scala.concurrent.duration.FiniteDuration = config.autoDeleteCheckInterval
+    "autodeleteApp" //
+  override def interval: scala.concurrent.duration.FiniteDuration = config.autodeleteCheckInterval
 
   override def getCandidates(now: Instant)(implicit
     F: Async[F],
@@ -103,11 +103,11 @@ object AutoDeleteAppMonitor {
     openTelemetry: OpenTelemetryMetrics[F],
     logger: StructuredLogger[F]
   ): Stream[F, Unit] = {
-    val autoDeleteAppMonitor = apply(config, publisherQueue, authProvider)
+    val autodeleteAppMonitor = apply(config, publisherQueue, authProvider)
 
     implicit val appToAutoDeleteShowInstance: Show[AppToAutoDelete] =
       Show[AppToAutoDelete](appToAutoDelete => appToAutoDelete.projectNameString)
-    autoDeleteAppMonitor.process
+    autodeleteAppMonitor.process
   }
 
   private def apply[F[_]](config: AutoDeleteConfig,

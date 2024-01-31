@@ -14,7 +14,7 @@ package object leonardo {
   val autoPauseOffValue = 0
   // this value is the default for auto delete, if none is specified. Threshold of 0 indicates no auto delete
   // In database, we also use 0 to represent no auto delete.
-  val autoDeleteOffValue = 0
+  val autodeleteOffValue = 0
   val traceIdHeaderString = ci"X-Cloud-Trace-Context"
 
   val SECURITY_GROUP = "security-group"
@@ -86,5 +86,15 @@ package object leonardo {
     RegionName("asia-southeast2"),
     RegionName("australia-southeast1"),
     RegionName("northamerica-northeast2")
+  )
+
+  val iapRegions = List(
+    RegionName("us-central1"),
+    RegionName("us-east1"),
+    RegionName("us-east4"),
+    RegionName("us-west1"),
+    RegionName("us-west2"),
+    RegionName("us-west3"),
+    RegionName("us-west4")
   )
 }

@@ -274,8 +274,8 @@ object Boot extends IOApp {
             appDependencies.publisherQueue
           )
 
-          val autoDeleteAppMonitorProcess = AutoDeleteAppMonitor.process(
-            autoDeleteConfig,
+          val autodeleteAppMonitorProcess = AutoDeleteAppMonitor.process(
+            autodeleteConfig,
             appDependencies.publisherQueue,
             appDependencies.authProvider
           )
@@ -321,7 +321,7 @@ object Boot extends IOApp {
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitorProcess, // check database to autopause runtimes periodically
-            autoDeleteAppMonitorProcess, // check database to auto delete apps periodically
+            autodeleteAppMonitorProcess, // check database to auto delete apps periodically
             metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }

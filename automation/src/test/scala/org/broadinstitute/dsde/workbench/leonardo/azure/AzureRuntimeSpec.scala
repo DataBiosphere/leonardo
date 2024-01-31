@@ -81,12 +81,13 @@ class AzureRuntimeSpec
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskDuringRuntimeCreate.getId()} in creating status detected"
         )
 
-        // Verify the runtime eventually becomes Running (in 40 minutes)
+        // Verify the runtime eventually becomes Running (in 25 minutes)
+        // will reduce to 20 once https://broadworkbench.atlassian.net/browse/WOR-1397 is merged
         monitorCreateResult <- streamUntilDoneOrTimeout(
           callGetRuntime,
-          240,
+          150,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 25 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
         _ <- loggerIO.info(
@@ -111,7 +112,7 @@ class AzureRuntimeSpec
           callGetRuntime,
           60,
           10 seconds,
-          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 0 minutes"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} did not stop after 10 minutes"
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.STOPPED))
 
         _ <- loggerIO.info(

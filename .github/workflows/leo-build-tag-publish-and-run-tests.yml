@@ -1,0 +1,248 @@
+# Github action to Build Leonardo, add/promote semantic tagging and then run tests
+
+name: leo-build-tag-publish-and-run-tests
+
+on:
+  pull_request:
+    branches: [ develop ]
+    paths-ignore: [ '**.md' ]
+  push:
+    branches: [ develop ]
+    paths-ignore: [ '**.md' ]
+
+env:
+  BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-dev'
+  TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # github token for access to kick off a job in the private repo
+  LEO_BUILD_RUN_NAME: 'leonardo-build-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  LEO_SWAT_TESTS_RUN_NAME: 'leonardo-swat-tests-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  BEE_CREATE_RUN_NAME: 'bee-create-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  BEE_DESTROY_RUN_NAME: 'bee-destroy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+
+jobs:
+
+  #
+  # Environment Initialization
+  #
+
+  init-github-context:
+    runs-on: ubuntu-latest
+    outputs:
+    # automation-branch: the git branch automation test application to be used, running on the gha runner
+    # build-branch: the git branch to checkout to build a new app-version
+    # app-version: the version of the leonardo app artifact that will be tested against, usually running in a BEE
+    # these are often the same string, but all represent distinct artifacts
+      automation-branch: ${{ steps.extract-branch.outputs.automation-branch }}
+      build-branch: ${{ steps.extract-branch.outputs.build-branch }}
+      app-version: ${{ steps.extract-branch.outputs.app-version }}
+      create-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
+      delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
+      owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
+      service-account: ${{ steps.prepare-outputs.outputs.service-account }}
+      log-results: ${{ steps.prepare-outputs.outputs.log-results }}
+      test-context: ${{ steps.prepare-outputs.outputs.test-context }}
+    steps:
+      - name: Get inputs and/or set defaults
+        id: prepare-outputs
+        run: |
+          echo 'delete-bee=true'          >> $GITHUB_OUTPUT
+          echo 'log-results=true'         >> $GITHUB_OUTPUT
+          if ${{ github.ref_name == 'develop' }}; then
+            echo 'test-context=dev-merge' >> $GITHUB_OUTPUT
+          else
+            echo 'test-context=pr-test'   >> $GITHUB_OUTPUT
+          fi
+
+      # we need this because github can't actually provide the branch name reliably
+      # https://github.com/orgs/community/discussions/5251
+      - name: Extract branch
+        id: extract-branch
+        run: |
+          if [[ '${{ github.event_name }}' == 'push' ]]; then
+            BRANCH_NAME=${{ github.ref_name }}
+          elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
+            BRANCH_NAME=${{ github.head_ref }}
+          else
+            echo "Failed to extract branch information"
+            exit 1
+          fi
+
+          #          echo "app-version=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
+           echo "build-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+           echo "automation-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          #          echo "automation-branch=jc-ssh-gcp-2" >> $GITHUB_OUTPUT
+
+  #
+  # Artifact Build and Promotion
+  #
+
+  leo-build-tag-publish-job:
+    runs-on: ubuntu-latest
+    needs: [init-github-context]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: 'actions/checkout@v4'
+
+      - name: Bump the tag to a new version
+        uses: databiosphere/github-actions/actions/bumper@bumper-0.0.6
+        id: tag
+        env:
+          DEFAULT_BUMP: patch
+          GITHUB_TOKEN: ${{ secrets.BROADBOT_TOKEN }}
+          RELEASE_BRANCHES: develop
+          WITH_V: true
+
+      # Builds Leonardo elsewhere to protect secrets.  Upon success, will tag the commit in git.
+      - name: dispatch to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v4.0.0
+        with:
+          workflow: leonardo-build
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
+          inputs: '{
+              "repository": "${{ github.event.repository.full_name }}",
+              "ref": "${{ needs.init-github-context.outputs.build-branch }}",
+              "leonardo-release-tag": "${{ steps.tag.outputs.tag }}"
+            }'
+
+  report-to-sherlock:
+    # Report new Leonardo version to Broad DevOps
+    uses: broadinstitute/sherlock/.github/workflows/client-report-app-version.yaml@main
+    needs: [ leo-build-tag-publish-job ]
+    with:
+      new-version: ${{ needs.leo-build-tag-publish-job.outputs.tag }}
+      chart-name: 'leonardo'
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+  set-version-in-dev:
+    # Put new Leonardo version in Broad dev environment
+    uses: broadinstitute/sherlock/.github/workflows/client-set-environment-app-version.yaml@main
+    needs: [ leo-build-tag-publish-job, report-to-sherlock ]
+    if: false # disabled for now, use the below line when ready to cut over from jenkins.
+    # if: ${{ github.ref_name == 'develop' }}
+    with:
+      new-version: ${{ needs.leo-build-tag-publish-job.outputs.tag }}
+      chart-name: 'leonardo'
+      environment-name: 'dev'
+    secrets:
+      sync-git-token: ${{ secrets.BROADBOT_TOKEN }}
+    permissions:
+      id-token: 'write'
+
+  #
+  # E2E Tests - Setup and Run
+  #
+
+  create-bee-workflow:
+    runs-on: ubuntu-latest
+    needs: [ leo-build-tag-publish-job, report-to-sherlock ]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      # format the app version string to be usable by create-bee
+      - name: Render Leonardo version
+        id: render-leo-version
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+        run: |
+          echo "$GITHUB_CONTEXT"
+          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ needs.leo-build-tag-publish-job.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
+
+      - name: dispatch to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v4.0.0
+        with:
+          run-name: "${{ env.BEE_CREATE_RUN_NAME }}"
+          workflow: bee-create
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ secrets.BROADBOT_TOKEN }}
+          inputs: '{
+              "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
+              "bee-name": "${{ env.BEE_NAME }}",
+              "bee-template-name": "rawls-e2e-azure-tests",
+              "version-template": "dev",
+              "custom-version-json": "${{ steps.render-leo-version.outputs.custom-version-json }}"
+            }'
+
+  leo-swat-test-job:
+    strategy:
+      matrix:
+        terra-env: [ dev ] # what versions of apps do we use to emulate types of environments
+        testing-env: [ qa ] # what env resources to use, e.g. SA keys
+    runs-on: ubuntu-latest
+    needs: [create-bee-workflow, init-github-context]
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: Configure test-reporting input parameter
+        # TEST_REPORTING values are used as follows:
+        # log_results: boolean to log test results to bigquery
+        # test_context: descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table
+        # caller_run_id: descriptive run_id of caller
+        run: |
+          TEST_REPORTING='{
+              "log_results": { "val": ${{ needs.init-github-context.outputs.log-results }} },
+              "test_context": { "val": "${{ needs.init-github-context.outputs.test-context }}" },
+              "caller_run_id": { "val": "${{ github.run_id }}" }
+            }'
+          TEST_REPORTING=$(echo "$TEST_REPORTING" |
+            tr -d '\n' |
+            jq -c '.')
+          echo "TEST_REPORTING=$TEST_REPORTING" >> $GITHUB_ENV
+
+      - name: dispatch to terra-github-workflows
+        env:
+          leo_test_command: "testOnly -- -l ExcludeFromJenkins"
+        uses: broadinstitute/workflow-dispatch@v4.0.0
+        with:
+          run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
+          workflow: leonardo-swat-tests
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          wait-for-completion-timeout: 75m
+          token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
+          inputs: '{
+              "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
+              "bee-name": "${{ env.BEE_NAME }}",
+              "ENV": "${{ matrix.testing-env }}",
+              "sbt-test-command": "${{ env.leo_test_command }}",
+              "java-version": "17",
+              "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
+              "test-reporting": ${{ toJson(env.TEST_REPORTING) }}
+            }'
+
+  #
+  # E2E Tests - Cleanup
+  #
+
+  destroy-bee-workflow:
+    runs-on: ubuntu-latest
+    needs:
+      - init-github-context
+      - leo-swat-test-job
+    if: ${{ needs.init-github-context.outputs.delete-bee && always() }} # always run to confirm bee is destroyed unless explicitly requested not to
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: dispatch to terra-github-workflows
+        uses: broadinstitute/workflow-dispatch@v4.0.0
+        with:
+          run-name: "${{ env.BEE_DESTROY_RUN_NAME }}"
+          workflow: bee-destroy
+          repo: broadinstitute/terra-github-workflows
+          ref: refs/heads/main
+          token: ${{ env.TOKEN }}
+          inputs: '{
+              "run-name": "${{ env.BEE_DESTROY_RUN_NAME }}",
+              "bee-name": "${{ env.BEE_NAME }}"
+            }'
+          wait-for-completion: false

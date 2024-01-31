@@ -10,9 +10,17 @@ on:
     # run twice a day at 10:00 and 22:00 UTC every day of the week
     - cron: "0 10/12 * * *"
   workflow_dispatch:
+    # automation-branch refers to the version of the automation test application to be used, running on the gha runner
+    # app-version refers to the version of the leonardo app that will be tested against, usually running in a BEE
+    # these are often the same, and live in the same repo, but are distinct instances of code.
     inputs:
-      branch:
-        description: 'Branch of leo to run tests on'
+      automation-branch:
+        description: 'Branch of leo automation to run tests from'
+        required: true
+        default: 'develop'
+        type: string
+      app-version:
+        description: 'Branch of leo app to be deployed'
         required: true
         default: 'develop'
         type: string
@@ -49,10 +57,16 @@ env:
   E2E_ENV: 'azure_e2e.env'
 
 jobs:
+
+  #
+  # Setup
+  #
+
   init-github-context:
     runs-on: ubuntu-latest
     outputs:
-      branch: ${{ steps.prepare-outputs.outputs.branch }}
+      automation-branch: ${{ steps.prepare-outputs.outputs.automation-branch }}
+      app-version: ${{ steps.prepare-outputs.outputs.app-version }}
       delete-bee: ${{ steps.prepare-outputs.outputs.delete-bee }}
       owner-subject: ${{ steps.prepare-outputs.outputs.owner-subject }}
       student-subjects: ${{ steps.prepare-outputs.outputs.student-subjects }}
@@ -63,7 +77,8 @@ jobs:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
         run: |
-          echo "branch=${{ inputs.branch                            || 'develop' }}" >> "$GITHUB_OUTPUT"
+          echo "automation-branch=${{ inputs.automation-branch      || 'develop' }}" >> "$GITHUB_OUTPUT"
+          echo "app-version=${{ inputs.app-version                  || 'develop' }}" >> "$GITHUB_OUTPUT"
           echo "delete-bee=${{ inputs.delete-bee                    || false }}" >> "$GITHUB_OUTPUT"
           echo "owner-subject=${{ inputs.owner-subject              || 'hermione.owner@quality.firecloud.org' }}" >> "$GITHUB_OUTPUT"
           echo "student-subjects=${{ toJson(inputs.student-subjects || '["harry.potter@quality.firecloud.org","ron.weasley@quality.firecloud.org"]') }}" >> "$GITHUB_OUTPUT"
@@ -71,59 +86,21 @@ jobs:
           echo "log-results=true" >> $GITHUB_OUTPUT
           echo "test-context=azure-e2e" >> $GITHUB_OUTPUT
 
-  leo-build-tag-publish-job:
+  create-bee-workflow:
     runs-on: ubuntu-latest
     needs: [ init-github-context ]
     permissions:
       contents: 'read'
       id-token: 'write'
-    outputs:
-      custom-version-json: ${{ steps.render-leo-version.outputs.custom-version-json }}
     steps:
-      - uses: 'actions/checkout@v3'
-
-      - name: Bump the tag to a new version
-        uses: databiosphere/github-actions/actions/bumper@bumper-0.2.0
-        id: tag
-        env:
-          DEFAULT_BUMP: patch
-          GITHUB_TOKEN: ${{ env.TOKEN }}
-          RELEASE_BRANCHES: main
-          WITH_V: true
-
-      - name: dispatch build to terra-github-workflows
-        uses: broadinstitute/workflow-dispatch@v4.0.0
-        with:
-          run-name: "${{ env.LEO_BUILD_RUN_NAME }}"
-          workflow: leonardo-build
-          repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
-          token: ${{ env.TOKEN }}
-          inputs: '{
-            "run-name": "${{ env.LEO_BUILD_RUN_NAME }}",
-            "repository": "${{ github.event.repository.full_name }}",
-            "ref": "refs/heads/${{ needs.init-github-context.outputs.branch }}",
-            "leonardo-release-tag": "${{ steps.tag.outputs.tag }}"
-          }'
-
-      - name: Render Leo version
+      # format the app version string to be usable by create-bee
+      - name: Render Leonardo version
         id: render-leo-version
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
           echo "$GITHUB_CONTEXT"
-          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ steps.tag.outputs.tag }}\"}}' >> $GITHUB_OUTPUT
-
-  create-bee-workflow:
-    runs-on: ubuntu-latest
-    needs: [ leo-build-tag-publish-job ]
-    permissions:
-      contents: 'read'
-      id-token: 'write'
-    steps:
-      - name: Echo Leo version
-        run: |
-          echo '${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}'
+          echo 'custom-version-json={\"leonardo\":{\"appVersion\":\"${{ needs.init-github-context.outputs.app-version }}\"}}' >> $GITHUB_OUTPUT
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
@@ -133,12 +110,12 @@ jobs:
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
-            "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "bee-template-name": "rawls-e2e-azure-tests",
-            "version-template": "dev",
-            "custom-version-json": "${{ needs.leo-build-tag-publish-job.outputs.custom-version-json }}"
-          }'
+              "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
+              "bee-name": "${{ env.BEE_NAME }}",
+              "bee-template-name": "rawls-e2e-azure-tests",
+              "version-template": "dev",
+              "custom-version-json": "${{ steps.render-leo-version.outputs.custom-version-json }}"
+            }'
 
   # This job can be used for generating parameters for E2E tests (e.g. a random project name).
   params-gen:
@@ -176,7 +153,11 @@ jobs:
             "billing-project": "${{ needs.params-gen.outputs.project-name }}",
             "billing-project-creator": "${{ needs.init-github-context.outputs.owner-subject }}",
             "service-account": "${{ needs.init-github-context.outputs.service-account }}"
-          }'
+            }'
+
+  #
+  # Test Run
+  #
 
   leo-automation-test-job:
     runs-on: ubuntu-latest
@@ -202,16 +183,13 @@ jobs:
           echo "USER_SUBJECTS=$USER_SUBJECTS" >> $GITHUB_ENV
 
       - name: Configure e2e-infrastructure input parameter
+        # E2E_INFRASTRUCTURE values are used as follows:
+        # e2e_env: The name of a .env file that contains envvars for E2E tests
+        # billing_project: Billing Project
         run: |
           E2E_INFRASTRUCTURE='{
-              "e2e_env": {
-                "description": "The name of a .env file that contains envvars for E2E tests",
-                "val": "${{ env.E2E_ENV }}"
-              },
-              "billing_project": {
-                "description": "Billing Project",
-                "val": "${{ needs.params-gen.outputs.project-name }}"
-              }
+              "e2e_env": { "val": "${{ env.E2E_ENV }}" },
+              "billing_project": { "val": "${{ needs.params-gen.outputs.project-name }}" }
             }'
           E2E_INFRASTRUCTURE=$(echo "$E2E_INFRASTRUCTURE" |
             tr -d '\n' |
@@ -219,20 +197,15 @@ jobs:
           echo "E2E_INFRASTRUCTURE=$E2E_INFRASTRUCTURE" >> $GITHUB_ENV
 
       - name: Configure test-reporting input parameter
+        # TEST_REPORTING values are used as follows:
+        # log_results: boolean to log test results to bigquery
+        # test_context: descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table
+        # caller_run_id: descriptive run_id of caller
         run: |
           TEST_REPORTING='{
-              "log_results": {
-                "description": "boolean to log test results to bigquery",
-                "val": ${{ needs.init-github-context.outputs.log-results }}
-              },
-              "test_context": {
-                "description": "descriptive context that test is running in, e.g. PR, post-develop, staging. Will be passed to env of the bigquery table",
-                "val": "${{ needs.init-github-context.outputs.test-context }}"
-              },
-              "caller_run_id": {
-                "description": "run_id of caller, defaults to this ghas run_id",
-                "val": "${{ github.run_id }}"
-              }
+              "log_results": { "val": ${{ needs.init-github-context.outputs.log-results }} },
+              "test_context": { "val": "${{ needs.init-github-context.outputs.test-context }}" },
+              "caller_run_id": { "val": "${{ github.run_id }}" }
             }'
           TEST_REPORTING=$(echo "$TEST_REPORTING" |
             tr -d '\n' |
@@ -250,17 +223,21 @@ jobs:
           ref: refs/heads/main
           token: ${{ env.TOKEN }}
           inputs: '{
-            "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "ENV": "qa",
-            "test-group-name": "workspaces_azure",
-            "sbt-test-command": "${{ env.leo_test_command }}",
-            "java-version": "17",
-            "ref": "${{ needs.init-github-context.outputs.branch }}",
-            "e2e-infrastructure": ${{ toJson(env.E2E_INFRASTRUCTURE) }},
-            "test-reporting": ${{ toJson(env.TEST_REPORTING) }},
-            "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
-          }'
+              "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
+              "bee-name": "${{ env.BEE_NAME }}",
+              "ENV": "qa",
+              "test-group-name": "workspaces_azure",
+              "sbt-test-command": "${{ env.leo_test_command }}",
+              "java-version": "17",
+              "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
+              "e2e-infrastructure": ${{ toJson(env.E2E_INFRASTRUCTURE) }},
+              "test-reporting": ${{ toJson(env.TEST_REPORTING) }},
+              "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
+            }'
+
+  #
+  # Cleanup
+  #
 
   delete-billing-project-v2-from-bee-workflow:
     runs-on: ubuntu-latest
@@ -285,7 +262,7 @@ jobs:
             "billing-project-owner": "${{ needs.init-github-context.outputs.owner-subject }}",
             "service-account": "${{ needs.init-github-context.outputs.service-account }}",
             "silent-on-failure": "true"
-          }'
+            }'
 
   destroy-bee-workflow:
     runs-on: ubuntu-latest
@@ -309,14 +286,13 @@ jobs:
           inputs: '{
             "run-name": "${{ env.BEE_DESTROY_RUN_NAME }}",
             "bee-name": "${{ env.BEE_NAME }}"
-          }'
+            }'
           wait-for-completion: false
 
   notify-slack-on-failure:
     runs-on: ubuntu-latest
     needs:
       - init-github-context
-      - leo-build-tag-publish-job
       - create-bee-workflow
       - leo-automation-test-job
       - destroy-bee-workflow
@@ -327,6 +303,6 @@ jobs:
         with:
           # Channel is for #ia-notification-test
           channel-id: 'C03ATF4QXEV'
-          slack-message: "Azure E2E Tests FAILED, branch: ${{ needs.init-github-context.outputs.branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          slack-message: "Azure E2E Tests FAILED, automation-branch: ${{ needs.init-github-context.outputs.automation-branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}

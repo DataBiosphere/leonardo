@@ -94,7 +94,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"relay.path=${params.relayPath.renderString}",
 
         // persistence configs
-        raw"persistence.storageResourceGroup=${params.cloudContext.managedResourceGroupName.value}",
         raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
         raw"persistence.blobContainer=${storageContainer.name.value}",
         raw"persistence.leoAppInstanceName=${params.app.appName.value}",

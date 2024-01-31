@@ -71,3 +71,11 @@ jobs:
         find $HOME/.ivy2/cache                       -name "ivydata-*.properties" -delete || true
         find $HOME/.cache/coursier/v1                -name "ivydata-*.properties" -delete || true
         find $HOME/.sbt                              -name "*.lock"               -delete || true
+
+  dispatch-tag:
+    needs: [ build ]
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/tag.yml
+    with:
+      release-branches: develop
+    secrets: inherit

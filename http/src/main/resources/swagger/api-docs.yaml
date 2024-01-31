@@ -4028,10 +4028,13 @@ components:
           items:
             type: string
           description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
+        workspaceId:
+          type: string
+          description: Optional id of workspace. Every app must have a workspaceId, but this is not required for backwards-compatibility. Note, if you're using v2 APIs, this field is not used.
         sourceWorkspaceId:
           type: string
           description: Optional id of source workspace if app is a clone.
-        autoDeleteThresholdDuration:
+        autodeleteThresholdDuration:
           type: string
           description: The duration of idle time (i.e. since last time the app is accessed by user) to elapse before the app is
             auto deleted, e.g. "2 hours, 2h".  

@@ -384,6 +384,7 @@ class GKEInterpreter[F[_]](
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+
       _ <- helmClient
         .installChart(
           getTerraAppSetupChartReleaseName(app.release),

@@ -53,10 +53,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerInterp, _}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, startsWith}
 import org.mockito.Mockito._
 import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -377,7 +378,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "delete disk when handling DeleteRuntimeMessage when autoDeleteDisks is set" in isolatedDbTest {
+  it should "delete disk when handling DeleteRuntimeMessage when autodeleteDisks is set" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
@@ -2014,6 +2015,55 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "create a metric for a successful and failed condition" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+    val mockAckConsumer = mock[AckReplyConsumer]
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
+    }
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // we want to validate calls to the metrics system
+    implicit val metrics = spy(this.metrics)
+
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
+    val res =
+      for {
+        tr <- traceId.ask[TraceId]
+        msg = CreateAppMessage(
+          savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+          Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
+          savedApp1.id,
+          savedApp1.appName,
+          Some(DiskId(-1)),
+          Map.empty,
+          AppType.Galaxy,
+          savedApp1.appResources.namespace,
+          None,
+          Some(tr),
+          false
+        )
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    verify(mockAckConsumer, times(1)).ack()
+    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/ack/createApp"), any(), any(), any())(any())
+    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/fail/createApp"), any(), any(), any())(any())
+  }
+
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty
   ): GKEInterpreter[IO] =
@@ -2043,7 +2093,7 @@ class LeoPubsubMessageSubscriberSpec
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
     azureInterp: AzurePubsubHandlerAlgebra[IO] = makeAzureInterp()
-  ): LeoPubsubMessageSubscriber[IO] = {
+  )(implicit metrics: OpenTelemetryMetrics[IO]): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)

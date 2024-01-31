@@ -14,10 +14,18 @@ import org.broadinstitute.dsde.workbench.client.leonardo.model.{
   GetRuntimeResponse
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
+import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoConfig, LeonardoTestUtils, RuntimeName, SSH}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AzureBilling,
+  CloudProvider,
+  LeonardoConfig,
+  LeonardoTestUtils,
+  RuntimeName,
+  SSH
+}
 
 import scala.concurrent.duration._
 
@@ -82,12 +90,13 @@ class AzureDiskSpec
             s"AzureDiskSpec: disk ${workspaceId}/${diskDuringRuntimeCreate.getId()} in creating status detected"
           )
 
-          // Verify the runtime eventually becomes Running (in 40 minutes)
+          // Verify the runtime eventually becomes Running (in 25 minutes)
+          // will reduce to 20 once https://broadworkbench.atlassian.net/browse/WOR-1397 is merged
           monitorCreateResult <- streamUntilDoneOrTimeout(
             callGetRuntime,
-            240,
+            150,
             10 seconds,
-            s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
+            s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} did not finish creating after 25 minutes"
           )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
           _ <- loggerIO.info(
@@ -96,20 +105,23 @@ class AzureDiskSpec
           _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
           _ <- loggerIO.info("SSHing into first vm to add a file to the disk")
-          (output1, output2) <- SSH.startBastionTunnel(RuntimeName(monitorCreateResult.getRuntimeName())).use { t =>
-            for {
-              _ <- loggerIO.info("executing first command to create file for first runtime")
-              output1 <- SSH.makeSSHSession(t.hostName, t.port).use { session =>
-                SSH.executeCommand(
-                  session.makeSession,
-                  s"echo ${LeonardoConfig.Leonardo.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\""
+          (output1, output2) <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult.getRuntimeName())).use {
+            t =>
+              for {
+                _ <- loggerIO.info("executing first command to create file for first runtime")
+                output1 <- SSH.startSessionAndExecuteCommand(
+                  t.hostName,
+                  t.port,
+                  s"echo ${LeonardoConfig.Azure.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\"",
+                  SSHRuntimeInfo(None, CloudProvider.Azure)
                 )
-              }
-              _ <- loggerIO.info("executing second command to get file contents for first runtime")
-              output2 <- SSH.makeSSHSession(t.hostName, t.port).use { session =>
-                SSH.executeCommand(session.makeSession, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
-              }
-            } yield (output1, output2)
+                _ <- loggerIO.info("executing second command to get file contents for first runtime")
+                output2 <- SSH.startSessionAndExecuteCommand(t.hostName,
+                                                             t.port,
+                                                             s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
+                                                             SSHRuntimeInfo(None, CloudProvider.Azure)
+                )
+              } yield (output1, output2)
           }
 
           _ <- loggerIO.info(s"command result 1 and 2: \n\t1: ${output1}, \n\t2: ${output2}")
@@ -185,12 +197,13 @@ class AzureDiskSpec
             s"AzureDiskSpec: disk2 ${workspaceId}/${diskDuringRuntimeCreate2.getId()} in creating status detected"
           )
 
-          // Verify runtime 2 eventually becomes Running (in 40 minutes)
+          // Verify runtime 2 eventually becomes Running (in 25 minutes)
+          // will reduce to 20 once https://broadworkbench.atlassian.net/browse/WOR-1397 is merged
           monitorCreateResult2 <- streamUntilDoneOrTimeout(
             callGetRuntime2,
-            240,
+            150,
             10 seconds,
-            s"AzureDiskSpec: runtime2 ${workspaceId}/${runtimeName.asString} did not finish creating after 40 minutes"
+            s"AzureDiskSpec: runtime2 ${workspaceId}/${runtimeName.asString} did not finish creating after 25 minutes"
           )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.RUNNING))
 
           _ <- loggerIO.info(
@@ -203,11 +216,13 @@ class AzureDiskSpec
           _ = disk2.getId() shouldBe monitorGetDisk.getId()
 
           _ <- loggerIO.info("SSHing into second vm to verify disk contents")
-          output <- SSH.startBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
+          output <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
             for {
-              output <- SSH.makeSSHSession(t.hostName, t.port).use { session =>
-                SSH.executeCommand(session.makeSession, s"cat /home/jupyter/persistent_disk/test_disk.ipynb")
-              }
+              output <- SSH.startSessionAndExecuteCommand(t.hostName,
+                                                          t.port,
+                                                          s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
+                                                          SSHRuntimeInfo(None, CloudProvider.Azure)
+              )
             } yield output
           }
 

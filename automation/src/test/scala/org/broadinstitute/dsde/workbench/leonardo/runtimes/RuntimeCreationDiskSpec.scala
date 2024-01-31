@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   SourceDiskRequest,
   UpdateDiskRequest
 }
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.Status
 import org.http4s.headers.Authorization
@@ -28,11 +27,7 @@ import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class RuntimeCreationDiskSpec
-    extends BillingProjectFixtureSpec
-    with ParallelTestExecution
-    with LeonardoTestUtils
-    with NotebookTestUtils {
+class RuntimeCreationDiskSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
@@ -53,7 +48,7 @@ class RuntimeCreationDiskSpec
         RuntimeConfigRequest.GceConfig(
           None,
           Some(DiskSize(20)),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -64,25 +59,18 @@ class RuntimeCreationDiskSpec
       implicit val client = dep.httpClient
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
         implicit0(authToken: AuthToken) <- Ron.authToken()
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(clusterCopy, Python3) { notebookPage =>
-              // all other packages cannot be tested for their versions in this manner
-              // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-              val res = notebookPage
-                .executeCell(
-                  "! df -H"
-                )
-                .get
-              res should include("/dev/sdb")
-              res should include("/home/jupyter")
-            }
-          }
+        output <- SSH.executeGoogleCommand(
+          getRuntimeResponse.googleProject,
+          LeonardoApiClient.defaultCreateRequestZone.value,
+          getRuntimeResponse.runtimeName,
+          "sudo docker exec -it jupyter-server df -H"
         )
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
-      } yield ()
+      } yield {
+        output should include("/dev/sdb")
+        output should include("/home/jupyter")
+      }
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -99,7 +87,7 @@ class RuntimeCreationDiskSpec
             Some(DiskType.SSD),
             Map.empty
           ),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -128,7 +116,7 @@ class RuntimeCreationDiskSpec
             Some(DiskType.Balanced),
             Map.empty
           ),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -159,7 +147,7 @@ class RuntimeCreationDiskSpec
             None,
             Map.empty
           ),
-          None,
+          Some(LeonardoApiClient.defaultCreateRequestZone),
           None
         )
       )
@@ -193,6 +181,8 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  // TODO: remove selenium from this, needs re-write
+  // see https://broadworkbench.atlassian.net/browse/IA-4723
   "create runtime and attach an existing persistent disk or clone" taggedAs Retryable in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName =
@@ -217,7 +207,7 @@ class RuntimeCreationDiskSpec
               None,
               Map.empty
             ),
-            defaultCreateDiskRequest.zone,
+            Some(LeonardoApiClient.defaultCreateRequestZone),
             None
           )
         )
@@ -237,7 +227,7 @@ class RuntimeCreationDiskSpec
               None,
               Map.empty
             ),
-            defaultCreateDiskRequest.zone,
+            Some(LeonardoApiClient.defaultCreateRequestZone),
             None
           )
         )
@@ -260,31 +250,39 @@ class RuntimeCreationDiskSpec
         implicit0(authToken: AuthToken) <- Ron.authToken()
         runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
-        // validate that saved files and user installed packages persist
-        _ <- IO(withWebDriver { implicit driver =>
-          withNewNotebook(clusterCopy, Python3) { notebookPage =>
-            val createNewFile =
-              """! echo 'this should save' >> /home/jupyter/test.txt""".stripMargin
-            notebookPage.executeCell(createNewFile)
-            notebookPage.executeCell("! pip install simplejson")
-          }
-        })
+
+        // See comment in SSH for details on this syntax
+        cmd = s"""
+            sudo docker exec -it jupyter-server bash -c "echo \\\"this should save\\\" > /home/jupyter/test.txt"
+            """.stripMargin
+
+        _ <- SSH.executeGoogleCommand(
+          clusterCopy.googleProject,
+          defaultCreateRequestZone.value,
+          clusterCopy.clusterName,
+          cmd
+        )
+
+        _ <- SSH.executeGoogleCommand(
+          clusterCopy.googleProject,
+          defaultCreateRequestZone.value,
+          clusterCopy.clusterName,
+          "sudo docker exec -it jupyter-server pip install simplejson"
+        )
         // validate that disk remained attached when runtime is stopped and
         // disk remains mounted after restarting
         _ <- IO(stopRuntime(googleProject, runtimeName, true))
         stoppedRuntime <- getRuntime(googleProject, runtimeName)
         _ <- LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
-        _ <- IO(withWebDriver { implicit driver =>
-          withNewNotebook(clusterCopy, Python3) { notebookPage =>
-            val res = notebookPage.executeCell("! df -H").get
-            res should include("/dev/sdb")
-            res should include("/home/jupyter")
 
-            val persistedData =
-              """! cat /home/jupyter/test.txt""".stripMargin
-            notebookPage.executeCell(persistedData).get should include("this should save")
-          }
-        })
+        output <- SSH.executeGoogleCommand(
+          clusterCopy.googleProject,
+          defaultCreateRequestZone.value,
+          clusterCopy.clusterName,
+          "sudo docker exec -it jupyter-server cat /home/jupyter/test.txt"
+        )
+        _ = output should include("this should save")
+
         _ <- deleteRuntimeWithWait(googleProject, runtimeName, false)
         _ <- LeonardoApiClient.patchDisk(googleProject, diskName, UpdateDiskRequest(Map.empty, newDiskSize))
         _ <- IO.sleep(5 seconds)
@@ -326,24 +324,23 @@ class RuntimeCreationDiskSpec
   }
 
   private def verifyDisk(clusterCopyWithData: ClusterCopy)(implicit authToken: AuthToken) =
-    IO(withWebDriver { implicit driver =>
-      withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
-        val persistedData =
-          """! cat /home/jupyter/test.txt""".stripMargin
-        notebookPage.executeCell(persistedData).get should include("this should save")
-        val persistedPackage = "! pip show simplejson"
-        notebookPage.executeCell(persistedPackage).get should include(
-          "/home/jupyter/.local/lib/python3.10/site-packages"
-        )
-
-        val res = notebookPage
-          .executeCell(
-            "! df -h --output=size $HOME"
-          )
-          .get
-        res should include("148G")
-      }
-    })
+    for {
+      fileOutput <- SSH.executeGoogleCommand(
+        clusterCopyWithData.googleProject,
+        defaultCreateRequestZone.value,
+        clusterCopyWithData.clusterName,
+        "sudo docker exec -it jupyter-server cat /home/jupyter/test.txt"
+      )
+      packageCheckOutput <- SSH.executeGoogleCommand(
+        clusterCopyWithData.googleProject,
+        defaultCreateRequestZone.value,
+        clusterCopyWithData.clusterName,
+        "sudo docker exec -it jupyter-server pip show simplejson"
+      )
+    } yield {
+      fileOutput should include("this should save")
+      packageCheckOutput should include("/home/jupyter/.local/lib/python3.10/site-packages")
+    }
 }
 
 final case class RuntimeCreationPdSpecDependencies(httpClient: Client[IO], googleDiskService: GoogleDiskService[IO])

@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreat
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -36,11 +35,7 @@ import java.util.UUID
 import scala.jdk.CollectionConverters._
 
 @DoNotDiscover
-class RuntimeDataprocSpec
-    extends BillingProjectFixtureSpec
-    with ParallelTestExecution
-    with LeonardoTestUtils
-    with NotebookTestUtils {
+class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (authTokenForOldApiClient: IO[AuthToken], auth: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
@@ -203,12 +198,10 @@ class RuntimeDataprocSpec
         )
 
         // start the cluster
-        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName, true))
+        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be added in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
-
-        // TODO PR comment: we probably dont want to use selenium to verify the cluster/node status
 
         // startup script should have run again
         startScriptOutputs <- dep.storage

@@ -44,6 +44,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
+import slick.jdbc.TransactionIsolation
 
 import java.time.Instant
 import java.util.UUID
@@ -165,7 +166,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
       )
 
-      saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
+      saveClusterResult <- KubernetesServiceDbQueries
+        .saveOrGetClusterForApp(saveCluster)
+        .transaction(isolationLevel = TransactionIsolation.Serializable)
       // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <-
         if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
@@ -251,7 +254,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                       lastUsedApp,
                       petSA,
                       nodepool.id,
-                      None,
+                      req.workspaceId,
                       ctx
         )
       )
@@ -651,7 +654,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       saveCluster <- F.fromEither(
         getSavableCluster(userInfo.userEmail, cloudContext, ctx.now)
       )
-      saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
+      saveClusterResult <- KubernetesServiceDbQueries
+        .saveOrGetClusterForApp(saveCluster)
+        .transaction(isolationLevel = TransactionIsolation.Serializable)
       _ <-
         if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
           F.raiseError[Unit](
@@ -1249,9 +1254,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (req.appType == AppType.Allowed)
           Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
         else None
-      autoDeleteThresholdInMinutes = req.autoDeleteThresholdDuration match {
-        case None               => autoDeleteOffValue
-        case Some(Duration.Inf) => autoDeleteOffValue
+      autodeleteThresholdInMinutes = req.autodeleteThresholdDuration match {
+        case None               => autodeleteOffValue
+        case Some(Duration.Inf) => autodeleteOffValue
         case Some(x)            => x.toMinutes.toInt
       }
 
@@ -1282,7 +1287,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.extraArgs,
         req.sourceWorkspaceId,
         numOfReplicas,
-        autoDeleteThresholdInMinutes
+        autodeleteThresholdInMinutes
       )
     )
   }

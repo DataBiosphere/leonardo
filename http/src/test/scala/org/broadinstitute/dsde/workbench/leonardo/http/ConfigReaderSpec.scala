@@ -56,7 +56,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "microsoft-dsvm",
               "ubuntu-2004",
               "2004-gen2",
-              "23.01.06"
+              "23.04.24"
             ),
             CustomScriptExtensionConfig(
               "vm-custom-script-extension",
@@ -68,15 +68,15 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/52aab3b7f252667f73b23682062ab3e0d9d533b9/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:39641f8",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:ae65380",
             VMCredential(username = "username", password = "password")
           )
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
-          ChartName("/leonardo/cromwell-on-azure"),
-          ChartVersion("0.2.390"),
+          ChartName("cromwell-helm/cromwell-on-azure"),
+          ChartVersion("0.2.422"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -137,8 +137,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           )
         ),
         CromwellRunnerAppConfig(
-          ChartName("/leonardo/cromwell-runner-app"),
-          ChartVersion("0.46.0"),
+          ChartName("terra-helm/cromwell-runner-app"),
+          ChartVersion("0.76.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -153,8 +153,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WorkflowsAppConfig(
-          ChartName("/leonardo/workflows-app"),
-          ChartVersion("0.83.0"),
+          ChartName("terra-helm/workflows-app"),
+          ChartVersion("0.115.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -171,8 +171,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List.empty
         ),
         WdsAppConfig(
-          ChartName("/leonardo/wds"),
-          ChartVersion("0.58.0"),
+          ChartName("terra-helm/wds"),
+          ChartVersion("0.64.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -220,7 +220,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("/leonardo/listener"), ChartVersion("0.2.0"))
+        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.3.0"))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
