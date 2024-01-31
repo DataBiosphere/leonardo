@@ -1496,6 +1496,16 @@ case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[A
       traceId = Some(traceId)
     )
 
+case class DeleteAllAppsV1CannotBePerformed(googleProject: GoogleProject,
+                                            apps: Vector[ListAppResponse],
+                                            traceId: TraceId
+) extends LeoException(
+      s"App(s) in project ${googleProject.value} with (name(s), status(es)) ${apps
+          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
 case class AppRequiresDiskException(cloudContext: CloudContext, appName: AppName, appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be created because the request does not contain a valid disk. Apps of type ${appType} require a disk. Trace ID: ${traceId.asString}",

@@ -214,6 +214,10 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
 
+      val resourcesService = new ResourcesServiceInterp[IO](
+        appDependencies.authProvider
+      )
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -224,6 +228,7 @@ object Boot extends IOApp {
         leoKubernetesService,
         azureService,
         adminService,
+        resourcesService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig

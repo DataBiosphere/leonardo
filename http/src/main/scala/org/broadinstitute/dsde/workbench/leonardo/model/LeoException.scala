@@ -2,8 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 package model
 
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.broadinstitute.dsde.workbench.leonardo.http.errorReportSource
-import org.broadinstitute.dsde.workbench.model.google.GcsPath
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  errorReportSource,
+  ListPersistentDiskResponse,
+  ListRuntimeResponse2
+}
+import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchEmail, WorkbenchException}
 
 import scala.util.control.NoStackTrace
@@ -208,4 +212,24 @@ case class NonDeletableRuntimesInWorkspaceFoundException(
       StatusCodes.Conflict,
       extraMessageInLogging = s"Details: ${msg}",
       traceId = traceId
+    )
+
+case class NonDeletableRuntimesInProjectFoundException(googleProject: GoogleProject,
+                                                       runtimes: Vector[ListRuntimeResponse2],
+                                                       traceId: TraceId
+) extends LeoException(
+      s"Runtime(s) in project ${googleProject.value} with (name(s), status(es)) ${runtimes
+          .map(runtime => s"(${runtime.clusterName},${runtime.status})")} cannot be deleted due to their status(es).",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class NonDeletableDisksInProjectFoundException(googleProject: GoogleProject,
+                                                    disks: Vector[ListPersistentDiskResponse],
+                                                    traceId: TraceId
+) extends LeoException(
+      s"Disks(s) in project ${googleProject.value} with (name(s), status(es)) ${disks
+          .map(disk => s"(${disk.name},${disk.status})")} cannot be deleted due to their status(es).",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )

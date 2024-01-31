@@ -10,6 +10,8 @@ info:
     url: http://opensource.org/licenses/BSD-3-Clause
   termsOfService: https://github.com/broadinstitute/leonardo
 tags:
+  - name: resources
+    description: Resources API. Overarching support of runtimes and apps.
   - name: runtimes
     description: Runtimes API. Support both Google Dataproc and Google Compute Engine.
   - name: disks
@@ -76,8 +78,53 @@ paths:
                 $ref: "#/components/schemas/LeonardoVersion"
       security: []
 
-  ## Runtime paths ##
+  ## All resources path ##
+  "/api/google/v1/resources/{googleProject}/deleteAll":
+    delete:
+      summary: Deletes ALL runtimes and apps associated with the given google project
+      description: deletes all runtimes and apps in a google project
+      operationId: deleteAllResources
+      tags:
+        - resources
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteInCloud
+          description: Whether or not the runtimes and apps should be deleted in the cloud. If set to false, no call to the cloud will be made and the resources will be marked as deleted in SAM and Leonardo databases.
+          required: true
+          schema:
+            type: boolean
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the runtimes and apps should be deleted. Cannot be set to false if the deleteInCloud is set to false.
+          required: true
+          schema:
+            type: boolean
+      responses:
+        "202":
+          description: Resource(s) deletion request accepted
+        "403":
+          description: User does not have permission to perform action on resource(s)
+        "404":
+          description: Resource(s) not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
 
+
+  ## Runtime paths ##
   "/api/google/v1/runtimes":
     get:
       summary: List all runtimes that the caller has access to
@@ -444,6 +491,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+
 
   "/api/v2/runtimes":
     get:
@@ -846,7 +894,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
     delete:
-      summary: Deletes an Azure runtime instance in the given workspce
+      summary: Deletes an Azure runtime instance in the given workspace
       description: deletes a runtime
       operationId: deleteAzureRuntime
       tags:
