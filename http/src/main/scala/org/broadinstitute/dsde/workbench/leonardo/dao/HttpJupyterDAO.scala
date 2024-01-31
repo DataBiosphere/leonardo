@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
+import akka.http.scaladsl.server.directives.Credentials
 import cats.effect.Async
 import cats.syntax.all._
 import io.circe.Decoder
@@ -11,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
+import org.http4s.headers.Authorization
 import org.http4s.{Header, Headers, Method, Request}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.Logger
@@ -23,12 +25,13 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header.Raw =
     Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
 
-  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
+  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName, tokenOpt: Option[String]): F[Boolean] =
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
       headers <- cloudContext match {
         case _: CloudContext.Azure =>
-          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+          F.pure(Headers(Header("Authorization", s"Bearer ${tokenOpt.get}")) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+          //samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
       }
@@ -112,7 +115,7 @@ object HttpJupyterDAO {
 
 trait JupyterDAO[F[_]] {
   def isAllKernelsIdle(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
-  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
+  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName, tokenOpt: Option[String]): F[Boolean]
   def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit]
   def terminalExists(googleProject: GoogleProject, runtimeName: RuntimeName, terminalName: TerminalName): F[Boolean]
 }

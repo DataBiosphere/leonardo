@@ -55,7 +55,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     for {
       ctx <- ev.ask
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
-      runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      runtime: Runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       azureConfig <- runtimeConfig match {
         case x: RuntimeConfig.AzureConfig => F.pure(x)
@@ -107,7 +107,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                           runtime,
                           createVmJobId,
                           landingZoneResources.relayNamespace,
-                          msg.useExistingDisk
+                          msg.useExistingDisk,
+                          tokenOpt
         )
       )
     } yield ()
@@ -467,8 +468,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => x
       }
 
-      isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
-      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
+      isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName, tokenOpt)
+      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName, tokenOpt)
 
       taskToRun = for {
         _ <- F.sleep(

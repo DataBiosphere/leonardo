@@ -54,12 +54,14 @@ class HttpWelderDAO[F[_]: Logger](
           metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "failure"))
     } yield ()
 
-  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
+  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName, tokenOpt: Option[String]): F[Boolean] =
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
       headers <- cloudContext match {
         case _: CloudContext.Azure =>
-          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+          //samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+          F.pure(Headers(Header("Authorization", s"Bearer ${tokenOpt.get}")) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+
         case _: CloudContext.Gcp =>
           F.pure(Headers.empty)
       }
@@ -91,5 +93,5 @@ class HttpWelderDAO[F[_]: Logger](
 
 trait WelderDAO[F[_]] {
   def flushCache(cloudContext: CloudContext, runtimeName: RuntimeName): F[Unit]
-  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
+  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName, tokenOpt: Option[String]): F[Boolean]
 }

@@ -102,7 +102,8 @@ final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
                                    jobId: WsmJobId,
                                    relayNamespace: RelayNamespace,
-                                   useExistingDisk: Boolean
+                                   useExistingDisk: Boolean,
+                                   tokenOpt: Option[String]
 )
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
