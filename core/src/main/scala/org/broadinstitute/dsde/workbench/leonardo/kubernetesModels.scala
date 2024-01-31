@@ -439,7 +439,8 @@ final case class App(id: AppId,
                      extraArgs: List[String],
                      sourceWorkspaceId: Option[WorkspaceId],
                      numOfReplicas: Option[Int],
-                     autodeleteThresholdInMinutes: Int
+                     autodeleteThresholdMin: Option[Int],
+                     autodeleteEnabled: Boolean
 ) {
 
   def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =

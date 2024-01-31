@@ -41,7 +41,8 @@ final case class AppRecord(id: AppId,
                            extraArgs: Option[List[String]],
                            sourceWorkspaceId: Option[WorkspaceId],
                            numOfReplicas: Option[Int],
-                           autodeleteThresholdInMinutes: Int
+                           autodeleteThresholdMin: Option[Int],
+                           autodeleteEnabled: Boolean
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -69,7 +70,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
   def namespaceName = column[NamespaceName]("namespace", O.Length(254))
   def numOfReplicas = column[Option[Int]]("numOfReplicas", O.SqlType("SMALLINT"))
-  def autodeleteThresholdInMinutes = column[Int]("autodeleteThresholdInMinutes")
+  def autodeleteThresholdMin = column[Option[Int]]("autodeleteThresholdMin")
+  def autodeleteEnabled = column[Boolean]("autodeleteEnabled")
 
   def * =
     (
@@ -93,7 +95,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       extraArgs,
       sourceWorkspaceId,
       numOfReplicas,
-      autodeleteThresholdInMinutes
+      autodeleteThresholdMin,
+      autodeleteEnabled
     ) <> ({
       case (
             id,
@@ -116,7 +119,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             extraArgs,
             sourceWorkspaceId,
             numOfReplicas,
-            autodeleteThresholdInMinutes
+            autodeleteThresholdMin,
+        autodeleteEnabled
           ) =>
         AppRecord(
           id,
@@ -144,7 +148,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           extraArgs,
           sourceWorkspaceId,
           numOfReplicas,
-          autodeleteThresholdInMinutes
+          autodeleteThresholdMin,
+          autodeleteEnabled
         )
     }, { r: AppRecord =>
       Some(
@@ -173,7 +178,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.extraArgs,
           r.sourceWorkspaceId,
           r.numOfReplicas,
-          r.autodeleteThresholdInMinutes
+          r.autodeleteThresholdMin,
+          r.autodeleteEnabled
         )
       )
     })
@@ -213,7 +219,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.extraArgs.getOrElse(List.empty),
       app.sourceWorkspaceId,
       app.numOfReplicas,
-      app.autodeleteThresholdInMinutes
+      app.autodeleteThresholdMin,
+      app.autodeleteEnabled
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -281,7 +288,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
         saveApp.app.sourceWorkspaceId,
         saveApp.app.numOfReplicas,
-        saveApp.app.autodeleteThresholdInMinutes
+        saveApp.app.autodeleteThresholdMin,
+        saveApp.app.autodeleteEnabled
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
@@ -381,8 +389,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
     val minute = SimpleLiteral[String]("MINUTE")
 
     val baseQuery = appQuery
-      .filter(_.autodeleteThresholdInMinutes =!= autodeleteOffValue)
-      .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autodeleteThresholdInMinutes)
+      .filter(_.autodeleteEnabled === true)
+      .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autodeleteThresholdMin)
       .filter(_.status inSetBind AppStatus.deletableStatuses)
 
     val query = baseQuery join nodepoolQuery on (_.nodepoolId === _.id) join

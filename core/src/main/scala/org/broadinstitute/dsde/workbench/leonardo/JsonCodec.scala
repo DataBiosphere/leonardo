@@ -816,9 +816,4 @@ object JsonCodec {
      x.postgresServer
     )
   )
-
-  implicit val durationDecoder: Decoder[Duration] =
-    Decoder.decodeString.emap { x =>
-      Either.catchNonFatal(Duration(x)).leftMap(_.getMessage)
-    }
 }

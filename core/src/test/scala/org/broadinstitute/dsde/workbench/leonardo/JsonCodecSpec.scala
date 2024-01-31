@@ -173,11 +173,4 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       )
     )
   }
-
-  it should "decode duration" in {
-    durationDecoder.decodeJson("""15 minutes""".asJson) shouldBe Right(Duration(15, TimeUnit.MINUTES))
-    durationDecoder.decodeJson("""15m""".asJson) shouldBe Right(Duration(15, TimeUnit.MINUTES))
-    durationDecoder.decodeJson("""15d""".asJson) shouldBe Right(Duration(15, TimeUnit.DAYS))
-    durationDecoder.decodeJson("""Inf""".asJson) shouldBe Right(Duration.Inf)
-  }
 }
