@@ -23,7 +23,6 @@ import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
 import java.net.URL
-import scala.concurrent.duration.Duration
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
@@ -37,7 +36,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   sourceWorkspaceId: Option[WorkspaceId],
                                   workspaceId: Option[WorkspaceId],
                                   autodeleteThresholdMin: Option[Int],
-                                  autodeleteThresholdEnabled: Boolean
+                                  autodeleteEnabled: Option[Boolean]
 )
 
 final case class GetAppResponse(

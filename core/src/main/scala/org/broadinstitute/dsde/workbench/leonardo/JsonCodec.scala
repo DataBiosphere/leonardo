@@ -52,7 +52,6 @@ import java.nio.file.{Path, Paths}
 import java.time.Instant
 import java.util.UUID
 import java.util.stream.Collectors
-import scala.concurrent.duration.Duration
 
 object JsonCodec {
   // Errors

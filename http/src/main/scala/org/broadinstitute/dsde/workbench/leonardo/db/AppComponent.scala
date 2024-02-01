@@ -120,7 +120,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             sourceWorkspaceId,
             numOfReplicas,
             autodeleteThresholdMin,
-        autodeleteEnabled
+            autodeleteEnabled
           ) =>
         AppRecord(
           id,

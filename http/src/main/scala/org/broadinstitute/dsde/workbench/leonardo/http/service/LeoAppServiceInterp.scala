@@ -1254,11 +1254,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (req.appType == AppType.Allowed)
           Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
         else None
-      autodeleteThresholdInMinutes = req.autodeleteThresholdDuration match {
-        case None               => autodeleteOffValue
-        case Some(Duration.Inf) => autodeleteOffValue
-        case Some(x)            => x.toMinutes.toInt
-      }
+      autodeleteEnabled = req.autodeleteEnabled.getOrElse(false)
+      autodeleteThresholdMin = req.autodeleteThresholdMin.orNull
+
+      _ <- F.raiseWhen(
+        autodeleteEnabled && (autodeleteThresholdMin == null || autodeleteThresholdMin <= 0)
+      )(
+        BadRequestException("autodeleteThresholdMin should be a positive value", Option(ctx.traceId))
+      )
 
     } yield SaveApp(
       App(
@@ -1287,7 +1290,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.extraArgs,
         req.sourceWorkspaceId,
         numOfReplicas,
-        autodeleteThresholdInMinutes
+        req.autodeleteThresholdMin,
+        autodeleteEnabled
       )
     )
   }

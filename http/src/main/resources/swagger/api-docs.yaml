@@ -4037,8 +4037,8 @@ components:
         autodeleteThresholdMin:
           type: integer
           description: The number of minutes of idle time to elapse before the app is
-            deleted. When autodeleteThresholdEnabled is true, a positive integer is required
-        autodeleteThresholdEnabled:
+            deleted. When autodeleteEnabled is true, a positive integer is required
+        autodeleteEnabled:
           type: boolean
           description: Whether to turn on autodelete
 
