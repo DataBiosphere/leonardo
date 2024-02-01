@@ -154,10 +154,3 @@ case class DiskWithoutWorkspaceException(id: DiskId, traceId: TraceId)
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
-
-case class DiskWithoutWsmResourceIdException(id: DiskId, traceId: TraceId)
-    extends LeoException(
-      s"Persistent disk ${id.value} cannot be deleted. Disk record has no wsmResourceId",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )

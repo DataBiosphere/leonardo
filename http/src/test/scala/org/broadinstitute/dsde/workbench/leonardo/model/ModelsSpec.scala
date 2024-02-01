@@ -1,9 +1,10 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.model
 
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, WsmState}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
-class modelsSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
+class ModelsSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   it should "convert WSM state to value correctly" in {
     WsmState(None).value shouldBe "DELETED"
     WsmState(Some("CREATING")).value shouldBe "CREATING"
