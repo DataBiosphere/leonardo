@@ -7,13 +7,15 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AppAction,
   AppContext,
-  AppName,
   AppStatus,
   CloudContext,
+  DiskId,
   DiskStatus,
-  RuntimeName,
-  WorkspaceId
+  PersistentDiskAction,
+  RuntimeAction,
+  RuntimeConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   appQuery,
@@ -27,37 +29,31 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   ctxConversion,
-  CreateAppRequest,
-  CreateDiskRequest,
-  CreateRuntimeRequest,
-  CreateRuntimeResponse,
-  GetAppResponse,
-  GetPersistentDiskResponse,
-  GetRuntimeResponse,
   ListAppResponse,
   ListPersistentDiskResponse,
-  ListRuntimeResponse2,
-  UpdateDiskRequest,
-  UpdateRuntimeRequest
+  ListRuntimeResponse2
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{
+  ForbiddenError,
   LeoAuthProvider,
   NonDeletableDisksInProjectFoundException,
-  NonDeletableRuntimesInProjectFoundException
+  NonDeletableRuntimesInProjectFoundException,
+  RuntimeNotFoundException
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.ExecutionContext
 
-final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F])(implicit
+final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
+                                                   runtimeService: RuntimeService[F],
+                                                   appService: AppService[F],
+                                                   diskService: DiskService[F]
+)(implicit
   F: Async[F],
   dbRef: DbReference[F],
   ec: ExecutionContext
-) extends ResourcesService[F]
-    with RuntimeService[F]
-    with AppService[F]
-    with DiskService[F] {
+) extends ResourcesService[F] {
   override def deleteAllResources(userInfo: UserInfo,
                                   googleProject: GoogleProject,
                                   deleteInCloud: Boolean,
@@ -67,6 +63,12 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // throw 403 if no project-level permission, fail fast if the user does not have access to the project
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        CloudContext.Gcp(googleProject),
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
       _ <-
         if (deleteInCloud) deleteAllResourcesInCloud(userInfo, googleProject, deleteDisk)
         else deleteAllResourcesRecords(userInfo, googleProject)
@@ -76,19 +78,30 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      _ <- deleteAllRuntimesInCloud(userInfo, googleProject, deleteDisk)
-      _ <- deleteAllAppsInCloud(userInfo, googleProject, deleteDisk)
-      // Delete any potential left over orphaned disk in the project - This may be a complete overkill as the deletion
-      // of most disks done as part of delete runtimes and delete apps will still be in progress at that point
-      _ <- if (deleteDisk) deleteAllDisksInCloud(userInfo, googleProject) else F.unit
+      // Delete runtimes and apps, and their attached disks if deleteDisk flag is set to true
+      runtimeDiskIds <- deleteAllRuntimesInCloud(userInfo, googleProject, deleteDisk)
+      appDiskNames <- deleteAllAppsInCloud(userInfo, googleProject, deleteDisk)
+      // Delete any potential left over orphaned disk in the project
+      _ <-
+        if (deleteDisk) deleteAllOrphanedDisksInCloud(userInfo, googleProject, runtimeDiskIds, appDiskNames) else F.unit
     } yield ()
 
   private def deleteAllRuntimesInCloud(userInfo: UserInfo, googleProject: GoogleProject, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[Option[Vector[DiskId]]] =
     for {
       ctx <- as.ask
-      runtimes <- listRuntimes(userInfo, Some(CloudContext.Gcp(googleProject)), Map.empty)
+      runtimes <- runtimeService.listRuntimes(userInfo, Some(CloudContext.Gcp(googleProject)), Map.empty)
+
+      attachedPersistentDiskIds = runtimes
+        .map(r => r.runtimeConfig)
+        .traverse(c =>
+          c match {
+            case x: RuntimeConfig.GceWithPdConfig => x.persistentDiskId
+            case _                                => none
+          }
+        )
+
       nonDeletableRuntimes = runtimes.filterNot(r => r.status.isDeletable)
 
       _ <- F
@@ -103,20 +116,22 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
 
       _ <- runtimes
         .traverse(runtime =>
-          deleteRuntime(DeleteRuntimeRequest(userInfo, googleProject, runtime.clusterName, deleteDisk))
+          runtimeService.deleteRuntime(DeleteRuntimeRequest(userInfo, googleProject, runtime.clusterName, deleteDisk))
         )
-    } yield ()
+    } yield attachedPersistentDiskIds
 
   private def deleteAllAppsInCloud(userInfo: UserInfo, googleProject: GoogleProject, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[Vector[Option[DiskName]]] =
     for {
       ctx <- as.ask
-      apps <- listApp(
+      apps <- appService.listApp(
         userInfo,
         Some(CloudContext.Gcp(googleProject)),
         Map.empty
       )
+      attachedPersistentDiskNames = apps.map(a => a.diskName)
+
       nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app.status))
 
       _ <- F
@@ -125,29 +140,35 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
 
       _ <- apps
         .traverse { app =>
-          deleteApp(userInfo, CloudContext.Gcp(googleProject), app.appName, deleteDisk)
+          appService.deleteApp(userInfo, CloudContext.Gcp(googleProject), app.appName, deleteDisk)
         }
-    } yield ()
+    } yield attachedPersistentDiskNames
 
-  private def deleteAllDisksInCloud(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+  private def deleteAllOrphanedDisksInCloud(userInfo: UserInfo,
+                                            googleProject: GoogleProject,
+                                            runtimeDiskIds: Option[Vector[DiskId]],
+                                            appDisksNames: Vector[Option[DiskName]]
+  )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
-      disks <- listDisks(
+      // Get a list of disks that are not attached to any runtime or app
+      disks <- diskService.listDisks(
         userInfo,
         Some(CloudContext.Gcp(googleProject)),
         Map.empty
       )
-      nonDeletableDisks = disks.filterNot(disk => DiskStatus.deletableStatuses.contains(disk.status))
+      orphanedDisks = disks.filterNot(disk => runtimeDiskIds.contains(disk.id) | appDisksNames.contains(disk.name))
+      nonDeletableDisks = orphanedDisks.filterNot(disk => DiskStatus.deletableStatuses.contains(disk.status))
 
       _ <- F
         .raiseError(NonDeletableDisksInProjectFoundException(googleProject, nonDeletableDisks, ctx.traceId))
         .whenA(!nonDeletableDisks.isEmpty)
 
-      _ <- disks
+      _ <- orphanedDisks
         .traverse { disk =>
-          deleteDisk(userInfo, googleProject, disk.name)
+          diskService.deleteDisk(userInfo, googleProject, disk.name)
         }
     } yield ()
 
@@ -166,15 +187,34 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
   ): F[Unit] =
     for {
       ctx <- as.ask
-      runtimes <- listRuntimes(userInfo, Some(CloudContext.Gcp(googleProject)), Map.empty)
-      _ <- runtimes.traverse(runtime => deleteRuntimeRecords(googleProject, runtime))
+      runtimes <- runtimeService.listRuntimes(userInfo, Some(CloudContext.Gcp(googleProject)), Map.empty)
+      _ <- runtimes.traverse(runtime => deleteRuntimeRecords(userInfo, googleProject, runtime))
     } yield ()
 
-  private def deleteRuntimeRecords(googleProject: GoogleProject, runtime: ListRuntimeResponse2)(implicit
-    as: Ask[F, AppContext]
+  private def deleteRuntimeRecords(userInfo: UserInfo, googleProject: GoogleProject, runtime: ListRuntimeResponse2)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
+
+      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
+      // throw 404 if no GetRuntime permission
+      hasPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      _ <-
+        if (hasPermission) F.unit
+        else
+          F.raiseError[Unit](
+            RuntimeNotFoundException(CloudContext.Gcp(googleProject),
+                                     runtime.clusterName,
+                                     "Permission Denied",
+                                     Some(ctx.traceId)
+            )
+          )
+
+      // throw 403 if no DeleteApp permission
+      hasDeletePermission = listOfPermissions.toSet.contains(RuntimeAction.DeleteRuntime)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
       // Mark the resource as deleted in Leo's DB
       _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
       // Notify SAM that the resource has been deleted
@@ -191,15 +231,15 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
   ): F[Unit] =
     for {
       ctx <- as.ask
-      apps <- listApp(
+      apps <- appService.listApp(
         userInfo,
         Some(CloudContext.Gcp(googleProject)),
         Map.empty
       )
-      _ <- apps.traverse(app => deleteAppRecords(googleProject, app))
+      _ <- apps.traverse(app => deleteAppRecords(userInfo, googleProject, app))
     } yield ()
 
-  private def deleteAppRecords(googleProject: GoogleProject, app: ListAppResponse)(implicit
+  private def deleteAppRecords(userInfo: UserInfo, googleProject: GoogleProject, app: ListAppResponse)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -212,6 +252,21 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
         dbAppOpt,
         AppNotFoundException(CloudContext.Gcp(googleProject), app.appName, ctx.traceId, "No active app found in DB")
       )
+      listOfPermissions <- authProvider.getActions(dbApp.app.samResourceId, userInfo)
+
+      // throw 404 if no GetAppStatus permission
+      hasPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+      _ <-
+        if (hasPermission) F.unit
+        else
+          F.raiseError[Unit](
+            AppNotFoundException(CloudContext.Gcp(googleProject), app.appName, ctx.traceId, "Permission Denied")
+          )
+
+      // throw 403 if no DeleteApp permission
+      hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
       // Mark the app, nodepool and cluster as deleted in Leo's DB
       _ <- dbRef.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
       _ <- dbRef.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
@@ -230,16 +285,16 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
   ): F[Unit] =
     for {
       ctx <- as.ask
-      disks <- listDisks(
+      disks <- diskService.listDisks(
         userInfo,
         Some(CloudContext.Gcp(googleProject)),
         Map.empty
       )
-      _ <- disks.traverse(disk => deletediskRecords(googleProject, disk))
+      _ <- disks.traverse(disk => deletediskRecords(userInfo, googleProject, disk))
     } yield ()
 
-  private def deletediskRecords(googleProject: GoogleProject, disk: ListPersistentDiskResponse)(implicit
-    as: Ask[F, AppContext]
+  private def deletediskRecords(userInfo: UserInfo, googleProject: GoogleProject, disk: ListPersistentDiskResponse)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -247,6 +302,22 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
       dbdisk <- DiskServiceDbQueries
         .getGetPersistentDiskResponse(CloudContext.Gcp(googleProject), disk.name, ctx.traceId)
         .transaction
+
+      listOfPermissions <- authProvider.getActions(dbdisk.samResource, userInfo)
+
+      // throw 404 if no ReadDiskStatus permission
+      hasPermission = listOfPermissions.toSet.contains(PersistentDiskAction.ReadPersistentDisk)
+      _ <-
+        if (hasPermission) F.unit
+        else
+          F.raiseError[Unit](
+            DiskNotFoundException(CloudContext.Gcp(googleProject), disk.name, ctx.traceId)
+          )
+
+      // throw 403 if no DeleteDisk permission
+      hasDeletePermission = listOfPermissions.toSet.contains(PersistentDiskAction.DeletePersistentDisk)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
       // Mark the resource as deleted in Leo's DB
       _ <- dbRef.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
       // Notify SAM that the resource has been deleted
@@ -257,102 +328,4 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
           googleProject
         )
     } yield ()
-
-  // Ugly workaround to avoid making ResourcesServiceInterp abstract
-  override def createRuntime(userInfo: UserInfo,
-                             cloudContext: CloudContext,
-                             runtimeName: RuntimeName,
-                             req: CreateRuntimeRequest
-  )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] = ???
-
-  override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
-    as: Ask[F, AppContext]
-  ): F[GetRuntimeResponse] = ???
-
-  override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
-    implicit as: Ask[F, AppContext]
-  ): F[Vector[ListRuntimeResponse2]] = ???
-
-  override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(implicit as: Ask[F, AppContext]): F[Unit] = ???
-
-  override def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def updateRuntime(userInfo: UserInfo,
-                             googleProject: GoogleProject,
-                             runtimeName: RuntimeName,
-                             req: UpdateRuntimeRequest
-  )(implicit as: Ask[F, AppContext]): F[Unit] = ???
-
-  override def createApp(userInfo: UserInfo,
-                         cloudContext: CloudContext.Gcp,
-                         appName: AppName,
-                         req: CreateAppRequest,
-                         workspaceId: Option[WorkspaceId]
-  )(implicit as: Ask[F, AppContext]): F[Unit] = ???
-
-  override def getApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
-    as: Ask[F, AppContext]
-  ): F[GetAppResponse] = ???
-
-  override def listApp(userInfo: UserInfo, cloudContext: Option[CloudContext.Gcp], params: Map[String, String])(implicit
-    as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] = ???
-
-  override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def startApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
-    as: Ask[F, AppContext]
-  ): F[GetAppResponse] = ???
-
-  override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
-    as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] = ???
-
-  override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def createDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: CreateDiskRequest)(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(implicit
-    as: Ask[F, AppContext]
-  ): F[GetPersistentDiskResponse] = ???
-
-  override def listDisks(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(implicit
-    as: Ask[F, AppContext]
-  ): F[Vector[ListPersistentDiskResponse]] = ???
-
-  override def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = ???
-
-  override def updateDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: UpdateDiskRequest)(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] = ???
 }

@@ -215,7 +215,10 @@ object Boot extends IOApp {
       )
 
       val resourcesService = new ResourcesServiceInterp[IO](
-        appDependencies.authProvider
+        appDependencies.authProvider,
+        runtimeService,
+        leoKubernetesService,
+        diskService
       )
 
       val httpRoutes = new HttpRoutes(
