@@ -93,10 +93,10 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   // 1. If verification is triggered by consumer pact change, verify only the changed pact.
   // 2. For normal Leo PR, verify all consumer pacts in Pact Broker labelled with a deployed environment (alpha, dev, prod, staging).
   consumerBranch match {
-    case Some(s) if !s.isBlank => consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName)
+    case Some(s) if !s.isBlank => consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName).matchingBranch
     case _ =>
       consumerVersionSelectors =
-        consumerVersionSelectors.deployedOrReleased.mainBranch
+        consumerVersionSelectors.deployedOrReleased.mainBranch.matchingBranch
   }
 
   val provider: ProviderInfoBuilder =
@@ -106,7 +106,6 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
                           .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
                           .withPendingPacts(true)
                           .withProviderTags(ProviderTags("develop"))
-                          .withConsumerVersionSelectors(ConsumerVersionSelectors().matchingBranch)
     )
       .withStateManagementFunction(
         providerStatesHandler
