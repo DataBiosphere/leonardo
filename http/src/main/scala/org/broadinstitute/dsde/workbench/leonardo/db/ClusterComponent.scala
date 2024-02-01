@@ -715,6 +715,17 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       _ <- diskIdOpt.traverse(diskId => persistentDiskQuery.delete(diskId, dateAccessed))
     } yield ()
 
+  def getDiskId(runtimeId: Long)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[DiskId]] =
+    for {
+      runtimeConfigId <- findByIdQuery(runtimeId)
+        .map(_.runtimeConfigId)
+        .result
+        .headOption
+      diskIdOpt <- runtimeConfigId.flatTraverse(rid => RuntimeConfigQueries.getDiskId(rid))
+    } yield diskIdOpt
+
   def setToRunning(id: Long, hostIp: IP, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Running, Some(hostIp), dateAccessed)
 
