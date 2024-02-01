@@ -958,6 +958,155 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "fail to delete Azure Vm if WSM delete VM job fails" in isolatedDbTest {
+    val exceptionMsg = "WSM delete VM job failed due to unknown"
+    val queue = QueueFactory.asyncTaskQueue()
+    val wsm = new MockWsmDAO {
+      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetDeleteJobResult] =
+        IO.pure(
+          GetDeleteJobResult(
+            WsmJobReport(
+              request.jobId,
+              "desc",
+              WsmJobStatus.Failed,
+              200,
+              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+              "resultUrl"
+            ),
+            None // Some(WsmErrorReport("test error", 200, ))
+          )
+        )
+    }
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(1)
+          .copy(
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
+          .transaction
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
+          .transaction
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(wsmResourceId),
+                                        billingProfileId,
+                                        None
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.deleteAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "update state correctly if WSM deleteDisk job fails" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val wsm = new MockWsmDAO {
+      override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetDeleteJobResult] =
+        IO.pure(
+          GetDeleteJobResult(
+            WsmJobReport(
+              request.jobId,
+              "desc",
+              WsmJobStatus.Failed,
+              200,
+              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+              "resultUrl"
+            ),
+            None // Some(WsmErrorReport("test error", 200, ))
+          )
+        )
+    }
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(1)
+          .copy(
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
+          .transaction
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
+          .transaction
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          runtime = getRuntimeOpt.get
+          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+          getDisk = getDiskOpt.get
+          diskAttached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
+        } yield {
+          // VM must be deleted successfully for deleteDisk action to start
+          // disk can then be deleted from the cloud environment page if desired
+          runtime.status shouldBe RuntimeStatus.Deleted
+          getDisk.status shouldBe DiskStatus.Error
+          diskAttached shouldBe false
+        }
+
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(wsmResourceId),
+                                        billingProfileId,
+                                        None
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.deleteAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "update runtime correctly when wsm deleteDisk call errors on runtime deletion" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val queue = QueueFactory.asyncTaskQueue()
