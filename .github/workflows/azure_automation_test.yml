@@ -301,8 +301,9 @@ jobs:
       - name: Notify slack
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          # Channel is for #ia-notification-test
-          channel-id: 'C03ATF4QXEV'
+          # C03ATF4QXEV is for #ia-notification-test
+          # C53JYBV9A is for #dsde-qa
+          channel-id: 'C03ATF4QXEV,C53JYBV9A'
           slack-message: "Azure E2E Tests FAILED, automation-branch: ${{ needs.init-github-context.outputs.automation-branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
