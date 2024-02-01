@@ -22,7 +22,7 @@ import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pact4s.provider.Authentication.BasicAuth
 import pact4s.provider.StateManagement.StateManagementFunction
-import pact4s.provider._
+import pact4s.provider.{ConsumerVersionSelectors, _}
 import pact4s.scalatest.PactVerifier
 
 import java.lang.Thread.sleep
@@ -105,7 +105,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
                           .PactBrokerWithSelectors(pactBrokerUrl)
                           .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
                           .withPendingPacts(true)
-                          .withProviderTags(ProviderTags("develop"))
+                          .withConsumerVersionSelectors(ConsumerVersionSelectors().matchingBranch)
     )
       .withStateManagementFunction(
         providerStatesHandler
