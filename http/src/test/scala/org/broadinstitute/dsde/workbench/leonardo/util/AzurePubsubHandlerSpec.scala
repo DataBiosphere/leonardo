@@ -1031,7 +1031,7 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "update state correctly if WSM deleteDisk job fails" in isolatedDbTest {
+  it should "update state correctly if WSM deleteDisk job fails during runtime deletion" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val wsm = new MockWsmDAO {
       override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
