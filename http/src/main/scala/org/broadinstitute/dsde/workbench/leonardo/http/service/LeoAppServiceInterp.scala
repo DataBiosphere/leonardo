@@ -49,7 +49,6 @@ import slick.jdbc.TransactionIsolation
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.Duration
 
 final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
@@ -1257,9 +1256,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autodeleteEnabled = req.autodeleteEnabled.getOrElse(false)
       autodeleteThresholdMin = req.autodeleteThresholdMin.getOrElse(0)
 
-      _ <- Either.cond(autodeleteEnabled && autodeleteThresholdMin > 0, (),
-        BadRequestException("autodeleteThresholdMin should be a positive value", Some(ctx.traceId)))
-
+      _ <- Either.cond(!(autodeleteEnabled && autodeleteThresholdMin <= 0),
+                       (),
+                       BadRequestException("autodeleteThresholdMin should be a positive value", Some(ctx.traceId))
+      )
     } yield SaveApp(
       App(
         AppId(-1),
