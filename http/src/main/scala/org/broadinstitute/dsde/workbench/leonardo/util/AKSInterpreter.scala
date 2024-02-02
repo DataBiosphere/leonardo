@@ -788,48 +788,52 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         ctx <- ev.ask
         wsmApi <- buildWsmControlledResourceApiClient
 
-        // get a list of databases needed for this app
+        // get a list of database types required for this app
         controlledDbsRequiredForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
 
-        // retrieve set of info about any WSM existing databases for this workspace
+        // retrieve set of databases WSM has created for this workspace
         existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
                                                                  controlledDbsRequiredForApp.map(_.prefix).toSet,
                                                                  workspaceId.value
         )
+
+        // verify or create a list of APP_CONTROLLED_RESOURCE records for each required database, creating the db if needed
         wsmControlledDBResources <- controlledDbsRequiredForApp
           .map { controlledDbForApp =>
             val maybeExistingDb = existingControlledDbsInWorkspace
               .find(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
 
-            // if a database already exists (because of workspace cloning) use that otherwise create a new one
             maybeExistingDb match {
+              // a database already exists (because of workspace cloning) verify or create a APP_CONTROLLED_RESOURCE for it
               case Some(existingDb) =>
                 // there is an existing db, so check to see if we have previously mapped it to appControlledResource
                 val resourceId = existingDb.controlledResourceId.get
-                val maybeAppControlledResource = appControlledResourceQuery
-                  .getAllForAppByResourceId(app.id.id, WsmControlledResourceId(resourceId))
-                  .transaction
 
-                // if the appControlledResource already exists for this app, use
-                maybeAppControlledResource match {
-                  case Some(_) =>
-                    F.pure(existingDb)
+                for {
+                  count <- dbRef.inTransaction(
+                    appControlledResourceQuery.countForAppByResourceId(app.id.id, WsmControlledResourceId(resourceId))
+                  )
+                  dbInfo <-
+                    if (count > 0) {
+                      F.pure(existingDb)
+                    } else {
+                      // Perform a side effect to insert this db resource into the appControlledResource table, then return the existing DB info
+                      for {
+                        _ <- appControlledResourceQuery
+                          .insert(
+                            app.id.id,
+                            WsmControlledResourceId(existingDb.controlledResourceId.get),
+                            WsmResourceType.AzureDatabase,
+                            AppControlledResourceStatus.Created
+                          )
+                          .transaction
+                        dbInfo <- F.pure(existingDb)
+                      } yield dbInfo
+                    }
+                } yield dbInfo
 
-                  case Nil =>
-                    // Perform a side effect to insert this db resource into the appControlledResource table, then return the existing DB info
-                    for {
-                      _ <- appControlledResourceQuery
-                        .insert(
-                          app.id.id,
-                          WsmControlledResourceId(existingDb.controlledResourceId.get),
-                          WsmResourceType.AzureDatabase,
-                          AppControlledResourceStatus.Created
-                        )
-                        .transaction
-                      dbInfo <- F.pure(existingDb)
-                    } yield dbInfo
-                }
               case None =>
+                // no database exists, create one, create a appControlledResource for it, and yield the new appControlledResource
                 createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                   db =>
                     WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,

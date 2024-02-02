@@ -351,10 +351,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata"
       controlledDatabases(1).azureDatabaseName shouldBe "cromwellmetadata_ns"
 
-      controlledResources.size shouldBe 1
+      controlledResources.size shouldBe 2
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
       controlledResources.head.appId shouldBe appId.id
+      controlledResources(1).resourceType shouldBe WsmResourceType.AzureDatabase
+      controlledResources(1).status shouldBe AppControlledResourceStatus.Created
+      controlledResources(1).appId shouldBe appId.id
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -871,7 +874,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("cbas"))
+      resourceDesc.metadata(new ResourceMetadata().name("cbas").resourceId(java.util.UUID.randomUUID()))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureDatabase(
           new AzureDatabaseAttributes().databaseName("cbas_cloned_db_abcxyz")

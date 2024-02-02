@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import LeoProfile.api._
-import LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import ca.mrvisser.sealerate
+import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
 import scala.concurrent.ExecutionContext
 
@@ -89,13 +89,10 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
       .result
       .map(_.toList)
 
-  def getAllForAppByResourceId(appId: Long, resourceId: WsmControlledResourceId)(implicit
-    ec: ExecutionContext
-  ): DBIO[List[AppControlledResourceRecord]] =
+  def countForAppByResourceId(appId: Long, resourceId: WsmControlledResourceId) =
     appControlledResourceQuery
       .filter(_.appId === appId)
       .filter(_.resourceId === resourceId)
+      .length
       .result
-      .map(_.toList)
-
 }
