@@ -25,12 +25,19 @@ object RuntimeStateManager {
     final val RuntimeDoesNotExist = "there is not a runtime in a Google project"
   }
 
-  private def mockRuntimeDoesNotExist(mockRuntimeService: RuntimeService[IO]):IO[Unit] = for {
+  private def mockRuntimeDoesNotExist(mockRuntimeService: RuntimeService[IO]): IO[Unit] = for {
     _ <- IO(
       when {
-        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(any[Ask[IO, AppContext]])
+        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
+          any[Ask[IO, AppContext]]
+        )
       } thenReturn {
-        IO.raiseError(RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),RuntimeName("nonexistentruntimename"),"OOOPS"))
+        IO.raiseError(
+          RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
+                                   RuntimeName("nonexistentruntimename"),
+                                   "OOOPS"
+          )
+        )
       }
     )
   } yield ()
@@ -39,7 +46,9 @@ object RuntimeStateManager {
     case ProviderState(States.RuntimeExists, _) =>
       val date = Instant.parse("2020-11-20T17:23:24.650Z")
       when(
-        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(any[Ask[IO, AppContext]])
+        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
+          any[Ask[IO, AppContext]]
+        )
       )
         .thenReturn(IO {
           GetRuntimeResponse(
