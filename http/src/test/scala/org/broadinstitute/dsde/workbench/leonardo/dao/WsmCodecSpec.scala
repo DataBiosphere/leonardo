@@ -98,7 +98,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "publisher": "microsoft-dsvm",
          |      "offer": "ubuntu-2004",
          |      "sku": "2004-gen2",
-         |      "version": "23.04.24"
+         |      "version": "23.12.18"
          |    },
          |    "customScriptExtension": {
          |      "name": "vm-custom-script-extension",
