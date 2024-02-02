@@ -124,8 +124,7 @@ jobs:
     # Put new Leonardo version in Broad dev environment
     uses: broadinstitute/sherlock/.github/workflows/client-set-environment-app-version.yaml@main
     needs: [ leo-build-tag-publish-job, report-to-sherlock ]
-    if: false # disabled for now, use the below line when ready to cut over from jenkins.
-    # if: ${{ github.ref_name == 'develop' }}
+    if: ${{ github.ref_name == 'develop' }}
     with:
       new-version: ${{ needs.leo-build-tag-publish-job.outputs.tag }}
       chart-name: 'leonardo'
