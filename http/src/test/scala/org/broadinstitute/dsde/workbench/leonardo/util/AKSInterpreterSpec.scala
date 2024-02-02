@@ -854,7 +854,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata"))
+      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata").resourceId(java.util.UUID.randomUUID()))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureDatabase(
           new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
@@ -894,7 +894,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app"))
+      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app").resourceId(java.util.UUID.randomUUID()))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureManagedIdentity(
           new AzureManagedIdentityAttributes().managedIdentityName("cloned_abcxyz")
