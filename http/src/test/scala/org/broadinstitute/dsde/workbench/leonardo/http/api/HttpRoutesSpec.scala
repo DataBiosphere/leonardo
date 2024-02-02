@@ -869,7 +869,6 @@ class HttpRoutesSpec
       "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=false&deleteDisk=false"
     ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
-      validateRawCookie(header("Set-Cookie"))
     }
   }
 

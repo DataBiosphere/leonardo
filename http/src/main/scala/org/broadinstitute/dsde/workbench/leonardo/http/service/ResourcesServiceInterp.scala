@@ -69,6 +69,7 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
         userInfo
       )
       _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       _ <-
         if (deleteInCloud) deleteAllResourcesInCloud(userInfo, googleProject, deleteDisk)
         else deleteAllResourcesRecords(userInfo, googleProject)
