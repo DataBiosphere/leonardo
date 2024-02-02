@@ -81,6 +81,8 @@ object KubernetesTestData {
     None,
     List.empty,
     None,
+    None,
+    None,
     None
   )
 
@@ -122,6 +124,8 @@ object KubernetesTestData {
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
       extraArgs = List.empty,
+      None,
+      None,
       None,
       None
     )
@@ -206,7 +210,8 @@ object KubernetesTestData {
               releasePrefix: String = galaxyReleasePrefix,
               disk: Option[PersistentDisk] = None,
               kubernetesServiceAccountName: Option[ServiceAccountName] = None,
-              autodeleteThresholdInMinutes: Int = 0
+              autodeleteThresholdMin: Int = 0,
+              autodeleteEnabled: Boolean = false
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
@@ -240,7 +245,8 @@ object KubernetesTestData {
       List.empty,
       None,
       Some(1),
-      autodeleteThresholdInMinutes
+      Some(autodeleteThresholdMin),
+      autodeleteEnabled
     )
   }
 

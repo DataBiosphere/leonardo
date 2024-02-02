@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
 
-import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -29,7 +28,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(1, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autodeleteThresholdInMinutes = 1
+                autodeleteThresholdMin = 1
           )
           .save()
       )
@@ -55,7 +54,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(2, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autodeleteThresholdInMinutes = 6
+                autodeleteThresholdMin = 6
           )
           .save()
       )
