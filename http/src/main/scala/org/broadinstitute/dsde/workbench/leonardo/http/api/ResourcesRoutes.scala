@@ -3,7 +3,7 @@ package http
 package api
 
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
@@ -62,15 +62,20 @@ class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives
       ctx <- ev.ask[AppContext]
       deleteInCloud = params.get("deleteInCloud").exists(_ == "true")
       deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      _ = println("LOOK AT ME")
+      _ = println(deleteInCloud, deleteDisk)
+      _ = println(deleteInCloud == false && deleteDisk == false)
       // We do not support both deleteInCloud AND deleteDisk flags to be set to false
-      _ = if (deleteInCloud == false && deleteDisk == false)
-        logger.info(
-          s"Non supported combination of deleteInCloud and deleteDisk flags: ${(deleteInCloud, deleteDisk)}"
-        ) >> IO.raiseError(
-          BadRequestException(s"Invalid `deleteInCLoud` and `deleteDisk` ${(deleteInCloud, deleteDisk)}",
-                              Some(ctx.traceId)
+      _ =
+        if (deleteInCloud == false && deleteDisk == false) {
+          logger.info(
+            s"Non supported combination of deleteInCloud and deleteDisk flags: ${(deleteInCloud, deleteDisk)}"
+          ) >> IO.raiseError(
+            BadRequestException(s"Invalid `deleteInCloud` and `deleteDisk` ${(deleteInCloud, deleteDisk)}",
+                                Some(ctx.traceId)
+            )
           )
-        )
+        }
       apiCall = resourcesService.deleteAllResources(userInfo, googleProject, deleteInCloud, deleteDisk)
       tags = Map("deleteInCloud" -> deleteInCloud.toString, "deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteAllResources", 1, tags)
