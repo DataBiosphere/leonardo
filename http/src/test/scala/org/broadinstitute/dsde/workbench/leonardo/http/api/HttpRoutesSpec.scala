@@ -58,6 +58,7 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -74,6 +75,7 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -90,6 +92,7 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -106,6 +109,7 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
+      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -851,6 +855,24 @@ class HttpRoutesSpec
     }
   }
 
+  it should "run a basic delete all resources request" in {
+    Delete(
+      "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=true?deleteDisk=false"
+    ) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "fail to run a basic delete all resources request if both flags are false" in {
+    Delete(
+      "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=false?deleteDisk=false"
+    ) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.BadRequest
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
   // Validate encoding/decoding of RuntimeConfigRequest types
   // TODO should these decoders move to JsonCodec in core module?
 
@@ -902,6 +924,7 @@ class HttpRoutesSpec
       MockAppService,
       runtimev2Service,
       MockAdminServiceInterp,
+      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -918,6 +941,7 @@ class HttpRoutesSpec
       kubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
