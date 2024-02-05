@@ -147,8 +147,8 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}",
-            "mrg-id": "staticTestingMrg",
-            "landing-zone-id": "f41c1a97-179b-4a18-9615-5214d79ba600",
+            "mrg-id": "e2e-8n6xqg",
+            "landing-zone-id": "c6489e53-85b6-4bf1-ada1-d05f9602315d",
             "bee-name": "${{ env.BEE_NAME }}",
             "billing-project": "${{ needs.params-gen.outputs.project-name }}",
             "billing-project-creator": "${{ needs.init-github-context.outputs.owner-subject }}",
@@ -301,8 +301,9 @@ jobs:
       - name: Notify slack
         uses: slackapi/slack-github-action@v1.23.0
         with:
-          # Channel is for #ia-notification-test
-          channel-id: 'C03ATF4QXEV'
+          # C03ATF4QXEV is for #ia-notification-test
+          # C53JYBV9A is for #dsde-qa
+          channel-id: 'C03ATF4QXEV,C53JYBV9A'
           slack-message: "Azure E2E Tests FAILED, automation-branch: ${{ needs.init-github-context.outputs.automation-branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
