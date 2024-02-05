@@ -16,7 +16,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{CryptoMining, CryptoMiningScc, DeleteKubernetesClusterMessage, DeleteNodepoolMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
+  CryptoMining,
+  CryptoMiningScc,
+  DeleteKubernetesClusterMessage,
+  DeleteNodepoolMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.cryptominingUserMessageEncoder
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, DeleteNodepoolParams, GKEAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -175,8 +180,8 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
 
             userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, googleProject)
             _ <- userSubjectId.traverse { sid =>
-              implicit val traceId : Ask[F,TraceId] = Ask.const[F, TraceId](ctx.traceId)
-              publisher.publishOne(CryptominingUserMessage(sid),Some(Map("cryptomining" -> "true")))
+              implicit val traceId: Ask[F, TraceId] = Ask.const[F, TraceId](ctx.traceId)
+              publisher.publishOne(CryptominingUserMessage(sid), Some(Map("cryptomining" -> "true")))
             }
           } yield ()
       }

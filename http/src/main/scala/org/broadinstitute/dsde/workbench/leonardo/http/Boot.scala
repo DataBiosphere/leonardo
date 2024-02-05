@@ -17,10 +17,25 @@ import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleProjectDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GooglePublisher, GoogleResourceService, GoogleStorageService, GoogleSubscriber, credentialResource}
+import org.broadinstitute.dsde.workbench.google2.{
+  credentialResource,
+  GKEService,
+  GoogleComputeService,
+  GoogleDataprocService,
+  GoogleDiskService,
+  GooglePublisher,
+  GoogleResourceService,
+  GoogleStorageService,
+  GoogleSubscriber
+}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.LeoPublisher
 import org.broadinstitute.dsde.workbench.leonardo.app._
@@ -31,7 +46,13 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, GCPModeSpecificServices, HttpRoutes, LivenessRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  BuildTimeVersion,
+  GCPModeSpecificServices,
+  HttpRoutes,
+  LivenessRoutes,
+  StandardUserInfoDirectives
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -46,13 +67,12 @@ import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
+import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
 
 import java.net.{InetSocketAddress, SocketException}
-import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
@@ -91,282 +111,279 @@ object Boot extends IOApp {
 
     logger.info("Liveness server has been started").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    createDependencies(applicationConfig.leoServiceAccountJsonFile).use {
-      appDependencies => // TODO: azure fix, get this from config
-        val cloudDependencies = appDependencies.cloudDependencies
+    createDependencies.use { appDependencies => // TODO: azure fix, get this from config
+      val cloudDependencies = appDependencies.cloudDependencies
 
-        implicit val dbRef = appDependencies.dbReference
-        implicit val openTelemetry = appDependencies.openTelemetryMetrics
+      implicit val dbRef = appDependencies.dbReference
+      implicit val openTelemetry = appDependencies.openTelemetryMetrics
 
-        val dateAccessedUpdater =
-          new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
+      val dateAccessedUpdater =
+        new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
 
-        val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference)
-        val runtimeServiceConfig = RuntimeServiceConfig(
-          proxyConfig.proxyUrlBase,
-          imageConfig,
-          autoFreezeConfig,
-          dataprocConfig,
-          gceConfig,
-          AzureServiceConfig(
-            // For now azure disks share same defaults as normal disks
-            ConfigReader.appConfig.persistentDisk,
-            ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
-            ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-            ConfigReader.appConfig.azure.pubsubHandler.welderImage
-          )
-        )
-
-        val googleOnlyServices = cloudDependencies match {
-          case CloudDependencies.Google(googleStorageService,
-                                        googleComputeService,
-                                        _,
-                                        googleResourceService,
-                                        _,
-                                        _,
-                                        _,
-                                        _,
-                                        googleDiskService,
-                                        googleProjectDAO,
-                                        _,
-                                        _
-              ) =>
-            val runtimeService = RuntimeService(
-              runtimeServiceConfig,
-              ConfigReader.appConfig.persistentDisk,
-              appDependencies.authProvider,
-              appDependencies.serviceAccountProvider,
-              appDependencies.dockerDAO,
-              googleStorageService,
-              googleComputeService,
-              appDependencies.publisherQueue
-            )
-            val diskService = new DiskServiceInterp[IO](
-              ConfigReader.appConfig.persistentDisk,
-              appDependencies.authProvider,
-              appDependencies.serviceAccountProvider,
-              appDependencies.publisherQueue,
-              googleDiskService,
-              googleProjectDAO
-            )
-            val proxyService = new ProxyService(
-              appDependencies.sslContext,
-              proxyConfig,
-              appDependencies.jupyterDAO,
-              appDependencies.runtimeDnsCache,
-              appDependencies.kubernetesDnsCache,
-              appDependencies.authProvider,
-              appDependencies.dateAccessedUpdaterQueue,
-              appDependencies.googleOauth2DAO,
-              appDependencies.proxyResolver,
-              appDependencies.samDAO,
-              appDependencies.googleTokenCache,
-              appDependencies.samResourceCache
-            )
-            Some(
-              GCPModeSpecificServices(runtimeService,
-                                      diskService,
-                                      proxyService,
-                                      googleResourceService,
-                                      googleComputeService
-              )
-            )
-          case _: CloudDependencies.Azure =>
-            None
-        }
-
-        val diskV2Service = new DiskV2ServiceInterp[IO](
+      val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference)
+      val runtimeServiceConfig = RuntimeServiceConfig(
+        proxyConfig.proxyUrlBase,
+        imageConfig,
+        autoFreezeConfig,
+        dataprocConfig,
+        gceConfig,
+        AzureServiceConfig(
+          // For now azure disks share same defaults as normal disks
           ConfigReader.appConfig.persistentDisk,
-          appDependencies.authProvider,
-          appDependencies.wsmDAO,
-          appDependencies.samDAO,
-          appDependencies.publisherQueue
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
+          ConfigReader.appConfig.azure.pubsubHandler.welderImage
         )
+      )
 
-        val leoKubernetesService: LeoAppServiceInterp[IO] =
-          new LeoAppServiceInterp(
-            appServiceConfig,
+      val googleOnlyServices = cloudDependencies match {
+        case CloudDependencies.Google(googleStorageService,
+                                      googleComputeService,
+                                      _,
+                                      googleResourceService,
+                                      _,
+                                      _,
+                                      _,
+                                      _,
+                                      googleDiskService,
+                                      googleProjectDAO,
+                                      _,
+                                      _
+            ) =>
+          val runtimeService = RuntimeService(
+            runtimeServiceConfig,
+            ConfigReader.appConfig.persistentDisk,
+            appDependencies.authProvider,
+            appDependencies.serviceAccountProvider,
+            appDependencies.dockerDAO,
+            googleStorageService,
+            googleComputeService,
+            appDependencies.publisherQueue
+          )
+          val diskService = new DiskServiceInterp[IO](
+            ConfigReader.appConfig.persistentDisk,
             appDependencies.authProvider,
             appDependencies.serviceAccountProvider,
             appDependencies.publisherQueue,
-            gkeCustomAppConfig,
-            appDependencies.wsmDAO
+            googleDiskService,
+            googleProjectDAO
           )
+          val proxyService = new ProxyService(
+            appDependencies.sslContext,
+            proxyConfig,
+            appDependencies.jupyterDAO,
+            appDependencies.runtimeDnsCache,
+            appDependencies.kubernetesDnsCache,
+            appDependencies.authProvider,
+            appDependencies.dateAccessedUpdaterQueue,
+            appDependencies.googleOauth2DAO,
+            appDependencies.proxyResolver,
+            appDependencies.samDAO,
+            appDependencies.googleTokenCache,
+            appDependencies.samResourceCache
+          )
+          Some(
+            GCPModeSpecificServices(runtimeService,
+                                    diskService,
+                                    proxyService,
+                                    googleResourceService,
+                                    googleComputeService
+            )
+          )
+        case _: CloudDependencies.Azure =>
+          None
+      }
 
-        val azureService = new RuntimeV2ServiceInterp[IO](
-          runtimeServiceConfig,
+      val diskV2Service = new DiskV2ServiceInterp[IO](
+        ConfigReader.appConfig.persistentDisk,
+        appDependencies.authProvider,
+        appDependencies.wsmDAO,
+        appDependencies.samDAO,
+        appDependencies.publisherQueue
+      )
+
+      val leoKubernetesService: LeoAppServiceInterp[IO] =
+        new LeoAppServiceInterp(
+          appServiceConfig,
           appDependencies.authProvider,
-          appDependencies.wsmDAO,
+          appDependencies.serviceAccountProvider,
           appDependencies.publisherQueue,
-          appDependencies.dateAccessedUpdaterQueue,
-          appDependencies.wsmClientProvider
+          gkeCustomAppConfig,
+          appDependencies.wsmDAO
         )
 
-        val adminService = new AdminServiceInterp[IO](
-          appDependencies.authProvider,
+      val azureService = new RuntimeV2ServiceInterp[IO](
+        runtimeServiceConfig,
+        appDependencies.authProvider,
+        appDependencies.wsmDAO,
+        appDependencies.publisherQueue,
+        appDependencies.dateAccessedUpdaterQueue,
+        appDependencies.wsmClientProvider
+      )
+
+      val adminService = new AdminServiceInterp[IO](
+        appDependencies.authProvider,
+        appDependencies.publisherQueue
+      )
+
+      val httpRoutes = new HttpRoutes(
+        appDependencies.openIDConnectConfiguration,
+        statusService,
+        diskV2Service,
+        leoKubernetesService,
+        azureService,
+        adminService,
+        googleOnlyServices,
+        StandardUserInfoDirectives,
+        contentSecurityPolicy,
+        refererConfig
+      )
+
+      val httpServer = for {
+        start <- IO.realTimeInstant
+        implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
+          AppContext(TraceId(s"Boot_${start}"), start)
+        )
+        // This only needs to happen once in each environment
+        _ <- appDependencies.samDAO.registerLeo.handleErrorWith { case e =>
+          logger.warn(e)("fail to register Leonardo SA")
+        }
+        _ <-
+          if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
+            cloudDependencies match {
+              case x: CloudDependencies.Google =>
+                x.dataprocInterp.setupDataprocImageGoogleGroup
+              case _: CloudDependencies.Azure => IO.unit
+            }
+
+          } else IO.unit
+
+        _ <- IO.fromFuture {
+          IO {
+            Http()
+              .newServerAt("0.0.0.0", 8080)
+              .bindFlow(httpRoutes.route)
+              .onError { case t: Throwable =>
+                logger
+                  .error(t)("FATAL - failure starting http server")
+                  .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+              }
+          }
+        }
+      } yield ()
+
+      val allStreams = {
+        val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
+
+        val autopauseMonitorProcess = AutopauseMonitor.process(
+          autoFreezeConfig,
+          appDependencies.jupyterDAO,
           appDependencies.publisherQueue
         )
 
-        val httpRoutes = new HttpRoutes(
-          appDependencies.openIDConnectConfiguration,
-          statusService,
-          diskV2Service,
-          leoKubernetesService,
-          azureService,
-          adminService,
-          googleOnlyServices,
-          StandardUserInfoDirectives,
-          contentSecurityPolicy,
-          refererConfig
+        // LeoMetricsMonitor collects metrics from both runtimes and apps.
+        // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
+        // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
+        implicit val clusterToolToToolDao =
+          ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
+                                       appDependencies.welderDAO,
+                                       appDependencies.rstudioDAO
+          )
+
+        val metricsMonitor = new LeoMetricsMonitor(
+          ConfigReader.appConfig.metrics,
+          appDependencies.appDAO,
+          appDependencies.wdsDAO,
+          appDependencies.cbasDAO,
+          appDependencies.cromwellDAO,
+          appDependencies.hailBatchDAO,
+          appDependencies.listenerDAO,
+          appDependencies.samDAO,
+          appDependencies.kubeAlg,
+          appDependencies.azureContainerService
         )
 
-        val httpServer = for {
-          start <- IO.realTimeInstant
-          implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
-            AppContext(TraceId(s"Boot_${start}"), start)
-          )
-          // This only needs to happen once in each environment
-          _ <- appDependencies.samDAO.registerLeo.handleErrorWith { case e =>
-            logger.warn(e)("fail to register Leonardo SA")
-          }
-          _ <-
-            if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
-              cloudDependencies match {
-                case x: CloudDependencies.Google =>
-                  x.dataprocInterp.setupDataprocImageGoogleGroup
-                case _: CloudDependencies.Azure => IO.unit
-              }
-
-            } else IO.unit
-
-          _ <- IO.fromFuture {
-            IO {
-              Http()
-                .newServerAt("0.0.0.0", 8080)
-                .bindFlow(httpRoutes.route)
-                .onError { case t: Throwable =>
-                  logger
-                    .error(t)("FATAL - failure starting http server")
-                    .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
-                }
-            }
-          }
-        } yield ()
-
-        val allStreams = {
-          val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
-
-          val autopauseMonitorProcess = AutopauseMonitor.process(
-            autoFreezeConfig,
-            appDependencies.jupyterDAO,
-            appDependencies.publisherQueue
-          )
-
-          // LeoMetricsMonitor collects metrics from both runtimes and apps.
-          // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
-          // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
-          implicit val clusterToolToToolDao =
-            ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
-                                         appDependencies.welderDAO,
-                                         appDependencies.rstudioDAO
-            )
-
-          val metricsMonitor = new LeoMetricsMonitor(
-            ConfigReader.appConfig.metrics,
-            appDependencies.appDAO,
-            appDependencies.wdsDAO,
-            appDependencies.cbasDAO,
-            appDependencies.cromwellDAO,
-            appDependencies.hailBatchDAO,
-            appDependencies.listenerDAO,
-            appDependencies.samDAO,
-            appDependencies.kubeAlg,
-            appDependencies.azureContainerService
-          )
-
-          val backLeoOnlyProcesses =
-            cloudDependencies match {
-              case CloudDependencies.Google(_,
-                                            googleComputeService,
-                                            _,
-                                            _,
-                                            _,
-                                            messageSubscriber,
-                                            cryptoMiningUserPublisher,
-                                            gkeAlg,
-                                            _,
-                                            _,
-                                            _,
-                                            nonLeoMessageGoogleSubscriber
-                  ) =>
-                val monitorAtBoot =
-                  new MonitorAtBoot[IO](
-                    appDependencies.publisherQueue,
-                    googleComputeService,
-                    appDependencies.samDAO,
-                    appDependencies.wsmDAO
-                  )
-
-                val nonLeoMessageSubscriber =
-                  new NonLeoMessageSubscriber[IO](
-                    NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
-                    gkeAlg,
-                    googleComputeService,
-                    appDependencies.samDAO,
-                    appDependencies.authProvider,
-                    nonLeoMessageGoogleSubscriber,
-                    cryptoMiningUserPublisher,
-                    appDependencies.asyncTasksQueue
-                  )
-
-                List(
-                  nonLeoMessageSubscriber.process,
-                  Stream.eval(nonLeoMessageGoogleSubscriber.start),
-                  asyncTasks.process,
-                  appDependencies.pubsubSubscriber.process(messageSubscriber),
-                  Stream.eval(messageSubscriber.start),
-                  monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
-                  autopauseMonitorProcess, // check database to autopause runtimes periodically
-                  metricsMonitor.process // checks database and collects metrics about active runtimes and apps
+        val backLeoOnlyProcesses =
+          cloudDependencies match {
+            case CloudDependencies.Google(_,
+                                          googleComputeService,
+                                          _,
+                                          _,
+                                          _,
+                                          messageSubscriber,
+                                          cryptoMiningUserPublisher,
+                                          gkeAlg,
+                                          _,
+                                          _,
+                                          _,
+                                          nonLeoMessageGoogleSubscriber
+                ) =>
+              val monitorAtBoot =
+                new MonitorAtBoot[IO](
+                  appDependencies.publisherQueue,
+                  googleComputeService,
+                  appDependencies.samDAO,
+                  appDependencies.wsmDAO
                 )
 
-              case azureDeps: CloudDependencies.Azure =>
-                List(
-                  asyncTasks.process,
-                  appDependencies.pubsubSubscriber.process(azureDeps.messageSubscriber),
-                  autopauseMonitorProcess, // check database to autopause runtimes periodically
-                  metricsMonitor.process // checks database and collects metrics about active runtimes and apps
+              val nonLeoMessageSubscriber =
+                new NonLeoMessageSubscriber[IO](
+                  NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
+                  gkeAlg,
+                  googleComputeService,
+                  appDependencies.samDAO,
+                  appDependencies.authProvider,
+                  nonLeoMessageGoogleSubscriber,
+                  cryptoMiningUserPublisher,
+                  appDependencies.asyncTasksQueue
                 )
-            }
 
-          val uniquefrontLeoOnlyProcesses = List(
-            dateAccessedUpdater.process // We only need to update dateAccessed in front leo
-          ) ++ appDependencies.recordCacheMetrics
+              List(
+                nonLeoMessageSubscriber.process,
+                Stream.eval(nonLeoMessageGoogleSubscriber.start),
+                asyncTasks.process,
+                appDependencies.pubsubSubscriber.process(messageSubscriber),
+                Stream.eval(messageSubscriber.start),
+                monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
+                autopauseMonitorProcess, // check database to autopause runtimes periodically
+                metricsMonitor.process // checks database and collects metrics about active runtimes and apps
+              )
 
-          val extraProcesses = leoExecutionModeConfig match {
-            case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
-            case LeoExecutionModeConfig.FrontLeoOnly => asyncTasks.process :: uniquefrontLeoOnlyProcesses
-            case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ uniquefrontLeoOnlyProcesses
+            case azureDeps: CloudDependencies.Azure =>
+              List(
+                asyncTasks.process,
+                appDependencies.pubsubSubscriber.process(azureDeps.messageSubscriber),
+                autopauseMonitorProcess, // check database to autopause runtimes periodically
+                metricsMonitor.process // checks database and collects metrics about active runtimes and apps
+              )
           }
 
-          List(
-            appDependencies.cloudDependencies.leoPublisher.process, // start the publisher queue .dequeue
-            Stream.eval[IO, Unit](httpServer) // start http server
-          ) ++ extraProcesses
+        val uniquefrontLeoOnlyProcesses = List(
+          dateAccessedUpdater.process // We only need to update dateAccessed in front leo
+        ) ++ appDependencies.recordCacheMetrics
+
+        val extraProcesses = leoExecutionModeConfig match {
+          case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
+          case LeoExecutionModeConfig.FrontLeoOnly => asyncTasks.process :: uniquefrontLeoOnlyProcesses
+          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ uniquefrontLeoOnlyProcesses
         }
 
-        val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)
+        List(
+          appDependencies.cloudDependencies.leoPublisher.process, // start the publisher queue .dequeue
+          Stream.eval[IO, Unit](httpServer) // start http server
+        ) ++ extraProcesses
+      }
 
-        app
-          .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to start leonardo")))
-          .compile
-          .drain
+      val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)
+
+      app
+        .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to start leonardo")))
+        .compile
+        .drain
     }
   }
 
-  private def createDependencies(
-    pathToCredentialJson: Option[Path]
-  )(implicit
+  private def createDependencies(implicit
     logger: StructuredLogger[IO],
     ec: ExecutionContext,
     as: ActorSystem,
@@ -566,9 +583,10 @@ object Boot extends IOApp {
       // Set up PubSub queues
       publisherQueue <- Resource.eval(Queue.bounded[IO, LeoPubsubMessage](pubsubConfig.queueSize))
 
-      // Set up GCP credentials
-      cloudDependencies <- pathToCredentialJson match {
-        case Some(credentialPath) =>
+      // Create specific cloud dependencies based on hosting flag
+      cloudDependencies <- applicationConfig.azureHosting match {
+        case false =>
+          val credentialPath = applicationConfig.leoServiceAccountJsonFile
           val credPathString = credentialPath.toString
           for {
             credential <- credentialResource[IO](credPathString)
@@ -595,7 +613,9 @@ object Boot extends IOApp {
               GoogleResourceService.resource[IO](credentialPath, semaphore)
             googleStorage <- GoogleStorageService.resource[IO](credPathString, Some(semaphore))
             googlePublisher <- GooglePublisher.cloudPublisherResource[IO](publisherConfig(credentialPath))
-            cryptoMiningUserPublisher <- GooglePublisher.cloudPublisherResource[IO](cryptominingTopicPublisherConfig(credentialPath))
+            cryptoMiningUserPublisher <- GooglePublisher.cloudPublisherResource[IO](
+              cryptominingTopicPublisherConfig(credentialPath)
+            )
             gkeService <- GKEService.resource(credentialPath, semaphore)
 
             // Retry 400 responses from Google, as those can occur when resources aren't ready yet
@@ -628,7 +648,9 @@ object Boot extends IOApp {
 
             googleDiskService <- GoogleDiskService.resource(credPathString, semaphore)
 
-            subscriberQueue <- Resource.eval(Queue.bounded[IO, ReceivedMessage[LeoPubsubMessage]](pubsubConfig.queueSize))
+            subscriberQueue <- Resource.eval(
+              Queue.bounded[IO, ReceivedMessage[LeoPubsubMessage]](pubsubConfig.queueSize)
+            )
             subscriber <- GoogleSubscriber.resource(subscriberConfig(credentialPath), subscriberQueue)
 
             nonLeoMessageSubscriberQueue <- Resource.eval(
@@ -729,8 +751,8 @@ object Boot extends IOApp {
               nonLeoMessageSubscriber
             )
           }
-          //This where Azure Dependencies are created when hosting Leonardo on Azure.
-        case None =>
+        // This where Azure Dependencies are created when hosting Leonardo on Azure.
+        case true =>
           val pubConfig = AzureServiceBusPublisherConfig(
             azurePubSubConfig.topic,
             azurePubSubConfig.connectionString,
@@ -744,8 +766,10 @@ object Boot extends IOApp {
             azurePubSubConfig.namespace
           )
 
-          for{
-            subscriberQueue <- Resource.eval(Queue.bounded[IO, ReceivedMessage[LeoPubsubMessage]](azurePubSubConfig.queueSize))
+          for {
+            subscriberQueue <- Resource.eval(
+              Queue.bounded[IO, ReceivedMessage[LeoPubsubMessage]](azurePubSubConfig.queueSize)
+            )
 
             cloudSubscriber <- AzureSubscriberInterpreter.subscriber(subConfig, subscriberQueue)
 
@@ -753,13 +777,11 @@ object Boot extends IOApp {
 
             leoPublisher = new LeoPublisher(publisherQueue, publisher)
 
-          }yield{
-            CloudDependencies.Azure(
-              leoPublisher,
-              cloudSubscriber,
-              gcpModeSpecificDependencies = None
-            )
-          }
+          } yield CloudDependencies.Azure(
+            leoPublisher,
+            cloudSubscriber,
+            gcpModeSpecificDependencies = None
+          )
       }
     } yield {
       val kubeAlg = new KubernetesInterpreter[IO](
@@ -767,7 +789,6 @@ object Boot extends IOApp {
       )
 
       val cromwellAppInstall = new CromwellAppInstall[IO](
-
         ConfigReader.appConfig.azure.coaAppConfig,
         ConfigReader.appConfig.drs,
         samDao,

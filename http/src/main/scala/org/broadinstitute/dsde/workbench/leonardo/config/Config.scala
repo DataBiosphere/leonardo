@@ -2,11 +2,25 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
-import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
+import com.typesafe.config.{Config => TypeSafeConfig, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
-import org.broadinstitute.dsde.workbench.google2.{DeviceName, FirewallRuleName, KubernetesName, Location, MachineTypeName, MaxRetries, NetworkName, PublisherConfig, RegionName, SubnetworkName, SubscriberConfig, SubscriberDeadLetterPolicy, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DeviceName,
+  FirewallRuleName,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  MaxRetries,
+  NetworkName,
+  PublisherConfig,
+  RegionName,
+  SubnetworkName,
+  SubscriberConfig,
+  SubscriberDeadLetterPolicy,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
@@ -17,7 +31,10 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInte
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{DataprocInterpreterConfig, GceInterpreterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -61,10 +78,11 @@ object Config {
     ApplicationConfig(
       config.getString("applicationName"),
       config.as[GoogleProject]("leoGoogleProject"),
-      config.as[Option[Path]]("leoServiceAccountJsonFile"),
+      config.as[Path]("leoServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail"),
       config.as[URL]("leoUrlBase"),
-      config.as[Long]("concurrency")
+      config.as[Long]("concurrency"),
+      config.as[Boolean]("azureHosting")
     )
   }
 
@@ -881,11 +899,14 @@ object Config {
     AzurePubSubConfig(
       config.as[String]("topic"),
       config.as[String]("subscription"),
+      // if the connection string is not set, Managed Identity is used and the namespace is required.
+      // When using a connection string, the namespace is not required.
       config.as[Option[String]]("namespace"),
-      config.as[Option[String]]("connectionString")
+      config.as[Option[String]]("connectionString"),
+      config.as[Int]("queueSize")
     )
   }
 
   val azurePubSubConfig: AzurePubSubConfig = config.as[AzurePubSubConfig]("azureHosting.pubsub")
 
-  }
+}
