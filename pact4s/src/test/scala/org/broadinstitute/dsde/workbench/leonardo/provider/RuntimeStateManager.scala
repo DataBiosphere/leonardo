@@ -7,10 +7,10 @@ import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse}
-import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, CreateRuntimeResponse, DiskConfig, GetRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.model.{RuntimeAlreadyExistsException, RuntimeNotFoundException}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalacheck.Gen.uuid
@@ -36,6 +36,22 @@ object RuntimeStateManager {
           RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
                                    RuntimeName("nonexistentruntimename"),
                                    "OOOPS"
+          )
+        )
+      }
+    )
+  } yield ()
+
+  private def mockRuntimeConflict(mockRuntimeService: RuntimeService[IO]): IO[Unit] = for {
+    _ <- IO(
+      when {
+        mockRuntimeService.createRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()), any[CreateRuntimeRequest])(
+          any[Ask[IO, AppContext]]
+        )
+      } thenReturn {
+        IO.raiseError(
+          RuntimeAlreadyExistsException(CloudContext.Gcp(GoogleProject("123")),
+            RuntimeName("nonexistentruntimename"),RuntimeStatus.Running
           )
         )
       }
@@ -78,7 +94,17 @@ object RuntimeStateManager {
             Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
           )
         })
+      mockRuntimeConflict(mockRuntimeService).unsafeRunSync()
     case ProviderState(States.RuntimeDoesNotExist, _) =>
+      when(
+        mockRuntimeService.createRuntime(
+          any[UserInfo],
+          any[CloudContext.Gcp],
+          RuntimeName(anyString()),
+          any[CreateRuntimeRequest])(
+          any[Ask[IO, AppContext]]
+        )
+        ).thenReturn(IO{CreateRuntimeResponse(TraceId("test"))})
       mockRuntimeDoesNotExist(mockRuntimeService).unsafeRunSync()
 
   }
