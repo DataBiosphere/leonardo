@@ -4,10 +4,10 @@ package apps
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization

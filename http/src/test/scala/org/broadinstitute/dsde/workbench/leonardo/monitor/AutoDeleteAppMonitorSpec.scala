@@ -15,6 +15,8 @@ import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.scalatestplus.mockito.MockitoSugar.mock
+
+import java.time.temporal.ChronoUnit
 class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
   it should "auto delete the app when dateAccessed exceeds auto delete threshold" in isolatedDbTest {
@@ -28,7 +30,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(1, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autodeleteThresholdMin = 1
+                autodeleteThresholdMin = Some(1)
           )
           .save()
       )
@@ -54,7 +56,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(2, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autodeleteThresholdMin = 6
+                autodeleteThresholdMin = Some(6)
           )
           .save()
       )
