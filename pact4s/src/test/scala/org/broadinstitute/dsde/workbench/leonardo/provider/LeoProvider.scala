@@ -22,14 +22,11 @@ import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pact4s.provider.Authentication.BasicAuth
 import pact4s.provider.StateManagement.StateManagementFunction
-import pact4s.provider.{ConsumerVersionSelectors, _}
+import pact4s.provider._
 import pact4s.scalatest.PactVerifier
 
 import java.lang.Thread.sleep
-import java.net.URL
-import java.time.Instant
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-import java.time.Instant
 
 class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
@@ -70,9 +67,9 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     )
 
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
-    RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService)).orElse({
-    case _ =>
-      loggerIO.debug("Whoops: other state")})
+    RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService)).orElse { case _ =>
+      loggerIO.debug("Whoops: other state")
+    }
   }
 
   lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
@@ -87,25 +84,26 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   // This matches the latest commit of the consumer branch that triggered the webhook event
   lazy val consumerVer: Option[String] = sys.env.get("CONSUMER_VERSION")
 
-  var consumerVersionSelectors: ConsumerVersionSelectors = ConsumerVersionSelectors()
+  var consumerVersionSelectors: ConsumerVersionSelectors = ConsumerVersionSelectors().branch("whoops")
   // consumerVersionSelectors = consumerVersionSelectors.mainBranch
   // The following match condition basically says
   // 1. If verification is triggered by consumer pact change, verify only the changed pact.
   // 2. For normal Leo PR, verify all consumer pacts in Pact Broker labelled with a deployed environment (alpha, dev, prod, staging).
-  consumerBranch match {
-    case Some(s) if !s.isBlank => consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName).matchingBranch
-    case _ =>
-      consumerVersionSelectors =
-        consumerVersionSelectors.deployedOrReleased.mainBranch.matchingBranch
-  }
+//  consumerBranch match {
+//    case Some(s) if !s.isBlank => consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName).matchingBranch
+//    case _ =>
+//      consumerVersionSelectors =
+//        consumerVersionSelectors.deployedOrReleased.mainBranch.matchingBranch
+//  }
 
   val provider: ProviderInfoBuilder =
-    ProviderInfoBuilder(name = "leonardo",
-                        PactSource
-                          .PactBrokerWithSelectors(pactBrokerUrl)
-                          .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
-                          .withPendingPacts(true)
-                          .withProviderTags(ProviderTags("develop"))
+    ProviderInfoBuilder(
+      name = "leonardo",
+      PactSource
+        .PactBrokerWithSelectors(pactBrokerUrl)
+        .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
+        .withConsumerVersionSelectors(ConsumerVersionSelectors.branch("eric/RW-11654"))
+//                          .withConsumerVersionSelectors(ConsumerVersionSelectors.matchingBranch)
     )
       .withStateManagementFunction(
         providerStatesHandler
