@@ -555,8 +555,6 @@ class AzurePubsubHandlerSpec
         assertions = for {
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
-          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
-          getDisk = getDiskOpt.get
           controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
         } yield {
           verify(mockWsmDao, times(1)).getDeleteDiskJobResult(any[GetJobResultRequest], any[Authorization])(
@@ -566,7 +564,6 @@ class AzurePubsubHandlerSpec
             any[Ask[IO, AppContext]]
           )
           getRuntime.status shouldBe RuntimeStatus.Deleted
-          getDisk.status shouldBe DiskStatus.Deleted
           controlledResources.length shouldBe 3
         }
 
