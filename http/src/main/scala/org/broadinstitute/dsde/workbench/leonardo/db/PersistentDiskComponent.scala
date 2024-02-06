@@ -254,7 +254,7 @@ object persistentDiskQuery {
 
   def nullifyDiskIds = persistentDiskQuery.tableQuery.map(x => x.lastUsedBy).update(None)
 
-  def delete(id: DiskId, destroyedDate: Instant) =
+  def delete(id: DiskId, destroyedDate: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(d => (d.status, d.destroyedDate, d.dateAccessed))
       .update((DiskStatus.Deleted, destroyedDate, destroyedDate))

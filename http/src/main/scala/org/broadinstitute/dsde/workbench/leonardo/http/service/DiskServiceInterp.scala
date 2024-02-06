@@ -450,7 +450,14 @@ case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject,
 
 case class DiskCannotBeDeletedException(id: DiskId, status: DiskStatus, cloudContext: CloudContext, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk ${id.value} cannot be deleted in ${status} status. CloudContext: ${cloudContext.asStringWithProvider}",
+      s"Persistent disk ${id.value} cannot be deleted in $status status. CloudContext: ${cloudContext.asStringWithProvider}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class DiskCannotBeDeletedWsmException(id: DiskId, status: WsmState, cloudContext: CloudContext, traceId: TraceId)
+    extends LeoException(
+      s"Persistent disk ${id.value} cannot be deleted in ${status.value} status, please wait and try again. CloudContext: ${cloudContext.asStringWithProvider}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
