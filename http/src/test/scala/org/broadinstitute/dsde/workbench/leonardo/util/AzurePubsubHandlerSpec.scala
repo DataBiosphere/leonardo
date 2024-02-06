@@ -35,6 +35,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
 
 import java.net.URL
+import java.nio.file.Paths
 import java.time.{Instant, ZonedDateTime}
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -1203,10 +1204,11 @@ class AzurePubsubHandlerSpec
       ConfigReader.appConfig.azure.pubsubHandler,
       ApplicationConfig("test",
                         GoogleProject("test"),
-                        None,
+                        Paths.get("x.y"),
                         WorkbenchEmail("z@x.y"),
                         new URL("https://leonardo.foo.broadinstitute.org"),
-                        0L
+                        0L,
+                        true
       ),
       contentSecurityPolicy,
       asyncTaskQueue,

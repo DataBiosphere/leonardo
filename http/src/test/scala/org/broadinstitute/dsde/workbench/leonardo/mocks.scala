@@ -9,7 +9,6 @@ import com.google.auth.Credentials
 import com.google.cloud.compute.v1.Operation
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.{BlobGetOption, BucketSourceOption}
-import fs2.Stream
 import io.circe.{Decoder, Encoder}
 import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
 import org.broadinstitute.dsde.workbench.RetryConfig
@@ -17,15 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodName
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{
-  Event,
-  GKEModels,
-  GcsBlobName,
-  GetMetadataResponse,
-  GoogleSubscriber,
-  KubernetesModels,
-  PvName
-}
+import org.broadinstitute.dsde.workbench.google2.{GKEModels, GcsBlobName, GetMetadataResponse, KubernetesModels, PvName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
@@ -198,12 +189,12 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
 
 object MockAuthProvider extends BaseMockAuthProvider
 
-class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
-  def messages: Stream[IO, Event[A]] = Stream.empty
-  // If you use `start`, make sure to hook up `messages` somewhere as well on the same instance for consuming the messages; Otherwise, messages will be left nacked
-  def start: IO[Unit] = IO.unit
-  def stop: IO[Unit] = IO.unit
-}
+//class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
+//  def messages: Stream[IO, Event[A]] = Stream.empty
+//  // If you use `start`, make sure to hook up `messages` somewhere as well on the same instance for consuming the messages; Otherwise, messages will be left nacked
+//  def start: IO[Unit] = IO.unit
+//  def stop: IO[Unit] = IO.unit
+//}
 
 class BaseMockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(implicit

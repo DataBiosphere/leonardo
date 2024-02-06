@@ -13,7 +13,6 @@ import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeComputeOperationFuture,
   FakeGoogleComputeService,
-  FakeGooglePublisher,
   FakeGoogleStorageInterpreter
 }
 import org.broadinstitute.dsde.workbench.google2.{
@@ -57,9 +56,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   RuntimeConfigInCreateRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.Assertion
@@ -2286,7 +2286,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)(
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mock[CloudPublisher[IO]])(
       implicitly,
       implicitly,
       implicitly,

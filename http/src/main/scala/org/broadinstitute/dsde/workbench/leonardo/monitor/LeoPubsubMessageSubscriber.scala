@@ -169,7 +169,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def messageHandler(event: ReceivedMessage[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
     implicit val ev =
-      Ask.const[F, AppContext](AppContext(traceId, event.publishedTime.getOrElse(Instant.now()), span = None))
+      Ask.const[F, AppContext](AppContext(traceId, event.publishedTime, span = None))
     childSpan(event.msg.messageType.asString).use { implicit ev =>
       messageHandlerWithContext(event)
     }
@@ -284,8 +284,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   ): F[Unit] =
     for {
       end <- F.realTimeInstant
-      // TODO: think about making `publishedTime` non optional
-      duration = (end.toEpochMilli - event.publishedTime.getOrElse(end).toEpochMilli).millis
+      duration = (end.toEpochMilli - event.publishedTime.toEpochMilli).millis
       distributionBucket = List(0.5 minutes,
                                 1 minutes,
                                 1.5 minutes,

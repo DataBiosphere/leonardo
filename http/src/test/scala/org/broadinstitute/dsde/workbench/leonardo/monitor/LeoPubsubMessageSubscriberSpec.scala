@@ -12,7 +12,6 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
-import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
@@ -24,7 +23,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => _, _}
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
-  Event,
   GKEModels,
   GoogleDiskService,
   KubernetesModels,
@@ -50,10 +48,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
-import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerInterp, _}
+import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.messaging.{AckHandler, ReceivedMessage}
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
@@ -66,6 +65,7 @@ import org.scalatestplus.mockito.MockitoSugar
 import scalacache.caffeine.CaffeineCache
 
 import java.net.URL
+import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -113,6 +113,7 @@ class LeoPubsubMessageSubscriberSpec
   val authProvider = mock[LeoAuthProvider[IO]]
   val currentTime = Instant.now
   val timestamp = Timestamp.newBuilder().setSeconds(now.toSeconds).build()
+  val instantTimestamp = Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos())
 
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
 
@@ -1081,7 +1082,8 @@ class LeoPubsubMessageSubscriberSpec
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val mockAckConsumer = mock[AckReplyConsumer]
+    // val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckHandler = mock[AckHandler]
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
@@ -1112,12 +1114,12 @@ class LeoPubsubMessageSubscriberSpec
           false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckHandler))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    verify(mockAckConsumer, times(1)).ack()
+    verify(mockAckHandler, times(1)).ack()
   }
 
   // delete app and not delete disk when specified
@@ -1225,7 +1227,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckHandler = mock[AckHandler]
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppById(savedCluster1.cloudContext, savedApp1.id).transaction
@@ -1272,12 +1274,12 @@ class LeoPubsubMessageSubscriberSpec
                                Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckHandler))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    verify(mockAckConsumer, times(1)).ack()
+    verify(mockAckHandler, times(1)).ack()
   }
 
   it should "be able to create app with a pre-created nodepool" in isolatedDbTest {
@@ -1539,7 +1541,7 @@ class LeoPubsubMessageSubscriberSpec
         )
       )
       .save()
-    val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckHandler = mock[AckHandler]
 
     val mockGKEService = new MockGKEService {
       override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(implicit
@@ -1598,7 +1600,7 @@ class LeoPubsubMessageSubscriberSpec
           Some(tr),
           false
         )
-        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckHandler))
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1870,7 +1872,7 @@ class LeoPubsubMessageSubscriberSpec
       ): IO[GetCreateVmJobResult] =
         IO.raiseError(new Exception(exceptionMsg))
     }
-    val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckHandler = mock[AckHandler]
     val queue = makeTaskQueue()
     val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao),
                                           asyncTaskQueue = queue
@@ -1899,7 +1901,7 @@ class LeoPubsubMessageSubscriberSpec
                                         BillingProfileId("spend-profile")
         )
 
-        _ <- leoSubscriber.messageHandler(CloudPubsubEvent.GCP(Event(msg, None, timestamp, mockAckConsumer)))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckHandler))
 
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
@@ -1922,7 +1924,7 @@ class LeoPubsubMessageSubscriberSpec
         ev: Ask[IO, AppContext]
       ): IO[Option[DeleteWsmResourceResult]] = IO.raiseError(new java.net.SocketException("connection closed"))
     }
-    val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckHandler = mock[AckHandler]
     val queue = makeTaskQueue()
     val leoSubscriber =
       makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm), asyncTaskQueue = queue)
@@ -1952,7 +1954,7 @@ class LeoPubsubMessageSubscriberSpec
         )
 
         _ <- leoSubscriber.messageHandler(
-          CloudPubsubEvent.GCP(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
+          ReceivedMessage(msg, Some(ctx.traceId), instantTimestamp, mockAckHandler)
         )
 
         errors <- clusterErrorQuery.get(runtime.id).transaction
@@ -2038,7 +2040,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckHandler = mock[AckHandler]
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
@@ -2073,12 +2075,12 @@ class LeoPubsubMessageSubscriberSpec
           false
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckHandler))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    verify(mockAckConsumer, times(1)).ack()
+    verify(mockAckHandler, times(1)).ack()
     verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/ack/createApp"), any(), any(), any())(any())
     verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/fail/createApp"), any(), any(), any())(any())
   }
@@ -2113,8 +2115,6 @@ class LeoPubsubMessageSubscriberSpec
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
     azureInterp: AzurePubsubHandlerAlgebra[IO] = makeAzureInterp()
   )(implicit metrics: OpenTelemetryMetrics[IO]): LeoPubsubMessageSubscriber[IO] = {
-    val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
-
     val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)
 
     val underlyingOperationFutureCache =
@@ -2150,10 +2150,11 @@ class LeoPubsubMessageSubscriberSpec
       ConfigReader.appConfig.azure.pubsubHandler,
       ApplicationConfig("test",
                         GoogleProject("test"),
-                        None,
+                        Paths.get("x.y"),
                         WorkbenchEmail("z@x.y"),
                         new URL("https://leonardo.foo.org"),
-                        0L
+                        0L,
+                        false
       ),
       contentSecurityPolicy,
       asyncTaskQueue,

@@ -7,11 +7,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGooglePublisher,
-  FakeGoogleResourceService
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GoogleComputeService,
@@ -43,12 +39,14 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
+import org.scalatestplus.mockito.MockitoSugar.mock
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -2531,7 +2529,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mock[CloudPublisher[IO]])
     withInfiniteStream(leoPublisher.process, validations)
   }
 

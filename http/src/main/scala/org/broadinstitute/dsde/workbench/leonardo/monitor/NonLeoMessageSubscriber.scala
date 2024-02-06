@@ -181,7 +181,7 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
             userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, googleProject)
             _ <- userSubjectId.traverse { sid =>
               implicit val traceId: Ask[F, TraceId] = Ask.const[F, TraceId](ctx.traceId)
-              publisher.publishOne(CryptominingUserMessage(sid), Some(Map("cryptomining" -> "true")))
+              publisher.publishOne(CryptominingUserMessage(sid), Map("cryptomining" -> "true"))
             }
           } yield ()
       }

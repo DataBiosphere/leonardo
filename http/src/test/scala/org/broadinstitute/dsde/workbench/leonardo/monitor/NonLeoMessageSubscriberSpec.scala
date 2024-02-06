@@ -7,8 +7,8 @@ import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import io.circe.parser.decode
 import io.circe.{CursorOp, DecodingFailure}
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, traceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeNodepool}
@@ -26,7 +26,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber}
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar.mock
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -339,11 +341,11 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     gkeInterp: GKEAlgebra[IO] = new MockGKEService,
     samDao: SamDAO[IO] = new MockSamDAO,
     computeService: GoogleComputeService[IO] = FakeGoogleComputeService,
-    publisher: GooglePublisher[IO] = new FakeGooglePublisher,
+    publisher: CloudPublisher[IO] = mock[CloudPublisher[IO]],
     asyncTaskQueue: Queue[IO, Task[IO]] =
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): NonLeoMessageSubscriber[IO] = {
-    val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
+    val googleSubscriber = mock[CloudSubscriber[IO, NonLeoMessage]]
     new NonLeoMessageSubscriber(
       NonLeoMessageSubscriberConfig(Config.gceConfig.userDiskDeviceName),
       gkeInterp,
