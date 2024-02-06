@@ -425,7 +425,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               disk.size
             )
           )
-          //diskResp <- wsmDao.createDisk(request, leoAuth)
+          // diskResp <- wsmDao.createDisk(request, leoAuth)
           diskResp = CreateDiskResponse(WsmControlledResourceId(UUID.randomUUID()))
           _ <- controlledResourceQuery
             .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
@@ -616,11 +616,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               } yield ()
             case _ =>
               // if the disk hasn't been created in WSM yet, skip disk deletion
-              logger.info(
-                s"No disk resource found for runtime ${msg.runtimeId.toString} in ${msg.workspaceId.value}. No-op for wsmDao.deleteDisk."
-              )
+              for {
+                _ <- logger.info(
+                  s"No disk resource found for runtime ${msg.runtimeId.toString} in ${msg.workspaceId.value}. No-op for wsmDao.deleteDisk."
+                )
+                _ <- clusterQuery.setDiskDeleted(msg.runtimeId, ctx.now).transaction
+              } yield ()
           }
-          _ <- clusterQuery.setDiskDeleted(msg.runtimeId, ctx.now).transaction
         } yield ()
       }.void
 
