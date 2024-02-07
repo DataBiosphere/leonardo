@@ -429,6 +429,84 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
     } yield ()
 
+  def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[Option[DiskName]]] =
+    for {
+      ctx <- as.ask
+      apps <- listApp(
+        userInfo,
+        Some(cloudContext),
+        Map.empty
+      )
+      attachedPersistentDiskNames = apps.map(a => a.diskName)
+
+      nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app.status))
+
+      _ <- F
+        .raiseError(DeleteAllAppsV1CannotBePerformed(cloudContext.value, nonDeletableApps, ctx.traceId))
+        .whenA(!nonDeletableApps.isEmpty)
+
+      _ <- apps
+        .traverse { app =>
+          deleteApp(userInfo, cloudContext, app.appName, deleteDisk)
+        }
+    } yield attachedPersistentDiskNames
+
+  private def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, app: ListAppResponse)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      // Find the app ID and Sam resource id
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(cloudContext, app.appName)
+        .transaction
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(cloudContext, app.appName, ctx.traceId, "No active app found in DB")
+      )
+      listOfPermissions <- authProvider.getActions(dbApp.app.samResourceId, userInfo)
+
+      // throw 404 if no GetAppStatus permission
+      hasPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+      _ <-
+        if (hasPermission) F.unit
+        else
+          F.raiseError[Unit](
+            AppNotFoundException(cloudContext, app.appName, ctx.traceId, "Permission Denied")
+          )
+
+      // throw 403 if no DeleteApp permission
+      hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
+      // Mark the app, nodepool and cluster as deleted in Leo's DB
+      _ <- dbReference.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
+      _ <- dbReference.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
+      _ <- dbReference.inTransaction(kubernetesClusterQuery.markAsDeleted(dbApp.cluster.id, ctx.now))
+      // Notify SAM that the resource has been deleted
+      _ <- authProvider
+        .notifyResourceDeleted(
+          dbApp.app.samResourceId,
+          dbApp.app.auditInfo.creator,
+          cloudContext.value
+        )
+    } yield ()
+
+  def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      apps <- listApp(
+        userInfo,
+        Some(cloudContext),
+        Map.empty
+      )
+      _ <- apps.traverse(app => deleteAppRecords(userInfo, cloudContext, app))
+    } yield ()
+
   def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =

@@ -2,9 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 package service
 
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, CloudContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait AppService[F[_]] {
 
@@ -29,6 +31,18 @@ trait AppService[F[_]] {
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
 
   def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[Option[DiskName]]]
+
+  def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, app: ListAppResponse)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 

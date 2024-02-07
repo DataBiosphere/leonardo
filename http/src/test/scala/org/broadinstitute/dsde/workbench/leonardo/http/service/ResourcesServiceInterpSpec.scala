@@ -2,14 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import akka.actor.TypedActor.dispatcher
 import cats.effect.IO
-import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeComputeOperationFuture,
   FakeGoogleComputeService,
-  FakeGooglePublisher,
   FakeGoogleResourceService,
-  FakeGoogleStorageInterpreter
+  FakeGoogleStorageInterpreter,
+  MockGoogleDiskService
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   allowListAuthProvider,
@@ -24,52 +24,48 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{gkeCustomAppCon
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWsmDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpec
 
 final class ResourcesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
-//  val runtimeService = new RuntimeServiceInterp(
-//    RuntimeServiceConfig(
-//      Config.proxyConfig.proxyUrlBase,
-//      imageConfig,
-//      autoFreezeConfig,
-//      dataprocConfig,
-//      Config.gceConfig,
-//      azureServiceConfig
-//    ),
-//    ConfigReader.appConfig.persistentDisk,
-//    allowListAuthProvider,
-//    serviceAccountProvider,
-//    new MockDockerDAO,
-//    FakeGoogleStorageInterpreter,
-//    FakeGoogleComputeService,
-//    publisherQueue
-//  )
-//  val noLabelsGoogleResourceService = new FakeGoogleResourceService {
-//    override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
-//      IO(None)
-//  }
-//  val wsmDao = new MockWsmDAO
-//  val appService = new LeoAppServiceInterp[IO](
-//    AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
-//    allowListAuthProvider,
-//    serviceAccountProvider,
-//    QueueFactory.makePublisherQueue(),
-//    FakeGoogleComputeService,
-//    noLabelsGoogleResourceService,
-//    gkeCustomAppConfig,
-//    wsmDao
-//  )
-//  val diskService = new DiskServiceInterp(
-//    ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = dontCloneFromTheseGoogleFolders),
-//    allowListAuthProvider,
-//    serviceAccountProvider,
-//    publisherQueue,
-//    MockGoogleDiskService,
-//    googleProjectDAO
-//  )
-//  val resourcesService = new ResourcesServiceInterp(allowListAuthProvider, runtimeService, appService, diskService)
+  val runtimeService = new RuntimeServiceInterp(
+    RuntimeServiceConfig(
+      Config.proxyConfig.proxyUrlBase,
+      imageConfig,
+      autoFreezeConfig,
+      dataprocConfig,
+      Config.gceConfig,
+      azureServiceConfig
+    ),
+    ConfigReader.appConfig.persistentDisk,
+    allowListAuthProvider,
+    serviceAccountProvider,
+    new MockDockerDAO,
+    FakeGoogleStorageInterpreter,
+    FakeGoogleComputeService,
+    publisherQueue
+  )
+
+  val wsmDao = new MockWsmDAO
+  val appService = new LeoAppServiceInterp[IO](
+    AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
+    allowListAuthProvider,
+    serviceAccountProvider,
+    QueueFactory.makePublisherQueue(),
+    FakeGoogleComputeService,
+    FakeGoogleResourceService,
+    gkeCustomAppConfig,
+    wsmDao
+  )
+  val diskService = new DiskServiceInterp(
+    ConfigReader.appConfig.persistentDisk,
+    allowListAuthProvider,
+    serviceAccountProvider,
+    publisherQueue,
+    MockGoogleDiskService,
+    new MockGoogleProjectDAO
+  )
+  val resourcesService = new ResourcesServiceInterp(allowListAuthProvider, runtimeService, appService, diskService)
 
   it should "queue delete apps, runtimes and disks messages and mark them all as deleted when deleteInCloud flag is false and deleteDisk is true" in isolatedDbTest {}
   it should "queue delete apps and runtimes messages, mark them as deleted, but leave all disks when deleteInCloud flag is false and deleteDisk is true" in isolatedDbTest {}

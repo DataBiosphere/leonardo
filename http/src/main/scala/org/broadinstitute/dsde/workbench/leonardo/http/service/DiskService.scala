@@ -3,7 +3,7 @@ package service
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, DiskId}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -21,6 +21,22 @@ trait DiskService[F[_]] {
   ): F[Vector[ListPersistentDiskResponse]]
 
   def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def deleteAllOrphanedDisks(userInfo: UserInfo,
+                             cloudContext: CloudContext.Gcp,
+                             runtimeDiskIds: Option[Vector[DiskId]],
+                             appDisksNames: Vector[Option[DiskName]]
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def deletediskRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, disk: ListPersistentDiskResponse)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def deleteAllDisksRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
 
