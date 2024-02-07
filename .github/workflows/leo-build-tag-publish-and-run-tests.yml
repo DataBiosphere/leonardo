@@ -46,7 +46,7 @@ jobs:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
         run: |
-          echo 'notify-failure-channel=ia-test-notification'           >> $GITHUB_OUTPUT
+          echo 'notify-failure-channel=ia-notification-test'          >> $GITHUB_OUTPUT
           echo 'delete-bee=true'                                       >> $GITHUB_OUTPUT
           echo 'log-results=true'                                      >> $GITHUB_OUTPUT
           if ${{ github.ref_name == 'develop' }}; then
