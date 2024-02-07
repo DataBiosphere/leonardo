@@ -72,6 +72,16 @@ object RuntimeStateManager {
 
   def handler(mockRuntimeService: RuntimeService[IO]): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.RuntimeExists, _) =>
+      when(
+        mockRuntimeService.updateRuntime(
+          any[UserInfo],
+          any[GoogleProject],
+          RuntimeName(anyString()),
+          any[UpdateRuntimeRequest]
+        )(
+          any[Ask[IO, AppContext]]
+        )
+      ).thenReturn(IO.unit)
       val date = Instant.parse("2020-11-20T17:23:24.650Z")
       when(
         mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
