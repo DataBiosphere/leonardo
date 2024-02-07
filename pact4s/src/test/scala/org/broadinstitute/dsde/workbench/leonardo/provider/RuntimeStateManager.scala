@@ -82,6 +82,11 @@ object RuntimeStateManager {
           any[Ask[IO, AppContext]]
         )
       ).thenReturn(IO.unit)
+      when(
+        mockRuntimeService.deleteRuntime(any[DeleteRuntimeRequest])(
+          any[Ask[IO, AppContext]]
+        )
+      ).thenReturn(IO.unit)
       val date = Instant.parse("2020-11-20T17:23:24.650Z")
       when(
         mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
