@@ -266,20 +266,12 @@ class RuntimeRoutes(saturnIframeExtensionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      _ = println("Log!")
       apiCall = runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
-      _ = println("Double Log! ")
-      _ = println("Triple Log!: "+ apiCall)
-      _ = println("userInfo Log!: "+ userInfo)
-      _ = println("googleProject Log!: "+ googleProject)
-      _ = println("runtimeName Log!: "+ runtimeName)
-      _ = println("req Log!: "+ req)
       _ <- metrics.incrementCounter("updateRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "updateRuntime")
           .use(_ => apiCall)
       )
-      _ = println("Do we get here?")
     } yield StatusCodes.Accepted: ToResponseMarshallable
 }
 

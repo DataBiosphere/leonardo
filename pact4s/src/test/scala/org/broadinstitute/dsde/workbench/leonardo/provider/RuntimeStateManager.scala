@@ -5,9 +5,9 @@ import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, CreateRuntimeResponse, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.model.{RuntimeAlreadyExistsException, RuntimeNotFoundException}
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
@@ -37,27 +37,24 @@ object RuntimeStateManager {
     )
   } yield ()
 
-  private def mockUpdateNonexistentRuntime(mockRuntimeService: RuntimeService[IO]): IO[Unit] = for {
-    _ <- IO(
-      when {
-        mockRuntimeService.updateRuntime(
-          any[UserInfo],
-          eqTo(GoogleProject("googleProject")),
-          eqTo(RuntimeName("runtimename")),
-          any[UpdateRuntimeRequest]
-        )(
-          any[Ask[IO, AppContext]]
-        )
-      } thenReturn {
-        IO.raiseError(
-          RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
-                                   RuntimeName("nonexistentruntimename"),
-                                   "OOOPS"
-          )
-        )
-      }
-    )
-  } yield ()
+//  private def mockUpdateNonexistentRuntime(mockRuntimeService: RuntimeService[IO]): IO[Unit] =
+//
+//    when(mockRuntimeService.updateRuntime(
+//          any[UserInfo],
+//          eqTo(GoogleProject("googleProject")),
+//          eqTo(RuntimeName("runtimename")),
+//          any[UpdateRuntimeRequest]
+//        )(
+//          any[Ask[IO, AppContext]]
+//        )
+//    ).thenReturn {
+//        IO.raiseError(
+//          RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
+//                                   RuntimeName("nonexistentruntimename"),
+//                                   "OOOPS"
+//          )
+//        )
+//      }
 
   private def mockRuntimeConflict(mockRuntimeService: RuntimeService[IO]): IO[Unit] = for {
     _ <- IO(
@@ -137,17 +134,32 @@ object RuntimeStateManager {
 ////        )(any[Ask[IO, AppContext]])
 ////      ).thenReturn(IO.unit)
     case ProviderState(States.RuntimeDoesNotExist, _) =>
-//      when(
-//        mockRuntimeService.createRuntime(any[UserInfo],
-//                                         any[CloudContext.Gcp],
-//                                         RuntimeName(anyString()),
-//                                         any[CreateRuntimeRequest]
-//        )(
-//          any[Ask[IO, AppContext]]
-//        )
-//      ).thenReturn(IO(CreateRuntimeResponse(TraceId("test"))))
+      when(
+        mockRuntimeService.createRuntime(any[UserInfo],
+                                         any[CloudContext.Gcp],
+                                         RuntimeName(anyString()),
+                                         any[CreateRuntimeRequest]
+        )(
+          any[Ask[IO, AppContext]]
+        )
+      ).thenReturn(IO(CreateRuntimeResponse(TraceId("test"))))
 //      mockGetNonexistentRuntime(mockRuntimeService).unsafeRunSync()
-      mockUpdateNonexistentRuntime(mockRuntimeService).unsafeRunSync()
-
+      //mockUpdateNonexistentRuntime(mockRuntimeService).unsafeRunSync()
+      when(mockRuntimeService.updateRuntime(
+        any[UserInfo],
+        any[GoogleProject],
+        RuntimeName(anyString()),
+        any[UpdateRuntimeRequest]
+      )(
+        any[Ask[IO, AppContext]]
+      )
+      ).thenReturn(
+        IO.raiseError(
+          RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
+            RuntimeName("nonexistentruntimename"),
+            "Unable to find the runtime that you are trying to update"
+          )
+        )
+      )
   }
 }
