@@ -150,5 +150,17 @@ object RuntimeStateManager {
           )
         )
       )
+      when(
+        mockRuntimeService.deleteRuntime(any[DeleteRuntimeRequest])(
+          any[Ask[IO, AppContext]]
+        )
+      ).thenReturn(
+        IO.raiseError(
+          RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
+            RuntimeName("nonexistentruntimename"),
+            "Unable to find the runtime that you are trying to update"
+          )
+        )
+      )
   }
 }
