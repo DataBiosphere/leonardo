@@ -451,7 +451,7 @@ object CommonTestData {
                          appRestore: Option[AppRestore] = None,
                          zoneName: Option[ZoneName] = None,
                          cloudContextOpt: Option[CloudContext] = None,
-                         wsmResourceId: Option[WsmControlledResourceId] = None,
+                         wsmResourceId: Option[WsmControlledResourceId] = wsmResourceIdOpt,
                          workspaceId: Option[WorkspaceId] = workspaceIdOpt
   ): PersistentDisk =
     PersistentDisk(
@@ -533,6 +533,7 @@ object CommonTestData {
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+  val wsmResourceIdOpt = Some(wsmResourceId)
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
   val billingProfileId = BillingProfileId("spend-profile")
 

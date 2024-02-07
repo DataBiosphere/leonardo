@@ -538,6 +538,15 @@ object AppStatus {
 
   val monitoredStatuses: Set[AppStatus] =
     Set(Deleting, Provisioning)
+
+  implicit class EnrichedDiskStatus(status: AppStatus) {
+    def isDeletable: Boolean = deletableStatuses contains status
+
+    def isStoppable: Boolean = stoppableStatuses contains status
+
+    def isStartable: Boolean = startableStatuses contains status
+
+  }
 }
 
 final case class KubernetesService(id: ServiceId, config: ServiceConfig)

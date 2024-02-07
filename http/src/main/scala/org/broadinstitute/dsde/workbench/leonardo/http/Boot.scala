@@ -185,7 +185,8 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.wsmDAO,
         appDependencies.samDAO,
-        appDependencies.publisherQueue
+        appDependencies.publisherQueue,
+        appDependencies.wsmClientProvider
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
@@ -197,7 +198,8 @@ object Boot extends IOApp {
           appDependencies.googleDependencies.googleComputeService,
           googleDependencies.googleResourceService,
           gkeCustomAppConfig,
-          appDependencies.wsmDAO
+          appDependencies.wsmDAO,
+          appDependencies.wsmClientProvider
         )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
