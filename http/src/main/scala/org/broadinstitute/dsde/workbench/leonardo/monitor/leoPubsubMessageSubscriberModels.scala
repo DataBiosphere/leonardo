@@ -1069,17 +1069,18 @@ object PubsubHandleMessageError {
   final case class DiskDeletionError(diskId: DiskId, workspaceId: WorkspaceId, errorMsg: String)
       extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"\n\tdisk ${diskId} in workspace ${workspaceId}, \n\tmsg: ${errorMsg})"
+      s"\n\tdisk ${diskId.value} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
 
     val isRetryable: Boolean = false
   }
 
-  final case class AzureDiskDeletionError(wsmControlledResourceId: WsmControlledResourceId,
+  final case class AzureDiskDeletionError(diskId: DiskId,
+                                          wsmControlledResourceId: WsmControlledResourceId,
                                           workspaceId: WorkspaceId,
                                           errorMsg: String
   ) extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"\n\tdisk resource: ${wsmControlledResourceId}, \n\tmsg: ${errorMsg})"
+      s"\n\tdisk ${diskId.value} with resource id: ${wsmControlledResourceId.value}, \n\tmsg: ${errorMsg})"
 
     val isRetryable: Boolean = false
   }

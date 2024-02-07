@@ -5,12 +5,13 @@ package service
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmClientProvider, MockWsmDAO, WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -18,23 +19,26 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.Delet
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.flatspec.AnyFlatSpec
+import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val wsmDao = new MockWsmDAO
+  val wsmClientProvider = new MockWsmClientProvider
 
   private def makeDiskV2Service(queue: Queue[IO, LeoPubsubMessage],
                                 allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
-                                wsmDao: WsmDao[IO] = wsmDao
+                                wsmDao: WsmDao[IO] = wsmDao,
+                                wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
-    new DiskV2ServiceInterp[IO](
-      ConfigReader.appConfig.persistentDisk.copy(),
-      allowlistAuthProvider,
-      wsmDao,
-      mockSamDAO,
-      queue
+    new DiskV2ServiceInterp[IO](ConfigReader.appConfig.persistentDisk.copy(),
+                                allowlistAuthProvider,
+                                wsmDao,
+                                mockSamDAO,
+                                queue,
+                                wsmClientProvider
     )
 
   val diskV2Service = makeDiskV2Service(QueueFactory.makePublisherQueue(), wsmDao = new MockWsmDAO)
@@ -133,16 +137,15 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   it should "delete a disk" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskV2Service = makeDiskV2Service(publisherQueue)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       ctx <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
-      disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
+      disk <- makePersistentDisk()
+        .copy(samResource = diskSamResource)
+        .save()
+
+      _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, ctx.now).transaction
 
       _ <- diskV2Service.deleteDisk(userInfo, disk.id)
       dbDiskOpt <- persistentDiskQuery
@@ -162,9 +165,49 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail to delete a disk if its already deleting" in isolatedDbTest {
+  it should "fail to delete a disk if its creating" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2Service = makeDiskV2Service(publisherQueue)
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
+        implicit
+        ev: Ask[IO, AppContext],
+        log: StructuredLogger[IO]
+      ): IO[WsmState] =
+        IO.pure(WsmState(Some("CREATING")))
+    }
+
+    val diskV2Service = makeDiskV2Service(publisherQueue, wsmClientProvider = wsmClientProvider)
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(cloudContextOpt = Some(cloudContextAzure)).copy(samResource = diskSamResource).save()
+
+      err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
+    } yield err shouldBe Left(
+      DiskCannotBeDeletedWsmException(disk.id, WsmState(Some("CREATING")), cloudContextAzure, ctx.traceId)
+    )
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "delete a disk and not send wsmResourceId if disk is deleted in WSM" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
+        implicit
+        ev: Ask[IO, AppContext],
+        log: StructuredLogger[IO]
+      ): IO[WsmState] =
+        IO.pure(WsmState(None))
+    }
+
+    val diskV2Service = makeDiskV2Service(publisherQueue, wsmClientProvider = wsmClientProvider)
     val userInfo = UserInfo(OAuth2BearerToken(""),
                             WorkbenchUserId("userId"),
                             WorkbenchEmail("user1@example.com"),
@@ -177,14 +220,13 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       disk <- makePersistentDisk(cloudContextOpt = Some(cloudContextAzure)).copy(samResource = diskSamResource).save()
 
       _ <- diskV2Service.deleteDisk(userInfo, disk.id)
-      _ <- IO(
-        makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), None)
-        )
-      )
-      err <- diskV2Service.deleteDisk(userInfo, disk.id).attempt
-    } yield err shouldBe Left(
-      DiskCannotBeDeletedException(disk.id, DiskStatus.Deleting, cloudContextAzure, ctx.traceId)
+      message <- publisherQueue.take
+    } yield message shouldBe DeleteDiskV2Message(
+      disk.id,
+      workspaceId,
+      cloudContextAzure,
+      None,
+      Some(ctx.traceId)
     )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -266,7 +308,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       )
       err <- diskV2service2.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(
-      ForbiddenError(WorkbenchEmail("user1@example.com"))
+      DiskNotFoundByIdException(disk.id, ctx.traceId)
     )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
