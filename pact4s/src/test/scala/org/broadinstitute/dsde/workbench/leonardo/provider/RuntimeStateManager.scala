@@ -86,7 +86,7 @@ object RuntimeStateManager {
         mockRuntimeService.stopRuntime(
           any[UserInfo],
           any[CloudContext.Gcp],
-          RuntimeName(anyString()),
+          RuntimeName(anyString())
         )(
           any[Ask[IO, AppContext]]
         )
@@ -166,8 +166,8 @@ object RuntimeStateManager {
       ).thenReturn(
         IO.raiseError(
           RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
-            RuntimeName("nonexistentruntimename"),
-            "Unable to find the runtime that you are trying to update"
+                                   RuntimeName("nonexistentruntimename"),
+                                   "Unable to find the runtime that you are trying to update"
           )
         )
       )
