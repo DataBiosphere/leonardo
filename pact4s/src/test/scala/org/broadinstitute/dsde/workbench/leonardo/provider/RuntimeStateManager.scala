@@ -83,6 +83,15 @@ object RuntimeStateManager {
         )
       ).thenReturn(IO.unit)
       when(
+        mockRuntimeService.stopRuntime(
+          any[UserInfo],
+          any[CloudContext.Gcp],
+          RuntimeName(anyString()),
+        )(
+          any[Ask[IO, AppContext]]
+        )
+      ).thenReturn(IO.unit)
+      when(
         mockRuntimeService.deleteRuntime(any[DeleteRuntimeRequest])(
           any[Ask[IO, AppContext]]
         )
