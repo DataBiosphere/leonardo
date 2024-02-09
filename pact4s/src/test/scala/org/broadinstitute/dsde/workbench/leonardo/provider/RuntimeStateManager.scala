@@ -1,13 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo.provider
 
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, CreateRuntimeResponse, DiskConfig, GetRuntimeResponse, UpdateRuntimeRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateRuntimeRequest,
+  CreateRuntimeResponse,
+  DiskConfig,
+  GetRuntimeResponse,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.{RuntimeAlreadyExistsException, RuntimeNotFoundException}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
@@ -52,81 +57,75 @@ object RuntimeStateManager {
     Map("ev1" -> "a", "ev2" -> "b"),
     Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
   )
-  private val mockedRuntimeNotFoundException = RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
+  private val mockedRuntimeNotFoundException = RuntimeNotFoundException(
+    CloudContext.Gcp(GoogleProject("123")),
     RuntimeName("nonexistentruntimename"),
     "Unable to find the runtime that you are trying to update"
-  );
+  )
 
-  private def mockCreateRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[CreateRuntimeResponse]): IO[Unit] = for {
-    _ <- IO(
-      when {
-        mockRuntimeService.createRuntime(any[UserInfo],
-          any[CloudContext.Gcp],
-          RuntimeName(anyString()),
-          any[CreateRuntimeRequest]
-        )(
-          any[Ask[IO, AppContext]]
-        )
-      } thenReturn {
-        mockResponse
-      }
-    )
-  } yield ()
-
-  private def mockGetRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[GetRuntimeResponse]): IO[Unit] = for {
-    _ <- IO(
-      when {
-        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
-          any[Ask[IO, AppContext]]
-        )
-      } thenReturn {
-        mockResponse
-      }
-    )
-  } yield ()
-
-  private def mockUpdateRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[Unit]): IO[Unit] = for {
-    _ <- IO(
-      when(
-        mockRuntimeService.updateRuntime(
-          any[UserInfo],
-          any[GoogleProject],
-          RuntimeName(anyString()),
-          any[UpdateRuntimeRequest]
-        )(
-          any[Ask[IO, AppContext]]
-        )
-      ).thenReturn(
-        mockResponse
+  private def mockCreateRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[CreateRuntimeResponse]): Unit =
+    when {
+      mockRuntimeService.createRuntime(any[UserInfo],
+                                       any[CloudContext.Gcp],
+                                       RuntimeName(anyString()),
+                                       any[CreateRuntimeRequest]
+      )(
+        any[Ask[IO, AppContext]]
       )
-    )
-  } yield ()
+    } thenReturn {
+      mockResponse
+    }
 
-  private def mockDeleteRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[Unit]): IO[Unit] = for {
-    _ <- IO(
-      when(
-        mockRuntimeService.deleteRuntime(any[DeleteRuntimeRequest])(
-          any[Ask[IO, AppContext]]
-        )
-      ).thenReturn(
-        mockResponse
+  private def mockGetRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[GetRuntimeResponse]): Unit =
+    when {
+      mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
+        any[Ask[IO, AppContext]]
       )
+    } thenReturn {
+      mockResponse
+    }
+
+  private def mockUpdateRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[Unit]): Unit =
+    when(
+      mockRuntimeService.updateRuntime(
+        any[UserInfo],
+        any[GoogleProject],
+        RuntimeName(anyString()),
+        any[UpdateRuntimeRequest]
+      )(
+        any[Ask[IO, AppContext]]
+      )
+    ).thenReturn(
+      mockResponse
     )
-  } yield ()
+
+  private def mockDeleteRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[Unit]): Unit =
+    when(
+      mockRuntimeService.deleteRuntime(any[DeleteRuntimeRequest])(
+        any[Ask[IO, AppContext]]
+      )
+    ).thenReturn(
+      mockResponse
+    )
 
   def handler(mockRuntimeService: RuntimeService[IO]): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.RuntimeExists, _) =>
-      mockCreateRuntime(mockRuntimeService, IO.raiseError(
-        RuntimeAlreadyExistsException(CloudContext.Gcp(GoogleProject("123")),
-          RuntimeName("nonexistentruntimename"),
-          RuntimeStatus.Running
+      mockCreateRuntime(
+        mockRuntimeService,
+        IO.raiseError(
+          RuntimeAlreadyExistsException(CloudContext.Gcp(GoogleProject("123")),
+                                        RuntimeName("nonexistentruntimename"),
+                                        RuntimeStatus.Running
+          )
         )
-      )).unsafeRunSync()
-      mockGetRuntime(mockRuntimeService, IO {
-        mockedGetRuntimeResponse
-      }).unsafeRunSync()
-      mockUpdateRuntime(mockRuntimeService, IO.unit).unsafeRunSync()
-      mockDeleteRuntime(mockRuntimeService, IO.unit).unsafeRunSync()
+      )
+      mockGetRuntime(mockRuntimeService,
+                     IO {
+                       mockedGetRuntimeResponse
+                     }
+      )
+      mockUpdateRuntime(mockRuntimeService, IO.unit)
+      mockDeleteRuntime(mockRuntimeService, IO.unit)
 
       when(
         mockRuntimeService.stopRuntime(
@@ -138,15 +137,21 @@ object RuntimeStateManager {
         )
       ).thenReturn(IO.unit)
     case ProviderState(States.RuntimeDoesNotExist, _) =>
-      mockCreateRuntime(mockRuntimeService, IO(CreateRuntimeResponse(TraceId("test")))).unsafeRunSync()
-      mockGetRuntime(mockRuntimeService, IO.raiseError(
-        mockedRuntimeNotFoundException
-      )).unsafeRunSync()
-      mockUpdateRuntime(mockRuntimeService, IO.raiseError(
-        mockedRuntimeNotFoundException
-      )).unsafeRunSync()
-      mockDeleteRuntime(mockRuntimeService, IO.raiseError(
-        mockedRuntimeNotFoundException
-      )).unsafeRunSync()
+      mockCreateRuntime(mockRuntimeService, IO(CreateRuntimeResponse(TraceId("test"))))
+      mockGetRuntime(mockRuntimeService,
+                     IO.raiseError(
+                       mockedRuntimeNotFoundException
+                     )
+      )
+      mockUpdateRuntime(mockRuntimeService,
+                        IO.raiseError(
+                          mockedRuntimeNotFoundException
+                        )
+      )
+      mockDeleteRuntime(mockRuntimeService,
+                        IO.raiseError(
+                          mockedRuntimeNotFoundException
+                        )
+      )
   }
 }
