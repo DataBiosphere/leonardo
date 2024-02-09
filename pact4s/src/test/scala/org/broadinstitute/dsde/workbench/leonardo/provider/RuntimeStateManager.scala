@@ -81,30 +81,8 @@ object RuntimeStateManager {
     )
   } yield ()
 
-  private def mockRuntimeConflict(mockRuntimeService: RuntimeService[IO]): IO[Unit] = for {
+  private def mockUpdateRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[Unit]): IO[Unit] = for {
     _ <- IO(
-      when {
-        mockRuntimeService.createRuntime(
-          any[UserInfo],
-          any[CloudContext.Gcp],
-          RuntimeName(anyString),
-          any[CreateRuntimeRequest]
-        )(
-          any[Ask[IO, AppContext]]
-        )
-      } thenReturn {
-        IO.raiseError(
-          RuntimeAlreadyExistsException(CloudContext.Gcp(GoogleProject("123")),
-                                        RuntimeName("nonexistentruntimename"),
-                                        RuntimeStatus.Running
-          )
-        )
-      }
-    )
-  } yield ()
-
-  def handler(mockRuntimeService: RuntimeService[IO]): PartialFunction[ProviderState, Unit] = {
-    case ProviderState(States.RuntimeExists, _) =>
       when(
         mockRuntimeService.updateRuntime(
           any[UserInfo],
@@ -114,7 +92,15 @@ object RuntimeStateManager {
         )(
           any[Ask[IO, AppContext]]
         )
-      ).thenReturn(IO.unit)
+      ).thenReturn(
+        mockResponse
+      )
+    )
+  } yield ()
+
+  def handler(mockRuntimeService: RuntimeService[IO]): PartialFunction[ProviderState, Unit] = {
+    case ProviderState(States.RuntimeExists, _) =>
+      mockUpdateRuntime(mockRuntimeService, IO.unit).unsafeRunSync()
       when(
         mockRuntimeService.stopRuntime(
           any[UserInfo],
@@ -147,23 +133,12 @@ object RuntimeStateManager {
           "OOOPS"
         )
       )).unsafeRunSync()
-      when(
-        mockRuntimeService.updateRuntime(
-          any[UserInfo],
-          any[GoogleProject],
-          RuntimeName(anyString()),
-          any[UpdateRuntimeRequest]
-        )(
-          any[Ask[IO, AppContext]]
+      mockUpdateRuntime(mockRuntimeService, IO.raiseError(
+        RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
+          RuntimeName("nonexistentruntimename"),
+          "Unable to find the runtime that you are trying to update"
         )
-      ).thenReturn(
-        IO.raiseError(
-          RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
-                                   RuntimeName("nonexistentruntimename"),
-                                   "Unable to find the runtime that you are trying to update"
-          )
-        )
-      )
+      )).unsafeRunSync()
       when(
         mockRuntimeService.deleteRuntime(any[DeleteRuntimeRequest])(
           any[Ask[IO, AppContext]]
