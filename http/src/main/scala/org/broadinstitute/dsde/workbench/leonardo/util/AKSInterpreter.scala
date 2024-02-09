@@ -354,22 +354,33 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         F.blocking(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
       }
 
+      // Create or fetch WSM managed identity if shared app
+      wsmResourceApi <- buildWsmResourceApiClient
       // Call WSM to get the list of databases for the app.
-      wsmDatabases <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
-        .transaction
-      wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
-        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
-          .map(db =>
-            WsmControlledDatabaseResource(db.getMetadata.getName,
-                                          db.getAttributes.getDatabaseName,
-                                          db.getMetadata.getResourceId
-            )
-          )
+      namespacePrefix = app.appResources.namespace.value
+      wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp =>
+          // if a managed identity has already been created in the workspace use that otherwise create a new managed identity
+          retrieveWsmManagedIdentity(wsmResourceApi, app.appType, workspaceId.value).flatMap {
+            case Some(v) => F.pure(Option(v))
+            case None    => createAzureManagedIdentity(app, namespacePrefix, workspaceId)
+          }
+        case _ => F.pure(None)
       }
 
+      // Create or fetch WSM databases
+      wsmDatabases <-
+        createOrFetchWsmDatabaseResources(
+          app,
+          app.appType,
+          workspaceId,
+          namespacePrefix,
+          wsmManagedIdentityOpt.map(_.wsmResourceName),
+          landingZoneResources,
+          wsmResourceApi
+        )
+
       // call WSM resource API to get list of ReferenceDatabases
-      wsmResourceApi <- buildWsmResourceApiClient
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       referenceDatabases <-
         if (referenceDatabaseNames.nonEmpty) {
