@@ -7,13 +7,7 @@ import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.http.{
-  CreateRuntimeRequest,
-  CreateRuntimeResponse,
-  DiskConfig,
-  GetRuntimeResponse,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, CreateRuntimeResponse, DiskConfig, GetRuntimeResponse, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.model.{RuntimeAlreadyExistsException, RuntimeNotFoundException}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
@@ -31,19 +25,42 @@ object RuntimeStateManager {
     final val RuntimeDoesNotExist = "there is not a runtime in a Google project"
   }
 
-  private def mockGetNonexistentRuntime(mockRuntimeService: RuntimeService[IO]): IO[Unit] = for {
+  private val date = Instant.parse("2020-11-20T17:23:24.650Z")
+  private val mockedGetRuntimeResponse = GetRuntimeResponse(
+    -1,
+    runtimeSamResource,
+    name1,
+    cloudContextGcp,
+    serviceAccountEmail,
+    Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
+    auditInfo.copy(createdDate = date, dateAccessed = date),
+    Some(date),
+    defaultGceRuntimeConfig,
+    new URL("https://leo.org/proxy"),
+    RuntimeStatus.Running,
+    Map("foo" -> "bar"),
+    Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
+    Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
+    List.empty[RuntimeError],
+    None,
+    30,
+    Some("clientId"),
+    Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
+    defaultScopes,
+    welderEnabled = true,
+    patchInProgress = true,
+    Map("ev1" -> "a", "ev2" -> "b"),
+    Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
+  )
+
+  private def mockGetRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[GetRuntimeResponse]): IO[Unit] = for {
     _ <- IO(
       when {
         mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
           any[Ask[IO, AppContext]]
         )
       } thenReturn {
-        IO.raiseError(
-          RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
-                                   RuntimeName("nonexistentruntimename"),
-                                   "OOOPS"
-          )
-        )
+        mockResponse
       }
     )
   } yield ()
@@ -70,6 +87,8 @@ object RuntimeStateManager {
     )
   } yield ()
 
+//  Make helper function that can take a function call and an exception. Should abstract away the thenReturn -> IO.raiseError()
+  //private def mockException():
   def handler(mockRuntimeService: RuntimeService[IO]): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.RuntimeExists, _) =>
       when(
@@ -96,40 +115,10 @@ object RuntimeStateManager {
           any[Ask[IO, AppContext]]
         )
       ).thenReturn(IO.unit)
-      val date = Instant.parse("2020-11-20T17:23:24.650Z")
-      when(
-        mockRuntimeService.getRuntime(any[UserInfo], any[CloudContext.Gcp], RuntimeName(anyString()))(
-          any[Ask[IO, AppContext]]
-        )
-      )
-        .thenReturn(IO {
-          GetRuntimeResponse(
-            -1,
-            runtimeSamResource,
-            name1,
-            cloudContextGcp,
-            serviceAccountEmail,
-            Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
-            auditInfo.copy(createdDate = date, dateAccessed = date),
-            Some(date),
-            defaultGceRuntimeConfig,
-            new URL("https://leo.org/proxy"),
-            RuntimeStatus.Running,
-            Map("foo" -> "bar"),
-            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
-            Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
-            List.empty[RuntimeError],
-            None,
-            30,
-            Some("clientId"),
-            Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
-            defaultScopes,
-            welderEnabled = true,
-            patchInProgress = true,
-            Map("ev1" -> "a", "ev2" -> "b"),
-            Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
-          )
-        })
+
+      mockGetRuntime(mockRuntimeService, IO {
+        mockedGetRuntimeResponse
+      }).unsafeRunSync()
       mockRuntimeConflict(mockRuntimeService).unsafeRunSync()
     case ProviderState(States.RuntimeDoesNotExist, _) =>
       when(
@@ -141,7 +130,12 @@ object RuntimeStateManager {
           any[Ask[IO, AppContext]]
         )
       ).thenReturn(IO(CreateRuntimeResponse(TraceId("test"))))
-      mockGetNonexistentRuntime(mockRuntimeService).unsafeRunSync()
+      mockGetRuntime(mockRuntimeService, IO.raiseError(
+        RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
+          RuntimeName("nonexistentruntimename"),
+          "OOOPS"
+        )
+      )).unsafeRunSync()
       when(
         mockRuntimeService.updateRuntime(
           any[UserInfo],
