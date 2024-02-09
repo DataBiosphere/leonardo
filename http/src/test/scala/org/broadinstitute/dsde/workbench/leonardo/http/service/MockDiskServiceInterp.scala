@@ -58,6 +58,20 @@ object MockDiskServiceInterp extends DiskService[IO] {
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
+  def deleteAllOrphanedDisks(userInfo: UserInfo,
+                             cloudContext: CloudContext.Gcp,
+                             runtimeDiskIds: Option[Vector[DiskId]],
+                             appDisksNames: Vector[Option[DiskName]]
+  )(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
+  def deleteAllDisksRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
   def updateDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: UpdateDiskRequest)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit

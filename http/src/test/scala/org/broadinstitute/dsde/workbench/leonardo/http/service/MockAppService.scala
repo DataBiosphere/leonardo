@@ -4,10 +4,13 @@ package service
 
 import cats.effect.IO
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 class MockAppService extends AppService[IO] {
+
+  val diskNames = Vector(Some(DiskName("disk-name-1")), Some(DiskName("disk-name-2")))
   override def createApp(userInfo: UserInfo,
                          cloudContext: CloudContext.Gcp,
                          appName: AppName,
@@ -30,6 +33,15 @@ class MockAppService extends AppService[IO] {
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
     implicit as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
+  override def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Vector[Option[DiskName]]] = IO.pure(diskNames)
+
+  override def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 

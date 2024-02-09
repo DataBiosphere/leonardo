@@ -47,7 +47,7 @@ import org.scalatest.prop.TableDrivenPropertyChecks._
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
-final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 

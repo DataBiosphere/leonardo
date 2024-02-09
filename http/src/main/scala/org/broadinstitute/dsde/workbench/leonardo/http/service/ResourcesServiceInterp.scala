@@ -5,54 +5,18 @@ import cats.effect.Async
 import cats.implicits.toFunctorOps
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppAction,
-  AppContext,
-  AppStatus,
-  CloudContext,
-  DiskId,
-  DiskStatus,
-  PersistentDiskAction,
-  RuntimeAction,
-  RuntimeConfig
-}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  clusterQuery,
-  kubernetesClusterQuery,
-  nodepoolQuery,
-  persistentDiskQuery,
-  DbReference,
-  DiskServiceDbQueries,
-  KubernetesServiceDbQueries
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.{
-  ctxConversion,
-  ListAppResponse,
-  ListPersistentDiskResponse,
-  ListRuntimeResponse2
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  ForbiddenError,
-  LeoAuthProvider,
-  NonDeletableDisksInProjectFoundException,
-  NonDeletableRuntimesInProjectFoundException,
-  RuntimeNotFoundException
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext}
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.model.{ForbiddenError, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.UserInfo
-
-import scala.concurrent.ExecutionContext
 
 final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
                                                    runtimeService: RuntimeService[F],
                                                    appService: AppService[F],
                                                    diskService: DiskService[F]
 )(implicit
-  F: Async[F],
-  dbRef: DbReference[F],
-  ec: ExecutionContext
+  F: Async[F]
 ) extends ResourcesService[F] {
   override def deleteAllResources(userInfo: UserInfo,
                                   googleProject: GoogleProject,

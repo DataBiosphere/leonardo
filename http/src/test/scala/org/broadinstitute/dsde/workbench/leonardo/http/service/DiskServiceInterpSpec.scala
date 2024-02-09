@@ -40,7 +40,7 @@ import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.Future
 
-class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
+trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val emptyCreateDiskReq = CreateDiskRequest(
     Map.empty,
     None,
@@ -50,13 +50,13 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     None
   )
 
-  implicit val ctx: Ask[IO, AppContext] = Ask.const[IO, AppContext](
+  implicit val appContext: Ask[IO, AppContext] = Ask.const[IO, AppContext](
     AppContext(model.TraceId("traceId"), Instant.now())
   )
 
-  private def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
-                              googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
-                              allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
+  def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
+                      googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
+                      allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
   ) = {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
@@ -99,7 +99,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskName = DiskName("diskName1")
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       d <- diskService
         .createDisk(
           userInfo,
@@ -175,7 +175,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val expectedFormattedBy = FormattedBy.GCE
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       _ <- diskService
         .createDisk(
           userInfo,
@@ -224,7 +224,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskName = DiskName("diskName1")
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       cloneAttempt <- diskService
         .createDisk(
           userInfo,
@@ -253,7 +253,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskName = DiskName("diskName1")
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       cloneAttempt <- diskService
         .createDisk(
           userInfo,
@@ -318,7 +318,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ).thenReturn(IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build())))
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       _ <- diskService
         .createDisk(
           userInfoCreator,
@@ -591,7 +591,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
 
@@ -619,7 +619,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       _ <- IO(
@@ -647,7 +647,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       _ <- IO(
@@ -676,7 +676,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val (diskService, _) = makeDiskService()
         val res = for {
-          t <- ctx.ask[AppContext]
+          t <- appContext.ask[AppContext]
           diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
           disk <- makePersistentDisk(None).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, DiskSize(600))
@@ -699,7 +699,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, DiskSize(600))

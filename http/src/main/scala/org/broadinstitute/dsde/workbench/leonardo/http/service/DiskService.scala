@@ -32,10 +32,6 @@ trait DiskService[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 
-  def deletediskRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, disk: ListPersistentDiskResponse)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit]
-
   def deleteAllDisksRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
