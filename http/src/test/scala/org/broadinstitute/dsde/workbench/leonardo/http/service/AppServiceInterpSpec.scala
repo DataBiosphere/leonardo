@@ -74,6 +74,38 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), authProvider = allowListAuthProvider2)
   val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
 
+  def withLeoPublisher(
+    publisherQueue: Queue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
+    withInfiniteStream(leoPublisher.process, validations)
+  }
+
+  // used when we care about queue state
+  def makeInterp(queue: Queue[IO, LeoPubsubMessage],
+                 authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
+                 wsmDao: WsmDao[IO] = wsmDao,
+                 enableCustomAppCheckFlag: Boolean = true,
+                 enableSasApp: Boolean = true,
+                 googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
+                 customAppConfig: CustomAppConfig = gkeCustomAppConfig
+  ) = {
+    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
+
+    new LeoAppServiceInterp[IO](
+      appConfig,
+      authProvider,
+      serviceAccountProvider,
+      queue,
+      FakeGoogleComputeService,
+      googleResourceService,
+      customAppConfig,
+      wsmDao
+    )
+  }
+}
+
+class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with LeonardoTestSuite with TestComponent {
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
     val project = GoogleProject("project1")
     val passComputeService = new FakeGoogleComputeService {
@@ -2499,35 +2531,5 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       .toOption
       .get
       .isInstanceOf[ForbiddenError] shouldBe true
-  }
-
-  private def withLeoPublisher(
-    publisherQueue: Queue[IO, LeoPubsubMessage]
-  )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
-    withInfiniteStream(leoPublisher.process, validations)
-  }
-
-  // used when we care about queue state
-  private def makeInterp(queue: Queue[IO, LeoPubsubMessage],
-                         authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
-                         wsmDao: WsmDao[IO] = wsmDao,
-                         enableCustomAppCheckFlag: Boolean = true,
-                         enableSasApp: Boolean = true,
-                         googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
-                         customAppConfig: CustomAppConfig = gkeCustomAppConfig
-  ) = {
-    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
-
-    new LeoAppServiceInterp[IO](
-      appConfig,
-      authProvider,
-      serviceAccountProvider,
-      queue,
-      FakeGoogleComputeService,
-      googleResourceService,
-      customAppConfig,
-      wsmDao
-    )
   }
 }

@@ -57,7 +57,7 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
                       googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
                       allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
-  ) = {
+                     ) = {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = dontCloneFromTheseGoogleFolders),
@@ -69,6 +69,8 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     )
     (diskService, publisherQueue)
   }
+}
+class DiskServiceInterpTest extends AnyFlatSpec with DiskServiceInterpSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
 
   "DiskService" should "fail with AuthorizationError if user doesn't have project level permission" in {
     val (diskService, _) = makeDiskService()

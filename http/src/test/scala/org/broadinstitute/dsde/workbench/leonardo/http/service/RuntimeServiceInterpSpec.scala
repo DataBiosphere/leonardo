@@ -197,6 +197,14 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   def mockUserInfo(email: String = userEmail.toString()): UserInfo =
     UserInfo(OAuth2BearerToken(""), WorkbenchUserId(s"userId-${email}"), WorkbenchEmail(email), 0)
+}
+
+class RuntimeServiceInterpTest
+    extends AnyFlatSpec
+    with RuntimeServiceInterpSpec
+    with LeonardoTestSuite
+    with TestComponent
+    with MockitoSugar {
 
   it should "fail if user doesn't have project level permission" in {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
