@@ -363,7 +363,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .map(db =>
             WsmControlledDatabaseResource(db.getMetadata.getName,
                                           db.getAttributes.getDatabaseName,
-                                          Option(db.getMetadata.getResourceId)
+                                          db.getMetadata.getResourceId
             )
           )
       }
@@ -807,7 +807,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               // a database already exists (because of workspace cloning) verify or create a APP_CONTROLLED_RESOURCE for it
               case Some(existingDb) =>
                 // there is an existing db, so check to see if we have previously mapped it to appControlledResource
-                val resourceId = existingDb.controlledResourceId.get
+                val resourceId = existingDb.controlledResourceId
 
                 for {
                   count <- dbRef.inTransaction(
@@ -822,7 +822,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                         _ <- appControlledResourceQuery
                           .insert(
                             app.id.id,
-                            WsmControlledResourceId(existingDb.controlledResourceId.get),
+                            WsmControlledResourceId(existingDb.controlledResourceId),
                             WsmResourceType.AzureDatabase,
                             AppControlledResourceStatus.Created
                           )
@@ -838,7 +838,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                   db =>
                     WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
                                                   db.getAzureDatabase.getAttributes.getDatabaseName,
-                                                  Option(db.getAzureDatabase.getMetadata.getResourceId)
+                                                  db.getAzureDatabase.getMetadata.getResourceId
                     )
                 }
             }
@@ -983,7 +983,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .map(r =>
           WsmControlledDatabaseResource(r.getMetadata().getName(),
                                         r.getResourceAttributes().getAzureDatabase().getDatabaseName(),
-                                        Option(r.getMetadata().getResourceId)
+                                        r.getMetadata().getResourceId
           )
         )
     }
