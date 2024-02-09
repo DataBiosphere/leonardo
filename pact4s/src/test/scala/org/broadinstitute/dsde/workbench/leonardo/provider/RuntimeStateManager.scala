@@ -53,6 +53,22 @@ object RuntimeStateManager {
     Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
   )
 
+  private def mockCreateRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[CreateRuntimeResponse]): IO[Unit] = for {
+    _ <- IO(
+      when {
+        mockRuntimeService.createRuntime(any[UserInfo],
+          any[CloudContext.Gcp],
+          RuntimeName(anyString()),
+          any[CreateRuntimeRequest]
+        )(
+          any[Ask[IO, AppContext]]
+        )
+      } thenReturn {
+        mockResponse
+      }
+    )
+  } yield ()
+
   private def mockGetRuntime(mockRuntimeService: RuntimeService[IO], mockResponse: IO[GetRuntimeResponse]): IO[Unit] = for {
     _ <- IO(
       when {
@@ -87,8 +103,6 @@ object RuntimeStateManager {
     )
   } yield ()
 
-//  Make helper function that can take a function call and an exception. Should abstract away the thenReturn -> IO.raiseError()
-  //private def mockException():
   def handler(mockRuntimeService: RuntimeService[IO]): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.RuntimeExists, _) =>
       when(
@@ -119,17 +133,14 @@ object RuntimeStateManager {
       mockGetRuntime(mockRuntimeService, IO {
         mockedGetRuntimeResponse
       }).unsafeRunSync()
-      mockRuntimeConflict(mockRuntimeService).unsafeRunSync()
-    case ProviderState(States.RuntimeDoesNotExist, _) =>
-      when(
-        mockRuntimeService.createRuntime(any[UserInfo],
-                                         any[CloudContext.Gcp],
-                                         RuntimeName(anyString()),
-                                         any[CreateRuntimeRequest]
-        )(
-          any[Ask[IO, AppContext]]
+      mockCreateRuntime(mockRuntimeService, IO.raiseError(
+        RuntimeAlreadyExistsException(CloudContext.Gcp(GoogleProject("123")),
+          RuntimeName("nonexistentruntimename"),
+          RuntimeStatus.Running
         )
-      ).thenReturn(IO(CreateRuntimeResponse(TraceId("test"))))
+      )).unsafeRunSync()
+    case ProviderState(States.RuntimeDoesNotExist, _) =>
+      mockCreateRuntime(mockRuntimeService, IO(CreateRuntimeResponse(TraceId("test")))).unsafeRunSync()
       mockGetRuntime(mockRuntimeService, IO.raiseError(
         RuntimeNotFoundException(CloudContext.Gcp(GoogleProject("123")),
           RuntimeName("nonexistentruntimename"),
