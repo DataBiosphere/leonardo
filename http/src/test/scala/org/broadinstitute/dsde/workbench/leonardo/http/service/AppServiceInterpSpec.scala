@@ -98,7 +98,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
                  enableCustomAppCheckFlag: Boolean = true,
                  enableSasApp: Boolean = true,
                  googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
-                 customAppConfig: CustomAppConfig = gkeCustomAppConfig
+                 customAppConfig: CustomAppConfig = gkeCustomAppConfig,
+                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) = {
     val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
 
@@ -110,7 +111,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       FakeGoogleComputeService,
       googleResourceService,
       customAppConfig,
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
   }
 }
@@ -2646,37 +2648,5 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .toOption
       .get
       .isInstanceOf[ForbiddenError] shouldBe true
-  }
-
-  private def withLeoPublisher(
-    publisherQueue: Queue[IO, LeoPubsubMessage]
-  )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
-    withInfiniteStream(leoPublisher.process, validations)
-  }
-
-  // used when we care about queue state
-  private def makeInterp(queue: Queue[IO, LeoPubsubMessage],
-                         authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
-                         wsmDao: WsmDao[IO] = wsmDao,
-                         enableCustomAppCheckFlag: Boolean = true,
-                         enableSasApp: Boolean = true,
-                         googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
-                         customAppConfig: CustomAppConfig = gkeCustomAppConfig,
-                         wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
-  ) = {
-    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
-
-    new LeoAppServiceInterp[IO](
-      appConfig,
-      authProvider,
-      serviceAccountProvider,
-      queue,
-      FakeGoogleComputeService,
-      googleResourceService,
-      customAppConfig,
-      wsmDao,
-      wsmClientProvider
-    )
   }
 }

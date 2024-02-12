@@ -236,6 +236,9 @@ case class NonDeletableDisksInProjectFoundException(googleProject: GoogleProject
 ) extends LeoException(
       s"Disks(s) in project ${googleProject.value} with (name(s), status(es)) ${disks
           .map(disk => s"(${disk.name},${disk.status})")} cannot be deleted due to their status(es).",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
 
 case class AppResourceCannotBeDeletedException(wsmResourceId: WsmControlledResourceId,
                                                appId: AppId,

@@ -21,7 +21,7 @@ class ResourcesServiceInterpSpec
     .lift[IO](None, "")
     .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-  val appService = appServiceInterp
+  val appService = gcpWorkspaceAppServiceInterp
   val (diskService, _) = makeDiskService()
   val resourcesService = new ResourcesServiceInterp(allowListAuthProvider, runtimeService, appService, diskService)
 
