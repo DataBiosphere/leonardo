@@ -20,16 +20,12 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+// do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-// do not remove `projectSamResourceAction`; it is implicit
   projectSamResourceAction,
-// do not remove `runtimeSamResourceAction`; it is implicit
   runtimeSamResourceAction,
-// do not remove `workspaceSamResourceAction`; it is implicit
   workspaceSamResourceAction,
-// do not remove `wsmResourceSamResourceAction`; it is implicit
   wsmResourceSamResourceAction,
-// do not remove `AppSamResourceAction`; it is implicit
   AppSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -300,47 +296,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
-      _ <- F
-        .raiseUnless(runtime.status.isDeletable)(
-          RuntimeCannotBeDeletedException(runtime.cloudContext, runtime.runtimeName, runtime.status)
-        )
-
-      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
-      diskId <- diskIdOpt match {
-        case Some(value) => F.pure(value)
-        case _ =>
-          F.raiseError[DiskId](
-            AzureRuntimeHasInvalidRuntimeConfig(runtime.cloudContext, runtime.runtimeName, ctx.traceId)
-          )
-      }
-
-      // get wsm api
-      wsmAzureResourceApi <- wsmClientProvider.getControlledAzureResourceApi(userInfo.accessToken.token)
-      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
-
-      // if the vm is found in WSM and has a deletable state,
-      // then the resourceId is passed to back leo to make the delete call to WSM
-      // (state can be BROKEN, CREATING, DELETING, READY, UPDATING or NULL)
-      deletableStatus = List("BROKEN", "READY")
-
-      attempt <- F.delay(wsmAzureResourceApi.getAzureVm(workspaceId.value, wsmResourceId.value)).attempt
-      wsmVMResourceSamId <- attempt match {
-        case Right(result) =>
-          val vmState = result.getMetadata.getState.getValue
-          val res = if (deletableStatus.contains(vmState)) Some(wsmResourceId) else None
-          log
-            .info(ctx.loggingCtx)(
-              s"Runtime ${runtimeName.asString} with resourceId ${wsmResourceId.value} has a state of $vmState in WSM"
-            )
-            .as(res)
-        case Left(e) =>
-          log
-            .info(ctx.loggingCtx)(
-              s"No wsm record found for runtime ${runtimeName.asString} No-op for wsmDao.deleteVm, ${e.getMessage}"
-            )
-            .as(None)
-      }
-
       hasPermission <-
         if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else
@@ -352,6 +307,49 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         .raiseError[Unit](RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied"))
         .whenA(!hasPermission)
 
+      diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
+      diskId <- diskIdOpt match {
+        case Some(value) => F.pure(value)
+        case _ =>
+          F.raiseError[DiskId](
+            AzureRuntimeHasInvalidRuntimeConfig(runtime.cloudContext, runtime.runtimeName, ctx.traceId)
+          )
+      }
+
+      // check if the VM is deletable in WSM
+      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
+      wsmState <- wsmClientProvider.getVmState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+      _ <- F
+        .raiseUnless(wsmState.isDeletable)(
+          RuntimeCannotBeDeletedWsmException(runtime.cloudContext, runtime.runtimeName, wsmState)
+        )
+
+      // pass the disk to delete to publisher and set Leo status (if deleting disk)
+      diskIdToDeleteOpt <-
+        if (deleteDisk) for {
+          // check if disk is deletable in WSM if disk is being deleted
+          diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
+          disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId)))(F.pure)
+          diskIdToDelete <- disk.wsmResourceId match {
+            case Some(wsmResourceId) =>
+              for {
+                wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+                _ <- F
+                  .raiseUnless(wsmState.isDeletable)(
+                    DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
+                  )
+                _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+              } yield if (wsmState.isDeleted) F.pure(none[DiskId]) else Some(diskId)
+            // if disk hasn't been created in WSM, don't pass id to back leo
+            case None => F.pure(none[DiskId])
+          }
+        } yield Some(diskId)
+        else F.pure(none[DiskId])
+
+      // only pass wsmResourceId if vm isn't already deleted in WSM
+      // won't send the delete to WSM if vm is deleted
+      wsmVMResourceSamId = if (wsmState.isDeleted) None else Some(wsmResourceId)
+
       // Query WSM for Landing Zone resources
       userToken = org.http4s.headers.Authorization(
         org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
@@ -362,16 +360,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       // Update DB record to Deleting status
       _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
-      // pass the disk to delete to publisher if specified
-      diskIdToDelete <-
-        if (deleteDisk)
-          persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction.as(diskIdOpt)
-        else F.pure(none[DiskId])
-
       _ <- publisherQueue.offer(
         DeleteAzureRuntimeMessage(
           runtime.id,
-          diskIdToDelete,
+          diskIdToDeleteOpt,
           workspaceId,
           wsmVMResourceSamId,
           BillingProfileId(workspaceDesc.spendProfile),

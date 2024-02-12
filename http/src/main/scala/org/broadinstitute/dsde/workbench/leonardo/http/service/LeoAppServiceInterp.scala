@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
@@ -57,7 +57,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: GoogleComputeService[F],
                                                 googleResourceService: GoogleResourceService[F],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F]
+                                                wsmDao: WsmDao[F],
+                                                wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -862,17 +863,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       if (hasDeletePermission) F.unit
       else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-    canDelete = AppStatus.deletableStatuses.contains(app.status)
-    _ <-
-      if (canDelete) F.unit
-      else
-        F.raiseError[Unit](
-          AppCannotBeDeletedByWorkspaceIdException(workspaceId, app.appName, app.status, ctx.traceId)
-        )
-
-    // Get the disk to delete if specified
-    diskOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
-
     // Resolve the workspace in WSM to get the cloud context
     userToken = org.http4s.headers.Authorization(
       org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
@@ -884,6 +874,35 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
       case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
     }
+    // check if app can be deleted (Leo manages apps, so checking the leo status)
+    _ <- F.raiseUnless(app.status.isDeletable)(
+      AppCannotBeDeletedException(cloudContext, app.appName, app.status, ctx.traceId)
+    )
+
+    // check if databases, namespaces and managed identities associated with the app can be deleted
+    // (but only for Azure apps)
+    _ <-
+      if (cloudContext.cloudProvider == CloudProvider.Azure) {
+        for {
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDatabase, userInfo, workspaceId)
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureManagedIdentity, userInfo, workspaceId)
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureKubernetesNamespace, userInfo, workspaceId)
+        } yield ()
+      } else F.unit
+
+    // Get the disk and check if its deletable (if disk is being deleted)
+    diskIdOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
+    _ = (deleteDisk, diskIdOpt, cloudContext.cloudProvider) match {
+      // only check WSM state for Azure apps (Azure apps don't have disks currently, but they are coming...)
+      case (true, Some(diskId), CloudProvider.Azure) =>
+        for {
+          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDisk, userInfo, workspaceId)
+          _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
+        } yield ()
+      case (true, None, _) =>
+        log.info(s"No disk found to delete for app ${app.id}, ${app.appName}. No-op for deleteDisk")
+      case _ => F.unit // Do nothing if deleteDisk is false
+    }
 
     _ <-
       for {
@@ -893,12 +912,45 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           app.appName,
           workspaceId,
           cloudContext,
-          diskOpt,
+          diskIdOpt,
           BillingProfileId(workspaceDesc.spendProfile),
           Some(ctx.traceId)
         )
         _ <- publisherQueue.offer(deleteMessage)
       } yield ()
+  } yield ()
+
+  private def checkIfSubresourcesDeletable(appId: AppId,
+                                           resourceType: WsmResourceType,
+                                           userInfo: UserInfo,
+                                           workspaceId: WorkspaceId
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    wsmResources <- appControlledResourceQuery
+      .getAllForAppByType(appId.id, resourceType)
+      .transaction
+    _ <- wsmResources.traverse { resource =>
+      for {
+        wsmState <- resourceType match {
+          case WsmResourceType.AzureDatabase =>
+            wsmClientProvider.getDatabaseState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureKubernetesNamespace =>
+            wsmClientProvider.getNamespaceState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureManagedIdentity =>
+            wsmClientProvider.getIdentityState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureDisk =>
+            wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, resource.resourceId)
+          case WsmResourceType.AzureStorageContainer =>
+            F.pure(WsmState(None)) // no get endpoint for a storage container in WSM yet
+        }
+        _ <- F
+          .raiseUnless(wsmState.isDeletable)(
+            AppResourceCannotBeDeletedException(resource.resourceId, appId, wsmState.value, resourceType, ctx.traceId)
+          )
+      } yield ()
+    }
   } yield ()
 
   private[service] def getSavableCluster(

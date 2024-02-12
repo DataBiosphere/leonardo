@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   ListRuntimeResponse2
 }
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchEmail, WorkbenchException}
 
 import scala.util.control.NoStackTrace
@@ -111,11 +112,16 @@ case class RuntimeCannotBeStoppedException(cloudContext: CloudContext, runtimeNa
       traceId = None
     )
 
-case class RuntimeCannotBeDeletedException(cloudContext: CloudContext,
-                                           runtimeName: RuntimeName,
-                                           status: RuntimeStatus = RuntimeStatus.Creating
-) extends LeoException(
-      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status} status",
+case class RuntimeCannotBeDeletedException(cloudContext: CloudContext, runtimeName: RuntimeName, status: RuntimeStatus)
+    extends LeoException(
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status.toString} status, please wait and try again",
+      StatusCodes.Conflict,
+      traceId = None
+    )
+
+case class RuntimeCannotBeDeletedWsmException(cloudContext: CloudContext, runtimeName: RuntimeName, status: WsmState)
+    extends LeoException(
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status.value} status, please wait and try again",
       StatusCodes.Conflict,
       traceId = None
     )
@@ -230,6 +236,14 @@ case class NonDeletableDisksInProjectFoundException(googleProject: GoogleProject
 ) extends LeoException(
       s"Disks(s) in project ${googleProject.value} with (name(s), status(es)) ${disks
           .map(disk => s"(${disk.name},${disk.status})")} cannot be deleted due to their status(es).",
+
+case class AppResourceCannotBeDeletedException(wsmResourceId: WsmControlledResourceId,
+                                               appId: AppId,
+                                               status: String,
+                                               wsmResourceType: WsmResourceType,
+                                               traceId: TraceId
+) extends LeoException(
+      s"Azure ${wsmResourceType.toString} with id ${wsmResourceId.value} associated with ${appId.id} cannot be deleted in $status status, please wait and try again",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

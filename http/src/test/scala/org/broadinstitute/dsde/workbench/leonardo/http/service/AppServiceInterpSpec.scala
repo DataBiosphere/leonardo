@@ -20,7 +20,14 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  HttpWsmClientProvider,
+  MockWsmClientProvider,
+  MockWsmDAO,
+  WorkspaceDescription,
+  WsmApiClientProvider,
+  WsmDao
+}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -43,6 +50,8 @@ import org.http4s.headers.Authorization
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
+import org.scalatestplus.mockito.MockitoSugar.mock
+import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -52,6 +61,7 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   val wsmDao = new MockWsmDAO
+  val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
 
   val gcpWsmDao = new MockWsmDAO {
     override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
@@ -150,7 +160,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       passComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -160,7 +171,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       notEnoughMemoryComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -170,7 +182,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       notEnoughCpuComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
 
     for {
@@ -201,7 +214,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       FakeGoogleComputeService,
       noLabelsGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -231,7 +245,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       FakeGoogleComputeService,
       FakeGoogleResourceService,
       gkeCustomAppConfig,
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -1341,7 +1356,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1491,7 +1507,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1534,7 +1551,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1576,7 +1594,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1615,7 +1634,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1660,7 +1680,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1705,7 +1726,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao
+      wsmDao,
+      wsmClientProvider
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -2465,6 +2487,99 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     messages shouldBe List.empty
   }
 
+  /** TODO: Once disks are supported on Azure Apps
+  it should "error on delete if disk is in a status that cannot be deleted" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+                                                                                                                 ev: Ask[IO, AppContext]
+      ): IO[WsmState] =
+        IO.pure(WsmState(Some("CREATING")))
+    }
+    val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
+
+    val appName = AppName("app1")
+    val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
+    val appReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = Some(diskConfig))
+
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+
+    // we can't delete while its creating, so set it to Running
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+
+    an[DiskCannotBeDeletedWsmException] should be thrownBy {
+      appServiceInterp
+        .deleteAppV2(userInfo, workspaceId, appName, true)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+  */
+
+  it should "error on delete if app subresource is in a status that cannot be deleted" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val wsmClientProvider = new MockWsmClientProvider() {
+      override def getDatabaseState(token: String,
+                                    workspaceId: WorkspaceId,
+                                    wsmResourceId: WsmControlledResourceId
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
+        IO.pure(WsmState(Some("CREATING")))
+    }
+    val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
+
+    val appName = AppName("app1")
+    val appReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
+
+    appServiceInterp
+      .createAppV2(userInfo, workspaceId, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+
+    // we can't delete while its creating, so set it to Running
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+
+    // add database record
+    dbFutureValue(
+      appControlledResourceQuery
+        .insert(
+          appResultPreStatusUpdate.get.app.id.id,
+          wsmResourceId,
+          WsmResourceType.AzureDatabase,
+          AppControlledResourceStatus.Creating
+        )
+    )
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+    }
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+
+    an[AppResourceCannotBeDeletedException] should be thrownBy {
+      appServiceInterp
+        .deleteAppV2(userInfo, workspaceId, appName, true)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "fail to create a V2 app if it is disabled" in {
     val appName = AppName("app1")
     val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.HailBatch, diskConfig = None)
@@ -2531,5 +2646,37 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .toOption
       .get
       .isInstanceOf[ForbiddenError] shouldBe true
+  }
+
+  private def withLeoPublisher(
+    publisherQueue: Queue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
+    withInfiniteStream(leoPublisher.process, validations)
+  }
+
+  // used when we care about queue state
+  private def makeInterp(queue: Queue[IO, LeoPubsubMessage],
+                         authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
+                         wsmDao: WsmDao[IO] = wsmDao,
+                         enableCustomAppCheckFlag: Boolean = true,
+                         enableSasApp: Boolean = true,
+                         googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
+                         customAppConfig: CustomAppConfig = gkeCustomAppConfig,
+                         wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
+  ) = {
+    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
+
+    new LeoAppServiceInterp[IO](
+      appConfig,
+      authProvider,
+      serviceAccountProvider,
+      queue,
+      FakeGoogleComputeService,
+      googleResourceService,
+      customAppConfig,
+      wsmDao,
+      wsmClientProvider
+    )
   }
 }

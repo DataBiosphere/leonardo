@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
@@ -26,11 +27,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                           authProvider: LeoAuthProvider[F],
                                           wsmDao: WsmDao[F],
                                           samDAO: SamDAO[F],
-                                          publisherQueue: Queue[F, LeoPubsubMessage]
+                                          publisherQueue: Queue[F, LeoPubsubMessage],
+                                          wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
-  ec: ExecutionContext
+  ec: ExecutionContext,
+  log: StructuredLogger[F]
 ) extends DiskV2Service[F] {
 
   // backwards compatible with v1 getDisk route
@@ -75,20 +78,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       ctx <- as.ask
       diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
 
-      disk <- diskOpt.fold(
-        F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId))
-      )(
-        F.pure
-      )
-
-      // check that workspaceId is not null
-      workspaceId <- F.fromOption(disk.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
-
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+      disk <- F.fromOption(diskOpt, DiskNotFoundByIdException(diskId, ctx.traceId))
 
       // check read permission first
       listOfPermissions <- authProvider.getActions(disk.samResource, userInfo)
@@ -99,12 +89,6 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .raiseError[Unit](DiskNotFoundByIdException(diskId, ctx.traceId))
         .whenA(!hasReadPermission)
 
-      // check if disk is deletable
-      _ <- F
-        .raiseUnless(disk.status.isDeletable)(
-          DiskCannotBeDeletedException(diskId, disk.status, disk.cloudContext, ctx.traceId)
-        )
-
       // check delete permission
       hasDeletePermission = listOfPermissions.toSet.contains(
         PersistentDiskAction.DeletePersistentDisk
@@ -114,6 +98,29 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .whenA(!hasDeletePermission)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure disk permission")))
+
+      // check that workspaceId is not null
+      workspaceId <- F.fromOption(disk.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
+
+      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
+        WorkspaceResourceSamResourceId(workspaceId),
+        userInfo
+      )
+      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+
+      // check if disk resource is deletable in WSM
+      wsmDiskResourceId <- disk.wsmResourceId match {
+        case Some(wsmResourceId) =>
+          for {
+            wsmStatus <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+            _ <- F.raiseUnless(wsmStatus.isDeletable)(
+              DiskCannotBeDeletedWsmException(disk.id, wsmStatus, disk.cloudContext, ctx.traceId)
+            )
+            // only send wsmResourceId to back leo if disk isn't already deleted in WSM
+          } yield if (wsmStatus.isDeleted) None else Some(wsmResourceId)
+        // if disk hasn't been created in WSM, don't pass id to back leo
+        case None => F.pure(None)
+      }
 
       // check that disk isn't attached to a runtime
       isAttached <- persistentDiskQuery.isDiskAttached(diskId).transaction
@@ -128,7 +135,7 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           disk.id,
           workspaceId,
           disk.cloudContext,
-          disk.wsmResourceId,
+          wsmDiskResourceId,
           Some(ctx.traceId)
         )
       )

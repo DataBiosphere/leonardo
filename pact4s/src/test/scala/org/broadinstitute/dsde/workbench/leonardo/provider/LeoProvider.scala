@@ -138,10 +138,13 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   }
 
   val provider: ProviderInfoBuilder =
-    ProviderInfoBuilder(name = "leonardo",
-                        PactSource
-                          .PactBrokerWithSelectors(pactBrokerUrl)
-                          .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
+    ProviderInfoBuilder(
+      name = "leonardo",
+      PactSource
+        .PactBrokerWithSelectors(pactBrokerUrl)
+        .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
+        .withPendingPacts(true)
+        .withProviderTags(ProviderTags("develop"))
     )
       .withStateManagementFunction(
         providerStatesHandler
