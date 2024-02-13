@@ -439,7 +439,7 @@ final case class App(id: AppId,
                      extraArgs: List[String],
                      sourceWorkspaceId: Option[WorkspaceId],
                      numOfReplicas: Option[Int],
-                     autodeleteThresholdMin: Option[Int],
+                     autodeleteThreshold: Option[Int],
                      autodeleteEnabled: Boolean
 ) {
 

@@ -210,7 +210,7 @@ object KubernetesTestData {
               releasePrefix: String = galaxyReleasePrefix,
               disk: Option[PersistentDisk] = None,
               kubernetesServiceAccountName: Option[ServiceAccountName] = None,
-              autodeleteThresholdMin: Int = 0,
+              autodeleteThreshold: Int = 0,
               autodeleteEnabled: Boolean = false
   ): App = {
     val name = AppName("app" + index)
@@ -245,7 +245,7 @@ object KubernetesTestData {
       List.empty,
       None,
       Some(1),
-      Some(autodeleteThresholdMin),
+      Some(autodeleteThreshold),
       autodeleteEnabled
     )
   }

@@ -30,7 +30,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(1, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autodeleteThresholdMin = Some(1),
+                autodeleteThreshold = Some(1),
                 autodeleteEnabled = true
           )
           .save()
@@ -57,7 +57,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
         makeApp(2, savedNodepool1.id)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = AppStatus.Running,
-                autodeleteThresholdMin = Some(6),
+                autodeleteThreshold = Some(6),
                 autodeleteEnabled = true
           )
           .save()

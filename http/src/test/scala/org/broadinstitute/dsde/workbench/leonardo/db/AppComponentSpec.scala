@@ -175,7 +175,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThresholdMin = Some(1),
+        autodeleteThreshold = Some(1),
         samResourceId = samResourceId1,
         autodeleteEnabled = true
       )
@@ -185,7 +185,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThresholdMin = Some(10),
+        autodeleteThreshold = Some(10),
         autodeleteEnabled = true
       )
       .save()
@@ -195,7 +195,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Deleting,
-        autodeleteThresholdMin = Some(1),
+        autodeleteThreshold = Some(1),
         autodeleteEnabled = true
       )
       .save()
@@ -205,7 +205,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThresholdMin = Some(1),
+        autodeleteThreshold = Some(1),
         samResourceId = samResourceId1,
         autodeleteEnabled = false
       )
@@ -216,7 +216,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThresholdMin = Some(1),
+        autodeleteThreshold = Some(1),
         samResourceId = samResourceId1
       )
       .save()

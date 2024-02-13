@@ -177,7 +177,7 @@ object AppV2Routes {
         ea <- x.downField("extraArgs").as[Option[List[String]]]
         wsi <- x.downField("workspaceId").as[Option[WorkspaceId]]
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
-        adtm <- x.downField("autodeleteThresholdMin").as[Option[Int]]
+        adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
         adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
 
         optStr <- x.downField("appType").as[Option[String]]

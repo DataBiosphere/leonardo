@@ -35,7 +35,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   extraArgs: List[String],
                                   sourceWorkspaceId: Option[WorkspaceId],
                                   workspaceId: Option[WorkspaceId],
-                                  autodeleteThresholdMin: Option[Int],
+                                  autodeleteThreshold: Option[Int],
                                   autodeleteEnabled: Option[Boolean]
 )
 
