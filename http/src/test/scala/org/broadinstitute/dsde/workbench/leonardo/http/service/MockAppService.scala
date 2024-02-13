@@ -40,6 +40,11 @@ class MockAppService extends AppService[IO] {
     as: Ask[IO, AppContext]
   ): IO[Vector[Option[DiskName]]] = IO.pure(diskNames)
 
+  override def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
   override def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] =

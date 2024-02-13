@@ -430,7 +430,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
     } yield ()
 
-  def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+  override def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
   ): F[Vector[Option[DiskName]]] =
     for {
@@ -454,18 +454,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
     } yield attachedPersistentDiskNames
 
-  private def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, app: ListAppResponse)(implicit
+  override def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
       // Find the app ID and Sam resource id
       dbAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(cloudContext, app.appName)
+        .getActiveFullAppByName(cloudContext, appName)
         .transaction
       dbApp <- F.fromOption(
         dbAppOpt,
-        AppNotFoundException(cloudContext, app.appName, ctx.traceId, "No active app found in DB")
+        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
       listOfPermissions <- authProvider.getActions(dbApp.app.samResourceId, userInfo)
 
@@ -475,7 +475,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (hasPermission) F.unit
         else
           F.raiseError[Unit](
-            AppNotFoundException(cloudContext, app.appName, ctx.traceId, "Permission Denied")
+            AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied")
           )
 
       // throw 403 if no DeleteApp permission
@@ -493,9 +493,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           dbApp.app.auditInfo.creator,
           cloudContext.value
         )
+      // Stop the usage of the SAS app
+      trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
+      _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).whenA(trackUsage).recoverWith {
+        case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+      }
     } yield ()
 
-  def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+  override def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -505,7 +510,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         Some(cloudContext),
         Map.empty
       )
-      _ <- apps.traverse(app => deleteAppRecords(userInfo, cloudContext, app))
+      _ <- apps.traverse(app => deleteAppRecords(userInfo, cloudContext, app.appName))
     } yield ()
 
   def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
