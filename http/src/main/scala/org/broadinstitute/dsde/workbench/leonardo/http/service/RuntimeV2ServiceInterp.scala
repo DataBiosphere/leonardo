@@ -318,7 +318,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       // check if the VM is deletable in WSM
       wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
-      wsmState <- wsmClientProvider.getVmState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+      wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token, workspaceId, wsmResourceId, WsmResourceType.AzureVm)
       _ <- F
         .raiseUnless(wsmState.isDeletable)(
           RuntimeCannotBeDeletedWsmException(runtime.cloudContext, runtime.runtimeName, wsmState)
@@ -333,7 +333,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
           diskIdToDelete <- disk.wsmResourceId match {
             case Some(wsmResourceId) =>
               for {
-                wsmState <- wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, wsmResourceId)
+                wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token, workspaceId, wsmResourceId, WsmResourceType.AzureDisk)
                 _ <- F
                   .raiseUnless(wsmState.isDeletable)(
                     DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
