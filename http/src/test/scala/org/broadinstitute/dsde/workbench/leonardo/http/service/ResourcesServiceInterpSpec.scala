@@ -39,12 +39,20 @@ class ResourcesServiceInterpSpec
   val resourcesService = new ResourcesServiceInterp(allowListAuthProvider, runtimeService, appService, diskService)
 
   val mockAllowListAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
-  // User passes isUserProjectReader
   when(mockAllowListAuthProvider.isUserProjectReader(any, any)(any)).thenReturn(IO.pure(true))
 
   val mockRuntimeService = mock[RuntimeServiceInterp[IO]](defaultMockitoAnswer[IO])
+  when(mockRuntimeService.deleteAllRuntimesRecords(any, any)(any)).thenReturn(IO.unit)
+  when(mockRuntimeService.deleteAllRuntimes(any, any, any)(any)).thenReturn(IO.pure(Some(diskIds)))
+
   val mockAppService = mock[LeoAppServiceInterp[IO]](defaultMockitoAnswer[IO])
+  when(mockAppService.deleteAllAppsRecords(any, any)(any)).thenReturn(IO.unit)
+  when(mockAppService.deleteAllApps(any, any, any)(any)).thenReturn(IO.pure(diskNames))
+
   val mockDiskService = mock[DiskServiceInterp[IO]](defaultMockitoAnswer[IO])
+  when(mockDiskService.deleteAllDisksRecords(any, any)(any)).thenReturn(IO.unit)
+  when(mockDiskService.deleteAllOrphanedDisks(any, any, any, any)(any)).thenReturn(IO.unit)
+
   val mockResourcesService =
     new ResourcesServiceInterp(mockAllowListAuthProvider, mockRuntimeService, mockAppService, mockDiskService)
 
@@ -57,46 +65,52 @@ class ResourcesServiceInterpSpec
   }
 
   it should "call deleteAllAppsRecords, deleteAllRuntimesRecords and deleteAllDisksRecords when deleteInCloud flag is false and deleteDisk is true" in {
-    mockResourcesService.deleteAllResources(
-      userInfo,
-      project,
-      false,
-      true
-    )
+    mockResourcesService
+      .deleteAllResources(
+        userInfo,
+        project,
+        false,
+        true
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     verify(mockRuntimeService, times(1)).deleteAllRuntimesRecords(userInfo, CloudContext.Gcp(project))
     verify(mockAppService, times(1)).deleteAllAppsRecords(userInfo, CloudContext.Gcp(project))
     verify(mockDiskService, times(1)).deleteAllDisksRecords(userInfo, CloudContext.Gcp(project))
   }
 
-  it should "call deleteAllApps, deleteAllRuntimes and deleteAllOrphanedDisks when deleteInCloud flag is true and deleteDisk is true" in {
-    mockResourcesService.deleteAllResources(
-      userInfo,
-      project,
-      true,
-      true
+  it should "not call deleteAllOrphanedDisks when deleteInCloud flag is true and deleteDisk is false" in {
+    mockResourcesService
+      .deleteAllResources(
+        userInfo,
+        project,
+        true,
+        false
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, CloudContext.Gcp(project), false)
+    verify(mockAppService, times(1)).deleteAllApps(userInfo, CloudContext.Gcp(project), false)
+    verify(mockDiskService, never()).deleteAllOrphanedDisks(userInfo,
+                                                            CloudContext.Gcp(project),
+                                                            Some(diskIds),
+                                                            diskNames
     )
+  }
+
+  it should "call deleteAllApps, deleteAllRuntimes and deleteAllOrphanedDisks when deleteInCloud flag is true and deleteDisk is true" in {
+    mockResourcesService
+      .deleteAllResources(
+        userInfo,
+        project,
+        true,
+        true
+      )
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, CloudContext.Gcp(project), true)
     verify(mockAppService, times(1)).deleteAllApps(userInfo, CloudContext.Gcp(project), true)
     verify(mockDiskService, times(1)).deleteAllOrphanedDisks(userInfo,
                                                              CloudContext.Gcp(project),
                                                              Some(diskIds),
                                                              diskNames
-    )
-  }
-
-  it should "not call deleteAllOrphanedDisks when deleteInCloud flag is true and deleteDisk is false" in {
-    mockResourcesService.deleteAllResources(
-      userInfo,
-      project,
-      true,
-      true
-    )
-    verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, CloudContext.Gcp(project), true)
-    verify(mockAppService, times(1)).deleteAllApps(userInfo, CloudContext.Gcp(project), true)
-    verify(mockDiskService, never()).deleteAllOrphanedDisks(userInfo,
-                                                            CloudContext.Gcp(project),
-                                                            Some(diskIds),
-                                                            diskNames
     )
   }
 }

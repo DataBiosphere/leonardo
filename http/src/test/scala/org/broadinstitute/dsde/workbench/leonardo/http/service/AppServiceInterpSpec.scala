@@ -1742,51 +1742,62 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   }
 
   it should "V1 GCP - deleteAppRecords delete an app, nodepool and cluster in DB and records AppUsage stopTime" in isolatedDbTest {
-    val res = for {
-      publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
 
-      kubeServiceInterp = makeInterp(publisherQueue)
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
 
-      savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
-      savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      chart = Chart.fromString("/leonardo/sas-0.1.0")
+    val appName = AppName("app1")
+    val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
 
-      savedApp <- IO(
-        makeApp(1, savedNodepool.id, appType = AppType.Allowed, chart = chart.get)
-          .copy(status = AppStatus.Running)
-          .save()
+    val appReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = None,
+                            appType = AppType.Allowed,
+                            allowedChartName = Some(AllowedChartName.Sas),
+                            diskConfig = Some(diskConfig)
       )
 
-      _ <- appUsageQuery.recordStart(savedApp.id, Instant.now())
+    kubeServiceInterp
+      .createApp(userInfo, CloudContext.Gcp(project), appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-      gcpContext = savedCluster.cloudContext match {
-        case g @ CloudContext.Gcp(_) => g
-        case _                       => fail("expected GCP context")
-      }
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(project), appName)
+    }
+    // Set the cluster, app, and nodepool to running and start tracking the usage
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
 
-      _ <- kubeServiceInterp.deleteAppRecords(userInfo, gcpContext, savedApp.appName)
-
-      _ <- withLeoPublisher(publisherQueue) {
-        for {
-          dbAppOpt <- KubernetesServiceDbQueries
-            .getFullAppById(savedCluster.cloudContext, savedApp.id)
-            .transaction
-          msg <- publisherQueue.tryTake
-          appUsage <- getAllAppUsage.transaction
-        } yield {
-          dbAppOpt.isDefined shouldBe true
-          dbAppOpt.get.app.status shouldBe AppStatus.Deleted
-          dbAppOpt.get.nodepool.status shouldBe NodepoolStatus.Deleted
-          dbAppOpt.get.cluster.status shouldBe KubernetesClusterStatus.Deleted
-
-          msg shouldBe None
-
-          appUsage.headOption.map(_.stopTime).isDefined shouldBe true
-        }
-      }
+    val res = for {
+      appUsageId <- appUsageQuery.recordStart(appResultPreStatusUpdate.get.app.id, Instant.now())
     } yield ()
-
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    kubeServiceInterp
+      .deleteAllAppsRecords(userInfo, CloudContext.Gcp(project))
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appUsage = dbFutureValue(getAllAppUsage)
+    appUsage.headOption.map(_.stopTime).isDefined shouldBe true
+
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullApps(Some(CloudContext.Gcp(project)), includeDeleted = true)
+    }
+
+    clusterPostDelete.length shouldEqual 1
+    clusterPostDelete.map(_.status) shouldEqual List(KubernetesClusterStatus.Deleted)
+    val nodepools = clusterPostDelete.flatMap(_.nodepools)
+    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
+    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Deleted)
+    apps.map(_.status) shouldEqual List(AppStatus.Deleted)
+
+    // throw away create messages
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val messages = publisherQueue.tryTakeN(Some(1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    messages.map(_.messageType) shouldBe List.empty
 
   }
 
