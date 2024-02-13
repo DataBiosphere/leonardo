@@ -87,21 +87,9 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"workloadIdentity.enabled=true",
           raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
 
-          // Sam configs
-          raw"sam.url=${params.config.samConfig.server}",
-
-          // Leo configs
-          raw"leonardo.url=${params.config.leoUrlBase}",
-
-          // workspace manager
-          raw"workspacemanager.url=${params.config.wsmConfig.uri.renderString}",
-
           // general configs
           raw"fullnameOverride=wds-${params.app.release.asString}",
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
-
-          // import configs
-          raw"import.dataRepoUrl=${tdrConfig.url}",
 
           // provenance (app-cloning) configs
           raw"provenance.userAccessToken=${userToken}",
