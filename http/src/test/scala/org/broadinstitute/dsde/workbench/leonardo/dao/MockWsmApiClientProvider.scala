@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import bio.terra.workspace.api._
+import bio.terra.workspace.model.ResourceMetadata
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
@@ -21,6 +22,31 @@ class MockWsmClientProvider(controlledAzureResourceApi: ControlledAzureResourceA
     ev: Ask[IO, AppContext]
   ): IO[ResourceApi] =
     IO.pure(resourceApi)
+
+  override def getIdentity(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[IO, AppContext],
+    log: StructuredLogger[IO]
+  ): IO[Option[ResourceMetadata]] = IO.pure(None)
+
+  override def getVm(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[IO, AppContext],
+    log: StructuredLogger[IO]
+  ): IO[Option[ResourceMetadata]] = IO.pure(None)
+
+  override def getDatabase(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[IO, AppContext],
+    log: StructuredLogger[IO]
+  ): IO[Option[ResourceMetadata]] = IO.pure(None)
+
+  override def getNamespace(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[IO, AppContext],
+    log: StructuredLogger[IO]
+  ): IO[Option[ResourceMetadata]] = IO.pure(None)
+
+  override def getDisk(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[IO, AppContext],
+    log: StructuredLogger[IO]
+  ): IO[Option[ResourceMetadata]] = IO.pure(None)
 
   override def getWsmState(token: String,
                            workspaceId: WorkspaceId,

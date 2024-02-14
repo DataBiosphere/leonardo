@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import bio.terra.workspace.model.State
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}

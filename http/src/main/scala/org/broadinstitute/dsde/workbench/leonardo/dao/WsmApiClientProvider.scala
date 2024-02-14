@@ -166,6 +166,8 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
     log: StructuredLogger[F]
   ): F[WsmState] = for {
     resource <- resourceType match {
+      case WsmResourceType.AzureVm =>
+        getVm(token, workspaceId, wsmResourceId)
       case WsmResourceType.AzureDatabase =>
         getDatabase(token, workspaceId, wsmResourceId)
       case WsmResourceType.AzureKubernetesNamespace =>

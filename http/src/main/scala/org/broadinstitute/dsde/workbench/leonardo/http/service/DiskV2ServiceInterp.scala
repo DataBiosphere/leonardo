@@ -112,7 +112,11 @@ class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       wsmDiskResourceId <- disk.wsmResourceId match {
         case Some(wsmResourceId) =>
           for {
-            wsmStatus <- wsmClientProvider.getWsmState(userInfo.accessToken.token, workspaceId, wsmResourceId, WsmResourceType.AzureDisk)
+            wsmStatus <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
+                                                       workspaceId,
+                                                       wsmResourceId,
+                                                       WsmResourceType.AzureDisk
+            )
             _ <- F.raiseUnless(wsmStatus.isDeletable)(
               DiskCannotBeDeletedWsmException(disk.id, wsmStatus, disk.cloudContext, ctx.traceId)
             )

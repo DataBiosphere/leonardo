@@ -33,7 +33,8 @@ final case class AKSCluster(name: String, tags: Map[String, Boolean]) {
 
 final case class WsmManagedAzureIdentity(wsmResourceName: String, managedIdentityName: String)
 
-final case class WsmControlledKubernetesNamespaceResource(wsmResourceName: NamespaceName,
+final case class WsmControlledKubernetesNamespaceResource(name: NamespaceName,
+                                                          wsmResourceId: WsmControlledResourceId,
                                                           serviceAccountName: ServiceAccountName
 )
 

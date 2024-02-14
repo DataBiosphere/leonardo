@@ -156,15 +156,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             wsmManagedIdentityOpt.map(_.wsmResourceName)
           )
       }
-//      wsmNamespace <- childSpan("createWsmKubernetesNamespaceResource").use { implicit ev =>
-//        createWsmKubernetesNamespaceResource(
-//          app,
-//          params.workspaceId,
-//          namespacePrefix,
-//          wsmDatabases.map(_.wsmDatabaseName),
-//          wsmManagedIdentityOpt.map(_.wsmResourceName)
-//        )
-//      }
 
       // The managed identity name is either the WSM identity (for shared apps) or the
       // pet managed identity (for private apps). The latter is confusingly stored in the
@@ -188,7 +179,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
                                         params.cloudContext,
-                                        wsmNamespace.wsmResourceName
+                                        wsmNamespace.name
       )
 
       // Build listener helm values
@@ -922,8 +913,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .toList
     )
     val wsmResourceName = generateWsmNameForIdentity(appType)
+    println(s"wsmResourceName $wsmResourceName")
     wsmManagedIdentities.map { identities =>
       // there should be only 1 Azure managed identity per app
+      println(s"identityName ${identities.head.getMetadata.getName}")
       identities
         .find(identity => wsmResourceName == identity.getMetadata.getName)
         .map(identity =>
@@ -975,7 +968,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .map(ns =>
           WsmControlledKubernetesNamespaceResource(
             NamespaceName(namespacePrefix),
-            ns.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
+            WsmControlledResourceId(ns.getMetadata.getResourceId),
+            ServiceAccountName(ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount)
           )
         )
     }
@@ -987,22 +981,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                          databases: List[String],
                                                          identity: Option[String]
   )(implicit ev: Ask[F, AppContext]): F[WsmControlledKubernetesNamespaceResource] =
-    // TODO (LM): check namespace status here before creating new namespace
-    // if namespaceState in Set(wsmState.READY or wsmState.CREATING) or namespaceState != DELETED????
-
     for {
       ctx <- ev.ask
-      token <- getLeoAuthToken
-
-      // First check if namespace has been created already (leo restarted mid-app creation)
-      namespaceRecord <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
-        .transaction
-      namespaceOpt = namespaceRecord.foreach(namespace =>
-        for {
-          namespaceOpt <- wsmClientProvider.getNamespace(token, workspaceId, namespace.resourceId)
-        } yield namespaceOpt
-      )
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Creating $namespacePrefix namespace for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
@@ -1038,7 +1018,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Build request
       createNamespaceJobControl = new JobControl().id(
         namespacePrefix
-      ) // TODO (LM): change id here to have a random suffix?
+      )
       createNamespaceRequest = new CreateControlledAzureKubernetesNamespaceRequestBody()
         .common(namespaceCommonFields)
         .azureKubernetesNamespace(createNamespaceParams)
@@ -1082,16 +1062,20 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
         } else F.unit
 
+      resourceId = WsmControlledResourceId(result.getAzureKubernetesNamespace.getMetadata.getResourceId)
+
       // Save record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
         .updateStatus(
-          WsmControlledResourceId(result.getAzureKubernetesNamespace.getMetadata.getResourceId),
+          resourceId,
           AppControlledResourceStatus.Created
         )
         .transaction
       namespaceAttributes = result.getAzureKubernetesNamespace.getAttributes
-    } yield WsmControlledKubernetesNamespaceResource(NamespaceName(namespaceAttributes.getKubernetesNamespace),
-                                                     ServiceAccountName(namespaceAttributes.getKubernetesServiceAccount)
+    } yield WsmControlledKubernetesNamespaceResource(
+      NamespaceName(namespaceAttributes.getKubernetesNamespace),
+      resourceId,
+      ServiceAccountName(namespaceAttributes.getKubernetesServiceAccount)
     )
 
   private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
@@ -1229,7 +1213,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
     }
 
-  private def getLeoAuthToken(implicit ev: Ask[F, AppContext]): F[String] =
+  private def getLeoAuthToken: F[String] =
     for {
       auth <- samDao.getLeoAuthToken
       token <- auth.credentials match {

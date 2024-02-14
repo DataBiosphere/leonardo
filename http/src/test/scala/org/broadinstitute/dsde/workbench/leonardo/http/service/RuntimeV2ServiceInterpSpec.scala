@@ -1181,10 +1181,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext],
-        logger: StructuredLogger[IO]
-      ): IO[WsmState] =
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
     val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
@@ -1217,10 +1218,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext],
-        logger: StructuredLogger[IO]
-      ): IO[WsmState] =
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("UPDATING")))
     }
     val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
@@ -1253,10 +1255,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext],
-        logger: StructuredLogger[IO]
-      ): IO[WsmState] =
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("DELETING")))
     }
     val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
@@ -1289,11 +1292,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-        implicit
-        ev: Ask[IO, AppContext],
-        logger: StructuredLogger[IO]
-      ): IO[WsmState] =
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
     val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
@@ -1337,10 +1340,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     // make VM be deleted in WSM
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-        ev: Ask[IO, AppContext],
-        logger: StructuredLogger[IO]
-      ): IO[WsmState] =
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(None))
     }
     val azureService = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
