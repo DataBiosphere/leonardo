@@ -54,11 +54,11 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
     helm repo update
 
-COPY ./cromwell-runner-app-2024.02.14-jgd.tgz /leonardo
-RUN tar -xzf /leonardo/cromwell-runner-app-2024.02.14-jgd.tgz -C /leonardo
+COPY ./cromwell-runner-app-2024.02.14.tgz /leonardo
+RUN tar -xzf /leonardo/cromwell-runner-app-2024.02.14.tgz -C /leonardo
 
-COPY ./workflows-app-2024.02.14-jgd.tgz /leonardo
-RUN tar -xzf /leonardo/workflows-app-2024.02.14-jgd.tgz -C /leonardo
+COPY ./workflows-app-2024.02.14.tgz /leonardo
+RUN tar -xzf /leonardo/workflows-app-2024.02.14.tgz -C /leonardo
 
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
