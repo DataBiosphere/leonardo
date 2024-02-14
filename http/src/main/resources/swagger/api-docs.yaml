@@ -1594,6 +1594,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+    patch:
+        summary: Updates the configuration of an app
+        description: In order to update the configuration of an app, it must first be ready
+        operationId: updateApp
+        tags:
+            - apps
+        parameters:
+          - in: path
+            name: googleProject
+            description: googleProject
+            required: true
+            schema:
+                type: string
+          - in: path
+            name: appName
+            description: appName
+            required: true
+            schema:
+                type: string
+        requestBody:
+            $ref: "#/components/requestBodies/UpdateAppRequest"
+        responses:
+          "202":
+            description: App update request accepted
+          "400":
+            description: Bad Request
+            content:
+              application/json:
+                schema:
+                    $ref: "#/components/schemas/ErrorReport"
+          "500":
+            description: Internal Error
+            content:
+              application/json:
+                schema:
+                    $ref: "#/components/schemas/ErrorReport"
     delete:
       summary: Deletes an existing app in the given project
       description: deletes an App
@@ -2914,6 +2950,14 @@ components:
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
             autopauseThreshold: 15
+    UpdateAppRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateAppRequest"
+          example:
+            authdeleteThrehold: 15
+            authdeleteThreholdEnabled: true
     UpdateAppsRequest:
       content:
         application/json:
@@ -4106,6 +4150,18 @@ components:
           type: integer
           description: The number of minutes of idle time to elapse before the app is
             deleted. When autodeleteEnabled is true, a positive integer is required
+        autodeleteEnabled:
+          type: boolean
+          description: Whether to turn on autodelete
+
+    UpdateAppRequest:
+      description: a request to update an app
+      type: object
+      properties:
+        autodeleteThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the app is
+            deleted in minute. When autodeleteEnabled is true, a positive integer is required
         autodeleteEnabled:
           type: boolean
           description: Whether to turn on autodelete
