@@ -54,6 +54,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
   LeoPubsubMessage,
+  LeoPubsubMessageType,
   RuntimeConfigInCreateRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
@@ -1312,6 +1313,79 @@ class RuntimeServiceInterpTest
         )
         .attempt
     } yield r shouldBe Left(ForbiddenError(userInfo.userEmail, Some(context.traceId)))
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "deleteAll runtimes" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val runtimeIds =
+      Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
+      readerProjectSamIds = Set(ProjectSamResourceId(project))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    when(mockAuthProvider.getActionsWithProjectFallback(any, any, isEq(userInfo))(any, any))
+      .thenReturn(IO.pure((List(any), List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime))))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
+
+    val res = for {
+      pd1 <- makePersistentDisk().save()
+      _ <- IO(
+        makeCluster(0)
+          .copy(samResource = runtimeIds(0))
+          .saveWithRuntimeConfig(
+            RuntimeConfig
+              .GceWithPdConfig(
+                MachineTypeName("n1-standard-4"),
+                Some(pd1.id),
+                bootDiskSize = DiskSize(50),
+                zone = ZoneName("us-central1-a"),
+                None
+              )
+          )
+      )
+      pd2 <- makePersistentDisk(Some(DiskName("disk2"))).save()
+      _ <- IO(
+        makeCluster(1)
+          .copy(samResource = runtimeIds(1))
+          .saveWithRuntimeConfig(
+            RuntimeConfig
+              .GceWithPdConfig(
+                MachineTypeName("n1-standard-4"),
+                Some(pd2.id),
+                bootDiskSize = DiskSize(50),
+                zone = ZoneName("us-central1-a"),
+                None
+              )
+          )
+      )
+      // Remove the create runtime messages from the queue
+      _ <- publisherQueue.tryTakeN(Some(2))
+
+      attachedDisksIdsOpt <- service.deleteAllRuntimes(userInfo, cloudContextGcp, false)
+      attachedDisksIds = attachedDisksIdsOpt.getOrElse(Vector.empty)
+
+      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
+      messages <- publisherQueue.tryTakeN(Some(2))
+
+    } yield {
+      attachedDisksIds.length shouldEqual 2
+      runtimes.map(_.status) shouldEqual List(RuntimeStatus.PreDeleting, RuntimeStatus.PreDeleting)
+      messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteRuntime, LeoPubsubMessageType.DeleteRuntime)
+      val deleteRuntimeMessages = messages.map(_.asInstanceOf[DeleteRuntimeMessage])
+      deleteRuntimeMessages.map(_.runtimeId) shouldBe runtimes.map(_.id)
+      deleteRuntimeMessages.map(_.persistentDiskToDelete) shouldBe List(None, None)
+    }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
