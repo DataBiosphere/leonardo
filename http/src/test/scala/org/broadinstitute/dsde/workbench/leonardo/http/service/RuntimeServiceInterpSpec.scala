@@ -1434,9 +1434,21 @@ class RuntimeServiceInterpTest
       readerProjectSamIds = Set(ProjectSamResourceId(project))
     )
     when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    when(mockAuthProvider.getActionsWithProjectFallback(any, any, isEq(userInfo))(any, any))
-      .thenReturn(IO.pure((List(any), List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime))))
-    when(mockAuthProvider.notifyResourceDeleted(any, any, any)(any, any)).thenReturn(IO.unit)
+    when(
+      mockAuthProvider.getActionsWithProjectFallback[RuntimeSamResourceId, RuntimeAction](any, any, isEq(userInfo))(any,
+                                                                                                                    any
+      )
+    )
+      .thenReturn(
+        IO.pure(
+          (List(RuntimeAction.GetRuntimeStatus, RuntimeAction.DeleteRuntime),
+           List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime)
+          )
+        )
+      )
+    when(
+      mockAuthProvider.notifyResourceDeleted[RuntimeSamResourceId](any, any, any)(any, any)
+    ).thenReturn(IO.unit)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
@@ -1477,7 +1489,7 @@ class RuntimeServiceInterpTest
 
       _ <- service.deleteAllRuntimesRecords(userInfo, cloudContextGcp)
 
-      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
+      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map("includeDeleted" -> "true"))
       messages <- publisherQueue.tryTakeN(Some(2))
 
     } yield {
@@ -1503,8 +1515,18 @@ class RuntimeServiceInterpTest
       readerProjectSamIds = Set(ProjectSamResourceId(project))
     )
     when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    when(mockAuthProvider.getActionsWithProjectFallback(any, any, isEq(userInfo))(any, any))
-      .thenReturn(IO.pure((List(any), List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime))))
+    when(
+      mockAuthProvider.getActionsWithProjectFallback[RuntimeSamResourceId, RuntimeAction](any, any, isEq(userInfo))(any,
+                                                                                                                    any
+      )
+    )
+      .thenReturn(
+        IO.pure(
+          (List(RuntimeAction.GetRuntimeStatus, RuntimeAction.DeleteRuntime),
+           List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime)
+          )
+        )
+      )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
@@ -1576,8 +1598,18 @@ class RuntimeServiceInterpTest
       readerProjectSamIds = Set(ProjectSamResourceId(project))
     )
     when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    when(mockAuthProvider.getActionsWithProjectFallback(any, any, isEq(userInfo))(any, any))
-      .thenReturn(IO.pure((List(any), List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime))))
+    when(
+      mockAuthProvider.getActionsWithProjectFallback[RuntimeSamResourceId, RuntimeAction](any, any, isEq(userInfo))(any,
+                                                                                                                    any
+      )
+    )
+      .thenReturn(
+        IO.pure(
+          (List(RuntimeAction.GetRuntimeStatus, RuntimeAction.DeleteRuntime),
+           List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime)
+          )
+        )
+      )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
