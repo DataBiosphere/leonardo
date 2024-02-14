@@ -444,24 +444,26 @@ class RuntimeServiceInterp[F[_]: Parallel](
         )
     } yield attachedPersistentDiskIds
 
-  private def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(
+  def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
 
-      listOfPermissions <- authProvider.getActions(runtime.samResource, userInfo)
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, cloudContext.value, userInfo)
       // throw 404 if no GetRuntime permission
-      hasPermission = listOfPermissions.toSet.contains(RuntimeAction.GetRuntimeStatus)
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
       _ <-
-        if (hasPermission) F.unit
+        if (hasStatusPermission) F.unit
         else
           F.raiseError[Unit](
             RuntimeNotFoundException(cloudContext, runtime.clusterName, "Permission Denied", Some(ctx.traceId))
           )
 
       // throw 403 if no DeleteApp permission
-      hasDeletePermission = listOfPermissions.toSet.contains(RuntimeAction.DeleteRuntime)
+      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
+        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
       // Mark the resource as deleted in Leo's DB

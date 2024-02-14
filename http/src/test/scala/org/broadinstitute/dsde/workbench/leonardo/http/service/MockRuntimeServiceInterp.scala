@@ -55,6 +55,11 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
     as: Ask[IO, AppContext]
   ): IO[Option[Vector[DiskId]]] = IO.pure(Some(diskIds))
 
+  override def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(
+    implicit as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
   override def deleteAllRuntimesRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] =

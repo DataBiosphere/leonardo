@@ -1317,6 +1317,177 @@ class RuntimeServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "delete runtime records, update all status appropriately, and not queue messages" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider, publisherQueue = publisherQueue)
+    val res = for {
+      pd <- makePersistentDisk().save()
+      testRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig
+            .GceWithPdConfig(
+              MachineTypeName("n1-standard-4"),
+              Some(pd.id),
+              bootDiskSize = DiskSize(50),
+              zone = ZoneName("us-central1-a"),
+              None
+            )
+        )
+      )
+
+      listRuntimeResponse2 = ListRuntimeResponse2(
+        testRuntime.id,
+        None,
+        testRuntime.samResource,
+        testRuntime.runtimeName,
+        testRuntime.cloudContext,
+        testRuntime.auditInfo,
+        gceRuntimeConfig,
+        testRuntime.proxyUrl,
+        testRuntime.status,
+        testRuntime.labels,
+        testRuntime.patchInProgress
+      )
+
+      _ <- runtimeService
+        .deleteRuntimeRecords(userInfo, cloudContextGcp, listRuntimeResponse2)
+        .attempt
+
+      runtimeStatus <- clusterQuery
+        .getClusterStatus(testRuntime.id)
+        .transaction
+      message <- publisherQueue.tryTake
+    } yield {
+      runtimeStatus shouldBe Some(RuntimeStatus.Deleted)
+      message shouldBe None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete runtime records if user loses project access" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider2)
+    val res = for {
+      context <- appContext.ask[AppContext]
+      pd <- makePersistentDisk().save()
+      testRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig
+            .GceWithPdConfig(
+              MachineTypeName("n1-standard-4"),
+              Some(pd.id),
+              bootDiskSize = DiskSize(50),
+              zone = ZoneName("us-central1-a"),
+              None
+            )
+        )
+      )
+
+      listRuntimeResponse2 = ListRuntimeResponse2(
+        testRuntime.id,
+        None,
+        testRuntime.samResource,
+        testRuntime.runtimeName,
+        testRuntime.cloudContext,
+        testRuntime.auditInfo,
+        gceRuntimeConfig,
+        testRuntime.proxyUrl,
+        testRuntime.status,
+        testRuntime.labels,
+        testRuntime.patchInProgress
+      )
+
+      r <- runtimeService
+        .deleteRuntimeRecords(userInfo, cloudContextGcp, listRuntimeResponse2)
+        .attempt
+    } yield r shouldBe Left(
+      RuntimeNotFoundException(cloudContextGcp, testRuntime.runtimeName, "Permission Denied", Some(context.traceId))
+    )
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "deleteAllRuntimeRecords, update all status appropriately, and not queue messages" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val runtimeIds =
+      Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
+      readerProjectSamIds = Set(ProjectSamResourceId(project))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    when(mockAuthProvider.getActionsWithProjectFallback(any, any, isEq(userInfo))(any, any))
+      .thenReturn(IO.pure((List(any), List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime))))
+    when(mockAuthProvider.notifyResourceDeleted(any, any, any)(any, any)).thenReturn(IO.unit)
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
+
+    val res = for {
+      pd1 <- makePersistentDisk().save()
+      _ <- IO(
+        makeCluster(0)
+          .copy(samResource = runtimeIds(0), status = RuntimeStatus.Running)
+          .saveWithRuntimeConfig(
+            RuntimeConfig
+              .GceWithPdConfig(
+                MachineTypeName("n1-standard-4"),
+                Some(pd1.id),
+                bootDiskSize = DiskSize(50),
+                zone = ZoneName("us-central1-a"),
+                None
+              )
+          )
+      )
+      pd2 <- makePersistentDisk(Some(DiskName("disk2"))).save()
+      _ <- IO(
+        makeCluster(1)
+          .copy(samResource = runtimeIds(1), status = RuntimeStatus.Running)
+          .saveWithRuntimeConfig(
+            RuntimeConfig
+              .GceWithPdConfig(
+                MachineTypeName("n1-standard-4"),
+                Some(pd2.id),
+                bootDiskSize = DiskSize(50),
+                zone = ZoneName("us-central1-a"),
+                None
+              )
+          )
+      )
+      // Remove the create runtime messages from the queue
+      _ <- publisherQueue.tryTakeN(Some(2))
+
+      _ <- service.deleteAllRuntimesRecords(userInfo, cloudContextGcp)
+
+      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
+      messages <- publisherQueue.tryTakeN(Some(2))
+
+    } yield {
+      runtimes.map(_.status) shouldEqual List(RuntimeStatus.Deleted, RuntimeStatus.Deleted)
+      messages shouldBe List.empty
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "deleteAll runtimes" in isolatedDbTest {
     val userInfo = UserInfo(
       OAuth2BearerToken(""),
@@ -1342,7 +1513,7 @@ class RuntimeServiceInterpTest
       pd1 <- makePersistentDisk().save()
       _ <- IO(
         makeCluster(0)
-          .copy(samResource = runtimeIds(0))
+          .copy(samResource = runtimeIds(0), status = RuntimeStatus.Running)
           .saveWithRuntimeConfig(
             RuntimeConfig
               .GceWithPdConfig(
@@ -1357,7 +1528,7 @@ class RuntimeServiceInterpTest
       pd2 <- makePersistentDisk(Some(DiskName("disk2"))).save()
       _ <- IO(
         makeCluster(1)
-          .copy(samResource = runtimeIds(1))
+          .copy(samResource = runtimeIds(1), status = RuntimeStatus.Running)
           .saveWithRuntimeConfig(
             RuntimeConfig
               .GceWithPdConfig(
@@ -1388,6 +1559,77 @@ class RuntimeServiceInterpTest
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail deleteAll runtimes if one runtime is in a non deletable state" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val runtimeIds =
+      Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
+    val mockAuthProvider = mockAuthorize(
+      userInfo,
+      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
+      readerProjectSamIds = Set(ProjectSamResourceId(project))
+    )
+    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
+    when(mockAuthProvider.getActionsWithProjectFallback(any, any, isEq(userInfo))(any, any))
+      .thenReturn(IO.pure((List(any), List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime))))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
+
+    val res = for {
+      pd1 <- makePersistentDisk().save()
+      _ <- IO(
+        makeCluster(0)
+          .copy(samResource = runtimeIds(0), status = RuntimeStatus.Deleting)
+          .saveWithRuntimeConfig(
+            RuntimeConfig
+              .GceWithPdConfig(
+                MachineTypeName("n1-standard-4"),
+                Some(pd1.id),
+                bootDiskSize = DiskSize(50),
+                zone = ZoneName("us-central1-a"),
+                None
+              )
+          )
+      )
+      pd2 <- makePersistentDisk(Some(DiskName("disk2"))).save()
+      _ <- IO(
+        makeCluster(1)
+          .copy(samResource = runtimeIds(1), status = RuntimeStatus.Running)
+          .saveWithRuntimeConfig(
+            RuntimeConfig
+              .GceWithPdConfig(
+                MachineTypeName("n1-standard-4"),
+                Some(pd2.id),
+                bootDiskSize = DiskSize(50),
+                zone = ZoneName("us-central1-a"),
+                None
+              )
+          )
+      )
+      // Remove the create runtime messages from the queue
+      _ <- publisherQueue.tryTakeN(Some(2))
+
+      attachedDisksIdsOpt <- service.deleteAllRuntimes(userInfo, cloudContextGcp, false)
+      attachedDisksIds = attachedDisksIdsOpt.getOrElse(Vector.empty)
+
+      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
+      messages <- publisherQueue.tryTakeN(Some(2))
+
+    } yield {
+      attachedDisksIds.length shouldEqual 2
+      runtimes.map(_.status) shouldEqual List(RuntimeStatus.Deleting, RuntimeStatus.Running)
+      messages shouldBe List.empty
+    }
+    the[NonDeletableRuntimesInProjectFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   it should "stop a runtime" in isolatedDbTest {

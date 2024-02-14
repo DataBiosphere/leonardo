@@ -1953,7 +1953,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     deleteAppMessages.map(_.diskId) shouldBe List(None, None)
   }
 
-  it should "V1 GCP - deleteAllApp, should fail and not update anything if there is a non-deletable app status appropriately" in isolatedDbTest {
+  it should "V1 GCP - deleteAllApp, should fail and not update anything if there is a non-deletable app status" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
     val appName = AppName("app1")
