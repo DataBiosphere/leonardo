@@ -320,7 +320,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
   def deleteAllOrphanedDisks(userInfo: UserInfo,
                              cloudContext: CloudContext.Gcp,
-                             runtimeDiskIds: Option[Vector[DiskId]],
+                             runtimeDiskIds: Vector[DiskId],
                              appDisksNames: Vector[Option[DiskName]]
   )(implicit
     as: Ask[F, AppContext]
@@ -333,7 +333,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         Some(cloudContext),
         Map.empty
       )
-      orphanedDisks = disks.filterNot(disk => runtimeDiskIds.contains(disk.id) | appDisksNames.contains(disk.name))
+
+      orphanedDisks = disks.filterNot(disk =>
+        runtimeDiskIds.contains(disk.id) | appDisksNames.contains(Some(disk.name))
+      )
+
       nonDeletableDisks = orphanedDisks.filterNot(disk => DiskStatus.deletableStatuses.contains(disk.status))
 
       _ <- F
@@ -346,8 +350,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         }
     } yield ()
 
-  private def deletediskRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, disk: ListPersistentDiskResponse)(
-    implicit as: Ask[F, AppContext]
+  def deleteDiskRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, disk: ListPersistentDiskResponse)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -392,7 +396,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         Some(cloudContext),
         Map.empty
       )
-      _ <- disks.traverse(disk => deletediskRecords(userInfo, cloudContext, disk))
+      _ <- disks.traverse(disk => deleteDiskRecords(userInfo, cloudContext, disk))
     } yield ()
 
   override def updateDisk(

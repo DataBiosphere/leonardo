@@ -1484,8 +1484,6 @@ class RuntimeServiceInterpTest
               )
           )
       )
-      // Remove the create runtime messages from the queue
-      _ <- publisherQueue.tryTakeN(Some(2))
 
       _ <- service.deleteAllRuntimesRecords(userInfo, cloudContextGcp)
 
@@ -1562,8 +1560,6 @@ class RuntimeServiceInterpTest
               )
           )
       )
-      // Remove the create runtime messages from the queue
-      _ <- publisherQueue.tryTakeN(Some(2))
 
       attachedDisksIdsOpt <- service.deleteAllRuntimes(userInfo, cloudContextGcp, false)
       attachedDisksIds = attachedDisksIdsOpt.getOrElse(Vector.empty)
@@ -1645,8 +1641,6 @@ class RuntimeServiceInterpTest
               )
           )
       )
-      // Remove the create runtime messages from the queue
-      _ <- publisherQueue.tryTakeN(Some(2))
 
       attachedDisksIdsOpt <- service.deleteAllRuntimes(userInfo, cloudContextGcp, false)
       attachedDisksIds = attachedDisksIdsOpt.getOrElse(Vector.empty)

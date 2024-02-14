@@ -89,11 +89,7 @@ class ResourcesServiceInterpSpec
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, CloudContext.Gcp(project), false)
     verify(mockAppService, times(1)).deleteAllApps(userInfo, CloudContext.Gcp(project), false)
-    verify(mockDiskService, never()).deleteAllOrphanedDisks(userInfo,
-                                                            CloudContext.Gcp(project),
-                                                            Some(diskIds),
-                                                            diskNames
-    )
+    verify(mockDiskService, never()).deleteAllOrphanedDisks(userInfo, CloudContext.Gcp(project), diskIds, diskNames)
   }
 
   it should "call deleteAllApps, deleteAllRuntimes and deleteAllOrphanedDisks when deleteInCloud flag is true and deleteDisk is true" in {
@@ -107,10 +103,6 @@ class ResourcesServiceInterpSpec
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, CloudContext.Gcp(project), true)
     verify(mockAppService, times(1)).deleteAllApps(userInfo, CloudContext.Gcp(project), true)
-    verify(mockDiskService, times(1)).deleteAllOrphanedDisks(userInfo,
-                                                             CloudContext.Gcp(project),
-                                                             Some(diskIds),
-                                                             diskNames
-    )
+    verify(mockDiskService, times(1)).deleteAllOrphanedDisks(userInfo, CloudContext.Gcp(project), diskIds, diskNames)
   }
 }

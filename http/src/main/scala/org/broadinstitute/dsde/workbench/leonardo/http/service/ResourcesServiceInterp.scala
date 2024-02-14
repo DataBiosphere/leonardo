@@ -45,7 +45,8 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
   ): F[Unit] =
     for {
       // Delete runtimes and apps, and their attached disks if deleteDisk flag is set to true
-      runtimeDiskIds <- runtimeService.deleteAllRuntimes(userInfo, cloudContext, deleteDisk)
+      runtimeDiskIdsOpt <- runtimeService.deleteAllRuntimes(userInfo, cloudContext, deleteDisk)
+      runtimeDiskIds = runtimeDiskIdsOpt.getOrElse(Vector.empty)
       appDiskNames <- appService.deleteAllApps(userInfo, cloudContext, deleteDisk)
       // Delete any potential left over orphaned disk in the project
       _ <-
