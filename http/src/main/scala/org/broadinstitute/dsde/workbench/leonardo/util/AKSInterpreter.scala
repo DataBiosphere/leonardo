@@ -120,8 +120,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Create or fetch WSM managed identity (if shared app or app creation restarted)
       wsmManagedIdentityOpt <-
         retrieveWsmManagedIdentity(wsmResourceApi, app.appType, params.workspaceId.value).flatMap {
-          case Some(identity) => F.pure(Option(identity))
-          case None           => createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
+          case Some(identity) =>
+            logger.info(
+              s"Managed ID found in WSM app ${app.appName}, using previously created identity: ${identity.managedIdentityName}"
+            )
+            F.pure(Option(identity))
+          case None =>
+            createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
         }
 
       // Create or fetch WSM databases
@@ -146,7 +151,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Create or fetch WSM kubernetes namespace
       wsmNamespace <- retrieveWsmNamespace(wsmResourceApi, namespacePrefix, params.workspaceId.value).flatMap {
-        case Some(namespace) => F.pure(namespace)
+        case Some(namespace) =>
+          logger.info(
+            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${namespace.name}"
+          )
+          F.pure(namespace)
         case None =>
           createWsmKubernetesNamespaceResource(
             app,
@@ -788,12 +797,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               existingControlledDbsInWorkspace
                 .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
             ) {
+              logger.info(
+                s"Database found in WSM for app ${app.appName}, using previously created database: $existingControlledDbsInWorkspace"
+              )
               F.pure(
                 existingControlledDbsInWorkspace
                   .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
                   .get
               )
             } else {
+              logger.info(s"Creating databases for app ${app.appName}")
               createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                 db =>
                   WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
@@ -913,10 +926,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .toList
     )
     val wsmResourceName = generateWsmNameForIdentity(appType)
-    println(s"wsmResourceName $wsmResourceName")
     wsmManagedIdentities.map { identities =>
       // there should be only 1 Azure managed identity per app
-      println(s"identityName ${identities.head.getMetadata.getName}")
       identities
         .find(identity => wsmResourceName == identity.getMetadata.getName)
         .map(identity =>

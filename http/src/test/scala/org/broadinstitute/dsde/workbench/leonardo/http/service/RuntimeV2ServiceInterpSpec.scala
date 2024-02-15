@@ -1296,8 +1296,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                workspaceId: WorkspaceId,
                                wsmResourceId: WsmControlledResourceId,
                                wsmResourceType: WsmResourceType
-      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
-        IO.pure(WsmState(Some("CREATING")))
+                              )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
+        if (wsmResourceType == WsmResourceType.AzureDisk) IO.pure(WsmState(Some("CREATING"))) else IO.pure(WsmState(Some("RUNNING")))
     }
     val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
 
@@ -1321,7 +1321,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
     } yield ()
 
-    the[DiskCannotBeDeletedWsmException] thrownBy {
+    the[RuntimeCannotBeDeletedWsmException] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }

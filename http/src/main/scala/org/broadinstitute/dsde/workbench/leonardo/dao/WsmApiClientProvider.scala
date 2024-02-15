@@ -24,7 +24,7 @@ import org.typelevel.log4cats.StructuredLogger
  */
 trait WsmApiClientProvider[F[_]] {
 
-  // WSM state can be BROKEN, CREATING, DELETING, READY, UPDATING or None, which translates to DELETED
+  // WSM state can be BROKEN, CREATING, READY, UPDATING or None, (deleted or doesn't exist)
   val possibleStatuses: Array[WsmState] =
     State.values().map(_.toString).map(Some(_)).map(WsmState(_)) :+ WsmState(Some("NONE"))
 
