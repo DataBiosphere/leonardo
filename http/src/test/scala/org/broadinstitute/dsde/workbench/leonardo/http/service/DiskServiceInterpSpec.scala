@@ -801,7 +801,7 @@ class DiskServiceInterpTest
         .copy(samResource = diskSamResource4)
         .save()
 
-      _ <- diskService.deleteAllOrphanedDisks(userInfo, cloudContextGcp, Vector(disk1.id), Vector(Some(disk2.name)))
+      _ <- diskService.deleteAllOrphanedDisks(userInfo, cloudContextGcp, Vector(disk1.id), Vector(disk2.name))
 
       disks <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map("includeDeleted" -> "true"))
 
