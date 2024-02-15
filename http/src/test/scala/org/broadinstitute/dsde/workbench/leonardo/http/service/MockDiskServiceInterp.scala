@@ -61,7 +61,7 @@ object MockDiskServiceInterp extends DiskService[IO] {
   def deleteAllOrphanedDisks(userInfo: UserInfo,
                              cloudContext: CloudContext.Gcp,
                              runtimeDiskIds: Vector[DiskId],
-                             appDisksNames: Vector[Option[DiskName]]
+                             appDisksNames: Vector[DiskName]
   )(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] =

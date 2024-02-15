@@ -417,6 +417,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
       ctx <- as.ask
       runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty)
 
+      // Extracts all the disks attached to the runtimes so we can differentiate them from orphaned disks when calling the deleteAllResources method
       attachedPersistentDiskIds = runtimes
         .map(r => r.runtimeConfig)
         .traverse(c =>

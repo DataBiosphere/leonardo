@@ -432,7 +432,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   override def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
-  ): F[Vector[Option[DiskName]]] =
+  ): F[Vector[DiskName]] =
     for {
       ctx <- as.ask
       apps <- listApp(
@@ -440,7 +440,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         Some(cloudContext),
         Map.empty
       )
-      attachedPersistentDiskNames = apps.map(a => a.diskName)
+      // Extracts all the disks attached to the apps so we can differentiate them from orphaned disks when calling the deleteAllResources method
+      attachedPersistentDiskNames = apps.mapFilter(a => a.diskName)
 
       nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app.status))
 

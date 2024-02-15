@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 class MockAppService extends AppService[IO] {
 
-  val diskNames = Vector(Some(DiskName("disk-name-1")), Some(DiskName("disk-name-2")))
+  val diskNames = Vector(DiskName("disk-name-1"), DiskName("disk-name-2"))
   override def createApp(userInfo: UserInfo,
                          cloudContext: CloudContext.Gcp,
                          appName: AppName,
@@ -38,7 +38,7 @@ class MockAppService extends AppService[IO] {
 
   override def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
     as: Ask[IO, AppContext]
-  ): IO[Vector[Option[DiskName]]] = IO.pure(diskNames)
+  ): IO[Vector[DiskName]] = IO.pure(diskNames)
 
   override def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[IO, AppContext]

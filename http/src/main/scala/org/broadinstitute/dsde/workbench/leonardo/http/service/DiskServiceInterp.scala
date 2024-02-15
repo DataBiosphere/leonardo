@@ -321,7 +321,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   def deleteAllOrphanedDisks(userInfo: UserInfo,
                              cloudContext: CloudContext.Gcp,
                              runtimeDiskIds: Vector[DiskId],
-                             appDisksNames: Vector[Option[DiskName]]
+                             appDisksNames: Vector[DiskName]
   )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
@@ -334,9 +334,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         Map.empty
       )
 
-      orphanedDisks = disks.filterNot(disk =>
-        runtimeDiskIds.contains(disk.id) | appDisksNames.contains(Some(disk.name))
-      )
+      orphanedDisks = disks.filterNot(disk => runtimeDiskIds.contains(disk.id) || appDisksNames.contains(disk.name))
 
       nonDeletableDisks = orphanedDisks.filterNot(disk => DiskStatus.deletableStatuses.contains(disk.status))
 

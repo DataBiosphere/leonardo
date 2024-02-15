@@ -60,12 +60,22 @@ class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      deleteInCloud = params.get("deleteInCloud").exists(_ == "true")
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      // both deleteInCloud and deleteDisk params are required
+      deleteInCloudOpt = params.get("deleteInCloud")
+      deleteDiskOpt = params.get("deleteDisk")
+
+      _ = if (deleteInCloudOpt == None || deleteDiskOpt == None)
+        logger.info(ctx.loggingCtx)(
+          s"Both deleteInCloud and deleteDisk flags are required"
+        ) >> IO.raiseError(
+          BadRequestException(s"Both deleteInCloud and deleteDisk flags are required", Some(ctx.traceId))
+        )
+      deleteInCloud = deleteInCloudOpt.exists(_ == "true")
+      deleteDisk = deleteDiskOpt.exists(_ == "true")
       // We do not support both deleteInCloud AND deleteDisk flags to be set to false
       _ <-
         if (deleteInCloud == false && deleteDisk == false) {
-          logger.info(
+          logger.info(ctx.loggingCtx)(
             s"Non supported combination of deleteInCloud and deleteDisk flags: ${(deleteInCloud, deleteDisk)}"
           ) >> IO.raiseError(
             BadRequestException(s"Invalid `deleteInCloud` and `deleteDisk` ${(deleteInCloud, deleteDisk)}",

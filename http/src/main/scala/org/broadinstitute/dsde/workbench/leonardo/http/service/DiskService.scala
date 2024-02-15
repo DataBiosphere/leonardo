@@ -27,7 +27,7 @@ trait DiskService[F[_]] {
   def deleteAllOrphanedDisks(userInfo: UserInfo,
                              cloudContext: CloudContext.Gcp,
                              runtimeDiskIds: Vector[DiskId],
-                             appDisksNames: Vector[Option[DiskName]]
+                             appDisksNames: Vector[DiskName]
   )(implicit
     as: Ask[F, AppContext]
   ): F[Unit]

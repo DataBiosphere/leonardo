@@ -35,7 +35,7 @@ trait AppService[F[_]] {
 
   def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
     as: Ask[F, AppContext]
-  ): F[Vector[Option[DiskName]]]
+  ): F[Vector[DiskName]]
 
   def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]

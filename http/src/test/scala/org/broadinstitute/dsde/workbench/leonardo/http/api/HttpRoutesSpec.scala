@@ -864,6 +864,14 @@ class HttpRoutesSpec
     }
   }
 
+  it should "fail to run a basic delete all resources request if a flag is missing" in {
+    Delete(
+      "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=false"
+    ) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.BadRequest
+    }
+  }
+
   it should "fail to run a basic delete all resources request if both flags are false" in {
     Delete(
       "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=false&deleteDisk=false"
