@@ -58,7 +58,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("cromwell-helm/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.432")
+  val coaChartVersion = ChartVersion("0.2.435")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -80,6 +80,8 @@ object KubernetesTestData {
     Map.empty,
     None,
     List.empty,
+    None,
+    None,
     None,
     None
   )
@@ -122,6 +124,8 @@ object KubernetesTestData {
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
       extraArgs = List.empty,
+      None,
+      None,
       None,
       None
     )
@@ -205,7 +209,9 @@ object KubernetesTestData {
               chart: Chart = galaxyChart,
               releasePrefix: String = galaxyReleasePrefix,
               disk: Option[PersistentDisk] = None,
-              kubernetesServiceAccountName: Option[ServiceAccountName] = None
+              kubernetesServiceAccountName: Option[ServiceAccountName] = None,
+              autodeleteThreshold: Int = 0,
+              autodeleteEnabled: Boolean = false
   ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
@@ -238,7 +244,9 @@ object KubernetesTestData {
       None,
       List.empty,
       None,
-      Some(1)
+      Some(1),
+      Some(autodeleteThreshold),
+      autodeleteEnabled
     )
   }
 
