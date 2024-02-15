@@ -1388,6 +1388,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (req.appType == AppType.Allowed)
           Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
         else None
+      autodeleteEnabled = req.autodeleteEnabled.getOrElse(false)
+      autodeleteThreshold = req.autodeleteThreshold.getOrElse(0)
+
+      _ <- Either.cond(!(autodeleteEnabled && autodeleteThreshold <= 0),
+                       (),
+                       BadRequestException("autodeleteThreshold should be a positive value", Some(ctx.traceId))
+      )
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1414,7 +1421,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.descriptorPath,
         req.extraArgs,
         req.sourceWorkspaceId,
-        numOfReplicas
+        numOfReplicas,
+        req.autodeleteThreshold,
+        autodeleteEnabled
       )
     )
   }

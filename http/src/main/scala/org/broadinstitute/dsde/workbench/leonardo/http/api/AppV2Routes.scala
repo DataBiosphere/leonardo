@@ -177,6 +177,8 @@ object AppV2Routes {
         ea <- x.downField("extraArgs").as[Option[List[String]]]
         wsi <- x.downField("workspaceId").as[Option[WorkspaceId]]
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
+        adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
+        adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
 
         optStr <- x.downField("appType").as[Option[String]]
         cn <- x.downField("allowedChartName").as[Option[AllowedChartName]]
@@ -204,7 +206,9 @@ object AppV2Routes {
                                dp,
                                ea.getOrElse(List.empty),
                                wsi,
-                               swi
+                               swi,
+                               adtm,
+                               adte
       )
     }
 
