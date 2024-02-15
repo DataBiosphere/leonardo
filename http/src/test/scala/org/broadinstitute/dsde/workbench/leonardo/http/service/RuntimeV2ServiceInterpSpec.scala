@@ -1296,8 +1296,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                workspaceId: WorkspaceId,
                                wsmResourceId: WsmControlledResourceId,
                                wsmResourceType: WsmResourceType
-                              )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
-        if (wsmResourceType == WsmResourceType.AzureDisk) IO.pure(WsmState(Some("CREATING"))) else IO.pure(WsmState(Some("RUNNING")))
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
+        if (wsmResourceType == WsmResourceType.AzureDisk) IO.pure(WsmState(Some("CREATING")))
+        else IO.pure(WsmState(Some("RUNNING")))
     }
     val azureService = makeInterp(wsmClientProvider = wsmClientProvider)
 
