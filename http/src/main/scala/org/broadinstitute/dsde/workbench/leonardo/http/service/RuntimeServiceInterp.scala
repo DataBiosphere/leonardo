@@ -444,8 +444,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
         )
     } yield attachedPersistentDiskIds
 
-  def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(
-    implicit as: Ask[F, AppContext]
+  def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
