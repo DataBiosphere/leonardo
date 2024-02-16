@@ -425,7 +425,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               disk.size
             )
           )
-          diskResp <- wsmDao.createDisk(request, leoAuth)
+          diskResp = CreateDiskResponse(WsmControlledResourceId(UUID.randomUUID()))
+          //diskResp <- wsmDao.createDisk(request, leoAuth)
           _ <- controlledResourceQuery
             .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
             .transaction
