@@ -173,7 +173,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                                                    runtimeAndRuntimeConfig,
                                                                    ip,
                                                                    masterInstance,
-                              false,
+                                                                   false,
                                                                    checkToolsInterruptAfter
                             )
                           case None =>
