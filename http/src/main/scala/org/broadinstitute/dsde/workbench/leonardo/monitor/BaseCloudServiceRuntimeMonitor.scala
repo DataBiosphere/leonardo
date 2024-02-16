@@ -112,7 +112,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
                     mainInstance: Option[DataprocInstance],
-                    deleteRuntime: Boolean = false
+                    deleteRuntime: Boolean = true
   )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
@@ -539,7 +539,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
                                         mainDataprocInstance: Option[DataprocInstance],
-                                        deleteRuntimeOnFail: Boolean = false,
+                                        deleteRuntimeOnFail: Boolean = true,
                                         checkToolsInterruptAfter: Option[FiniteDuration]
   ) // only applies to dataproc
   (implicit

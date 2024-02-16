@@ -127,7 +127,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       _ <- loggerIO.info(s"Single test project ${googleProjectAndWorkspaceName.workspaceName.namespace} claimed")
       t <- testCode(googleProjectAndWorkspaceName.googleProject)
       _ <- loggerIO.info(s"Releasing single-test project: ${googleProjectAndWorkspaceName.workspaceName.namespace}")
-//      _ <- deleteWorkspaceAndBillingProject(googleProjectAndWorkspaceName.workspaceName)
+      _ <- deleteWorkspaceAndBillingProject(googleProjectAndWorkspaceName.workspaceName)
     } yield t
 
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -259,7 +259,7 @@ final class LeonardoSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
 
-final class LeonardoTerraDockerPythonSuite
+final class LeonardoTerraDockerSuite
     extends Suites(
       new NotebookHailSpec,
       new NotebookPyKernelSpec,

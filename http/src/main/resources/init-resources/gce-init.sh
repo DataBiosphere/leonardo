@@ -225,6 +225,11 @@ DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
+  # It's likely that the persistent disk was previously mounted on another VM and wasn't properly unmounted
+  # either because the VM was terminated or there is no unmount in the shutdown sequence and occasionally
+  # fs is getting marked as not clean.
+  # Passing -F -F to mkfs.ext4 should force the tool to ignore the state of the partition.
+  # Note that there should be two instances command-line switch (-F -F) to override this check
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID} -F -F
 fi
 

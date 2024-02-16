@@ -50,7 +50,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         RuntimeStatus.Starting -> 20.minutes,
         RuntimeStatus.Deleting -> 30.minutes
       ),
-      InterruptablePollMonitorConfig(60, 5 seconds, 5 minutes),
+      InterruptablePollMonitorConfig(75, 8 seconds, 10 minutes),
       Config.clusterBucketConfig,
       Config.imageConfig
     )

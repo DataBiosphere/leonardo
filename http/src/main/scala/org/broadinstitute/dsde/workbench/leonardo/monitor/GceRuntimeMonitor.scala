@@ -227,7 +227,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                                               runtimeAndRuntimeConfig,
                                                               ip,
                                                               None,
-                                                              false,
+                                                              true,
                                                               checkToolsInterruptAfter
                       )
                     case None =>
