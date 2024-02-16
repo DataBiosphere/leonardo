@@ -9,6 +9,7 @@ import io.circe.Json
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.httpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO.listResourceResponseDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
@@ -22,6 +23,7 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine.CaffeineCache
@@ -31,12 +33,13 @@ import java.util.UUID
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
-class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll {
+class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll with MockitoSugar {
+  val cloudAuthProvider = mock[CloudAuthTokenProvider[IO]]
   val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"),
                                 false,
                                 1 seconds,
-                                10,
-                                ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test"))
+                                10
+                                // ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test"))
   )
   implicit def unsafeLogger: Logger[IO] = Slf4jLogger.getLogger[IO]
   val underlyingPetTokenCache = Caffeine
@@ -72,7 +75,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     )
 
     val res = Dispatcher[IO].use { d =>
-      val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+      val samDao = new HttpSamDAO(okSam, config, petTokenCache, cloudAuthProvider)
       val expectedResponse = StatusCheckResponse(
         true,
         Map(
@@ -101,7 +104,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+    val samDao = new HttpSamDAO(okSam, config, petTokenCache, cloudAuthProvider)
     val expectedResponse = StatusCheckResponse(true, Map.empty)
 
     samDao.getStatus.map(s => s shouldBe expectedResponse)
@@ -127,7 +130,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+    val samDao = new HttpSamDAO(okSam, config, petTokenCache, cloudAuthProvider)
     val expectedResponse =
       StatusCheckResponse(false,
                           Map(GoogleIam -> SubsystemStatus(true, None),
@@ -156,7 +159,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val noAdminSam = Client.fromHttpApp[IO](
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Forbidden).withEntity(r))))
     )
-    val samDao = new HttpSamDAO(noAdminSam, config, petTokenCache)
+    val samDao = new HttpSamDAO(noAdminSam, config, petTokenCache, cloudAuthProvider)
     val res = samDao.isAdminUser(CommonTestData.userInfo).map(s => s shouldBe false)
 
     res.unsafeRunSync
@@ -183,7 +186,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val yesAdminSam = Client.fromHttpApp[IO](
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
-    val samDao = new HttpSamDAO(yesAdminSam, config, petTokenCache)
+    val samDao = new HttpSamDAO(yesAdminSam, config, petTokenCache, cloudAuthProvider)
     val res = samDao.isAdminUser(CommonTestData.userInfo).map(s => s shouldBe true)
 
     res.unsafeRunSync
@@ -193,7 +196,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val errorSam = Client.fromHttpApp[IO](
       HttpApp(_ => IO(Response(status = Status.NotFound)))
     )
-    val samDao = new HttpSamDAO(errorSam, config, petTokenCache)
+    val samDao = new HttpSamDAO(errorSam, config, petTokenCache, cloudAuthProvider)
     val res = samDao.isAdminUser(CommonTestData.userInfo)
 
     assertThrows[AuthProviderException](res.unsafeRunSync)
@@ -259,7 +262,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val clientWithRetry = Retry(retryPolicy)(errorSam)
 
     val res = Dispatcher[IO].use { d =>
-      val samDao = new HttpSamDAO(clientWithRetry, config, petTokenCache)
+      val samDao = new HttpSamDAO(clientWithRetry, config, petTokenCache, cloudAuthProvider)
 
       for {
         result <- samDao.getStatus.attempt

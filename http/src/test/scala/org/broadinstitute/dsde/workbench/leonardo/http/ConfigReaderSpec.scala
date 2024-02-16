@@ -220,7 +220,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         List(AppType.Wds, AppType.WorkflowsApp),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.3.0"))
+        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.3.0")),
+        AzureHostingModeConfig(
+          false,
+          "AZURE",
+          AzureManagedIdentityAuthConfig(".default", 30)
+        )
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
