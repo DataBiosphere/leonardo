@@ -1,7 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import bio.terra.workspace.api.ControlledAzureResourceApi
-import bio.terra.workspace.model.{AzureDatabaseResource, AzureDiskResource, AzureKubernetesNamespaceResource, AzureManagedIdentityResource, AzureVmResource, ResourceMetadata, ResourceType, State}
+import bio.terra.workspace.model.{
+  AzureDatabaseResource,
+  AzureDiskResource,
+  AzureKubernetesNamespaceResource,
+  AzureManagedIdentityResource,
+  AzureVmResource,
+  ResourceMetadata,
+  ResourceType,
+  State
+}
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{tokenValue, workspaceId, workspaceId2, wsmResourceId}
