@@ -975,7 +975,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     wsmNamespaces.map { namespaces =>
       // there should be only 1 kubernetes namespace per app
       namespaces
-        .find(ns => namespacePrefix == ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace)
+        .find(ns =>
+          ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)
+        )
         .map(ns =>
           WsmControlledKubernetesNamespaceResource(
             NamespaceName(namespacePrefix),
