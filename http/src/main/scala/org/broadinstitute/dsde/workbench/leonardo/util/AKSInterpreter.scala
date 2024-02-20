@@ -972,12 +972,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .asScala
         .toList
     )
+    val namespaceName = namespacePrefix + workspaceId.toString
     wsmNamespaces.map { namespaces =>
       // there should be only 1 kubernetes namespace per app
+      println(s"ns: ${namespaces.head}")
+      println(s"ns name: ${namespaces.head.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace}")
+      println(s"ns prefix: $namespacePrefix")
+      println(s"workspace: $workspaceId")
+      println(
+        s"starts with? ${namespaces.head.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)}"
+      )
       namespaces
-        .find(ns =>
-          ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)
-        )
+        .find(ns => namespaceName == ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace)
         .map(ns =>
           WsmControlledKubernetesNamespaceResource(
             NamespaceName(namespacePrefix),
