@@ -150,19 +150,26 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         } else F.pure(List.empty)
 
       // Create or fetch WSM kubernetes namespace
-      wsmNamespace <- retrieveWsmNamespace(wsmResourceApi, namespacePrefix, params.workspaceId.value).flatMap {
-        case Some(namespace) =>
+      wsmNamespaces <- retrieveWsmNamespace(wsmResourceApi, namespacePrefix, params.workspaceId.value)
+      namespace <- wsmNamespaces.length match {
+        case 1 =>
           logger.info(
-            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${namespace.name}"
+            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${wsmNamespaces.head.name}"
           )
-          F.pure(namespace)
-        case None =>
+          F.pure(wsmNamespaces.head)
+        case 0 =>
           createWsmKubernetesNamespaceResource(
             app,
             params.workspaceId,
             namespacePrefix,
             wsmDatabases.map(_.wsmDatabaseName),
             wsmManagedIdentityOpt.map(_.wsmResourceName)
+          )
+        case _ =>
+          F.raiseError(
+            AppCreationException(
+              s"App ${app.appName} has multiple namespaces $wsmNamespaces. Only one namespace per app allowed"
+            )
           )
       }
 
@@ -188,7 +195,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
                                         params.cloudContext,
-                                        wsmNamespace.name
+                                        namespace.name
       )
 
       // Build listener helm values
@@ -232,7 +239,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         landingZoneResources,
         storageContainerOpt,
         relayPath,
-        wsmNamespace.serviceAccountName,
+        namespace.serviceAccountName,
         managedIdentityName,
         wsmDatabases ++ referenceDatabases,
         config
@@ -963,7 +970,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def retrieveWsmNamespace(resourceApi: ResourceApi,
                                          namespacePrefix: String,
                                          workspaceId: UUID
-  ): F[Option[WsmControlledKubernetesNamespaceResource]] = {
+  ): F[List[WsmControlledKubernetesNamespaceResource]] = {
 
     val wsmNamespaces = F.blocking(
       resourceApi
@@ -972,13 +979,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .asScala
         .toList
     )
-    val namespaceName = namespacePrefix + workspaceId.toString
+    // val namespaceName = namespacePrefix + workspaceId.toString
     wsmNamespaces.map { namespaces =>
       // there should be only 1 kubernetes namespace per app
       println(s"ns: $namespaces")
       if (namespaces.length > 0) {
         println(s"ns name: ${namespaces.head.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace}")
-        println(s"ns name: $namespaceName")
         println(s"ns prefix: $namespacePrefix")
         println(s"workspace: $workspaceId")
         println(
@@ -986,12 +992,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
       namespaces
-        .find(ns => namespaceName == ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace)
-        .map(ns =>
+        .filter(ns =>
+          ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)
+        )
+        .map(fns =>
           WsmControlledKubernetesNamespaceResource(
             NamespaceName(namespacePrefix),
-            WsmControlledResourceId(ns.getMetadata.getResourceId),
-            ServiceAccountName(ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount)
+            WsmControlledResourceId(fns.getMetadata.getResourceId),
+            ServiceAccountName(fns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount)
           )
         )
     }
