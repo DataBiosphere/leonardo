@@ -230,6 +230,7 @@ if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   # fs is getting marked as not clean.
   # Passing -F -F to mkfs.ext4 should force the tool to ignore the state of the partition.
   # Note that there should be two instances command-line switch (-F -F) to override this check
+
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID} -F -F
 fi
 
