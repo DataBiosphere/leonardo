@@ -28,13 +28,6 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
     for {
       ctx <- as.ask
       cloudContext = CloudContext.Gcp(googleProject)
-      // throw 403 if no project-level permission, fail fast if the user does not have access to the project
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
       _ <-
         if (deleteInCloud) deleteAllResourcesInCloud(userInfo, cloudContext, deleteDisk)
         else deleteAllResourcesRecords(userInfo, cloudContext)
@@ -44,6 +37,14 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
+      ctx <- as.ask
+      // throw 403 if no project-level permission, fail fast if the user does not have access to the project
+      hasProjectPermission <- authProvider.isUserProjectReader(
+        cloudContext,
+        userInfo
+      )
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
       // Delete runtimes and apps, and their attached disks if deleteDisk flag is set to true
       runtimeDiskIdsOpt <- runtimeService.deleteAllRuntimes(userInfo, cloudContext, deleteDisk)
       runtimeDiskIds = runtimeDiskIdsOpt.getOrElse(Vector.empty)
@@ -58,6 +59,8 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
+      // Note that we are intentionally not checking for project-level permission here as this funtion is intended to be called
+      // AFTER the google project has been deleted
       _ <- runtimeService.deleteAllRuntimesRecords(userInfo, cloudContext)
       _ <- appService.deleteAllAppsRecords(userInfo, cloudContext)
       _ <- diskService.deleteAllDisksRecords(userInfo, cloudContext)
