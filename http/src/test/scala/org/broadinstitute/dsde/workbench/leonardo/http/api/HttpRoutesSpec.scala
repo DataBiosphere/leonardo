@@ -868,7 +868,7 @@ class HttpRoutesSpec
     Delete(
       "/api/google/v1/resources/googleProject1/cleanupAll"
     ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
+      status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
     }
   }

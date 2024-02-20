@@ -29,22 +29,6 @@ class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives
         CookieSupport.setTokenCookie(userInfo) {
           pathPrefix("google" / "v1" / "resources") {
             pathPrefix(googleProjectSegment) { googleProject =>
-              path("deleteAll") {
-                delete {
-                  parameterMap { params =>
-                    complete(
-                      deleteAllResourcesForGoogleProjectHandler(
-                        userInfo,
-                        googleProject,
-                        params
-                      )
-                    )
-                  }
-                }
-              }
-            }
-          } ~
-            pathPrefix(googleProjectSegment) { googleProject =>
               path("cleanupAll") {
                 delete {
                   parameterMap { params =>
@@ -57,7 +41,23 @@ class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives
                   }
                 }
               }
-            }
+            } ~
+              pathPrefix(googleProjectSegment) { googleProject =>
+                path("deleteAll") {
+                  delete {
+                    parameterMap { params =>
+                      complete(
+                        deleteAllResourcesForGoogleProjectHandler(
+                          userInfo,
+                          googleProject,
+                          params
+                        )
+                      )
+                    }
+                  }
+                }
+              }
+          }
         }
       }
     }
@@ -94,5 +94,5 @@ class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives
         spanResource[IO](span, "cleanupAllResources")
           .use(_ => apiCall)
       )
-    } yield StatusCodes.Accepted: ToResponseMarshallable
+    } yield StatusCodes.OK: ToResponseMarshallable
 }
