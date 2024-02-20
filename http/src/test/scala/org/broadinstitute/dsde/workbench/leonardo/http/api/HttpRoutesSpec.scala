@@ -857,26 +857,19 @@ class HttpRoutesSpec
 
   it should "run a basic delete all resources request" in {
     Delete(
-      "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=true&deleteDisk=false"
+      "/api/google/v1/resources/googleProject1/deleteAll?deleteDisk=false"
     ) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "fail to run a basic delete all resources request if a flag is missing" in {
+  it should "run a basic cleanup all resources request" in {
     Delete(
-      "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=false"
+      "/api/google/v1/resources/googleProject1/cleanupAll"
     ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.BadRequest
-    }
-  }
-
-  it should "fail to run a basic delete all resources request if both flags are false" in {
-    Delete(
-      "/api/google/v1/resources/googleProject1/deleteAll?deleteInCloud=false&deleteDisk=false"
-    ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.BadRequest
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 

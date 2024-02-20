@@ -13,8 +13,6 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ResourcesService
-import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
-import org.typelevel.log4cats.StructuredLogger
 
 /**
  * Routes intended to be used to manages all types of resources handled by leonardo,
@@ -22,8 +20,7 @@ import org.typelevel.log4cats.StructuredLogger
  */
 
 class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives: UserInfoDirectives)(implicit
-  metrics: OpenTelemetryMetrics[IO],
-  logger: StructuredLogger[IO]
+  metrics: OpenTelemetryMetrics[IO]
 ) {
 
   val routes: server.Route = traceRequestForService(serviceData) { span =>
@@ -46,7 +43,21 @@ class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives
                 }
               }
             }
-          }
+          } ~
+            pathPrefix(googleProjectSegment) { googleProject =>
+              path("cleanupAll") {
+                delete {
+                  parameterMap { params =>
+                    complete(
+                      cleanupAllResourcesForGoogleProjectHandler(
+                        userInfo,
+                        googleProject
+                      )
+                    )
+                  }
+                }
+              }
+            }
         }
       }
     }
@@ -60,34 +71,27 @@ class ResourcesRoutes(resourcesService: ResourcesService[IO], userInfoDirectives
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      // both deleteInCloud and deleteDisk params are required
-      deleteInCloudOpt = params.get("deleteInCloud")
-      deleteDiskOpt = params.get("deleteDisk")
-
-      _ = if (deleteInCloudOpt == None || deleteDiskOpt == None)
-        logger.info(ctx.loggingCtx)(
-          s"Both deleteInCloud and deleteDisk flags are required"
-        ) >> IO.raiseError(
-          BadRequestException(s"Both deleteInCloud and deleteDisk flags are required", Some(ctx.traceId))
-        )
-      deleteInCloud = deleteInCloudOpt.exists(_ == "true")
-      deleteDisk = deleteDiskOpt.exists(_ == "true")
-      // We do not support both deleteInCloud AND deleteDisk flags to be set to false
-      _ <-
-        if (deleteInCloud == false && deleteDisk == false) {
-          logger.info(ctx.loggingCtx)(
-            s"Non supported combination of deleteInCloud and deleteDisk flags: ${(deleteInCloud, deleteDisk)}"
-          ) >> IO.raiseError(
-            BadRequestException(s"Invalid `deleteInCloud` and `deleteDisk` ${(deleteInCloud, deleteDisk)}",
-                                Some(ctx.traceId)
-            )
-          )
-        } else IO.unit
-      apiCall = resourcesService.deleteAllResources(userInfo, googleProject, deleteInCloud, deleteDisk)
-      tags = Map("deleteInCloud" -> deleteInCloud.toString, "deleteDisk" -> deleteDisk.toString)
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
+      cloudContext = CloudContext.Gcp(googleProject)
+      apiCall = resourcesService.deleteAllResourcesInCloud(userInfo, cloudContext, deleteDisk)
+      tags = Map("deleteDisk" -> deleteDisk.toString)
       _ <- metrics.incrementCounter("deleteAllResources", 1, tags)
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "deleteAllResources")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted: ToResponseMarshallable
+
+  def cleanupAllResourcesForGoogleProjectHandler(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      cloudContext = CloudContext.Gcp(googleProject)
+      apiCall = resourcesService.deleteAllResourcesRecords(userInfo, cloudContext)
+      _ <- metrics.incrementCounter("cleanupAllResources", 1)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "cleanupAllResources")
           .use(_ => apiCall)
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable

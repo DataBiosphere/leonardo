@@ -8,7 +8,11 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 object MockResourcesService extends ResourcesService[IO] {
 
-  def deleteAllResources(userInfo: UserInfo, googleProject: GoogleProject, deleteInCloud: Boolean, deleteDisk: Boolean)(
-    implicit as: Ask[IO, AppContext]
+  def deleteAllResourcesInCloud(userInfo: UserInfo, googleProject: GoogleProject, deleteDisk: Boolean)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] = IO.unit
+
+  def deleteAllResourcesRecords(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 }

@@ -8,7 +8,6 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext}
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.{ForbiddenError, LeoAuthProvider}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
@@ -18,22 +17,8 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
 )(implicit
   F: Async[F]
 ) extends ResourcesService[F] {
-  override def deleteAllResources(userInfo: UserInfo,
-                                  googleProject: GoogleProject,
-                                  deleteInCloud: Boolean,
-                                  deleteDisk: Boolean
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- as.ask
-      cloudContext = CloudContext.Gcp(googleProject)
-      _ <-
-        if (deleteInCloud) deleteAllResourcesInCloud(userInfo, cloudContext, deleteDisk)
-        else deleteAllResourcesRecords(userInfo, cloudContext)
-    } yield ()
 
-  private def deleteAllResourcesInCloud(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(
+  override def deleteAllResourcesInCloud(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -55,7 +40,7 @@ final class ResourcesServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider
         else F.unit
     } yield ()
 
-  private def deleteAllResourcesRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+  override def deleteAllResourcesRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {

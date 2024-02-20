@@ -6,6 +6,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   allowListAuthProvider,
+  cloudContextGcp,
   project,
   unauthorizedUserInfo,
   userInfo
@@ -59,50 +60,46 @@ class ResourcesServiceInterpSpec
   it should "fail deleteAll if user doesn't have project level permission" in {
     an[ForbiddenError] should be thrownBy {
       resourcesService
-        .deleteAllResources(unauthorizedUserInfo, project, true, true)
+        .deleteAllResourcesInCloud(unauthorizedUserInfo, cloudContextGcp, true)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
-  it should "call deleteAllAppsRecords, deleteAllRuntimesRecords and deleteAllDisksRecords when deleteInCloud flag is false and deleteDisk is true" in {
+  it should "call deleteAllAppsRecords should call deleteAllRuntimesRecords and deleteAllDisksRecords" in {
     mockResourcesService
-      .deleteAllResources(
+      .deleteAllResourcesRecords(
         userInfo,
-        project,
-        false,
-        true
+        cloudContextGcp
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    verify(mockRuntimeService, times(1)).deleteAllRuntimesRecords(userInfo, CloudContext.Gcp(project))
-    verify(mockAppService, times(1)).deleteAllAppsRecords(userInfo, CloudContext.Gcp(project))
-    verify(mockDiskService, times(1)).deleteAllDisksRecords(userInfo, CloudContext.Gcp(project))
+    verify(mockRuntimeService, times(1)).deleteAllRuntimesRecords(userInfo, cloudContextGcp)
+    verify(mockAppService, times(1)).deleteAllAppsRecords(userInfo, cloudContextGcp)
+    verify(mockDiskService, times(1)).deleteAllDisksRecords(userInfo, cloudContextGcp)
   }
 
-  it should "not call deleteAllOrphanedDisks when deleteInCloud flag is true and deleteDisk is false" in {
+  it should "not call deleteAllOrphanedDisks when deleteDisk is false" in {
     mockResourcesService
-      .deleteAllResources(
+      .deleteAllResourcesInCloud(
         userInfo,
-        project,
-        true,
+        cloudContextGcp,
         false
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, CloudContext.Gcp(project), false)
-    verify(mockAppService, times(1)).deleteAllApps(userInfo, CloudContext.Gcp(project), false)
-    verify(mockDiskService, never()).deleteAllOrphanedDisks(userInfo, CloudContext.Gcp(project), diskIds, diskNames)
+    verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, cloudContextGcp, false)
+    verify(mockAppService, times(1)).deleteAllApps(userInfo, cloudContextGcp, false)
+    verify(mockDiskService, never()).deleteAllOrphanedDisks(userInfo, cloudContextGcp, diskIds, diskNames)
   }
 
-  it should "call deleteAllApps, deleteAllRuntimes and deleteAllOrphanedDisks when deleteInCloud flag is true and deleteDisk is true" in {
+  it should "call deleteAllApps, deleteAllRuntimes and deleteAllOrphanedDisks when deleteDisk is true" in {
     mockResourcesService
-      .deleteAllResources(
+      .deleteAllResourcesInCloud(
         userInfo,
-        project,
-        true,
+        cloudContextGcp,
         true
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, CloudContext.Gcp(project), true)
-    verify(mockAppService, times(1)).deleteAllApps(userInfo, CloudContext.Gcp(project), true)
-    verify(mockDiskService, times(1)).deleteAllOrphanedDisks(userInfo, CloudContext.Gcp(project), diskIds, diskNames)
+    verify(mockRuntimeService, times(1)).deleteAllRuntimes(userInfo, cloudContextGcp, true)
+    verify(mockAppService, times(1)).deleteAllApps(userInfo, cloudContextGcp, true)
+    verify(mockDiskService, times(1)).deleteAllOrphanedDisks(userInfo, cloudContextGcp, diskIds, diskNames)
   }
 }
