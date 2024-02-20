@@ -169,5 +169,10 @@ object RuntimeStateManager {
                           mockedRuntimeNotFoundException
                         )
       )
+      mockStopRuntime(mockRuntimeService,
+        IO.raiseError(
+          mockedRuntimeNotFoundException
+        )
+      )
   }
 }
