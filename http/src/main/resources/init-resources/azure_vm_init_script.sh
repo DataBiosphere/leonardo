@@ -12,7 +12,8 @@ export DEBIAN_FRONTEND=noninteractive
 VM_JUP_USER=jupyter
 
 sudo useradd -m -c "Jupyter User" $VM_JUP_USER
-sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
+sudo groupadd docker
+sudo usermod -a -G $VM_JUP_USER,adm,dialout,docker,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
 
 ## Change ownership for the new user
 
@@ -25,7 +26,6 @@ sudo chgrp $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
 sudo systemctl disable --now jupyterhub.service
-
 
 # Formatting and mounting persistent disk
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
