@@ -7,7 +7,6 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   allowListAuthProvider,
   cloudContextGcp,
-  project,
   unauthorizedUserInfo,
   userInfo
 }
