@@ -212,9 +212,20 @@ object AppV2Routes {
       )
     }
 
+  implicit val updateAppRequestDecoder: Decoder[UpdateAppRequest] =
+    Decoder.instance { x =>
+      for {
+        adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
+        adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
+      } yield UpdateAppRequest(
+        adtm,
+        adte
+      )
+    }
+
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct14(
+    Encoder.forProduct16(
       "workspaceId",
       "cloudContext",
       "region",
@@ -228,7 +239,9 @@ object AppV2Routes {
       "diskName",
       "auditInfo",
       "accessScope",
-      "labels"
+      "labels",
+      "autodeleteEnabled",
+      "autodeleteThreshold"
     )(x =>
       (x.workspaceId,
        x.cloudContext,
@@ -243,12 +256,14 @@ object AppV2Routes {
        x.diskName,
        x.auditInfo,
        x.accessScope,
-       x.labels
+       x.labels,
+       x.autodeleteEnabled,
+       x.autodeleteThreshold
       )
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct15(
+    Encoder.forProduct17(
       "workspaceId",
       "appName",
       "cloudContext",
@@ -263,6 +278,8 @@ object AppV2Routes {
       "appType",
       "chartName",
       "accessScope",
-      "labels"
+      "labels",
+      "autodeleteEnabled",
+      "autodeleteThreshold"
     )(x => GetAppResponse.unapply(x).get)
 }

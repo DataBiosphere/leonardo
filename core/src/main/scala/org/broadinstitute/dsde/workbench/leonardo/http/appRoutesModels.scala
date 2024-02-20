@@ -39,6 +39,9 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   autodeleteEnabled: Option[Boolean]
 )
 
+final case class UpdateAppRequest(autodeleteThreshold: Option[Int],
+                                  autodeleteEnabled: Option[Boolean])
+
 final case class GetAppResponse(
   workspaceId: Option[WorkspaceId],
   appName: AppName,
@@ -54,7 +57,9 @@ final case class GetAppResponse(
   appType: AppType,
   chartName: ChartName,
   accessScope: Option[AppAccessScope],
-  labels: LabelMap
+  labels: LabelMap,
+  autodeleteEnabled: Boolean,
+  autodeleteThreshold: Option[Int]
 )
 
 final case class ListAppResponse(workspaceId: Option[WorkspaceId],
@@ -70,7 +75,9 @@ final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo,
                                  accessScope: Option[AppAccessScope],
-                                 labels: LabelMap
+                                 labels: LabelMap,
+                                 autodeleteEnabled: Boolean,
+                                 autodeleteThreshold: Option[Int]
 )
 
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
@@ -97,7 +104,9 @@ object ListAppResponse {
           a.appResources.disk.map(_.name),
           a.auditInfo,
           a.appAccessScope,
-          a.labels.filter(l => labelsToReturn.contains(l._1))
+          a.labels.filter(l => labelsToReturn.contains(l._1)),
+          a.autodeleteEnabled,
+          a.autodeleteThreshold
         )
       }
     )
@@ -124,6 +133,8 @@ object GetAppResponse {
       appResult.app.appType,
       appResult.app.chart.name,
       appResult.app.appAccessScope,
-      appResult.app.labels
+      appResult.app.labels,
+      appResult.app.autodeleteEnabled,
+      appResult.app.autodeleteThreshold
     )
 }

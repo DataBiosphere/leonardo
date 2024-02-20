@@ -14,7 +14,8 @@ import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   createAppDecoder,
   getAppResponseEncoder,
-  listAppResponseEncoder
+  listAppResponseEncoder,
+  updateAppRequestDecoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -70,6 +71,13 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                                 appName
                               )
                             )
+                          } ~
+                          patch {
+                            entity(as[UpdateAppRequest]) { req =>
+                              complete(
+                                updateAppHandler(userInfo, googleProject, appName, req)
+                              )
+                            }
                           } ~
                           delete {
                             parameterMap { params =>
@@ -166,6 +174,15 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       _ <- metrics.incrementCounter("listApp")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
+
+  private[api] def updateAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName, req: UpdateAppRequest)(implicit
+                                                                                                      ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = kubernetesService.updateApp(userInfo, CloudContext.Gcp(googleProject), appName, req)
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApp").use(_ => apiCall))
+    } yield StatusCodes.Accepted
 
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
