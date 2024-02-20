@@ -13,7 +13,8 @@ VM_JUP_USER=jupyter
 
 sudo useradd -m -c "Jupyter User" $VM_JUP_USER
 sudo groupadd docker
-sudo usermod -a -G $VM_JUP_USER,adm,dialout,docker,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
+sudo usermod -aG docker $VM_JUP_USER
+sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
 
 ## Change ownership for the new user
 
