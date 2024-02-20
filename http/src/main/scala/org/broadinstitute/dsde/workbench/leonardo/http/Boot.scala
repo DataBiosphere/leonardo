@@ -276,6 +276,12 @@ object Boot extends IOApp {
             appDependencies.publisherQueue
           )
 
+          val autodeleteAppMonitorProcess = AutoDeleteAppMonitor.process(
+            autodeleteConfig,
+            appDependencies.publisherQueue,
+            appDependencies.authProvider
+          )
+
           val nonLeoMessageSubscriber =
             new NonLeoMessageSubscriber[IO](
               NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
@@ -317,6 +323,7 @@ object Boot extends IOApp {
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitorProcess, // check database to autopause runtimes periodically
+            autodeleteAppMonitorProcess, // check database to auto delete apps periodically
             metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }

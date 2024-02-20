@@ -28,8 +28,8 @@ anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-biocond
 # Note that this is the version used currently by AOU in production!
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.7"
 
-cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.20"
-google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20220722"
+cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.1.9"
+google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20230714"
 docker_composer="docker/compose:1.29.2"
 docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
