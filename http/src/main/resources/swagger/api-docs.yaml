@@ -4126,13 +4126,13 @@ components:
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
+        autodeleteEnabled:
+          type: boolean
+          description: Whether to turn on autodelete
         autodeleteThreshold:
           type: integer
           description: The number of minutes of idle time to elapse before the app is
               deleted. When autodeleteEnabled is true, a positive integer is required
-        autodeleteEnabled:
-            type: boolean
-            description: Whether to turn on autodelete
 
     ListAppResponse:
       description: the configuration of an app
