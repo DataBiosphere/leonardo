@@ -217,7 +217,8 @@ object Dependencies {
     "com.auth0" % "java-jwt" % "4.4.0",
     http4sBlazeServer % Test,
     scalaTestSelenium,
-    scalaTestMockito
+    scalaTestMockito,
+    "com.azure" % "azure-identity" % "1.11.2"
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
