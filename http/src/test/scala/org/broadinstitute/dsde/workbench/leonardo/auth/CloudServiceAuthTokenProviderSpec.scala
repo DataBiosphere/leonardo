@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 import cats.effect.unsafe.implicits.global
 import cats.effect.{Async, IO}
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
+import org.broadinstitute.dsde.workbench.leonardo.{CloudProvider, LeonardoTestSuite}
 import org.http4s.Credentials
 import org.http4s.headers.Authorization
 import org.scalatest.BeforeAndAfter
@@ -18,7 +18,7 @@ class CloudServiceAuthTokenProviderSpec
 
   val firstTokenValue = "token1"
   val secondTokenValue = "token2"
-  val provider = "provider"
+  val provider: CloudProvider = CloudProvider.Gcp
   var tokens: mutable.Stack[CloudToken] = _
 
   before {
@@ -103,7 +103,7 @@ class CloudServiceAuthTokenProviderSpec
 /**
  * A test CloudServiceAuthTokenProvider that returns a fixed token.
  */
-class TestCloudServiceAuthTokenProvider[F[_]](provider: String, cloudTokens: mutable.Stack[CloudToken])(implicit
+class TestCloudServiceAuthTokenProvider[F[_]](provider: CloudProvider, cloudTokens: mutable.Stack[CloudToken])(implicit
   F: Async[F]
 ) extends CloudServiceAuthTokenProvider[F](provider) {
   override def getCloudProviderAuthToken: F[CloudToken] = {

@@ -13,8 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.httpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO.listResourceResponseDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
 import org.http4s._
@@ -28,7 +26,6 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine.CaffeineCache
 
-import java.nio.file.Paths
 import java.util.UUID
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
