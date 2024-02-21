@@ -54,7 +54,12 @@ import org.broadinstitute.dsde.workbench.leonardo.app.{
   WdsAppInstall,
   WorkflowsAppInstall
 }
-import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{
+  AuthCacheKey,
+  CloudAuthTokenProvider,
+  PetClusterServiceAccountProvider,
+  SamAuthProvider
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -84,6 +89,7 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
@@ -415,7 +421,12 @@ object Boot extends IOApp {
       )(_.close)
 
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
-        HttpSamDAO[F](client, httpSamDaoConfig, petKeyCache)
+        HttpSamDAO[F](
+          client,
+          httpSamDaoConfig,
+          petKeyCache,
+          CloudAuthTokenProvider[F](ConfigReader.appConfig.azure.hostingModeConfig, serviceAccountProviderConfig)
+        )
       )
       cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
         client => new HttpCromwellDAO[F](client)
