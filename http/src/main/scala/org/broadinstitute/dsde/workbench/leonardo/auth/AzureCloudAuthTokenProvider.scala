@@ -4,6 +4,7 @@ import cats.effect._
 import cats.syntax.all._
 import com.azure.core.credential.TokenRequestContext
 import com.azure.identity.DefaultAzureCredentialBuilder
+import org.broadinstitute.dsde.workbench.leonardo.CloudProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, AzureHostingModeConfig}
 
 import java.time.Duration
@@ -14,7 +15,7 @@ import java.time.Duration
  * Supports multiple Azure environments.
  */
 class AzureCloudAuthTokenProvider[F[_]](config: AzureHostingModeConfig)(implicit F: Async[F])
-    extends CloudServiceAuthTokenProvider[F](CloudProviders.Azure) {
+    extends CloudServiceAuthTokenProvider[F](CloudProvider.Azure) {
 
   private val credentialBuilder: DefaultAzureCredentialBuilder =
     new DefaultAzureCredentialBuilder()

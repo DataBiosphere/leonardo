@@ -10,7 +10,7 @@ case class AzureHostingModeConfig(
 
 case class AzureManagedIdentityAuthConfig(
   tokenScope: String,
-  tokenAcquisitionTimeout: Int = 30
+  tokenAcquisitionTimeout: Int = 30 // in seconds
 )
 
 object AzureEnvironmentConverter {

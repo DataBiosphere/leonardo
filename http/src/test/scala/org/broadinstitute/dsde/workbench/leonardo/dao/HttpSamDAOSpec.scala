@@ -35,12 +35,7 @@ import scala.util.control.NoStackTrace
 
 class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll with MockitoSugar {
   val cloudAuthProvider = mock[CloudAuthTokenProvider[IO]]
-  val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"),
-                                false,
-                                1 seconds,
-                                10
-                                // ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test"))
-  )
+  val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"), false, 1 seconds, 10)
   implicit def unsafeLogger: Logger[IO] = Slf4jLogger.getLogger[IO]
   val underlyingPetTokenCache = Caffeine
     .newBuilder()
