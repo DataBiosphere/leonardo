@@ -30,7 +30,8 @@ final case class AzureConfig(
   hailBatchAppConfig: HailBatchAppConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
-  listenerChartConfig: ListenerChartConfig
+  listenerChartConfig: ListenerChartConfig,
+  hostingModeConfig: AzureHostingModeConfig
 )
 
 final case class OidcAuthConfig(
