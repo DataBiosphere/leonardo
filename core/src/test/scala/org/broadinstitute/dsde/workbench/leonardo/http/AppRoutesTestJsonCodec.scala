@@ -40,7 +40,7 @@ object AppRoutesTestJsonCodec {
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
   implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct15(
+    Decoder.forProduct17(
       "workspaceId",
       "appName",
       "cloudContext",
@@ -55,11 +55,13 @@ object AppRoutesTestJsonCodec {
       "appType",
       "chartName",
       "accessScope",
-      "labels"
+      "labels",
+      "autodeleteEnabled",
+      "autodeleteThreshold"
     )(GetAppResponse.apply)
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] =
-    Decoder.forProduct14(
+    Decoder.forProduct16(
       "workspaceId",
       "cloudContext",
       "region",
@@ -73,6 +75,8 @@ object AppRoutesTestJsonCodec {
       "diskName",
       "auditInfo",
       "accessScope",
-      "labels"
+      "labels",
+      "autodeleteEnabled",
+      "autodeleteThreshold"
     )(ListAppResponse.apply)
 }

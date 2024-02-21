@@ -107,7 +107,9 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
             AppType.CromwellRunnerApp,
             ChartName(""),
             None,
-            Map.empty[String, String]
+            Map.empty[String, String],
+            false,
+            None
           )
         })
     case _ =>
