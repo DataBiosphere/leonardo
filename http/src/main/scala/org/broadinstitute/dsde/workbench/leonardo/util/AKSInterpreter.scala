@@ -150,13 +150,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         } else F.pure(List.empty)
 
       // Create or fetch WSM kubernetes namespace
-      wsmNamespace <- retrieveWsmNamespace(wsmResourceApi, namespacePrefix, params.workspaceId.value).flatMap {
-        case Some(namespace) =>
+      wsmNamespaces <- retrieveWsmNamespace(wsmResourceApi, namespacePrefix, params.workspaceId.value)
+      namespace <- wsmNamespaces.length match {
+        case 1 =>
           logger.info(
-            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${namespace.name}"
+            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${wsmNamespaces.head.name}"
           )
-          F.pure(namespace)
-        case None =>
+          F.pure(wsmNamespaces.head)
+        case 0 =>
           createWsmKubernetesNamespaceResource(
             app,
             params.workspaceId,
@@ -164,8 +165,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             wsmDatabases.map(_.wsmDatabaseName),
             wsmManagedIdentityOpt.map(_.wsmResourceName)
           )
+        case _ =>
+          F.raiseError(
+            AppCreationException(
+              s"App ${app.appName} has multiple namespaces $wsmNamespaces. Only one namespace per app allowed"
+            )
+          )
       }
-
       // The managed identity name is either the WSM identity (for shared apps) or the
       // pet managed identity (for private apps). The latter is confusingly stored in the
       // 'googleServiceAccount' column in the APP table.
@@ -188,7 +194,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Authenticate helm client
       authContext <- getHelmAuthContext(landingZoneResources.aksCluster.asClusterName,
                                         params.cloudContext,
-                                        wsmNamespace.name
+                                        namespace.name
       )
 
       // Build listener helm values
@@ -232,7 +238,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         landingZoneResources,
         storageContainerOpt,
         relayPath,
-        wsmNamespace.serviceAccountName,
+        namespace.serviceAccountName,
         managedIdentityName,
         wsmDatabases ++ referenceDatabases,
         config
@@ -963,7 +969,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def retrieveWsmNamespace(resourceApi: ResourceApi,
                                          namespacePrefix: String,
                                          workspaceId: UUID
-  ): F[Option[WsmControlledKubernetesNamespaceResource]] = {
+  ): F[List[WsmControlledKubernetesNamespaceResource]] = {
 
     val wsmNamespaces = F.blocking(
       resourceApi
@@ -973,16 +979,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .toList
     )
     wsmNamespaces.map { namespaces =>
-      // there should be only 1 kubernetes namespace per app
       namespaces
-        .find(ns =>
+        .filter(ns =>
           ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)
         )
-        .map(ns =>
+        .map(filtered_ns =>
           WsmControlledKubernetesNamespaceResource(
-            NamespaceName(namespacePrefix),
-            WsmControlledResourceId(ns.getMetadata.getResourceId),
-            ServiceAccountName(ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount)
+            NamespaceName(filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace),
+            WsmControlledResourceId(filtered_ns.getMetadata.getResourceId),
+            ServiceAccountName(
+              filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount
+            )
           )
         )
     }

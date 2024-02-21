@@ -300,16 +300,16 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "retrieve a WSM namespace if it exists in workspace" in isolatedDbTest {
     val res = for {
-      retrievedNamespace <- aksInterp.retrieveWsmNamespace(mockResourceApi, "ns-name", workspaceId.value)
-    } yield retrievedNamespace.get.name.value shouldBe "ns-name"
+      retrievedNamespaces <- aksInterp.retrieveWsmNamespace(mockResourceApi, "ns-name", workspaceId.value)
+    } yield retrievedNamespaces.head.name.value shouldBe "ns-name"
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not retrieve a WSM namespace if doesn't exist in workspace" in isolatedDbTest {
     val res = for {
-      retrievedNamespace <- aksInterp.retrieveWsmNamespace(mockResourceApi, "something-else", workspaceId.value)
-    } yield retrievedNamespace shouldBe None
+      retrievedNamespaces <- aksInterp.retrieveWsmNamespace(mockResourceApi, "something-else", workspaceId.value)
+    } yield retrievedNamespaces.length shouldBe 0
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
