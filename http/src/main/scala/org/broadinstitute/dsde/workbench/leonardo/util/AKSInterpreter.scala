@@ -995,11 +995,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .filter(ns =>
           ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)
         )
-        .map(fns =>
+        .map(filtered_ns =>
           WsmControlledKubernetesNamespaceResource(
-            NamespaceName(namespacePrefix),
-            WsmControlledResourceId(fns.getMetadata.getResourceId),
-            ServiceAccountName(fns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount)
+            NamespaceName(filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace),
+            WsmControlledResourceId(filtered_ns.getMetadata.getResourceId),
+            ServiceAccountName(
+              filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount
+            )
           )
         )
     }
