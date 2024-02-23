@@ -735,7 +735,8 @@ object Boot extends IOApp {
         wsmDao,
         kubeAlg,
         wsmClientProvider,
-        wsmDao
+        wsmDao,
+        authProvider
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](

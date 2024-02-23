@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{Nam
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -43,7 +44,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            wsmDao: WsmDao[F],
                            kubeAlg: KubernetesAlgebra[F],
                            wsmClientProvider: WsmApiClientProvider[F],
-                           legacyWsmDao: WsmDao[F]
+                           legacyWsmDao: WsmDao[F],
+                           authProvider: SamAuthProvider[F]
 )(implicit
   appTypeToAppInstall: AppType => AppInstall[F],
   executionContext: ExecutionContext,
@@ -118,16 +120,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmResourceApi <- buildWsmResourceApiClient
 
       // Create or fetch WSM managed identity (if shared app or app creation restarted)
-      wsmManagedIdentityOpt <-
-        retrieveWsmManagedIdentity(wsmResourceApi, app.appType, params.workspaceId.value).flatMap {
-          case Some(identity) =>
-            logger.info(
-              s"Managed ID found in WSM app ${app.appName}, using previously created identity: ${identity.managedIdentityName}"
-            )
-            F.pure(Option(identity))
-          case None =>
-            createAzureManagedIdentity(app, namespacePrefix, params.workspaceId)
-        }
+      wsmManagedIdentityOpt <- childSpan("createWsmManagedIdentity").use { implicit ev =>
+        createOrFetchWsmManagedIdentity(app, wsmResourceApi, params.workspaceId, namespacePrefix)
+      }
 
       // Create or fetch WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
@@ -150,28 +145,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         } else F.pure(List.empty)
 
       // Create or fetch WSM kubernetes namespace
-      wsmNamespaces <- retrieveWsmNamespace(wsmResourceApi, namespacePrefix, params.workspaceId.value)
-      namespace <- wsmNamespaces.length match {
-        case 1 =>
-          logger.info(
-            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${wsmNamespaces.head.name}"
-          )
-          F.pure(wsmNamespaces.head)
-        case 0 =>
-          createWsmKubernetesNamespaceResource(
-            app,
-            params.workspaceId,
-            namespacePrefix,
-            wsmDatabases.map(_.wsmDatabaseName),
-            wsmManagedIdentityOpt.map(_.wsmResourceName)
-          )
-        case _ =>
-          F.raiseError(
-            AppCreationException(
-              s"App ${app.appName} has multiple namespaces $wsmNamespaces. Only one namespace per app allowed"
-            )
-          )
+      namespace <- childSpan("createWsmNamespaceResource").use { implicit ev =>
+        createOrFetchWsmNamespace(app,
+                                  wsmDatabases,
+                                  wsmResourceApi,
+                                  namespacePrefix,
+                                  params.workspaceId,
+                                  wsmManagedIdentityOpt
+        )
       }
+
       // The managed identity name is either the WSM identity (for shared apps) or the
       // pet managed identity (for private apps). The latter is confusingly stored in the
       // 'googleServiceAccount' column in the APP table.
@@ -966,6 +949,56 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     }
   }
 
+  private[util] def createOrFetchWsmManagedIdentity(app: App,
+                                                    resourceApi: ResourceApi,
+                                                    workspaceId: WorkspaceId,
+                                                    namespacePrefix: String
+  )(implicit ev: Ask[F, AppContext]): F[Option[WsmManagedAzureIdentity]] =
+    for {
+      wsmManagedIdentityOpt <-
+        retrieveWsmManagedIdentity(resourceApi, app.appType, workspaceId.value).flatMap {
+          case Some(identity) =>
+            logger.info(
+              s"Managed ID found in WSM app ${app.appName}, using previously created identity: ${identity.managedIdentityName}"
+            )
+            F.pure(Option(identity))
+          case None =>
+            createAzureManagedIdentity(app, namespacePrefix, workspaceId)
+        }
+    } yield wsmManagedIdentityOpt
+
+  private[util] def createOrFetchWsmNamespace(app: App,
+                                              wsmDatabases: List[WsmControlledDatabaseResource],
+                                              resourceApi: ResourceApi,
+                                              namespacePrefix: String,
+                                              workspaceId: WorkspaceId,
+                                              wsmManagedIdentityOpt: Option[WsmManagedAzureIdentity]
+  )(implicit ev: Ask[F, AppContext]): F[WsmControlledKubernetesNamespaceResource] =
+    for {
+      wsmNamespaces <- retrieveWsmNamespace(resourceApi, namespacePrefix, workspaceId.value)
+      namespace <- wsmNamespaces.length match {
+        case 1 =>
+          logger.info(
+            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${wsmNamespaces.head.name}"
+          )
+          F.pure(wsmNamespaces.head)
+        case 0 =>
+          createWsmKubernetesNamespaceResource(
+            app,
+            workspaceId,
+            namespacePrefix,
+            wsmDatabases.map(_.wsmDatabaseName),
+            wsmManagedIdentityOpt.map(_.wsmResourceName)
+          )
+        case _ =>
+          F.raiseError(
+            AppCreationException(
+              s"App ${app.appName} has multiple namespaces $wsmNamespaces. Only one namespace per app allowed"
+            )
+          )
+      }
+    } yield namespace
+
   private[util] def retrieveWsmNamespace(resourceApi: ResourceApi,
                                          namespacePrefix: String,
                                          workspaceId: UUID
@@ -1233,24 +1266,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ev.ask.flatMap(ctx => logger.warn(ctx.loggingCtx)(s"Not updating relay listener for app ${app.appName.value}"))
     }
 
-  private def getLeoAuthToken: F[String] =
-    for {
-      auth <- samDao.getLeoAuthToken
-      token <- auth.credentials match {
-        case org.http4s.Credentials.Token(_, token) => F.pure(token)
-        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
-      }
-    } yield token
-
   private def buildWsmControlledResourceApiClient(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi] =
     for {
-      token <- getLeoAuthToken
+      token <- authProvider.getLeoAuthToken
       wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
     } yield wsmApi
 
   private def buildWsmResourceApiClient(implicit ev: Ask[F, AppContext]): F[ResourceApi] =
     for {
-      token <- getLeoAuthToken
+      token <- authProvider.getLeoAuthToken
       wsmApi <- wsmClientProvider.getResourceApi(token)
     } yield wsmApi
 }

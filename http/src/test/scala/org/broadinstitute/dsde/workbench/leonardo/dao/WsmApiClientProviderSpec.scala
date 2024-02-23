@@ -40,6 +40,14 @@ class WsmApiClientProviderSpec extends AnyFlatSpec with LeonardoTestSuite with B
     } yield md.get.getResourceType shouldBe ResourceType.AZURE_DISK
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
+
+  it should "not return disk metadata if disk doesn't exist" in {
+    val res = for {
+      md <- wsmProvider.getDisk(tokenValue, workspaceId2, wsmResourceId)
+    } yield md shouldBe None
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "return vm metadata" in {
     val res = for {
       md <- wsmProvider.getVm(tokenValue, workspaceId, wsmResourceId)

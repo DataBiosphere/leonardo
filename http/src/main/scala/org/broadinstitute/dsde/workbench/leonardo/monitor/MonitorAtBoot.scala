@@ -417,7 +417,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
-        // TODO: starting is supported now, update accordingly
+        // TODO: starting is supported now, update accordingly, https://broadworkbench.atlassian.net/browse/IA-4843
         F.raiseError(MonitorAtBootException("Starting Azure runtime is not supported yet", traceId))
       case RuntimeStatus.Creating =>
         for {

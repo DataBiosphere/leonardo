@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, m
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppInstall}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -62,6 +63,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureRelayService = setUpMockAzureRelayService
   val mockKube = setUpMockKube
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = setUpMockWsmApiClientProvider
+  val mockSamAuthProvider = setUpMockSamAuthProvider
 
   implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
     case AppType.WorkflowsApp => setUpMockWorkflowAppInstall
@@ -77,7 +79,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockWsmDAO,
       mockKube,
       mockWsm,
-      mockWsmDAO
+      mockWsmDAO,
+      mockSamAuthProvider
     )
 
   val aksInterp = newAksInterp(config)
@@ -1087,4 +1090,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
     mockWorkflowsAppInstall
   }
+
+  private def setUpMockSamAuthProvider: SamAuthProvider[IO] =
+    mock[SamAuthProvider[IO]]
 }
