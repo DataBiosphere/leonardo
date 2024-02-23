@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, petUserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, petUserInfo, wsmResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledDatabaseResource
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
@@ -22,8 +22,8 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
   val cbasAzureDbName = "cbas_wgsdoi"
   val cromwellMetadataAzureDbName = "cromwellmetadata_tyuiwk"
   val workflowsAzureDatabases: List[WsmControlledDatabaseResource] = List(
-    WsmControlledDatabaseResource("cbas", cbasAzureDbName),
-    WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName)
+    WsmControlledDatabaseResource("cbas", cbasAzureDbName, wsmResourceId),
+    WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName, wsmResourceId)
   )
 
   it should "build workflows app override values" in {

@@ -31,9 +31,18 @@ final case class AKSCluster(name: String, tags: Map[String, Boolean]) {
   def asClusterName: AKSClusterName = AKSClusterName(name)
 }
 
-final case class WsmManagedAzureIdentity(wsmResourceName: String, managedIdentityName: String)
+final case class WsmManagedAzureIdentity(wsmResourceName: String, managedIdentityName: String, wsmResourceId: WsmControlledResourceId)
 
+<<<<<<< Updated upstream
 final case class WsmControlledDatabaseResource(wsmDatabaseName: String, azureDatabaseName: String)
+=======
+final case class WsmControlledKubernetesNamespaceResource(name: NamespaceName,
+                                                          wsmResourceId: WsmControlledResourceId,
+                                                          serviceAccountName: ServiceAccountName
+)
+
+final case class WsmControlledDatabaseResource(wsmDatabaseName: String, azureDatabaseName: String, wsmResourceId: WsmControlledResourceId)
+>>>>>>> Stashed changes
 
 final case class LandingZoneResources(landingZoneId: UUID,
                                       aksCluster: AKSCluster,

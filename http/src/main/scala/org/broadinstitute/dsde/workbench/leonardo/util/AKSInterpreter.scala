@@ -360,7 +360,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
       wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
         F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
-          .map(db => WsmControlledDatabaseResource(db.getMetadata.getName, db.getAttributes.getDatabaseName))
+          .map(db =>
+            WsmControlledDatabaseResource(db.getMetadata.getName,
+                                          db.getAttributes.getDatabaseName,
+                                          WsmControlledResourceId(db.getMetadata.getResourceId)
+            )
+          )
       }
 
       // call WSM resource API to get list of ReferenceDatabases
@@ -502,35 +507,44 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         legacyWsmDao.getLandingZoneResources(billingProfileId, leoAuth)
       }
 
+      wsmControlledResourceApi <- buildWsmControlledResourceApiClient
+      wsmResourceApi <- buildWsmResourceApiClient
+
       // WSM deletion order matters here. Delete WSM database resources first.
-      wsmDatabases <- appControlledResourceQuery
+      wsmDatabaseRecords <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
         .transaction
+      wsmDatabases <- wsmDatabaseRecords.traverse { wsmDatabase =>
+        F.blocking(wsmControlledResourceApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
+          .map(db =>
+            WsmControlledDatabaseResource(db.getMetadata.getName,
+                                          db.getAttributes.getDatabaseName,
+                                          WsmControlledResourceId(db.getMetadata.getResourceId)
+            )
+          )
+      }
       _ <- childSpan("deleteWsmDatabases").use { implicit ev =>
         wsmDatabases.traverse { database =>
-          deleteWsmResource(workspaceId, app, database)
+          deleteWsmResource(workspaceId, app, database.wsmResourceId, WsmResourceType.AzureDatabase)
         }
       }
 
       // Then delete namespace resources
-      wsmNamespaces <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
-        .transaction
+      namespacePrefix = app.appResources.namespace.value
+      wsmNamespaces <- retrieveWsmNamespace(wsmResourceApi, namespacePrefix, workspaceId.value)
       deletedNamespace <- childSpan("deleteWsmNamespace").use { implicit ev =>
         wsmNamespaces
           .traverse { namespace =>
-            deleteWsmNamespaceResource(workspaceId, app, namespace)
+            deleteWsmNamespaceResource(wsmControlledResourceApi, workspaceId, app, namespace.wsmResourceId)
           }
           .map(_.nonEmpty)
       }
 
       // Then delete identity resources
-      wsmIdentities <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
-        .transaction
+      wsmIdentities <- retrieveWsmManagedIdentity(wsmResourceApi, app.appType, workspaceId.value)
       _ <- childSpan("deleteWsmIdentity").use { implicit ev =>
         wsmIdentities.traverse { identity =>
-          deleteWsmResource(workspaceId, app, identity)
+          deleteWsmResource(workspaceId, app, identity.wsmResourceId, WsmResourceType.AzureManagedIdentity)
         }
       }
 
@@ -706,7 +720,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       createWsmIdentityResource(app, namespacePrefix, workspaceId)
         .map(i =>
           WsmManagedAzureIdentity(i.getAzureManagedIdentity.getMetadata.getName,
-                                  i.getAzureManagedIdentity.getAttributes.getManagedIdentityName
+                                  i.getAzureManagedIdentity.getAttributes.getManagedIdentityName,
+                                  WsmControlledResourceId(i.getResourceId)
           )
         )
         .map(_.some)
@@ -804,7 +819,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                 db =>
                   WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
-                                                db.getAzureDatabase.getAttributes.getDatabaseName
+                                                db.getAzureDatabase.getAttributes.getDatabaseName,
+                                                WsmControlledResourceId(db.getResourceId)
                   )
               }
             }
@@ -923,10 +939,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     wsmManagedIdentities.map { identities =>
       // there should be only 1 Azure managed identity per app
       identities
+<<<<<<< Updated upstream
         .find(r => wsmResourceName == r.getMetadata().getName())
         .map(r =>
           WsmManagedAzureIdentity(r.getMetadata.getName,
                                   r.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
+=======
+        .find(identity => wsmResourceName == identity.getMetadata.getName)
+        .map(identity =>
+          WsmManagedAzureIdentity(
+            wsmResourceName,
+            identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName,
+            WsmControlledResourceId(identity.getMetadata.getResourceId)
+>>>>>>> Stashed changes
           )
         )
     }
@@ -948,7 +973,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .filter(r => databaseNames.contains(r.getMetadata().getName()))
         .map(r =>
           WsmControlledDatabaseResource(r.getMetadata().getName(),
-                                        r.getResourceAttributes().getAzureDatabase().getDatabaseName()
+                                        r.getResourceAttributes().getAzureDatabase().getDatabaseName(),
+                                        WsmControlledResourceId(r.getMetadata.getResourceId)
           )
         )
     }
@@ -1047,17 +1073,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
     } yield result
 
-  private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
+  private[util] def deleteWsmNamespaceResource(wsmApi: ControlledAzureResourceApi,
+                                               workspaceId: WorkspaceId,
                                                app: App,
-                                               wsmResource: AppControlledResourceRecord
+                                               wsmResourceId: WsmControlledResourceId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
-
-      // Build WSM client
-      wsmApi <- buildWsmControlledResourceApiClient
 
       // Build delete namespace request
       jobId = UUID.randomUUID()
@@ -1069,7 +1093,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Execute WSM call
       result <- F.blocking(
-        wsmApi.deleteAzureKubernetesNamespace(deleteNamespaceRequest, workspaceId.value, wsmResource.resourceId.value)
+        wsmApi.deleteAzureKubernetesNamespace(deleteNamespaceRequest, workspaceId.value, wsmResourceId.value)
       )
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace response: ${result}")
@@ -1077,7 +1101,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // Update record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
         .updateStatus(
-          wsmResource.resourceId,
+          wsmResourceId,
           AppControlledResourceStatus.Deleting
         )
         .transaction
@@ -1105,28 +1129,32 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         } else F.unit
 
       // Update record in APP_CONTROLLED_RESOURCE table
-      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+      _ <- appControlledResourceQuery.delete(wsmResourceId).transaction
     } yield ()
 
-  private[util] def deleteWsmResource(workspaceId: WorkspaceId, app: App, wsmResource: AppControlledResourceRecord)(
-    implicit ev: Ask[F, AppContext]
+  private[util] def deleteWsmResource(workspaceId: WorkspaceId,
+                                      app: App,
+                                      wsmResourceId: WsmControlledResourceId,
+                                      wsmResourceType: WsmResourceType
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] = {
     val delete = for {
       ctx <- ev.ask
       wsmApi <- buildWsmControlledResourceApiClient
       _ <- logger.info(ctx.loggingCtx)(
-        s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
+        s"Deleting WSM resource ${wsmResourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
       )
-      _ <- wsmResource.resourceType match {
+      _ <- wsmResourceType match {
         case WsmResourceType.AzureManagedIdentity =>
-          F.blocking(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
+          F.blocking(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResourceId.value))
         case WsmResourceType.AzureDatabase =>
-          F.blocking(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
+          F.blocking(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResourceId.value))
         case _ =>
-          F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
+          F.raiseError(AppDeletionException(s"Unexpected WSM resource type $wsmResourceType"))
       }
       // Update record in APP_CONTROLLED_RESOURCE table
-      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+      _ <- appControlledResourceQuery.delete(wsmResourceId).transaction
     } yield ()
 
     delete.handleErrorWith {
