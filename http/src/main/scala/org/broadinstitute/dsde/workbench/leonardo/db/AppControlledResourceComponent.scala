@@ -89,10 +89,4 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
       .result
       .map(_.toList)
 
-  def countForAppByResourceId(appId: Long, resourceId: WsmControlledResourceId) =
-    appControlledResourceQuery
-      .filter(_.appId === appId)
-      .filter(_.resourceId === resourceId)
-      .length
-      .result
 }
