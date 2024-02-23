@@ -128,6 +128,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case _ => F.pure(None)
       }
 
+      // create any missing AppControlledResources
+      _ <- childSpan("createMissingAppControlledResources").use { implicit ev =>
+        createMissingAppControlledResources(
+          app,
+          app.appType,
+          params.workspaceId,
+          landingZoneResources,
+          wsmResourceApi
+        )
+      }
+
       // Create WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
         createOrFetchWsmDatabaseResources(
@@ -368,8 +379,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
       }
 
-      // call WSM resource API to get list of ReferenceDatabases
       wsmResourceApi <- buildWsmResourceApiClient
+
+      // create any missing AppControlledResources
+      _ <- createMissingAppControlledResources(
+        app,
+        app.appType,
+        workspaceId,
+        landingZoneResources,
+        wsmResourceApi
+      )
+
+      // call WSM resource API to get list of ReferenceDatabases
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       referenceDatabases <-
         if (referenceDatabaseNames.nonEmpty) {
@@ -506,6 +527,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
         legacyWsmDao.getLandingZoneResources(billingProfileId, leoAuth)
       }
+
+      wsmResourceApi <- buildWsmResourceApiClient
+
+      // create any missing AppControlledResources
+      _ <- createMissingAppControlledResources(
+        app,
+        app.appType,
+        workspaceId,
+        landingZoneResources,
+        wsmResourceApi
+      )
 
       // WSM deletion order matters here. Delete WSM database resources first.
       wsmDatabases <- appControlledResourceQuery
@@ -789,63 +821,94 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         wsmApi <- buildWsmControlledResourceApiClient
 
         // get a list of database types required for this app
-        controlledDbsRequiredForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
-
-        // retrieve set of databases WSM has created for this workspace
+        controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
+        // retrieve databases that might already be created in workspace
         existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
-                                                                 controlledDbsRequiredForApp.map(_.prefix).toSet,
+                                                                 controlledDbsForApp.map(_.prefix).toSet,
                                                                  workspaceId.value
         )
-
-        // verify or create a list of APP_CONTROLLED_RESOURCE records for each required database, creating the db if needed
-        wsmControlledDBResources <- controlledDbsRequiredForApp
+        wsmControlledDBResources <- controlledDbsForApp
           .map { controlledDbForApp =>
-            val maybeExistingDb = existingControlledDbsInWorkspace
-              .find(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
-
-            maybeExistingDb match {
-              // a database already exists (because of workspace cloning) verify or create a APP_CONTROLLED_RESOURCE for it
-              case Some(existingDb) =>
-                // there is an existing db, so check to see if we have previously mapped it to appControlledResource
-                val resourceId = existingDb.controlledResourceId
-
-                for {
-                  count <- dbRef.inTransaction(
-                    appControlledResourceQuery.countForAppByResourceId(app.id.id, WsmControlledResourceId(resourceId))
+            // if a database already exists (because of workspace cloning) use that otherwise create a new one
+            if (
+              existingControlledDbsInWorkspace
+                .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
+            ) {
+              F.pure(
+                existingControlledDbsInWorkspace
+                  .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
+                  .get
+              )
+            } else {
+              createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
+                db =>
+                  WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
+                                                db.getAzureDatabase.getAttributes.getDatabaseName
                   )
-                  dbInfo <-
-                    if (count > 0) {
-                      F.pure(existingDb)
-                    } else {
-                      // Perform a side effect to insert this db resource into the appControlledResource table, then return the existing DB info
-                      for {
-                        _ <- appControlledResourceQuery
-                          .insert(
-                            app.id.id,
-                            WsmControlledResourceId(existingDb.controlledResourceId),
-                            WsmResourceType.AzureDatabase,
-                            AppControlledResourceStatus.Created
-                          )
-                          .transaction
-                        dbInfo <- F.pure(existingDb)
-                      } yield dbInfo
-                    }
-                } yield dbInfo
-
-              case None =>
-                // no database exists, create one, create a appControlledResource for it, and yield the new appControlledResource
-                createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
-                  db =>
-                    WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
-                                                  db.getAzureDatabase.getAttributes.getDatabaseName,
-                                                  db.getAzureDatabase.getMetadata.getResourceId
-                    )
-                }
+              }
             }
           }
           .traverse(identity)
       } yield wsmControlledDBResources
     } else {
+      ev.ask.flatMap(ctx =>
+        F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
+      )
+    }
+
+  private[util] def createMissingAppControlledResources(app: App,
+                                                        appInstall: AppInstall[F],
+                                                        workspaceId: WorkspaceId,
+                                                        landingZoneResources: LandingZoneResources,
+                                                        wsmResourceApi: ResourceApi
+  )(implicit ev: Ask[F, AppContext]): F[List[AppControlledResourceRecord]] =
+    if (landingZoneResources.postgresServer.isDefined) for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+
+      // get a list of database types required for this app
+      controlledDbsRequiredForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
+
+      // retrieve set of databases WSM has created for this workspace (name, wsmDatabaseName, resource_id)
+      existingWsmDbsInWorkspace: List[WsmControlledDatabaseResource] <- retrieveWsmDatabases(
+        wsmResourceApi,
+        controlledDbsRequiredForApp.map(_.prefix).toSet,
+        workspaceId.value
+      )
+
+      // Get list of APP_CONTROLLED_RESOURCE for this app (appId, resource_id, state)
+      appControlledResources: List[AppControlledResourceRecord] <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+
+      // Find WSM databases in workspace that do not exist in the appControlledResources list based on resourceId
+      wsmDbsNotinAppResources = existingWsmDbsInWorkspace.filterNot { wsmDb =>
+        appControlledResources.exists(appRes => appRes.resourceId.toString == wsmDb.controlledResourceId.toString)
+      }
+
+      // create a APP_CONTROLLED_RESOURCE for any wsm database that does not have one
+      _ <- wsmDbsNotinAppResources.traverse { db =>
+        println(s"WSM Database not controlled by app: ${db.wsmDatabaseName}, Resource ID: ${db.controlledResourceId}")
+
+        for {
+          res <- appControlledResourceQuery
+            .insert(
+              app.id.id,
+              WsmControlledResourceId(db.controlledResourceId),
+              WsmResourceType.AzureDatabase,
+              AppControlledResourceStatus.Created
+            )
+            .transaction
+        } yield db
+      }
+
+      // Get list of APP_CONTROLLED_RESOURCE for this app (appId, resource_id, state)
+      appControlledResources: List[AppControlledResourceRecord] <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+
+    } yield appControlledResources
+    else {
       ev.ask.flatMap(ctx =>
         F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
       )
@@ -977,6 +1040,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .asScala
         .toList
     )
+
+    // TODO: this currently matches on the 'name' (actually type) of database so for example
+    // it compares for a 'cbas' or 'cromwellmetadata' database. In the future, their maybe
+    // multiple of those in a workspace so this approach will have to be re-considered
+    // see https://broadworkbench.atlassian.net/browse/IA-4844
     wsmResourceDatabases.map { dbs =>
       dbs
         .filter(r => databaseNames.contains(r.getMetadata().getName()))
