@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo, wsmResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledDatabaseResource
@@ -22,9 +22,9 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
   val tesAzureDbName = "tes_oiwjnz"
   val cromwellMetadataAzureDbName = "cromwellmetadata_tyuiwk"
   val cromwellRunnerAzureDatabases: List[WsmControlledDatabaseResource] = List(
-    WsmControlledDatabaseResource("cromwell", cromwellAzureDbName),
-    WsmControlledDatabaseResource("tes", tesAzureDbName),
-    WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName)
+    WsmControlledDatabaseResource("cromwell", cromwellAzureDbName, wsmResourceId),
+    WsmControlledDatabaseResource("tes", tesAzureDbName, wsmResourceId),
+    WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName, wsmResourceId)
   )
 
   it should "build cromwell-runner override values" in {
@@ -92,9 +92,9 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
   it should "find the first instance of each database type" in {
     cromwellRunnerAppInstall.toCromwellRunnerAppDatabaseNames(
       List(
-        WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName),
-        WsmControlledDatabaseResource("cromwell", cromwellAzureDbName),
-        WsmControlledDatabaseResource("tes", tesAzureDbName)
+        WsmControlledDatabaseResource("cromwellmetadata", cromwellMetadataAzureDbName, wsmResourceId),
+        WsmControlledDatabaseResource("cromwell", cromwellAzureDbName, wsmResourceId),
+        WsmControlledDatabaseResource("tes", tesAzureDbName, wsmResourceId)
       ) // put cromwellmetadata first to ensure it doesn't get confused with cromwell
     ) should be(Some(CromwellRunnerAppDatabaseNames(cromwellAzureDbName, tesAzureDbName, cromwellMetadataAzureDbName)))
   }

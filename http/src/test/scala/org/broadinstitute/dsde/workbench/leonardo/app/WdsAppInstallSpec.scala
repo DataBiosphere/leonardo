@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo, wsmResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.{WorkspaceId, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WdsDAO
@@ -25,7 +25,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
 
   val wdsAzureDbName = "wds_rtyjga"
   val wdsAzureDatabases: List[WsmControlledDatabaseResource] = List(
-    WsmControlledDatabaseResource("wds", wdsAzureDbName)
+    WsmControlledDatabaseResource("wds", wdsAzureDbName, wsmResourceId)
   )
 
   it should "build wds override values" in {

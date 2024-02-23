@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo, wsmResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.{ManagedIdentityName, PostgresServer, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
@@ -25,9 +25,9 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
   val cbasAzureDbName = "cbas_edfgvb"
   val tesAzureDbName = "tes_pasgjf"
   val cromwellOnAzureDatabases: List[WsmControlledDatabaseResource] = List(
-    WsmControlledDatabaseResource("cromwell", cromwellAzureDbName),
-    WsmControlledDatabaseResource("cbas", cbasAzureDbName),
-    WsmControlledDatabaseResource("tes", tesAzureDbName)
+    WsmControlledDatabaseResource("cromwell", cromwellAzureDbName, wsmResourceId),
+    WsmControlledDatabaseResource("cbas", cbasAzureDbName, wsmResourceId),
+    WsmControlledDatabaseResource("tes", tesAzureDbName, wsmResourceId)
   )
 
   it should "build coa override values" in {
