@@ -888,7 +888,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // create a APP_CONTROLLED_RESOURCE for any wsm database that does not have one
       _ <- wsmDbsNotinAppResources.traverse { db =>
-
         for {
           res <- appControlledResourceQuery
             .insert(
