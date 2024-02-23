@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, N
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   azureRegion,
   billingProfileId,
+  tokenValue,
   workspaceId,
   workspaceIdForAppCreation,
   workspaceIdForCloning
@@ -1091,6 +1092,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     mockWorkflowsAppInstall
   }
 
-  private def setUpMockSamAuthProvider: SamAuthProvider[IO] =
-    mock[SamAuthProvider[IO]]
+  private def setUpMockSamAuthProvider: SamAuthProvider[IO] = {
+    val mockSamAuth = mock[SamAuthProvider[IO]]
+
+    when {
+      mockSamAuth.getLeoAuthToken
+    } thenReturn IO.pure(tokenValue)
+    mockSamAuth
+  }
 }
