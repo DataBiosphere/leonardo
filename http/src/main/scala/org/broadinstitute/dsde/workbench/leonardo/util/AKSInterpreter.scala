@@ -939,19 +939,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     wsmManagedIdentities.map { identities =>
       // there should be only 1 Azure managed identity per app
       identities
-<<<<<<< Updated upstream
-        .find(r => wsmResourceName == r.getMetadata().getName())
-        .map(r =>
-          WsmManagedAzureIdentity(r.getMetadata.getName,
-                                  r.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
-=======
         .find(identity => wsmResourceName == identity.getMetadata.getName)
         .map(identity =>
           WsmManagedAzureIdentity(
             wsmResourceName,
             identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName,
             WsmControlledResourceId(identity.getMetadata.getResourceId)
->>>>>>> Stashed changes
           )
         )
     }
