@@ -888,7 +888,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // create a APP_CONTROLLED_RESOURCE for any wsm database that does not have one
       _ <- wsmDbsNotinAppResources.traverse { db =>
-        println(s"WSM Database not controlled by app: ${db.wsmDatabaseName}, Resource ID: ${db.controlledResourceId}")
 
         for {
           res <- appControlledResourceQuery
