@@ -318,6 +318,85 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
     } yield ()
 
+  def deleteAllOrphanedDisks(userInfo: UserInfo,
+                             cloudContext: CloudContext.Gcp,
+                             runtimeDiskIds: Vector[DiskId],
+                             appDisksNames: Vector[DiskName]
+  )(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      // Get a list of disks that are not attached to any runtime or app
+      disks <- listDisks(
+        userInfo,
+        Some(cloudContext),
+        Map.empty
+      )
+
+      orphanedDisks = disks.filterNot(disk => runtimeDiskIds.contains(disk.id) || appDisksNames.contains(disk.name))
+
+      nonDeletableDisks = orphanedDisks.filterNot(disk => DiskStatus.deletableStatuses.contains(disk.status))
+
+      _ <- F
+        .raiseError(NonDeletableDisksInProjectFoundException(cloudContext.value, nonDeletableDisks, ctx.traceId))
+        .whenA(!nonDeletableDisks.isEmpty)
+
+      _ <- orphanedDisks
+        .traverse { disk =>
+          deleteDisk(userInfo, cloudContext.value, disk.name)
+        }
+    } yield ()
+
+  def deleteDiskRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, disk: ListPersistentDiskResponse)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      // Find the disk's Sam resource id
+      dbdisk <- DiskServiceDbQueries
+        .getGetPersistentDiskResponse(cloudContext, disk.name, ctx.traceId)
+        .transaction
+
+      listOfPermissions <- authProvider.getActions(dbdisk.samResource, userInfo)
+
+      // throw 404 if no ReadDiskStatus permission
+      hasPermission = listOfPermissions.toSet.contains(PersistentDiskAction.ReadPersistentDisk)
+      _ <-
+        if (hasPermission) F.unit
+        else
+          F.raiseError[Unit](
+            DiskNotFoundException(cloudContext, disk.name, ctx.traceId)
+          )
+
+      // throw 403 if no DeleteDisk permission
+      hasDeletePermission = listOfPermissions.toSet.contains(PersistentDiskAction.DeletePersistentDisk)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
+      // Mark the resource as deleted in Leo's DB
+      _ <- dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
+      // Notify SAM that the resource has been deleted
+      _ <- authProvider
+        .notifyResourceDeleted(
+          dbdisk.samResource,
+          disk.auditInfo.creator,
+          cloudContext.value
+        )
+    } yield ()
+
+  def deleteAllDisksRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      disks <- listDisks(
+        userInfo,
+        Some(cloudContext),
+        Map.empty
+      )
+      _ <- disks.traverse(disk => deleteDiskRecords(userInfo, cloudContext, disk))
+    } yield ()
+
   override def updateDisk(
     userInfo: UserInfo,
     googleProject: GoogleProject,

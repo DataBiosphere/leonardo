@@ -295,6 +295,12 @@ object Config {
     )
   }
 
+  implicit private val autodeleteConfigReader: ValueReader[AutoDeleteConfig] = ValueReader.relative { config =>
+    AutoDeleteConfig(
+      toScalaDuration(config.getDuration("autodeleteCheckInterval"))
+    )
+  }
+
   implicit private val pollMonitorConfigReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
     PollMonitorConfig(
       config.as[FiniteDuration]("initial-delay"),
@@ -386,8 +392,7 @@ object Config {
       Uri.unsafeFromString(config.as[String]("samServer")),
       config.getOrElse("petKeyCacheEnabled", true),
       config.getAs[FiniteDuration]("petKeyCacheExpiryTime").getOrElse(60 minutes),
-      config.getAs[Int]("petKeyCacheMaxSize").getOrElse(1000),
-      serviceAccountProviderConfig
+      config.getAs[Int]("petKeyCacheMaxSize").getOrElse(1000)
     )
   }
 
@@ -507,6 +512,7 @@ object Config {
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
+  val autodeleteConfig = config.as[AutoDeleteConfig]("autodelete")
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy")
@@ -900,5 +906,4 @@ object Config {
       proxyConfig,
       gkeGalaxyDiskConfig
     )
-
 }

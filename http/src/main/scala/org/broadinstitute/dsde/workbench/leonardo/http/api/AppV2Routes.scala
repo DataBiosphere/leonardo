@@ -177,6 +177,8 @@ object AppV2Routes {
         ea <- x.downField("extraArgs").as[Option[List[String]]]
         wsi <- x.downField("workspaceId").as[Option[WorkspaceId]]
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
+        adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
+        adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
 
         optStr <- x.downField("appType").as[Option[String]]
         cn <- x.downField("allowedChartName").as[Option[AllowedChartName]]
@@ -204,13 +206,15 @@ object AppV2Routes {
                                dp,
                                ea.getOrElse(List.empty),
                                wsi,
-                               swi
+                               swi,
+                               adtm,
+                               adte
       )
     }
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct14(
+    Encoder.forProduct16(
       "workspaceId",
       "cloudContext",
       "region",
@@ -224,7 +228,9 @@ object AppV2Routes {
       "diskName",
       "auditInfo",
       "accessScope",
-      "labels"
+      "labels",
+      "autodeleteEnabled",
+      "autodeleteThreshold"
     )(x =>
       (x.workspaceId,
        x.cloudContext,
@@ -239,12 +245,14 @@ object AppV2Routes {
        x.diskName,
        x.auditInfo,
        x.accessScope,
-       x.labels
+       x.labels,
+       x.autodeleteEnabled,
+       x.autodeleteThreshold
       )
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct15(
+    Encoder.forProduct17(
       "workspaceId",
       "appName",
       "cloudContext",
@@ -259,6 +267,8 @@ object AppV2Routes {
       "appType",
       "chartName",
       "accessScope",
-      "labels"
+      "labels",
+      "autodeleteEnabled",
+      "autodeleteThreshold"
     )(x => GetAppResponse.unapply(x).get)
 }
