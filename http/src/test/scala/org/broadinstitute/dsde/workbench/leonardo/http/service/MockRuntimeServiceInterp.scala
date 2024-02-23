@@ -8,6 +8,8 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
+
+  val diskIds = Vector(DiskId(1), DiskId(2))
   override def createRuntime(
     userInfo: UserInfo,
     cloudContext: CloudContext,
@@ -45,6 +47,20 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
     )
 
   override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
+  override def deleteAllRuntimes(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+    as: Ask[IO, AppContext]
+  ): IO[Option[Vector[DiskId]]] = IO.pure(Some(diskIds))
+
+  override def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(
+    implicit as: Ask[IO, AppContext]
+  ): IO[Unit] =
+    IO.unit
+
+  override def deleteAllRuntimesRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
     as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit

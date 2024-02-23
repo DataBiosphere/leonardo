@@ -207,6 +207,7 @@ trait TestLeoRoutes {
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      MockResourcesService,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -223,6 +224,7 @@ trait TestLeoRoutes {
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
