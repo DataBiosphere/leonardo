@@ -23,9 +23,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   BadRequestException,
   ForbiddenError,
   LeoAuthProvider,
+  NonDeletableDisksInProjectFoundException,
   SamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessageType
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -38,9 +40,10 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.mockito.Mockito._
 import org.scalatestplus.mockito.MockitoSugar
 
+import scala.collection.immutable.List
 import scala.concurrent.Future
 
-class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
+trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val emptyCreateDiskReq = CreateDiskRequest(
     Map.empty,
     None,
@@ -50,13 +53,13 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     None
   )
 
-  implicit val ctx: Ask[IO, AppContext] = Ask.const[IO, AppContext](
+  implicit val appContext: Ask[IO, AppContext] = Ask.const[IO, AppContext](
     AppContext(model.TraceId("traceId"), Instant.now())
   )
 
-  private def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
-                              googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
-                              allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
+  def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
+                      googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
+                      allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
   ) = {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
@@ -69,6 +72,13 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     )
     (diskService, publisherQueue)
   }
+}
+class DiskServiceInterpTest
+    extends AnyFlatSpec
+    with DiskServiceInterpSpec
+    with LeonardoTestSuite
+    with TestComponent
+    with MockitoSugar {
 
   "DiskService" should "fail with AuthorizationError if user doesn't have project level permission" in {
     val (diskService, _) = makeDiskService()
@@ -99,7 +109,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskName = DiskName("diskName1")
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       d <- diskService
         .createDisk(
           userInfo,
@@ -175,7 +185,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val expectedFormattedBy = FormattedBy.GCE
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       _ <- diskService
         .createDisk(
           userInfo,
@@ -224,7 +234,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskName = DiskName("diskName1")
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       cloneAttempt <- diskService
         .createDisk(
           userInfo,
@@ -253,7 +263,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskName = DiskName("diskName1")
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       cloneAttempt <- diskService
         .createDisk(
           userInfo,
@@ -318,7 +328,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ).thenReturn(IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build())))
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       _ <- diskService
         .createDisk(
           userInfoCreator,
@@ -591,7 +601,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
 
@@ -619,7 +629,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       _ <- IO(
@@ -647,7 +657,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       _ <- IO(
@@ -666,6 +676,187 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "delete a disk records but not queue delete disk message" in isolatedDbTest {
+    val (diskService, publisherQueue) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource)
+        .save()
+
+      listResponse <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
+
+      _ <- diskService.deleteDiskRecords(userInfo, cloudContextGcp, listResponse.head)
+      status <- persistentDiskQuery
+        .getStatus(disk.id)
+        .transaction
+
+      message <- publisherQueue.tryTake
+
+    } yield {
+      status shouldBe Some(DiskStatus.Deleted)
+      message shouldBe None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a disk records if the user does not have permission" in isolatedDbTest {
+    val (diskService1, _) = makeDiskService()
+    val (diskService2, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2)
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource)
+        .save()
+
+      listResponse <- diskService1.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
+
+      err <- diskService2.deleteDiskRecords(userInfo, cloudContextGcp, listResponse.head).attempt
+      status <- persistentDiskQuery
+        .getStatus(disk.id)
+        .transaction
+
+    } yield {
+      status shouldBe Some(DiskStatus.Ready)
+      err shouldBe Left(DiskNotFoundException(cloudContextGcp, disk.name, context.traceId))
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "delete all disks records but not queue delete disk messages" in isolatedDbTest {
+    val (diskService, publisherQueue) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+      diskSamResource1 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource1)
+        .save()
+
+      diskSamResource2 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource2)
+        .save()
+
+      _ <- diskService.deleteAllDisksRecords(userInfo, cloudContextGcp)
+
+      disks <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map("includeDeleted" -> "true"))
+
+      message <- publisherQueue.tryTake
+
+    } yield {
+      disks.map(_.status) shouldEqual List(DiskStatus.Deleted, DiskStatus.Deleted)
+      message shouldBe None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "delete all orphaned disks" in isolatedDbTest {
+    val (diskService, publisherQueue) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+      // 1 and 2 are the attached disks while 3 and 4 are orphaned. Only 3 and 4 should be deleted
+      diskSamResource1 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource1)
+        .save()
+      diskSamResource2 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource2)
+        .save()
+      diskSamResource3 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk3 <- makePersistentDisk(Some(DiskName("d3")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource1)
+        .save()
+      diskSamResource4 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk4 <- makePersistentDisk(Some(DiskName("d4")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource4)
+        .save()
+
+      _ <- diskService.deleteAllOrphanedDisks(userInfo, cloudContextGcp, Vector(disk1.id), Vector(disk2.name))
+
+      disks <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map("includeDeleted" -> "true"))
+
+      messages <- publisherQueue.tryTakeN(Some(2))
+
+    } yield {
+      disks.map(_.status.toString).sorted shouldBe Vector(DiskStatus.Deleting.toString,
+                                                          DiskStatus.Deleting.toString,
+                                                          DiskStatus.Ready.toString,
+                                                          DiskStatus.Ready.toString
+      )
+      messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteDisk, LeoPubsubMessageType.DeleteDisk)
+      val deleteDiskMessages = messages.map(_.asInstanceOf[DeleteDiskMessage])
+      deleteDiskMessages.map(_.diskId.toString).sorted shouldBe List(disk3.id.toString, disk4.id.toString).sorted
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete all orphaned disks if a disk is not deletable" in isolatedDbTest {
+    val (diskService, publisherQueue) = makeDiskService()
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is allow-listed
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+      // 1 and 2 are the attached disks while 3 and 4 are orphaned. Only 3 and 4 should be deleted
+      diskSamResource1 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource1)
+        .save()
+      diskSamResource2 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource2, status = DiskStatus.Deleting)
+        .save()
+
+      _ <- diskService.deleteAllOrphanedDisks(userInfo, cloudContextGcp, Vector.empty, Vector.empty)
+
+      disks <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map("includeDeleted" -> "true"))
+
+      messages <- publisherQueue.tryTakeN(Some(2))
+
+    } yield {
+      messages shouldBe List.empty
+      disks.map(_.status) shouldBe List(DiskStatus.Ready, DiskStatus.Deleting)
+    }
+
+    the[NonDeletableDisksInProjectFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
     status =>
       val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -676,7 +867,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val (diskService, _) = makeDiskService()
         val res = for {
-          t <- ctx.ask[AppContext]
+          t <- appContext.ask[AppContext]
           diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
           disk <- makePersistentDisk(None).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, DiskSize(600))
@@ -699,7 +890,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) // this email is allow-listed
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, DiskSize(600))

@@ -139,8 +139,8 @@ INIT_BUCKET_NAME=$(initBucketName)
 CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
-GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20220722 gcloud'
+GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
+GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
 
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   export SHOULD_BACKGROUND_SYNC="true"
@@ -225,7 +225,13 @@ DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
-  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
+  # It's likely that the persistent disk was previously mounted on another VM and wasn't properly unmounted
+  # either because the VM was terminated or there is no unmount in the shutdown sequence and occasionally
+  # fs is getting marked as not clean.
+  # Passing -F -F to mkfs.ext4 should force the tool to ignore the state of the partition.
+  # Note that there should be two instances command-line switch (-F -F) to override this check
+
+  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID} -F -F
 fi
 
 mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}

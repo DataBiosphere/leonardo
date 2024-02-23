@@ -54,7 +54,12 @@ import org.broadinstitute.dsde.workbench.leonardo.app.{
   WdsAppInstall,
   WorkflowsAppInstall
 }
-import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{
+  AuthCacheKey,
+  CloudAuthTokenProvider,
+  PetClusterServiceAccountProvider,
+  SamAuthProvider
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -84,6 +89,7 @@ import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, Ret
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.net.{InetSocketAddress, SocketException}
 import java.nio.file.Paths
 import java.time.Instant
@@ -216,6 +222,13 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
 
+      val resourcesService = new ResourcesServiceInterp[IO](
+        appDependencies.authProvider,
+        runtimeService,
+        leoKubernetesService,
+        diskService
+      )
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -226,6 +239,7 @@ object Boot extends IOApp {
         leoKubernetesService,
         azureService,
         adminService,
+        resourcesService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig
@@ -276,6 +290,12 @@ object Boot extends IOApp {
             appDependencies.publisherQueue
           )
 
+          val autodeleteAppMonitorProcess = AutoDeleteAppMonitor.process(
+            autodeleteConfig,
+            appDependencies.publisherQueue,
+            appDependencies.authProvider
+          )
+
           val nonLeoMessageSubscriber =
             new NonLeoMessageSubscriber[IO](
               NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
@@ -317,6 +337,7 @@ object Boot extends IOApp {
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitorProcess, // check database to autopause runtimes periodically
+            autodeleteAppMonitorProcess, // check database to auto delete apps periodically
             metricsMonitor.process // checks database and collects metrics about active runtimes and apps
           )
         }
@@ -400,7 +421,12 @@ object Boot extends IOApp {
       )(_.close)
 
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
-        HttpSamDAO[F](client, httpSamDaoConfig, petKeyCache)
+        HttpSamDAO[F](
+          client,
+          httpSamDaoConfig,
+          petKeyCache,
+          CloudAuthTokenProvider[F](ConfigReader.appConfig.azure.hostingModeConfig, serviceAccountProviderConfig)
+        )
       )
       cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
         client => new HttpCromwellDAO[F](client)

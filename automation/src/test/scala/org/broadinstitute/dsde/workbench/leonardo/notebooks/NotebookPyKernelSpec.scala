@@ -2,8 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec.runtimeFixtureZone
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec, SSH}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec.runtimeFixtureZone
 import org.scalatest.DoNotDiscover
 
 /**

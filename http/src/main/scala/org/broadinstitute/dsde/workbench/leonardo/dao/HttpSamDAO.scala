@@ -6,15 +6,15 @@ import _root_.io.circe._
 import _root_.org.typelevel.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import cats.effect.{Async, Ref}
+import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
-import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, WorkspaceResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -34,25 +34,25 @@ import java.io.ByteArrayInputStream
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.concurrent.duration._
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.SeqHasAsJava
 import scala.util.control.NoStackTrace
 
 class HttpSamDAO[F[_]](httpClient: Client[F],
                        config: HttpSamDaoConfig,
-                       petKeyCache: Cache[F, UserEmailAndProject, Option[Json]]
+                       petKeyCache: Cache[F, UserEmailAndProject, Option[Json]],
+                       cloudAuthTokenProvider: CloudAuthTokenProvider[F]
 )(implicit
   logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends SamDAO[F]
     with Http4sClientDsl[F] {
+
   private val saScopes = Seq(
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     StorageScopes.DEVSTORAGE_READ_ONLY
   )
-  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInternal)
-
   override def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       leoToken <- getLeoAuthToken
@@ -496,20 +496,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     } yield resp
   }
 
-  override def getLeoAuthToken: F[Authorization] =
-    for {
-      ref <- leoSaTokenRef
-      accessToken <- ref.get
-      now <- F.realTimeInstant
-      validAccessToken <-
-        if (accessToken.getExpirationTime.getTime > now.toEpochMilli)
-          getLeoAuthTokenInternal
-        else F.pure(accessToken)
-    } yield {
-      val token = validAccessToken.getTokenValue
-
-      Authorization(Credentials.Token(AuthScheme.Bearer, token))
-    }
+  override def getLeoAuthToken: F[Authorization] = cloudAuthTokenProvider.getAuthToken
 
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[F, TraceId]
@@ -565,15 +552,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       }
     } yield isAdmin
   }
-
-  private def getLeoAuthTokenInternal: F[com.google.auth.oauth2.AccessToken] =
-    credentialResource(
-      config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
-    ).use { credential =>
-      val scopedCredential = credential.createScoped(saScopes.asJava)
-
-      F.blocking(scopedCredential.refresh).map(_ => scopedCredential.getAccessToken)
-    }
 
   private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
@@ -633,9 +611,10 @@ object HttpSamDAO {
   def apply[F[_]: Async](
     httpClient: Client[F],
     config: HttpSamDaoConfig,
-    petKeyCache: Cache[F, UserEmailAndProject, Option[Json]]
+    petKeyCache: Cache[F, UserEmailAndProject, Option[Json]],
+    cloudAuthTokenProvider: CloudAuthTokenProvider[F]
   )(implicit logger: StructuredLogger[F], metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
-    new HttpSamDAO[F](httpClient, config, petKeyCache)
+    new HttpSamDAO[F](httpClient, config, petKeyCache, cloudAuthTokenProvider)
 
   implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)
   implicit val projectActionEncoder: Encoder[ProjectAction] = Encoder.encodeString.contramap(_.asString)
@@ -781,8 +760,7 @@ final case class ListResourceRolesItem[R](samResourceId: R, samRoles: Set[SamRol
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
-                                  petCacheMaxSize: Int,
-                                  serviceAccountProviderConfig: ServiceAccountProviderConfig
+                                  petCacheMaxSize: Int
 )
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)

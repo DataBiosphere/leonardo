@@ -38,6 +38,18 @@ trait RuntimeService[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 
+  def deleteAllRuntimes(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Option[Vector[DiskId]]]
+
+  def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
+  def deleteAllRuntimesRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit]
+
   def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]

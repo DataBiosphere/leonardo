@@ -549,6 +549,7 @@ class ProxyRoutesSpec
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      MockResourcesService,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -720,6 +721,7 @@ class ProxyRoutesSpec
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
+      MockResourcesService,
       userInfoDirectives,
       contentSecurityPolicy,
       useRefererConfig
