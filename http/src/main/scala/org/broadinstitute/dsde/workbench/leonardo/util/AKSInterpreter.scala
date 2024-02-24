@@ -861,7 +861,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                         workspaceId: WorkspaceId,
                                                         landingZoneResources: LandingZoneResources,
                                                         wsmResourceApi: ResourceApi
-  )(implicit ev: Ask[F, AppContext]): F[List[AppControlledResourceRecord]] =
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
     if (landingZoneResources.postgresServer.isDefined) for {
       ctx <- ev.ask
       wsmApi <- buildWsmControlledResourceApiClient
@@ -900,12 +900,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         } yield db
       }
 
-      // Get list of APP_CONTROLLED_RESOURCE for this app (appId, resource_id, state)
-      appControlledResources: List[AppControlledResourceRecord] <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
-        .transaction
-
-    } yield appControlledResources
+    } yield ()
     else {
       ev.ask.flatMap(ctx =>
         F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
