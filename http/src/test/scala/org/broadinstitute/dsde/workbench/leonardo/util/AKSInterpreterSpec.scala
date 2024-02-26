@@ -619,7 +619,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
-      _ = println(controlledResources)
       namespaceRecord = controlledResources.filter(r => r.resourceType == WsmResourceType.AzureKubernetesNamespace).head
     } yield {
       verify(mockControlledResourceApi, times(1))
@@ -659,7 +658,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
-      _ = println(controlledResources)
       idRecord = controlledResources.filter(r => r.resourceType == WsmResourceType.AzureManagedIdentity).head
     } yield {
       verify(mockControlledResourceApi, times(1))

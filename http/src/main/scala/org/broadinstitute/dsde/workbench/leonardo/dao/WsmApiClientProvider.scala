@@ -115,7 +115,6 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
   ): F[Option[ResourceMetadata]] = for {
     wsmApi <- getControlledAzureResourceApi(token)
     attempt <- F.delay(wsmApi.getAzureDisk(workspaceId.value, wsmResourceId.value)).attempt
-    _ = println(attempt)
     disk = attempt match {
       case Right(result) => Some(result.getMetadata)
       case Left(_)       => None
