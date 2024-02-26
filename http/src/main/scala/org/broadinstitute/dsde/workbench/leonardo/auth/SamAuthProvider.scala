@@ -413,6 +413,15 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isAdminUser(userInfo)
 
+  override def getLeoAuthToken: F[String] =
+    for {
+      auth <- samDao.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+    } yield token
+
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,

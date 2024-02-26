@@ -939,18 +939,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .transaction
     _ <- wsmResources.traverse { resource =>
       for {
-        wsmState <- resourceType match {
-          case WsmResourceType.AzureDatabase =>
-            wsmClientProvider.getDatabaseState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureKubernetesNamespace =>
-            wsmClientProvider.getNamespaceState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureManagedIdentity =>
-            wsmClientProvider.getIdentityState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureDisk =>
-            wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureStorageContainer =>
-            F.pure(WsmState(None)) // no get endpoint for a storage container in WSM yet
-        }
+        wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
+                                                  workspaceId,
+                                                  resource.resourceId,
+                                                  resourceType
+        )
         _ <- F
           .raiseUnless(wsmState.isDeletable)(
             AppResourceCannotBeDeletedException(resource.resourceId, appId, wsmState.value, resourceType, ctx.traceId)
