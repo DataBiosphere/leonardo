@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesModels,
   PvName
 }
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.tokenValue
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
@@ -194,6 +195,8 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
   override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+
+  override def getLeoAuthToken: IO[String] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider

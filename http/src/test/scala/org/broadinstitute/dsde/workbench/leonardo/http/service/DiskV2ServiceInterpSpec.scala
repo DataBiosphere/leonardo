@@ -168,11 +168,11 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   it should "fail to delete a disk if its creating" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-        implicit
-        ev: Ask[IO, AppContext],
-        log: StructuredLogger[IO]
-      ): IO[WsmState] =
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
 
@@ -199,11 +199,11 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   it should "delete a disk and not send wsmResourceId if disk is deleted in WSM" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-        implicit
-        ev: Ask[IO, AppContext],
-        log: StructuredLogger[IO]
-      ): IO[WsmState] =
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(None))
     }
 

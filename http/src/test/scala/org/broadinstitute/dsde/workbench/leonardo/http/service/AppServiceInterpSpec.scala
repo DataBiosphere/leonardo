@@ -2814,9 +2814,10 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "error on delete if app subresource is in a status that cannot be deleted" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val wsmClientProvider = new MockWsmClientProvider() {
-      override def getDatabaseState(token: String,
-                                    workspaceId: WorkspaceId,
-                                    wsmResourceId: WsmControlledResourceId
+      override def getWsmState(token: String,
+                               workspaceId: WorkspaceId,
+                               wsmResourceId: WsmControlledResourceId,
+                               wsmResourceType: WsmResourceType
       )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
