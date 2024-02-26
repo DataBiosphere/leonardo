@@ -612,10 +612,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
-    } yield {
-      controlledResources.size shouldBe 2
-      //verify(mockControlledResourceApi, never()).createAzureManagedIdentity(any(), any())
-    }
+    } yield controlledResources.size shouldBe 2
+    // verify(mockControlledResourceApi, never()).createAzureManagedIdentity(any(), any())
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
