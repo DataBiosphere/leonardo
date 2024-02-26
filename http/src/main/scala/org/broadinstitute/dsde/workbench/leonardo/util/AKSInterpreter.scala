@@ -119,11 +119,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       wsmResourceApi <- buildWsmResourceApiClient
 
-      // Create or fetch WSM managed identity (if shared app or app creation restarted)
-//      wsmManagedIdentityOpt <-
-//        childSpan("createWsmManagedIdentity").use { implicit ev =>
-//        createOrFetchWsmManagedIdentity(app, wsmResourceApi, params.workspaceId, namespacePrefix)
-//      }
       // Create or fetch WSM managed identity (if shared app)
       // The managed identity name is either:
       // shared apps --> the WSM identity --> shared apps
