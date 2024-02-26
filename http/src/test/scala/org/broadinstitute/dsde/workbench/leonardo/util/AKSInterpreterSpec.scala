@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, N
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   azureRegion,
   billingProfileId,
+  tokenValue,
   workspaceId,
   workspaceIdForAppCreation,
   workspaceIdForCloning
@@ -22,6 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, m
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppInstall}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -34,7 +36,7 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{atLeastOnce, verify, when}
+import org.mockito.Mockito.{atLeastOnce, times, verify, when}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -62,22 +64,25 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureRelayService = setUpMockAzureRelayService
   val mockKube = setUpMockKube
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = setUpMockWsmApiClientProvider
+  val mockSamAuthProvider = setUpMockSamAuthProvider
 
   implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
     case AppType.WorkflowsApp => setUpMockWorkflowAppInstall
     case _                    => setUpMockAppInstall
   }
-  def newAksInterp(configuration: AKSInterpreterConfig) = new AKSInterpreter[IO](
-    configuration,
-    MockHelm,
-    mockAzureContainerService,
-    mockAzureRelayService,
-    mockSamDAO,
-    mockWsmDAO,
-    mockKube,
-    mockWsm,
-    mockWsmDAO
-  )
+  def newAksInterp(configuration: AKSInterpreterConfig, mockWsm: WsmApiClientProvider[IO] = mockWsm) =
+    new AKSInterpreter[IO](
+      configuration,
+      MockHelm,
+      mockAzureContainerService,
+      mockAzureRelayService,
+      mockSamDAO,
+      mockWsmDAO,
+      mockKube,
+      mockWsm,
+      mockWsmDAO,
+      mockSamAuthProvider
+    )
 
   val aksInterp = newAksInterp(config)
 
@@ -254,17 +259,61 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-  // retrieve wsm identity
   it should "retrieve a WSM controlled identity if it exists in workspace" in isolatedDbTest {
     val res = for {
       retrievedIdentity <- aksInterp.retrieveWsmManagedIdentity(mockResourceApi,
                                                                 AppType.WorkflowsApp,
-                                                                workspaceIdForCloning.value
+                                                                workspaceId.value
       )
     } yield {
       retrievedIdentity.get.wsmResourceName shouldBe "idworkflows_app"
-      retrievedIdentity.get.managedIdentityName shouldBe "cloned_abcxyz"
+      retrievedIdentity.get.managedIdentityName shouldBe "abcxyz"
     }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+  it should "not retrieve a WSM controlled identity if it doesn't exist in workspace" in isolatedDbTest {
+    val res = for {
+      retrievedIdentity <- aksInterp.retrieveWsmManagedIdentity(mockResourceApi,
+                                                                AppType.CromwellRunnerApp,
+                                                                workspaceId.value
+      )
+    } yield retrievedIdentity shouldBe None
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "retrieve a WSM database if it exists in workspace" in isolatedDbTest {
+    val res = for {
+      retrievedDatabases <- aksInterp.retrieveWsmDatabases(mockResourceApi, Set("cromwellmetadata"), workspaceId.value)
+    } yield {
+      retrievedDatabases.head.wsmDatabaseName shouldBe "cromwellmetadata"
+      retrievedDatabases.head.azureDatabaseName shouldBe "cromwellmetadata_abcxyz"
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not retrieve a WSM database if it doesn't exist in workspace" in isolatedDbTest {
+    val res = for {
+      retrievedDatabases <- aksInterp.retrieveWsmDatabases(mockResourceApi, Set("cbas"), workspaceId.value)
+    } yield retrievedDatabases shouldBe empty
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "retrieve a WSM namespace if it exists in workspace" in isolatedDbTest {
+    val res = for {
+      retrievedNamespaces <- aksInterp.retrieveWsmNamespace(mockResourceApi, "ns-name", workspaceId.value)
+    } yield retrievedNamespaces.head.name.value shouldBe "ns-name"
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not retrieve a WSM namespace if doesn't exist in workspace" in isolatedDbTest {
+    val res = for {
+      retrievedNamespaces <- aksInterp.retrieveWsmNamespace(mockResourceApi, "something-else", workspaceId.value)
+    } yield retrievedNamespaces.length shouldBe 0
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -534,17 +583,99 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
     } yield {
-      createdNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesNamespace should startWith("ns")
-      createdNamespace.getAzureKubernetesNamespace.getAttributes.getDatabases.asScala.toSet shouldBe databases.toSet
-      createdNamespace.getAzureKubernetesNamespace.getAttributes.getManagedIdentity shouldBe identity
-      createdNamespace.getAzureKubernetesNamespace.getAttributes.getKubernetesServiceAccount shouldBe identity.toString
+      createdNamespace.name.value should startWith("ns")
       controlledResources.size shouldBe 1
-      controlledResources.head.resourceId.value shouldBe createdNamespace.getResourceId
+      controlledResources.head.resourceId shouldBe createdNamespace.wsmResourceId
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureKubernetesNamespace
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
       controlledResources.head.appId shouldBe appId.id
     }
 
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not create a WSM controlled namespace if one already exists" in isolatedDbTest {
+    val (mockWsm, mockControlledResourceApi, _) = setUpMockWsmApiClientProvider
+    val aksInterp = newAksInterp(config, mockWsm = mockWsm)
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.Cromwell,
+        status = AppStatus.Running,
+        appResources = AppResources(
+          NamespaceName("ns-name"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+
+      appId = saveApp.id
+      databases = List("db1", "db2")
+      identity = "id"
+
+      createdNamespace <- aksInterp.createWsmKubernetesNamespaceResource(saveApp,
+                                                                         workspaceId,
+                                                                         "ns-name",
+                                                                         databases,
+                                                                         Some(identity)
+      )
+
+      params = CreateAKSAppParams(appId, saveApp.appName, workspaceId, cloudContext, billingProfileId)
+      _ <- aksInterp.createAndPollApp(params)
+
+      controlledResources <- appControlledResourceQuery
+        .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
+        .transaction
+      namespaceRecord = controlledResources.filter(r => r.resourceType == WsmResourceType.AzureKubernetesNamespace).head
+    } yield {
+      verify(mockControlledResourceApi, times(1))
+        .createAzureKubernetesNamespace(any[CreateControlledAzureKubernetesNamespaceRequestBody], any[UUID])
+      controlledResources.size shouldBe 3
+      namespaceRecord.resourceId shouldBe createdNamespace.wsmResourceId
+      namespaceRecord.status shouldBe AppControlledResourceStatus.Created
+      namespaceRecord.appId shouldBe appId.id
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not create a WSM managed identity if one already exists" in isolatedDbTest {
+    val (mockWsm, mockControlledResourceApi, _) = setUpMockWsmApiClientProvider
+    val aksInterp = newAksInterp(config, mockWsm = mockWsm)
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.WorkflowsApp,
+        status = AppStatus.Running,
+        appResources = AppResources(
+          NamespaceName("ns-1"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+      appId = saveApp.id
+
+      _ <- aksInterp.createAzureManagedIdentity(saveApp, "ns-1", workspaceId)
+
+      params = CreateAKSAppParams(appId, saveApp.appName, workspaceId, cloudContext, billingProfileId)
+      _ <- aksInterp.createAndPollApp(params)
+
+      controlledResources <- appControlledResourceQuery
+        .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
+        .transaction
+      idRecord = controlledResources.filter(r => r.resourceType == WsmResourceType.AzureManagedIdentity).head
+    } yield {
+      verify(mockControlledResourceApi, times(1))
+        .createAzureManagedIdentity(any[CreateControlledAzureManagedIdentityRequestBody], any[UUID])
+      controlledResources.size shouldBe 3
+      idRecord.status shouldBe AppControlledResourceStatus.Created
+      idRecord.appId shouldBe appId.id
+    }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -892,7 +1023,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     }
     // enumerate workspace managed identity resources
     when {
-      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForCloning.value),
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
                                      any,
                                      any,
                                      ArgumentMatchers.eq(ResourceType.AZURE_MANAGED_IDENTITY),
@@ -904,7 +1035,27 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app").resourceId(java.util.UUID.randomUUID()))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureManagedIdentity(
-          new AzureManagedIdentityAttributes().managedIdentityName("cloned_abcxyz")
+          new AzureManagedIdentityAttributes().managedIdentityName("abcxyz")
+        )
+      )
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
+    // enumerate workspace namespace resources
+    when {
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_KUBERNETES_NAMESPACE),
+                                     any
+      )
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app"))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureKubernetesNamespace(
+          new AzureKubernetesNamespaceAttributes().kubernetesNamespace("ns-name")
         )
       )
       resourceList.add(resourceDesc)
@@ -947,5 +1098,14 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn IO.pure(true)
 
     mockWorkflowsAppInstall
+  }
+
+  private def setUpMockSamAuthProvider: SamAuthProvider[IO] = {
+    val mockSamAuth = mock[SamAuthProvider[IO]]
+
+    when {
+      mockSamAuth.getLeoAuthToken
+    } thenReturn IO.pure(tokenValue)
+    mockSamAuth
   }
 }

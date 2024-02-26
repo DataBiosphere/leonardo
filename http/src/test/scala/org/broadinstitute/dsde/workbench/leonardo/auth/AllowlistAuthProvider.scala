@@ -195,4 +195,6 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
   override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = IO.pure(true)
+
+  override def getLeoAuthToken: IO[String] = ???
 }

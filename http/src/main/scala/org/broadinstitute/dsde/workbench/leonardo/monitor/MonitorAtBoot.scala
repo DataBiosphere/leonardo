@@ -58,13 +58,13 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
 
   private def processApps: Stream[F, Unit] =
     monitoredApps
-      .parEvalMapUnordered(10) { case (a, n, c) =>
+      .parEvalMapUnordered(10) { case (app, nodepool, cluster) =>
         for {
           now <- F.realTimeInstant
           implicit0(traceId: Ask[F, AppContext]) = Ask.const[F, AppContext](
             AppContext(TraceId(s"BootMonitor${now}"), now = now)
           )
-          _ <- handleApp(a, n, c)
+          _ <- handleApp(app, nodepool, cluster)
         } yield ()
       }
       .handleErrorWith(e =>
@@ -143,6 +143,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
     res.handleErrorWith(e => logger.error(e)(s"MonitorAtBoot: Error monitoring app ${app.id}"))
   }
 
+  /** For apps in PROVISIONING or DELETING, send appropriate createApp or deleteApp message depending upon resource state*/
   private def appStatusToMessage(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(implicit
     ev: Ask[F, AppContext]
   ): F[LeoPubsubMessage] =
@@ -416,6 +417,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
+        // TODO: starting is supported now, update accordingly, https://broadworkbench.atlassian.net/browse/IA-4843
         F.raiseError(MonitorAtBootException("Starting Azure runtime is not supported yet", traceId))
       case RuntimeStatus.Creating =>
         for {
