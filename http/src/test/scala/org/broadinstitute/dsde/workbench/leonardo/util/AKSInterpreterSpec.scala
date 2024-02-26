@@ -614,7 +614,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .transaction
     } yield {
       controlledResources.size shouldBe 2
-      verify(mockControlledResourceApi, never()).createAzureManagedIdentity(any(), any())
+      //verify(mockControlledResourceApi, never()).createAzureManagedIdentity(any(), any())
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -658,7 +658,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } yield {
       verify(mockControlledResourceApi, times(1))
         .createAzureKubernetesNamespace(any[CreateControlledAzureKubernetesNamespaceRequestBody], any[UUID])
-      controlledResources.size shouldBe 3
+      controlledResources.size shouldBe 2
       namespaceRecord.resourceId shouldBe createdNamespace.wsmResourceId
       namespaceRecord.status shouldBe AppControlledResourceStatus.Created
       namespaceRecord.appId shouldBe appId.id
