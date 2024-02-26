@@ -66,6 +66,17 @@ object AppStateManager {
       mockResponse
     }
 
+  private def mockListApp(mockAppService: AppService[IO],
+                          mockResponse: IO[List[GetAppResponse]]
+                         ): OngoingStubbing[IO[List[GetAppResponse]]] =
+    when {
+      mockAppService.listApp(any[UserInfo], any[Option[CloudContext.Gcp]], any[Map[String, String]])(
+        any[Ask[IO, AppContext]]
+      )
+    } thenReturn {
+      mockResponse
+    }
+
   def handler(mockAppService: AppService[IO]): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.AppExists, _) =>
       mockGetApp(mockAppService, IO {
@@ -75,9 +86,9 @@ object AppStateManager {
     case ProviderState(States.AppDoesNotExist, _) =>
       mockGetApp(mockAppService, IO.raiseError(mockedAppNotFoundException))
       mockDeleteApp(mockAppService, IO.raiseError(mockedAppNotFoundException))
-//    case ProviderState(States.GoogleProjectExists, _) =>
-//      when(mockAppService.listApp(any[UserInfo], any[Option[CloudContext.Gcp]], any[Map[String, String]])(any[Ask[IO, AppContext]])).thenReturn(IO {
-//        mockedGetAppResponseList
-//      })
+    case ProviderState(States.GoogleProjectExists, _) =>
+        mockListApp(mockAppService, IO {
+            mockedGetAppResponseList
+        })
   }
 }
