@@ -28,7 +28,7 @@ import org.broadinstitute.dsp.{ChartName, ChartVersion, Values}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{atLeastOnce, times, verify, when}
+import org.mockito.Mockito.{atLeastOnce, never, times, verify, when}
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
