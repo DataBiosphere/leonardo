@@ -39,7 +39,7 @@ object AppStateManager {
     None,
     Map.empty[String, String]
   )
-
+  private val mockedAppNotFoundException = AppNotFoundException(mockedGetAppResponse.cloudContext, mockedGetAppResponse.appName, null, "App not found")
   private def mockGetApp(mockRuntimeService: AppService[IO],
                              mockResponse: IO[GetAppResponse]
                             ): OngoingStubbing[IO[GetAppResponse]] =
@@ -58,6 +58,6 @@ object AppStateManager {
         })
     case ProviderState(States.AppDoesNotExist, _) =>
       when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
-          .thenReturn(IO.raiseError(new AppNotFoundException("App not found")))
+          .thenReturn(IO.raiseError(mockedAppNotFoundException))
   }
 }
