@@ -410,6 +410,83 @@ class RuntimeServiceInterp[F[_]: Parallel](
         }
     } yield ()
 
+  def deleteAllRuntimes(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Option[Vector[DiskId]]] =
+    for {
+      ctx <- as.ask
+      runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty)
+
+      // Extracts all the disks attached to the runtimes so we can differentiate them from orphaned disks when calling the deleteAllResources method
+      attachedPersistentDiskIds = runtimes
+        .map(r => r.runtimeConfig)
+        .traverse(c =>
+          c match {
+            case x: RuntimeConfig.GceWithPdConfig => x.persistentDiskId
+            case _                                => none
+          }
+        )
+
+      nonDeletableRuntimes = runtimes.filterNot(r => r.status.isDeletable)
+
+      _ <- F
+        .raiseError(
+          NonDeletableRuntimesInProjectFoundException(
+            cloudContext.value,
+            nonDeletableRuntimes,
+            ctx.traceId
+          )
+        )
+        .whenA(!nonDeletableRuntimes.isEmpty)
+
+      _ <- runtimes
+        .traverse(runtime =>
+          deleteRuntime(DeleteRuntimeRequest(userInfo, cloudContext.value, runtime.clusterName, deleteDisk))
+        )
+    } yield attachedPersistentDiskIds
+
+  def deleteRuntimeRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, runtime: ListRuntimeResponse2)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+
+      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, cloudContext.value, userInfo)
+      // throw 404 if no GetRuntime permission
+      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
+        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
+      _ <-
+        if (hasStatusPermission) F.unit
+        else
+          F.raiseError[Unit](
+            RuntimeNotFoundException(cloudContext, runtime.clusterName, "Permission Denied", Some(ctx.traceId))
+          )
+
+      // throw 403 if no DeleteApp permission
+      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
+        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
+      // Mark the resource as deleted in Leo's DB
+      _ <- dbReference.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
+      // Notify SAM that the resource has been deleted
+      _ <- authProvider
+        .notifyResourceDeleted(
+          runtime.samResource,
+          runtime.auditInfo.creator,
+          cloudContext.value
+        )
+    } yield ()
+
+  def deleteAllRuntimesRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty)
+      _ <- runtimes.traverse(runtime => deleteRuntimeRecords(userInfo, cloudContext, runtime))
+    } yield ()
+
   def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =

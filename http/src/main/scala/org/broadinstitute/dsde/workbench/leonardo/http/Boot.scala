@@ -222,6 +222,13 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
 
+      val resourcesService = new ResourcesServiceInterp[IO](
+        appDependencies.authProvider,
+        runtimeService,
+        leoKubernetesService,
+        diskService
+      )
+
       val httpRoutes = new HttpRoutes(
         appDependencies.openIDConnectConfiguration,
         statusService,
@@ -232,6 +239,7 @@ object Boot extends IOApp {
         leoKubernetesService,
         azureService,
         adminService,
+        resourcesService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig
@@ -753,7 +761,8 @@ object Boot extends IOApp {
         wsmDao,
         kubeAlg,
         wsmClientProvider,
-        wsmDao
+        wsmDao,
+        authProvider
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](

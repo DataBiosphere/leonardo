@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers
 
 class ModelsSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   it should "convert WSM state to value correctly" in {
-    WsmState(None).value shouldBe "DELETED"
+    WsmState(None).value shouldBe "NONE"
     WsmState(Some("CREATING")).value shouldBe "CREATING"
     WsmState(Some("UPDATING")).value shouldBe "UPDATING"
     WsmState(Some("BROKEN")).value shouldBe "BROKEN"

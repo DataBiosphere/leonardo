@@ -10,6 +10,8 @@ info:
     url: http://opensource.org/licenses/BSD-3-Clause
   termsOfService: https://github.com/broadinstitute/leonardo
 tags:
+  - name: resources
+    description: Resources API. Overarching support of runtimes and apps.
   - name: runtimes
     description: Runtimes API. Support both Google Dataproc and Google Compute Engine.
   - name: disks
@@ -76,8 +78,81 @@ paths:
                 $ref: "#/components/schemas/LeonardoVersion"
       security: []
 
-  ## Runtime paths ##
+  ## All resources path ##
+  "/api/google/v1/resources/{googleProject}/deleteAll":
+    delete:
+      summary: Deletes ALL runtimes, disks and apps associated with the given google project
+      description: deletes all runtimes and apps in a google project
+      operationId: deleteAllResources
+      tags:
+        - resources
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not disk should be deleted if the runtime is using persistent disk. Default to false if not specified
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "202":
+          description: Resource(s) deletion request accepted
+        "403":
+          description: User does not have permission to perform action on resource(s)
+        "404":
+          description: Resource(s) not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
 
+  "/api/google/v1/resources/{googleProject}/cleanupAll":
+    delete:
+      summary: Cleanup ALL records of runtimes and apps associated with the given google project in the Leonardo and Sam databases
+      description: Marks all runtimes, disks and apps in a google project as deleted in Leonardo and Sam
+      operationId: cleanupAllResources
+      tags:
+        - resources
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resource(s) records cleanup successful
+        "403":
+          description: User does not have permission to perform action on resource(s)
+        "404":
+          description: Resource(s) not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
+
+
+  ## Runtime paths ##
   "/api/google/v1/runtimes":
     get:
       summary: List all runtimes that the caller has access to
@@ -444,6 +519,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+
 
   "/api/v2/runtimes":
     get:
@@ -846,7 +922,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
     delete:
-      summary: Deletes an Azure runtime instance in the given workspce
+      summary: Deletes an Azure runtime instance in the given workspace
       description: deletes a runtime
       operationId: deleteAzureRuntime
       tags:
@@ -4037,7 +4113,7 @@ components:
         autodeleteThreshold:
           type: integer
           description: The number of minutes of idle time to elapse before the app is
-            deleted in minute. When autodeleteEnabled is true, a positive integer is required
+            deleted. When autodeleteEnabled is true, a positive integer is required
         autodeleteEnabled:
           type: boolean
           description: Whether to turn on autodelete
@@ -4126,6 +4202,13 @@ components:
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
+        autodeleteEnabled:
+          type: boolean
+          description: Whether to turn on autodelete
+        autodeleteThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the app is
+              deleted. When autodeleteEnabled is true, a positive integer is required
 
     ListAppResponse:
       description: the configuration of an app
@@ -4172,6 +4255,13 @@ components:
         labels:
           type: object
           description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
+        autodeleteEnabled:
+          type: boolean
+          description: Whether to turn on autodelete
+        autodeleteThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the app is
+            deleted. When autodeleteEnabled is true, a positive integer is required
 
     ListUpdateableAppResponse:
       description: out-of-date app properties

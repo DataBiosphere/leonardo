@@ -430,6 +430,90 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
     } yield ()
 
+  override def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
+    as: Ask[F, AppContext]
+  ): F[Vector[DiskName]] =
+    for {
+      ctx <- as.ask
+      apps <- listApp(
+        userInfo,
+        Some(cloudContext),
+        Map.empty
+      )
+      // Extracts all the disks attached to the apps so we can differentiate them from orphaned disks when calling the deleteAllResources method
+      attachedPersistentDiskNames = apps.mapFilter(a => a.diskName)
+
+      nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app.status))
+
+      _ <- F
+        .raiseError(DeleteAllAppsV1CannotBePerformed(cloudContext.value, nonDeletableApps, ctx.traceId))
+        .whenA(!nonDeletableApps.isEmpty)
+
+      _ <- apps
+        .traverse { app =>
+          deleteApp(userInfo, cloudContext, app.appName, deleteDisk)
+        }
+    } yield attachedPersistentDiskNames
+
+  override def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      // Find the app ID and Sam resource id
+      dbAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(cloudContext, appName)
+        .transaction
+      dbApp <- F.fromOption(
+        dbAppOpt,
+        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+      )
+      listOfPermissions <- authProvider.getActions(dbApp.app.samResourceId, userInfo)
+
+      // throw 404 if no GetAppStatus permission
+      hasPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
+      _ <-
+        if (hasPermission) F.unit
+        else
+          F.raiseError[Unit](
+            AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied")
+          )
+
+      // throw 403 if no DeleteApp permission
+      hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
+      // Mark the app, nodepool and cluster as deleted in Leo's DB
+      _ <- dbReference.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
+      _ <- dbReference.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
+      _ <- dbReference.inTransaction(kubernetesClusterQuery.markAsDeleted(dbApp.cluster.id, ctx.now))
+      // Notify SAM that the resource has been deleted
+      _ <- authProvider
+        .notifyResourceDeleted(
+          dbApp.app.samResourceId,
+          dbApp.app.auditInfo.creator,
+          cloudContext.value
+        )
+      // Stop the usage of the SAS app
+      trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
+      _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).whenA(trackUsage).recoverWith {
+        case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+      }
+    } yield ()
+
+  override def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      apps <- listApp(
+        userInfo,
+        Some(cloudContext),
+        Map.empty
+      )
+      _ <- apps.traverse(app => deleteAppRecords(userInfo, cloudContext, app.appName))
+    } yield ()
+
   def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
@@ -855,18 +939,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       .transaction
     _ <- wsmResources.traverse { resource =>
       for {
-        wsmState <- resourceType match {
-          case WsmResourceType.AzureDatabase =>
-            wsmClientProvider.getDatabaseState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureKubernetesNamespace =>
-            wsmClientProvider.getNamespaceState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureManagedIdentity =>
-            wsmClientProvider.getIdentityState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureDisk =>
-            wsmClientProvider.getDiskState(userInfo.accessToken.token, workspaceId, resource.resourceId)
-          case WsmResourceType.AzureStorageContainer =>
-            F.pure(WsmState(None)) // no get endpoint for a storage container in WSM yet
-        }
+        wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
+                                                  workspaceId,
+                                                  resource.resourceId,
+                                                  resourceType
+        )
         _ <- F
           .raiseUnless(wsmState.isDeletable)(
             AppResourceCannotBeDeletedException(resource.resourceId, appId, wsmState.value, resourceType, ctx.traceId)
@@ -1552,6 +1629,16 @@ case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
 case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
     extends LeoException(
       s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
+          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class DeleteAllAppsV1CannotBePerformed(googleProject: GoogleProject,
+                                            apps: Vector[ListAppResponse],
+                                            traceId: TraceId
+) extends LeoException(
+      s"App(s) in project ${googleProject.value} with (name(s), status(es)) ${apps
           .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
       StatusCodes.Conflict,
       traceId = Some(traceId)
