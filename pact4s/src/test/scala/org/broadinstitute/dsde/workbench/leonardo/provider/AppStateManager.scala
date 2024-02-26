@@ -20,6 +20,8 @@ object AppStateManager {
   object States {
     final val AppExists = "there is an app in a Google project"
     final val AppDoesNotExist = "there is not an app in a Google project"
+    final val GoogleProjectExists = "there is a Google project"
+    final val GoogleProjectDoesNotExist = "there is not a Google project"
   }
 
   private val mockedGetAppResponse = GetAppResponse(
@@ -40,11 +42,24 @@ object AppStateManager {
     Map.empty[String, String]
   )
   private val mockedAppNotFoundException = AppNotFoundException(mockedGetAppResponse.cloudContext, mockedGetAppResponse.appName, null, "App not found")
-  private def mockGetApp(mockRuntimeService: AppService[IO],
-                             mockResponse: IO[GetAppResponse]
-                            ): OngoingStubbing[IO[GetAppResponse]] =
+  private val mockedGetAppResponseList = List(mockedGetAppResponse);
+
+  private def mockGetApp(mockAppService: AppService[IO],
+                         mockResponse: IO[GetAppResponse]
+                        ): OngoingStubbing[IO[GetAppResponse]] =
     when {
-      mockRuntimeService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(
+      mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(
+        any[Ask[IO, AppContext]]
+      )
+    } thenReturn {
+      mockResponse
+    }
+
+  private def mockDeleteApp(mockAppService: AppService[IO],
+                            mockResponse: IO[Unit]
+                           ): OngoingStubbing[IO[Unit]] =
+    when {
+      mockAppService.deleteApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()), any[Boolean])(
         any[Ask[IO, AppContext]]
       )
     } thenReturn {
@@ -53,11 +68,16 @@ object AppStateManager {
 
   def handler(mockAppService: AppService[IO]): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.AppExists, _) =>
-      when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
-        .thenReturn(IO { mockedGetAppResponse
-        })
+      mockGetApp(mockAppService, IO {
+        mockedGetAppResponse
+      })
+      mockDeleteApp(mockAppService, IO.unit)
     case ProviderState(States.AppDoesNotExist, _) =>
-      when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
-          .thenReturn(IO.raiseError(mockedAppNotFoundException))
+      mockGetApp(mockAppService, IO.raiseError(mockedAppNotFoundException))
+      mockDeleteApp(mockAppService, IO.raiseError(mockedAppNotFoundException))
+//    case ProviderState(States.GoogleProjectExists, _) =>
+//      when(mockAppService.listApp(any[UserInfo], any[Option[CloudContext.Gcp]], any[Map[String, String]])(any[Ask[IO, AppContext]])).thenReturn(IO {
+//        mockedGetAppResponseList
+//      })
   }
 }
