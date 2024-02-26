@@ -146,6 +146,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           wsmResourceApi
         )
       }
+      managedIdentityName = ManagedIdentityName(
+        wsmManagedIdentityOpt
+          .map(_.managedIdentityName)
+          .getOrElse(app.googleServiceAccount.value.split('/').last)
+      )
 
       // Create or fetch WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
