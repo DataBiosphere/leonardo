@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.azure.{
   BatchAccountName,
   RelayNamespace
 }
-
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 
 import java.util.UUID
@@ -32,6 +32,11 @@ final case class AKSCluster(name: String, tags: Map[String, Boolean]) {
 }
 
 final case class WsmManagedAzureIdentity(wsmResourceName: String, managedIdentityName: String)
+
+final case class WsmControlledKubernetesNamespaceResource(name: NamespaceName,
+                                                          wsmResourceId: WsmControlledResourceId,
+                                                          serviceAccountName: ServiceAccountName
+)
 
 final case class WsmControlledDatabaseResource(wsmDatabaseName: String, azureDatabaseName: String)
 

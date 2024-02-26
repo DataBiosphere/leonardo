@@ -3,11 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import bio.terra.common.tracing.JerseyTracingFilter
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.client.ApiClient
-import bio.terra.workspace.model.State
+import bio.terra.workspace.model.{ResourceMetadata, State}
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import io.opencensus.trace.Tracing
+import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId, WsmControlledResourceId, WsmState}
 import org.broadinstitute.dsde.workbench.leonardo.util.WithSpanFilter
 import org.glassfish.jersey.client.ClientConfig
@@ -23,32 +24,42 @@ import org.typelevel.log4cats.StructuredLogger
  */
 trait WsmApiClientProvider[F[_]] {
 
+  // WSM state can be BROKEN, CREATING, READY, UPDATING or NONE, (deleted or doesn't exist)
   val possibleStatuses: Array[WsmState] =
-    State.values().map(_.toString).map(Some(_)).map(WsmState(_)) :+ WsmState(Some("DELETED"))
+    State.values().map(_.toString).map(Some(_)).map(WsmState(_)) :+ WsmState(Some("NONE"))
 
   def getControlledAzureResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi]
   def getResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ResourceApi]
-  def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+  def getDisk(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState]
+  ): F[Option[ResourceMetadata]]
 
-  def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+  def getVm(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState]
+  ): F[Option[ResourceMetadata]]
 
-  def getDatabaseState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+  def getDatabase(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState]
+  ): F[Option[ResourceMetadata]]
 
-  def getNamespaceState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+  def getNamespace(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState]
+  ): F[Option[ResourceMetadata]]
 
-  def getIdentityState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+  def getIdentity(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[F, AppContext],
+    log: StructuredLogger[F]
+  ): F[Option[ResourceMetadata]]
+
+  def getWsmState(token: String,
+                  workspaceId: WorkspaceId,
+                  wsmResourceId: WsmControlledResourceId,
+                  resourceType: WsmResourceType
+  )(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
   ): F[WsmState]
@@ -86,66 +97,91 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
   ): F[ControlledAzureResourceApi] =
     getApiClient(token).map(apiClient => new ControlledAzureResourceApi(apiClient))
 
-  override def getVmState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+  override def getVm(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState] = for {
+  ): F[Option[ResourceMetadata]] = for {
     wsmApi <- getControlledAzureResourceApi(token)
     attempt <- F.delay(wsmApi.getAzureVm(workspaceId.value, wsmResourceId.value)).attempt
-    state = attempt match {
-      case Right(result) => Some(result.getMetadata.getState.getValue)
+    vm = attempt match {
+      case Right(result) => Some(result.getMetadata)
       case Left(_)       => None
     }
-  } yield toWsmStatus(state)
+  } yield vm
 
-  override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+  override def getDisk(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState] = for {
+  ): F[Option[ResourceMetadata]] = for {
     wsmApi <- getControlledAzureResourceApi(token)
     attempt <- F.delay(wsmApi.getAzureDisk(workspaceId.value, wsmResourceId.value)).attempt
-    state = attempt match {
-      case Right(result) => Some(result.getMetadata.getState.getValue)
+    disk = attempt match {
+      case Right(result) => Some(result.getMetadata)
       case Left(_)       => None
     }
-  } yield toWsmStatus(state)
+  } yield disk
 
-  override def getDatabaseState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-    implicit
+  override def getDatabase(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState] = for {
+  ): F[Option[ResourceMetadata]] = for {
     wsmApi <- getControlledAzureResourceApi(token)
     attempt <- F.delay(wsmApi.getAzureDatabase(workspaceId.value, wsmResourceId.value)).attempt
-    state = attempt match {
-      case Right(result) => Some(result.getMetadata.getState.getValue)
+    db = attempt match {
+      case Right(result) => Some(result.getMetadata)
       case Left(_)       => None
     }
-  } yield toWsmStatus(state)
+  } yield db
 
-  override def getNamespaceState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-    implicit
+  override def getNamespace(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
-  ): F[WsmState] = for {
+  ): F[Option[ResourceMetadata]] = for {
     wsmApi <- getControlledAzureResourceApi(token)
     attempt <- F.delay(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmResourceId.value)).attempt
-    state = attempt match {
-      case Right(result) => Some(result.getMetadata.getState.getValue)
+    namespace = attempt match {
+      case Right(result) => Some(result.getMetadata)
       case Left(_)       => None
     }
-  } yield toWsmStatus(state)
+  } yield namespace
 
-  override def getIdentityState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(
-    implicit
+  override def getIdentity(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+    ev: Ask[F, AppContext],
+    log: StructuredLogger[F]
+  ): F[Option[ResourceMetadata]] = for {
+    wsmApi <- getControlledAzureResourceApi(token)
+    attempt <- F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmResourceId.value)).attempt
+    id = attempt match {
+      case Right(result) => Some(result.getMetadata)
+      case Left(_)       => None
+    }
+  } yield id
+
+  override def getWsmState(token: String,
+                           workspaceId: WorkspaceId,
+                           wsmResourceId: WsmControlledResourceId,
+                           resourceType: WsmResourceType
+  )(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
   ): F[WsmState] = for {
-    wsmApi <- getControlledAzureResourceApi(token)
-    attempt <- F.delay(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmResourceId.value)).attempt
-    state = attempt match {
-      case Right(result) => Some(result.getMetadata.getState.getValue)
-      case Left(_)       => None
+    resource <- resourceType match {
+      case WsmResourceType.AzureVm =>
+        getVm(token, workspaceId, wsmResourceId)
+      case WsmResourceType.AzureDatabase =>
+        getDatabase(token, workspaceId, wsmResourceId)
+      case WsmResourceType.AzureKubernetesNamespace =>
+        getNamespace(token, workspaceId, wsmResourceId)
+      case WsmResourceType.AzureManagedIdentity =>
+        getIdentity(token, workspaceId, wsmResourceId)
+      case WsmResourceType.AzureDisk =>
+        getDisk(token, workspaceId, wsmResourceId)
+      case WsmResourceType.AzureStorageContainer =>
+        F.pure(None) // TODO: no get endpoint for a storage container in WSM yet
+    }
+    state = resource match {
+      case Some(rs) => Some(rs.getState.getValue)
+      case None     => None
     }
   } yield toWsmStatus(state)
 
