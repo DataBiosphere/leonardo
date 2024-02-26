@@ -585,6 +585,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "not create a WSM managed identity for a private app" in isolatedDbTest {
+    val (mockWsm, mockControlledResourceApi, _) = setUpMockWsmApiClientProvider
+    val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
       nodepool <- IO(makeNodepool(1, cluster.id).save())
@@ -655,7 +657,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } yield {
       verify(mockControlledResourceApi, times(1))
         .createAzureKubernetesNamespace(any[CreateControlledAzureKubernetesNamespaceRequestBody], any[UUID])
-      controlledResources.size shouldBe 3
+      controlledResources.size shouldBe 2
       namespaceRecord.resourceId shouldBe createdNamespace.wsmResourceId
       namespaceRecord.status shouldBe AppControlledResourceStatus.Created
       namespaceRecord.appId shouldBe appId.id
