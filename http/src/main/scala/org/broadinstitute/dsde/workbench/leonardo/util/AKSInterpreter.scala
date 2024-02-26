@@ -120,9 +120,26 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmResourceApi <- buildWsmResourceApiClient
 
       // Create or fetch WSM managed identity (if shared app or app creation restarted)
-      wsmManagedIdentityOpt <- childSpan("createWsmManagedIdentity").use { implicit ev =>
-        createOrFetchWsmManagedIdentity(app, wsmResourceApi, params.workspaceId, namespacePrefix)
+//      wsmManagedIdentityOpt <-
+//        childSpan("createWsmManagedIdentity").use { implicit ev =>
+//        createOrFetchWsmManagedIdentity(app, wsmResourceApi, params.workspaceId, namespacePrefix)
+//      }
+      // Create or fetch WSM managed identity (if shared app)
+      // The managed identity name is either:
+      // shared apps --> the WSM identity --> shared apps
+      // private apps --> pet managed identity (stored in the googleServiceAccount' column in the APP table)
+      // for private apps, set the managedIdentity to None so it can be supplied below
+      wsmManagedIdentityOpt <- app.samResourceId.resourceType match {
+        case SamResourceType.SharedApp =>
+          // if a managed identity has already been created in the workspace use that otherwise create a new managed identity
+          createOrFetchWsmManagedIdentity(app, wsmResourceApi, params.workspaceId, namespacePrefix)
+        case _ => F.pure(None)
       }
+      managedIdentityName = ManagedIdentityName(
+        wsmManagedIdentityOpt
+          .map(_.managedIdentityName)
+          .getOrElse(app.googleServiceAccount.value.split('/').last)
+      )
 
       // Create or fetch WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
@@ -154,15 +171,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                   wsmManagedIdentityOpt
         )
       }
-
-      // The managed identity name is either the WSM identity (for shared apps) or the
-      // pet managed identity (for private apps). The latter is confusingly stored in the
-      // 'googleServiceAccount' column in the APP table.
-      managedIdentityName = ManagedIdentityName(
-        wsmManagedIdentityOpt
-          .map(_.managedIdentityName)
-          .getOrElse(app.googleServiceAccount.value.split('/').last)
-      )
 
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
