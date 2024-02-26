@@ -374,13 +374,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
       appId = saveApp.id
 
-      _ <- aksInterp.createMissingAppControlledResources(saveApp,
-                                                         saveApp.appType,
-                                                         workspaceIdForCloning,
-                                                         lzResources,
-                                                         mockResourceApi
-      )
-
       controlledDatabases <- aksInterp.createOrFetchWsmDatabaseResources(saveApp,
                                                                          saveApp.appType,
                                                                          workspaceIdForCloning,
@@ -388,6 +381,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                          Option("idworkflows_app"),
                                                                          lzResources,
                                                                          mockResourceApi
+      )
+
+      _ <- aksInterp.createMissingAppControlledResources(saveApp,
+                                                         saveApp.appType,
+                                                         workspaceIdForCloning,
+                                                         lzResources,
+                                                         mockResourceApi
       )
 
       controlledResources <- appControlledResourceQuery

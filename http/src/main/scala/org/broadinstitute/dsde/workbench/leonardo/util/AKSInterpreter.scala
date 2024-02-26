@@ -878,7 +878,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Find WSM databases in workspace that do not exist in the appControlledResources list based on resourceId
       wsmDbsNotinAppResources = existingWsmDbsInWorkspace.filterNot { wsmDb =>
-        appControlledResources.exists(appRes => appRes.resourceId.value.toString == wsmDb.controlledResourceId.toString)
+        appControlledResources.exists(appRes => appRes.resourceId.value == wsmDb.controlledResourceId)
       }
 
       // create a APP_CONTROLLED_RESOURCE for any wsm database that does not have one
