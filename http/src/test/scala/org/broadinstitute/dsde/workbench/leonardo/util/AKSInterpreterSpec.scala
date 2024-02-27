@@ -36,7 +36,7 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{atLeastOnce, times, verify, when}
+import org.mockito.Mockito.{atLeastOnce, never, times, verify, when}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -546,7 +546,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
       nodepool <- IO(makeNodepool(1, cluster.id).save())
-      app = makeApp(1, nodepool.id).copy(
+      app = makeApp(1, nodepool.id, appAccessScope = AppAccessScope.WorkspaceShared).copy(
         appType = AppType.Cromwell,
         status = AppStatus.Running,
         appResources = AppResources(
@@ -581,6 +581,40 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledResources.head.appId shouldBe appId.id
     }
 
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not create a WSM managed identity for a private app" in isolatedDbTest {
+    val (mockWsm, mockControlledResourceApi, _) = setUpMockWsmApiClientProvider
+    val aksInterp = newAksInterp(config, mockWsm = mockWsm)
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.Cromwell,
+        status = AppStatus.Running,
+        appResources = AppResources(
+          NamespaceName("ns-1"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+
+      appId = saveApp.id
+      appName = saveApp.appName
+
+      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, billingProfileId)
+      _ <- aksInterp.createAndPollApp(params)
+
+      controlledResources <- appControlledResourceQuery
+        .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
+        .transaction
+    } yield {
+      controlledResources.size shouldBe 2
+      verify(mockControlledResourceApi, never()).createAzureManagedIdentity(any(), any())
+    }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -623,7 +657,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } yield {
       verify(mockControlledResourceApi, times(1))
         .createAzureKubernetesNamespace(any[CreateControlledAzureKubernetesNamespaceRequestBody], any[UUID])
-      controlledResources.size shouldBe 3
+      controlledResources.size shouldBe 2
       namespaceRecord.resourceId shouldBe createdNamespace.wsmResourceId
       namespaceRecord.status shouldBe AppControlledResourceStatus.Created
       namespaceRecord.appId shouldBe appId.id
