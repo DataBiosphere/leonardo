@@ -22,7 +22,6 @@ on:
   push:
     branches:
     - develop
-    - eric/RW-11654
     paths-ignore:
     - 'README.md'
   workflow_dispatch:
@@ -173,7 +172,7 @@ jobs:
           echo "git checkout ${{ env.CURRENT_BRANCH }}"
           git checkout ${{ env.CURRENT_BRANCH }}
         fi
-        git checkout "eric/RW-11654"
+
         # Echo the HEAD commit of the provider branch that has been switched to.
         echo "git rev-parse HEAD"
         git rev-parse HEAD
