@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import LeoProfile.api._
-import LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import ca.mrvisser.sealerate
+import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
 import scala.concurrent.ExecutionContext
 
@@ -88,4 +88,5 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
       .filter(_.resourceType === resourceType)
       .result
       .map(_.toList)
+
 }

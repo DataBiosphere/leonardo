@@ -11,18 +11,11 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
-  azureRegion,
-  billingProfileId,
-  tokenValue,
-  workspaceId,
-  workspaceIdForAppCreation,
-  workspaceIdForCloning
-}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppInstall}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
+import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppInstall}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
@@ -34,9 +27,9 @@ import org.broadinstitute.dsp.mocks.MockHelm
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Values}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{atLeastOnce, never, times, verify, when}
+import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -390,6 +383,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                          mockResourceApi
       )
 
+      _ <- aksInterp.createMissingAppControlledResources(saveApp,
+                                                         saveApp.appType,
+                                                         workspaceIdForCloning,
+                                                         lzResources,
+                                                         mockResourceApi
+      )
+
       controlledResources <- appControlledResourceQuery
         .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Created)
         .transaction
@@ -400,10 +400,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       controlledDatabases(1).wsmDatabaseName shouldBe "cromwellmetadata"
       controlledDatabases(1).azureDatabaseName shouldBe "cromwellmetadata_ns"
 
-      controlledResources.size shouldBe 1
+      controlledResources.size shouldBe 2
       controlledResources.head.resourceType shouldBe WsmResourceType.AzureDatabase
       controlledResources.head.status shouldBe AppControlledResourceStatus.Created
       controlledResources.head.appId shouldBe appId.id
+      controlledResources(1).resourceType shouldBe WsmResourceType.AzureDatabase
+      controlledResources(1).status shouldBe AppControlledResourceStatus.Created
+      controlledResources(1).appId shouldBe appId.id
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -696,7 +699,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } yield {
       verify(mockControlledResourceApi, times(1))
         .createAzureManagedIdentity(any[CreateControlledAzureManagedIdentityRequestBody], any[UUID])
-      controlledResources.size shouldBe 3
+      controlledResources.size shouldBe 4
       idRecord.status shouldBe AppControlledResourceStatus.Created
       idRecord.appId shouldBe appId.id
     }
@@ -1016,7 +1019,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata"))
+      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata").resourceId(java.util.UUID.randomUUID()))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureDatabase(
           new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
@@ -1036,7 +1039,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("cbas"))
+      resourceDesc.metadata(new ResourceMetadata().name("cbas").resourceId(java.util.UUID.randomUUID()))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureDatabase(
           new AzureDatabaseAttributes().databaseName("cbas_cloned_db_abcxyz")
@@ -1056,7 +1059,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       val resourceList = new ArrayList[ResourceDescription]
       val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app"))
+      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app").resourceId(java.util.UUID.randomUUID()))
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureManagedIdentity(
           new AzureManagedIdentityAttributes().managedIdentityName("abcxyz")
