@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # The CloudSQL console simply states "MySQL 5.6" so we may not match the minor version number
-MYSQL_VERSION=5.7
+MYSQL_VERSION=5.6
 start() {
 
     echo "attempting to remove old $CONTAINER container..."
@@ -10,7 +10,6 @@ start() {
     # start up mysql
     echo "starting up mysql container..."
     docker run --name $CONTAINER \
-               --platform linux/x86_64 \
                -e MYSQL_ROOT_PASSWORD=leonardo-test \
                -e 'MYSQL_ROOT_HOST=%' \
                -e MYSQL_USER=leonardo-test \
@@ -23,10 +22,9 @@ start() {
     # validate mysql
     echo "running mysql validation..."
     docker run --rm \
-               --platform linux/x86_64 \
                --link $CONTAINER:mysql \
                -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh \
-               mysql/mysql-server:$MYSQL_VERSION \
+               mysql:$MYSQL_VERSION \
                /working/sql_validate.sh $TARGET
 
     if [ 0 -eq $? ]; then
