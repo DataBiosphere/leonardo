@@ -44,6 +44,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   val mockAppService: AppService[IO] = mock[AppService[IO]]
   val mockRuntimeV2Service: RuntimeV2Service[IO] = mock[RuntimeV2Service[IO]]
   val mockAdminService: AdminService[IO] = mock[AdminService[IO]]
+  val mockResourcesService: ResourcesService[IO] = mock[ResourcesService[IO]]
   val mockContentSecurityPolicyConfig: ContentSecurityPolicyConfig = mock[ContentSecurityPolicyConfig]
   val refererConfig: RefererConfig = RefererConfig(Set("*"), enabled = true)
   val mockUserInfoDirectives: MockUserInfoDirectives = new MockUserInfoDirectives {
@@ -61,6 +62,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       mockAppService,
       mockRuntimeV2Service,
       mockAdminService,
+      mockResourcesService,
       mockUserInfoDirectives,
       mockContentSecurityPolicyConfig,
       refererConfig
