@@ -48,7 +48,9 @@ object AppStateManager {
             AppType.CromwellRunnerApp,
             ChartName(""),
             None,
-            Map.empty[String, String]
+            Map.empty[String, String],
+            autodeleteEnabled = false,
+            None
           )
         })
   }
