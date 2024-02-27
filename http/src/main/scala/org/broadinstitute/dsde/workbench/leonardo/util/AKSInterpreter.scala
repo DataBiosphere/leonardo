@@ -136,6 +136,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .getOrElse(app.googleServiceAccount.value.split('/').last)
       )
 
+      // create any missing AppControlledResources
+      _ <- childSpan("createMissingAppControlledResources").use { implicit ev =>
+        createMissingAppControlledResources(
+          app,
+          app.appType,
+          params.workspaceId,
+          landingZoneResources,
+          wsmResourceApi
+        )
+      }
+
       // Create or fetch WSM databases
       wsmDatabases <- childSpan("createWsmDatabaseResources").use { implicit ev =>
         createOrFetchWsmDatabaseResources(
@@ -355,11 +366,26 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
       wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
         F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
-          .map(db => WsmControlledDatabaseResource(db.getMetadata.getName, db.getAttributes.getDatabaseName))
+          .map(db =>
+            WsmControlledDatabaseResource(db.getMetadata.getName,
+                                          db.getAttributes.getDatabaseName,
+                                          db.getMetadata.getResourceId
+            )
+          )
       }
 
-      // call WSM resource API to get list of ReferenceDatabases
       wsmResourceApi <- buildWsmResourceApiClient
+
+      // create any missing AppControlledResources
+      _ <- createMissingAppControlledResources(
+        app,
+        app.appType,
+        workspaceId,
+        landingZoneResources,
+        wsmResourceApi
+      )
+
+      // call WSM resource API to get list of ReferenceDatabases
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
       referenceDatabases <-
         if (referenceDatabaseNames.nonEmpty) {
@@ -496,6 +522,17 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
         legacyWsmDao.getLandingZoneResources(billingProfileId, leoAuth)
       }
+
+      wsmResourceApi <- buildWsmResourceApiClient
+
+      // create any missing AppControlledResources
+      _ <- createMissingAppControlledResources(
+        app,
+        app.appType,
+        workspaceId,
+        landingZoneResources,
+        wsmResourceApi
+      )
 
       // WSM deletion order matters here. Delete WSM database resources first.
       wsmDatabases <- appControlledResourceQuery
@@ -776,6 +813,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     if (landingZoneResources.postgresServer.isDefined) {
       for {
         wsmApi <- buildWsmControlledResourceApiClient
+
+        // get a list of database types required for this app
         controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
         // retrieve databases that might already be created in workspace
         existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
@@ -810,6 +849,57 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           .traverse(identity)
       } yield wsmControlledDBResources
     } else {
+      ev.ask.flatMap(ctx =>
+        F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
+      )
+    }
+
+  private[util] def createMissingAppControlledResources(app: App,
+                                                        appInstall: AppInstall[F],
+                                                        workspaceId: WorkspaceId,
+                                                        landingZoneResources: LandingZoneResources,
+                                                        wsmResourceApi: ResourceApi
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    if (landingZoneResources.postgresServer.isDefined) for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+
+      // get a list of database types required for this app
+      controlledDbsRequiredForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
+
+      // retrieve set of databases WSM has created for this workspace (name, wsmDatabaseName, resource_id)
+      existingWsmDbsInWorkspace: List[WsmControlledDatabaseResource] <- retrieveWsmDatabases(
+        wsmResourceApi,
+        controlledDbsRequiredForApp.map(_.prefix).toSet,
+        workspaceId.value
+      )
+
+      // Get list of APP_CONTROLLED_RESOURCE for this app (appId, resource_id, state)
+      appControlledResources: List[AppControlledResourceRecord] <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+
+      // Find WSM databases in workspace that do not exist in the appControlledResources list based on resourceId
+      wsmDbsNotinAppResources = existingWsmDbsInWorkspace.filterNot { wsmDb =>
+        appControlledResources.exists(appRes => appRes.resourceId.value.equals(wsmDb.controlledResourceId))
+      }
+
+      // create a APP_CONTROLLED_RESOURCE for any wsm database that does not have one
+      _ <- wsmDbsNotinAppResources.traverse { db =>
+        for {
+          res <- appControlledResourceQuery
+            .insert(
+              app.id.id,
+              WsmControlledResourceId(db.controlledResourceId),
+              WsmResourceType.AzureDatabase,
+              AppControlledResourceStatus.Created
+            )
+            .transaction
+        } yield db
+      }
+
+    } yield ()
+    else {
       ev.ask.flatMap(ctx =>
         F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
       )
@@ -941,12 +1031,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .asScala
         .toList
     )
+
+    // TODO: this currently matches on the 'name' (actually type) of database so for example
+    // it compares for a 'cbas' or 'cromwellmetadata' database. In the future, their maybe
+    // multiple of those in a workspace so this approach will have to be re-considered
+    // see https://broadworkbench.atlassian.net/browse/IA-4844
     wsmResourceDatabases.map { dbs =>
       dbs
         .filter(r => databaseNames.contains(r.getMetadata().getName()))
         .map(r =>
           WsmControlledDatabaseResource(r.getMetadata().getName(),
-                                        r.getResourceAttributes().getAzureDatabase().getDatabaseName()
+                                        r.getResourceAttributes().getAzureDatabase().getDatabaseName(),
+                                        r.getMetadata().getResourceId
           )
         )
     }
