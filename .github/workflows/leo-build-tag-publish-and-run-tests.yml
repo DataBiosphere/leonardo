@@ -15,7 +15,12 @@ on:
         required: true
         default: 'develop'
         type: string
-
+      automation-branch:
+        description: 'Branch of leo to run tests from'
+        required: true
+        default: 'develop'
+        type: string
+  
 env:
   BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-gcp-dev'
   TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # github token for access to kick off a job in the private repo
@@ -78,6 +83,8 @@ jobs:
             BRANCH_NAME=${{ github.ref_name }}
           elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
             BRANCH_NAME=${{ github.head_ref }}
+          elif [[ '${{ github.event_name }}' == 'workflow_dispatch' ]]; then
+            BRANCH_NAME=${{ inputs.automation-branch }}
           else
             echo "Failed to extract branch information"
             exit 1
