@@ -334,6 +334,7 @@ jobs:
     needs:
       - init-github-context
       - leo-automation-test-job
+    if: always()
     steps:
       - id: notify-ia-on-failures
         name: Notify ia on failures
