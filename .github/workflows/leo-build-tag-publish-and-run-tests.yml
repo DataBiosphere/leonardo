@@ -315,7 +315,7 @@ jobs:
   #     - destroy-bee-workflow
   #   steps:
   #     - id: notify-dsde-qa-on-staging
-  #       uses: broadinstitute/action-slack@v3.15.0
+  #       uses: slackapi/slack-github-action@v1.23.0
   #       name: Notify dsde-qa on staging runs
   #       if: needs.init-github-context.outputs.test-env == 'staging'
   #       with:
