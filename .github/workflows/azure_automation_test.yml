@@ -349,7 +349,7 @@ jobs:
       - id: notify-dsde-qa-on-staging
         uses: broadinstitute/action-slack@v3.15.0
         name: Notify dsde-qa on staging runs
-        if: steps.init-github-context.outputs.test-env == 'staging'
+        if: ${{ needs.init-github-context.outputs.test-env == 'staging' }}
         with:
           # C53JYBV9A is for #dsde-qa
           channel-id: 'C53JYBV9A'
