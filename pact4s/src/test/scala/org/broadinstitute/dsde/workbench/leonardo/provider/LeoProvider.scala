@@ -68,6 +68,8 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       refererConfig
     )
 
+  // This function composes a large switch statement based on partial functions from
+  // multiple state mangers (each with their own state that they handle).
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
     RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService)).orElse { case _ =>
       loggerIO.debug("Whoops: other state")
