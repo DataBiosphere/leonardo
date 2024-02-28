@@ -91,7 +91,8 @@ final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
                                       spendProfile: String,
                                       azureContext: Option[AzureCloudContext],
-                                      gcpContext: Option[GoogleProject]
+                                      gcpContext: Option[GoogleProject],
+                                      createdDate: String
 )
 
 //Landing Zone models
@@ -367,7 +368,8 @@ object WsmDecoders {
       spendProfile <- c.downField("spendProfile").as[String]
       azureContext <- c.downField("azureContext").as[Option[AzureCloudContext]]
       gcpContext <- c.downField("gcpContext").as[Option[WsmGcpContext]]
-    } yield WorkspaceDescription(id, displayName, spendProfile, azureContext, gcpContext.map(_.projectId))
+      createdDate <- c.downField("createdDate").as[String]
+    } yield WorkspaceDescription(id, displayName, spendProfile, azureContext, gcpContext.map(_.projectId), createdDate)
   }
 
   implicit val wsmJobStatusDecoder: Decoder[WsmJobStatus] =

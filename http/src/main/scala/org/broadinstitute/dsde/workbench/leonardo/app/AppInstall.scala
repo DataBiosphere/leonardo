@@ -74,6 +74,7 @@ object Database {
 
 final case class BuildHelmOverrideValuesParams(app: App,
                                                workspaceId: WorkspaceId,
+                                               workspaceCreatedDate: String,  // should this have some timestamp type?
                                                cloudContext: AzureCloudContext,
                                                landingZoneResources: LandingZoneResources,
                                                storageContainer: Option[StorageContainerResponse],

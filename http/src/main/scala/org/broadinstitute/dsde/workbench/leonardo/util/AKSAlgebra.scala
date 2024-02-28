@@ -19,6 +19,7 @@ trait AKSAlgebra[F[_]] {
 final case class CreateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     workspaceId: WorkspaceId,
+                                    workspaceCreatedDate: String,
                                     cloudContext: AzureCloudContext,
                                     billingProfileId: BillingProfileId
 )
@@ -27,6 +28,7 @@ final case class UpdateAKSAppParams(appId: AppId,
                                     appName: AppName,
                                     appChartVersion: ChartVersion,
                                     workspaceId: Option[WorkspaceId],
+                                    workspaceCreatedDate: String,
                                     cloudContext: AzureCloudContext
 )
 
