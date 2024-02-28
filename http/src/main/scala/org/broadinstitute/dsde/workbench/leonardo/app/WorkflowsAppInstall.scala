@@ -94,7 +94,7 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
 
           // CBAS configs
-          raw"cbas.context.workspaceCreatedDate=${params.workspaceCreatedDate.value}"
+          raw"cbas.context.workspaceCreatedDate=${params.workspaceCreatedDate}",
 
           // Sam configs
           raw"sam.url=${params.config.samConfig.server}",
