@@ -23,8 +23,8 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
   implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
     UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
     UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
-    "e2e-8n6xqg",
-    Some(UUID.fromString("c6489e53-85b6-4bf1-ada1-d05f9602315d"))
+    "e2e-n6bgy8",
+    Some(UUID.fromString("9aa7e351-5448-4669-9f02-7e3466027c78"))
   )
 
   override def withFixture(test: OneArgTest): Outcome = {
