@@ -338,7 +338,7 @@ jobs:
       - id: notify-ia-on-failures
         name: Notify ia on failures
         if: ${{ failure() && github.ref_name == 'develop' }} # Want to notify regardless of which step fails.
-        uses: broadinstitute/action-slack@v3.15.0
+        uses: slackapi/slack-github-action@v1.23.0
         with:
           # C03ATF4QXEV is for #ia-notification-test
           channel-id: 'C03ATF4QXEV'
@@ -347,7 +347,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
 
       - id: notify-dsde-qa-on-staging
-        uses: broadinstitute/action-slack@v3.15.0
+        uses: slackapi/slack-github-action@v1.23.0
         name: Notify dsde-qa on staging runs
         if: ${{ needs.init-github-context.outputs.test-env == 'staging' }}
         with:
