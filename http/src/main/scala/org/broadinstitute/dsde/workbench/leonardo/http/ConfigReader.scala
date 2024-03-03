@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
+import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, AzureServiceBusPublisherConfig}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
@@ -9,8 +9,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import pureconfig.ConfigSource
-import _root_.pureconfig.generic.auto._
-import ConfigImplicits._
 
 object ConfigReader {
   lazy val appConfig =
@@ -18,7 +16,7 @@ object ConfigReader {
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
 }
-
+//pubSubConfig: AzureServiceBusPublisherConfig
 final case class AzureConfig(
   pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
@@ -31,7 +29,8 @@ final case class AzureConfig(
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
   listenerChartConfig: ListenerChartConfig,
-  hostingModeConfig: AzureHostingModeConfig
+  hostingModeConfig: AzureHostingModeConfig,
+  publisherConfig: AzureServiceBusPublisherConfig
 )
 
 final case class OidcAuthConfig(

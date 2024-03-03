@@ -19,19 +19,32 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.{ExecutionContext, Future}
-
+/*
+ oidcConfig: OpenIDConnectConfiguration,
+  statusService: StatusService,
+  diskV2Service: DiskV2Service[IO],
+  kubernetesService: AppService[IO],
+  azureService: RuntimeV2Service[IO],
+  adminService: AdminService[IO],
+  gcpModeSpecificServices: Option[GCPModeSpecificServices],
+  userInfoDirectives: UserInfoDirectives,
+  contentSecurityPolicy: ContentSecurityPolicyConfig,
+  refererConfig: RefererConfig
+ */
 class HttpRoutes(
   oidcConfig: OpenIDConnectConfiguration,
   statusService: StatusService,
-  proxyService: ProxyService,
-  runtimeService: RuntimeService[IO],
-  diskService: DiskService[IO],
+//  proxyService: ProxyService, //Lazy
+//  runtimeService: RuntimeService[IO], //Lazy
+//  diskService: DiskService[IO], //Lazy
+  gcpOnlyServicesRegistry: ServicesRegistry,
   diskV2Service: DiskV2Service[IO],
   kubernetesService: AppService[IO],
   azureService: RuntimeV2Service[IO],
@@ -43,9 +56,9 @@ class HttpRoutes(
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
-  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
-  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
-  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
+//  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
+//  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
+//  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
   private val appV2Routes = new AppV2Routes(kubernetesService, userInfoDirectives)
   private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
@@ -117,10 +130,24 @@ class HttpRoutes(
     logRequestResult {
       Route.seal(
         oidcConfig
-          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ proxyRoutes.route ~ statusRoutes.route ~
-          pathPrefix("api") {
-            runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes ~ resourcesRoutes.routes
-          }
+          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
+                  pathPrefix("api") {
+                     val baseRoutes = runtimeV2Routes.routes  ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes
+                    //  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
+                    //  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
+                    //  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
+                    val proxyRouteOption: Option[Route] = gcpOnlyServicesRegistry.lookup[ProxyService].map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig).route)
+                    val runtimeRouteOption: Option[Route] = gcpOnlyServicesRegistry.lookup[RuntimeService[IO]].map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives).routes)
+                    val diskRouteOption: Option[Route] = gcpOnlyServicesRegistry.lookup[DiskService[IO]].map(diskService => new DiskRoutes(diskService, userInfoDirectives).routes)
+
+                    val gcpRoutes: Seq[Route] = Seq(proxyRouteOption, runtimeRouteOption, diskRouteOption).flatten
+
+                    (baseRoutes +: gcpRoutes).reduce(_ ~ _)
+                  }
+//          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ proxyRoutes.route ~ statusRoutes.route ~
+//          pathPrefix("api") {
+//            runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes ~ resourcesRoutes.routes
+//          }
       )
     }
 }

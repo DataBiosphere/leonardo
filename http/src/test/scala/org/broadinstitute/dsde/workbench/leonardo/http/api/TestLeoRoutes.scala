@@ -195,14 +195,19 @@ trait TestLeoRoutes {
     FakeGoogleComputeService,
     QueueFactory.makePublisherQueue()
   )
+  val gcpOnlyServicesRegistry = {
+    val registry = ServicesRegistry()
+    registry.register[ProxyService](proxyService)
+    registry.register[RuntimeService[IO]](runtimeService)
+    registry.register[DiskService[IO]](MockDiskServiceInterp)
+    registry
+  }
 
   val httpRoutes =
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
@@ -217,9 +222,7 @@ trait TestLeoRoutes {
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,

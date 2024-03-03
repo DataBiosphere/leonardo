@@ -22,10 +22,11 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{dataDecoder, Data}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{Data, dataDecoder}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessedMessage
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito._
@@ -539,12 +540,19 @@ class ProxyRoutesSpec
         MockGoogleOAuth2Service,
         samDAO = Some(samDao)
       )
+
+    val gcpOnlyServicesRegistry = {
+      val registry = ServicesRegistry()
+      registry.register[ProxyService](proxyService)
+      registry.register[RuntimeService[IO]](runtimeService)
+      registry.register[DiskService[IO]](MockDiskServiceInterp)
+      registry
+    }
+
     val httpRoutes = new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
@@ -711,12 +719,18 @@ class ProxyRoutesSpec
                            MockGoogleOAuth2Service
       )
 
+    val gcpOnlyServicesRegistry = {
+      val registry = ServicesRegistry()
+      registry.register[ProxyService](proxyService)
+      registry.register[RuntimeService[IO]](runtimeService)
+      registry.register[DiskService[IO]](MockDiskServiceInterp)
+      registry
+    }
+
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,

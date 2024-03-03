@@ -14,15 +14,7 @@ import monocle.macros.syntax.lens._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{
-  DiskName,
-  GoogleComputeService,
-  GoogleResourceService,
-  KubernetesName,
-  MachineTypeName,
-  RegionName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -31,14 +23,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
-  checkIfCanBeDeleted,
-  isPatchVersionDifference
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{checkIfCanBeDeleted, isPatchVersionDifference}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -55,8 +45,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
                                                 serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
-                                                computeService: GoogleComputeService[F],
-                                                googleResourceService: GoogleResourceService[F],
+                                                gcpServicesRegistry: ServicesRegistry,
                                                 customAppConfig: CustomAppConfig,
                                                 wsmDao: WsmDao[F],
                                                 wsmClientProvider: WsmApiClientProvider[F]
@@ -1050,7 +1039,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
         allowedOrError <-
           for {
-            projectLabels <- googleResourceService.getLabels(googleProject)
+            projectLabels <-  gcpServicesRegistry.lookup[GoogleResourceService[F]].get.getLabels(googleProject)
             isAppAllowed <- projectLabels match {
               case Some(labels) =>
                 labels.get(SECURITY_GROUP) match {
@@ -1094,7 +1083,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- ev.ask
 
-      projectLabels <- googleResourceService.getLabels(googleProject)
+      projectLabels <- gcpServicesRegistry.lookup[GoogleResourceService[F]].get.getLabels(googleProject)
 
       allowedOrError = projectLabels match {
         case Some(labels) =>
@@ -1279,7 +1268,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             )
           } else F.unit
         }
-      machineType <- computeService
+      machineType <- gcpServicesRegistry.lookup[GoogleComputeService[F]].get
         .getMachineType(googleProject,
                         ZoneName("us-central1-a"),
                         machineTypeName

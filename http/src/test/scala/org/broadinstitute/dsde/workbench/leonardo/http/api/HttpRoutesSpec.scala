@@ -10,7 +10,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName, credentialResource}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, UserInfo}
 import org.scalatest.concurrent.ScalaFutures
@@ -47,13 +48,19 @@ class HttpRoutesSpec
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
 
+  def createGcpOnlyServicesRegistry() = {
+    val registry = ServicesRegistry()
+    registry.register[ProxyService](proxyService)
+    registry.register[RuntimeService[IO]](MockRuntimeServiceInterp)
+    registry.register[DiskService[IO]](MockDiskServiceInterp)
+    registry
+  }
+
   val routes =
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
@@ -68,9 +75,7 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
@@ -85,9 +90,7 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
@@ -102,9 +105,7 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
@@ -913,13 +914,16 @@ class HttpRoutesSpec
     decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
   }
 
-  def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes =
+  def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes = {
+    val gcpOnlyServicesRegistry = ServicesRegistry()
+    gcpOnlyServicesRegistry.register[ProxyService](proxyService)
+    gcpOnlyServicesRegistry.register[RuntimeService[IO]](runtimeService)
+    gcpOnlyServicesRegistry.register[DiskService[IO]](MockDiskServiceInterp)
+
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       MockAppService,
       runtimev2Service,
@@ -929,14 +933,18 @@ class HttpRoutesSpec
       contentSecurityPolicy,
       refererConfig
     )
+  }
 
-  def fakeRoutes(kubernetesService: AppService[IO]): HttpRoutes =
+  def fakeRoutes(kubernetesService: AppService[IO]): HttpRoutes = {
+    val gcpOnlyServicesRegistry = ServicesRegistry()
+    gcpOnlyServicesRegistry.register[ProxyService](proxyService)
+    gcpOnlyServicesRegistry.register[RuntimeService[IO]](runtimeService)
+    gcpOnlyServicesRegistry.register[DiskService[IO]](MockDiskServiceInterp)
+
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       kubernetesService,
       runtimev2Service,
@@ -946,4 +954,5 @@ class HttpRoutesSpec
       contentSecurityPolicy,
       refererConfig
     )
+  }
 }

@@ -14,9 +14,6 @@ trait KubernetesAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[CoreV1Api]
 
-  /** Creates a k8s client given a GKE cluster ID. */
-  def createGcpClient(clusterId: KubernetesClusterId)(implicit ev: Ask[F, AppContext]): F[CoreV1Api]
-
   /** Lists pods in a namespace. */
   def listPodStatus(clusterId: CoreV1Api, namespace: KubernetesNamespace)(implicit
     ev: Ask[F, AppContext]

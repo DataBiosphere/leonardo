@@ -9,6 +9,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppError, AppName, AppStatus, AppType, AuditInfo, CloudContext, KubernetesRuntimeConfig, NumNodes}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.mockito.ArgumentMatchers.{any, anyLong, anyString}
@@ -50,14 +54,19 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   val mockUserInfoDirectives: MockUserInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
+  val gcpOnlyServicesRegistry = {
+    val registry = ServicesRegistry()
+    registry.register[ProxyService](mockProxyService)
+    registry.register[RuntimeService[IO]](mockRuntimeService)
+    registry.register[DiskService[IO]](mockDiskService)
+    registry
+  }
 
   val routes =
     new HttpRoutes(
       mockOpenIDConnectConfiguration,
       mockStatusService,
-      mockProxyService,
-      mockRuntimeService,
-      mockDiskService,
+      gcpOnlyServicesRegistry,
       mockDiskV2Service,
       mockAppService,
       mockRuntimeV2Service,
