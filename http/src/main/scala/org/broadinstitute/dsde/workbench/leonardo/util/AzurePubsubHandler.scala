@@ -39,6 +39,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   contentSecurityPolicyConfig: ContentSecurityPolicyConfig,
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
+  wsmClientProvider: WsmApiClientProvider[F],
   samDAO: SamDAO[F],
   welderDao: WelderDAO[F],
   jupyterDAO: JupyterDAO[F],
@@ -459,6 +460,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     for {
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
+      // Get the pet userToken
+      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(params.runtime.auditInfo.creator)
+      userToken <- F.fromOption(
+        tokenOpt,
+        new RuntimeException(s"Pet not found for user ${params.runtime.auditInfo.creator}")
+      )
+
       getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId), auth)
 
       cloudContext = params.runtime.cloudContext match {
@@ -506,6 +514,25 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
             for {
               now <- nowInstant
+              // make sure that the VM returned by WSM is in the correct state before moving forward with polling
+              wsmVM <- F.fromOption(
+                resp.vm,
+                new RuntimeException(s"WSM VM not found for user ${params.runtime.auditInfo.creator}")
+              )
+              wsmVMState <- wsmClientProvider.getWsmState(userToken,
+                                                          params.workspaceId,
+                                                          wsmVM.metadata.resourceId,
+                                                          WsmResourceType.AzureVm
+              )
+              _ <-
+                if (wsmVMState.isPollableForCreation) F.unit
+                else
+                  F.raiseError[Unit](
+                    new RuntimeException(
+                      s"WSM VM status is not compatible with a successful runtime creation: ${wsmVMState}"
+                    )
+                  )
+
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(

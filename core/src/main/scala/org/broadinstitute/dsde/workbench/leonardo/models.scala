@@ -67,10 +67,14 @@ case class WsmState(state: Option[String]) {
 
   val deletableStatuses: Set[String] = Set("BROKEN", "READY", "NONE")
 
+  val pollableCreationStatuses: Set[String] = Set("CREATING", "READY")
+
   def value: String = state.getOrElse("NONE").toUpperCase()
 
   /** Any in-progress state cannot be deleted: CREATING, DELETING, UPDATING */
   def isDeletable: Boolean = deletableStatuses contains this.value
+
+  def isPollableForCreation: Boolean = pollableCreationStatuses contains this.value
 
   def isDeleted: Boolean = this.value == "NONE"
 }
