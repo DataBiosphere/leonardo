@@ -1447,7 +1447,7 @@ class RuntimeServiceInterpTest
         )
       )
     when(
-      mockAuthProvider.notifyResourceDeleted[RuntimeSamResourceId](any, any, any)(any, any)
+      mockAuthProvider.notifyResourceDeletedV2[RuntimeSamResourceId](any, isEq(userInfo))(any, any)
     ).thenReturn(IO.unit)
 
     val publisherQueue = QueueFactory.makePublisherQueue()

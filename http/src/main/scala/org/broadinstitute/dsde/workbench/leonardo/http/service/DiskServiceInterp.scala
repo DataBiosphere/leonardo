@@ -375,12 +375,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
-      // Notify SAM that the resource has been deleted
+      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
       _ <- authProvider
-        .notifyResourceDeleted(
+        .notifyResourceDeletedV2(
           dbdisk.samResource,
-          disk.auditInfo.creator,
-          cloudContext.value
+          userInfo
         )
     } yield ()
 
