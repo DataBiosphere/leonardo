@@ -1547,7 +1547,6 @@ class GKEInterpreter[F[_]](
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
 
-      readyTime <- F.realTimeInstant
       _ <-
         if (!last.isDone) {
           val msg =

@@ -493,9 +493,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           userInfo
         )
       // Stop the usage of the SAS app
-      trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
-      _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).whenA(trackUsage).recoverWith {
-        case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+      _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).recoverWith { case e: FailToRecordStoptime =>
+        log.error(ctx.loggingCtx)(e.getMessage)
       }
     } yield ()
 
