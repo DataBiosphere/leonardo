@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
+import bio.terra.workspace.model.WorkspaceDescription
 import cats.effect.IO
 import cats.effect.Ref
 import cats.effect.unsafe.implicits.global
@@ -536,6 +537,8 @@ object CommonTestData {
   val wsmResourceIdOpt = Some(wsmResourceId)
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
   val billingProfileId = BillingProfileId("spend-profile")
+
+  val wsmWorkspaceDesc = new WorkspaceDescription().id(workspaceId.value).spendProfile("spendProfile")
 
   val testCommonControlledResourceFields = ControlledResourceCommonFields(
     ControlledResourceName("name"),

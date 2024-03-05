@@ -872,7 +872,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     _ <- attempt match {
       // if the workspace is found, delete the app normally
       case Right(workspaceDesc) =>
-        // deleteAppV2Base(appResult.app, appResult.cluster.cloudContext, userInfo, workspaceId, deleteDisk, workspaceDesc)
         apps
           .traverse { app =>
             deleteAppV2Base(app._1, app._2, userInfo, workspaceId, deleteDisk, workspaceDesc)
