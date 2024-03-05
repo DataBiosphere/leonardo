@@ -1823,28 +1823,27 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   }
 
-  it should "Azure - just delete App records if a workspace has been deleted" in isolatedDbTest {
+  it should "Azure - only delete App records in deleteAllAppsV2 if a workspace has been deleted" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
 
     val appName = AppName("app1")
-    val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
 
     val appReq =
       createAppRequest.copy(
         kubernetesRuntimeConfig = None,
-        appType = AppType.Allowed,
+        appType = AppType.Cromwell,
         allowedChartName = Some(AllowedChartName.Sas),
-        diskConfig = Some(diskConfig),
+        diskConfig = None,
         workspaceId = Some(workspaceId2)
       )
 
     kubeServiceInterp
-      .createApp(userInfo, CloudContext.Gcp(project), appName, appReq)
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(project), appName)
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
     }
     // Set the cluster, app, and nodepool to running and start tracking the usage
     dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
@@ -1858,7 +1857,59 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullApps(Some(CloudContext.Gcp(project)), includeDeleted = true)
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId2), Map.empty, true)
+    }
+
+    clusterPostDelete.length shouldEqual 1
+    clusterPostDelete.map(_.status) shouldEqual List(KubernetesClusterStatus.Deleted)
+    val nodepools = clusterPostDelete.flatMap(_.nodepools)
+    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
+    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Deleted)
+    apps.map(_.status) shouldEqual List(AppStatus.Deleted)
+
+    // throw away create messages
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val messages = publisherQueue.tryTakeN(Some(1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    messages.map(_.messageType) shouldBe List.empty
+
+  }
+
+  it should "Azure - only delete App records in deleteAppV2 if a workspace has been deleted" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+
+    val appName = AppName("app1")
+
+    val appReq =
+      createAppRequest.copy(
+        kubernetesRuntimeConfig = None,
+        appType = AppType.Cromwell,
+        allowedChartName = Some(AllowedChartName.Sas),
+        diskConfig = None,
+        workspaceId = Some(workspaceId2)
+      )
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
+    }
+    // Set the cluster, app, and nodepool to running and start tracking the usage
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    kubeServiceInterp
+      .deleteAppV2(userInfo, workspaceId2, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId2), Map.empty, true)
     }
 
     clusterPostDelete.length shouldEqual 1
@@ -1878,7 +1929,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "error on deleteAllApps if the user doesn't have permission to access the workspace" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
     } thenThrow {
@@ -1886,23 +1937,22 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     }
 
     val appName = AppName("app1")
-    val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
 
     val appReq =
       createAppRequest.copy(
         kubernetesRuntimeConfig = None,
-        appType = AppType.Allowed,
+        appType = AppType.Cromwell,
         allowedChartName = Some(AllowedChartName.Sas),
-        diskConfig = Some(diskConfig),
+        diskConfig = None,
         workspaceId = Some(workspaceId2)
       )
 
     kubeServiceInterp
-      .createApp(userInfo, CloudContext.Gcp(project), appName, appReq)
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(CloudContext.Gcp(project), appName)
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
     }
     // Set the cluster, app, and nodepool to running and start tracking the usage
     dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
@@ -1914,6 +1964,47 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     an[WorkspaceNotFoundException] should be thrownBy {
       kubeServiceInterp
         .deleteAllAppsV2(userInfo, workspaceId2, false)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "error on deleteAppV2 if the user doesn't have permission to access the workspace" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
+    when {
+      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
+    } thenThrow {
+      new ForbiddenException("Unauthorized user")
+    }
+
+    val appName = AppName("app1")
+
+    val appReq =
+      createAppRequest.copy(
+        kubernetesRuntimeConfig = None,
+        appType = AppType.Cromwell,
+        allowedChartName = Some(AllowedChartName.Sas),
+        diskConfig = None,
+        workspaceId = Some(workspaceId2)
+      )
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
+    }
+    // Set the cluster, app, and nodepool to running and start tracking the usage
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    an[WorkspaceNotFoundException] should be thrownBy {
+      kubeServiceInterp
+        .deleteAppV2(userInfo, workspaceId2, appName, false)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
