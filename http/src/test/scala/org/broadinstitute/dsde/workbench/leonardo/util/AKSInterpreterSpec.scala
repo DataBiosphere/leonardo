@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, WorkflowsAppI
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
@@ -1101,6 +1100,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       wsm.getResourceApi(any)(any)
     } thenReturn IO.pure(resourceApi)
+
+    when {
+      wsm.getWorkspaceApi(any)(any)
+    } thenReturn IO.pure(workspaceApi)
 
     (wsm, api, resourceApi, workspaceApi)
 
