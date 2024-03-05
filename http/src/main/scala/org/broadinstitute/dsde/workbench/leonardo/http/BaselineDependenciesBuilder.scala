@@ -2,9 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import akka.actor.ActorSystem
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
-import cats.effect.{Async, Ref, Resource}
+import cats.effect.{Async, IO, Ref, Resource}
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.google.api.gax.longrunning.OperationFuture
+import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.azure._
@@ -13,26 +15,29 @@ import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscri
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.app._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, CloudAuthTokenProvider, PetClusterServiceAccountProvider, SamAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, dataprocConfig, dateAccessUpdaterConfig, gceConfig, gkeClusterConfig, httpSamDaoConfig, imageConfig, kubernetesDnsCacheConfig, nonLeoMessageSubscriberConfig, prometheusConfig, proxyConfig, publisherConfig, pubsubConfig, runtimeDnsCacheConfig, samAuthConfig, serviceAccountProviderConfig, subscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, contentSecurityPolicy, dataprocConfig, dateAccessUpdaterConfig, gceConfig, gkeClusterConfig, httpSamDaoConfig, imageConfig, kubernetesDnsCacheConfig, leoPubsubMessageSubscriberConfig, nonLeoMessageSubscriberConfig, prometheusConfig, proxyConfig, publisherConfig, pubsubConfig, refererConfig, runtimeDnsCacheConfig, samAuthConfig, samConfig, serviceAccountProviderConfig, subscriberConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
+import org.broadinstitute.dsde.workbench.leonardo.http.Boot.{buildCache, buildHttpClient}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureServiceConfig, RuntimeServiceConfig, SamResourceCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, NonLeoMessage, UpdateDateAccessedMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageSubscriber, NonLeoMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.leonardo.{AppAccessScope, KeyLock, LeoPublisher}
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
+import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
 import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
+import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
 
 import java.net.{InetSocketAddress, SocketException}
@@ -130,6 +135,9 @@ class BaselineDependenciesBuilder {
       appDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_app_client"), false).map(client =>
         new HttpAppDAO(kubernetesDnsCache, client)
       )
+      appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
+        new HttpAppDescriptorDAO(client)
+      )
       dockerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         HttpDockerDAO[F](client)
       )
@@ -137,6 +145,10 @@ class BaselineDependenciesBuilder {
         .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
+
+      azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
+
+      azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
 
       azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
@@ -210,6 +222,14 @@ class BaselineDependenciesBuilder {
         )
       )(s => s.close)
 
+      underlyingOperationFutureCache = buildCache[Long, scalacache.Entry[OperationFuture[Operation, Operation]]](
+        500,
+        5 minutes
+      )
+      operationFutureCache <- Resource.make(
+        F.delay(CaffeineCache[F, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache))
+      )(_.close)
+
       oidcConfig <- Resource.eval(
         OpenIDConnectConfiguration[F](
           ConfigReader.appConfig.oidc.authorityEndpoint.renderString,
@@ -219,6 +239,12 @@ class BaselineDependenciesBuilder {
           extraAuthParams = Some("prompt=login")
         )
       )
+
+      // Use a low concurrency for helm because it can generate very chatty network traffic
+      // (especially for Galaxy) and cause issues at high concurrency.
+      helmConcurrency <- Resource.eval(Semaphore[F](20L))
+      helmClient = new HelmInterpreter[F](helmConcurrency)
+
 
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
@@ -235,50 +261,10 @@ class BaselineDependenciesBuilder {
         CacheMetrics("kubernetesApiClient")
           .processWithUnderlyingCache(underlyingKubeClientCache)
       )
+
+
     } yield {
 
-      val cromwellAppInstall = new CromwellAppInstall[F](
-        ConfigReader.appConfig.azure.coaAppConfig,
-        ConfigReader.appConfig.drs,
-        samDao,
-        cromwellDao,
-        cbasDao,
-        azureBatchService,
-        azureApplicationInsightsService
-      )
-      val cromwellRunnerAppInstall =
-        new CromwellRunnerAppInstall[F](ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
-                                        ConfigReader.appConfig.drs,
-                                        samDao,
-                                        cromwellDao,
-                                        azureBatchService,
-                                        azureApplicationInsightsService
-        )
-      val hailBatchAppInstall =
-        new HailBatchAppInstall[F](ConfigReader.appConfig.azure.hailBatchAppConfig, hailBatchDao)
-      val wdsAppInstall = new WdsAppInstall[F](ConfigReader.appConfig.azure.wdsAppConfig,
-                                               ConfigReader.appConfig.azure.tdr,
-                                               samDao,
-                                               wdsDao,
-                                               azureApplicationInsightsService
-      )
-      val workflowsAppInstall =
-        new WorkflowsAppInstall[F](
-          ConfigReader.appConfig.azure.workflowsAppConfig,
-          ConfigReader.appConfig.drs,
-          samDao,
-          cromwellDao,
-          cbasDao,
-          azureBatchService,
-          azureApplicationInsightsService
-        )
-
-      implicit val appTypeToAppInstall = AppInstall.appTypeToAppInstall(wdsAppInstall,
-                                                                        cromwellAppInstall,
-                                                                        workflowsAppInstall,
-                                                                        hailBatchAppInstall,
-                                                                        cromwellRunnerAppInstall
-      )
 
       val runtimeServiceConfig = RuntimeServiceConfig(
         proxyConfig.proxyUrlBase,
@@ -294,6 +280,7 @@ class BaselineDependenciesBuilder {
           ConfigReader.appConfig.azure.pubsubHandler.welderImage
         )
       )
+
       BaselineDependencies[F](
         sslContext,
         runtimeDnsCache,
@@ -327,7 +314,14 @@ class BaselineDependenciesBuilder {
         wsmClientProvider,
         azureContainerService,
         runtimeServiceConfig,
-        kubernetesDnsCache
+        kubernetesDnsCache,
+        appDescriptorDAO,
+        helmClient,
+        azureRelay,
+        azureVmService,
+        operationFutureCache,
+        azureBatchService,
+        azureApplicationInsightsService
       )
     }
 
@@ -436,7 +430,7 @@ final case class BaselineDependencies[F[_]](
   recordCacheMetrics: List[Stream[F, Unit]],
   googleTokenCache: scalacache.Cache[F, String, (UserInfo, Instant)],
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
-  // pubsubSubscriber: LeoPubsubMessageSubscriber[F],
+  //pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   // gkeAlg: GKEAlgebra[F],
   // dataprocInterp: DataprocInterpreter[F],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
@@ -451,5 +445,12 @@ final case class BaselineDependencies[F[_]](
   // kubeAlg: KubernetesAlgebra[F],
   azureContainerService: AzureContainerService[F],
   runtimeServicesConfig: RuntimeServiceConfig,
-  kubernetesDnsCache: KubernetesDnsCache[F]
+  kubernetesDnsCache: KubernetesDnsCache[F],
+  appDescriptorDAO: HttpAppDescriptorDAO[F],
+  helmClient: HelmInterpreter[F],
+  azureRelay: AzureRelayService[F],
+  azureVmService: AzureVmService[F],
+  operationFutureCache:  Cache[F, Long, OperationFuture[Operation, Operation]],
+  azureBatchService: AzureBatchService[F],
+  azureApplicationInsightsService: AzureApplicationInsightsService[F]
 )
