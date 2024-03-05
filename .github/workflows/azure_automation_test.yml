@@ -1,19 +1,20 @@
-# if you want to debug this and trigger it on PRs against dev
-# uncomment the 2 pull_request lines below
-
 name: Azure automation tests
+run-name: ${{ inputs.run-name }}
 
 on:
-#  pull_request:
-#    branches: [ develop ]
-  schedule:
-    # run twice a day at 10:00 and 22:00 UTC every day of the week
-    - cron: "0 10/12 * * *"
+  push:
+    branches: [ develop ]
+    paths-ignore: [ '**.md' ]
   workflow_dispatch:
     # automation-branch refers to the version of the automation test application to be used, running on the gha runner
     # app-version refers to the version of the leonardo app that will be tested against, usually running in a BEE
     # these are often the same, and live in the same repo, but are distinct instances of code.
     inputs:
+      terra-env:
+        description: 'Terra env this test run is triggered for. This is mainly used to indicate this workflow was triggered from a staging run'
+        required: true
+        default: 'develop'
+        type: string
       automation-branch:
         description: 'Branch of leo automation to run tests from'
         required: true
@@ -26,27 +27,40 @@ on:
         type: string
       delete-bee:
         description: 'Delete created bee after running tests'
-        required: true
+        required: false
         default: true
         type: boolean
       owner-subject:
         description: 'Owner subject (used for creating billing project in E2E testing)'
-        required: true
+        required: false
         default: 'hermione.owner@quality.firecloud.org'
         type: string
       student-subjects:
         description: 'A JSON array of Student subjects used for E2E testing'
-        required: true
+        required: false
         default: '["harry.potter@quality.firecloud.org","ron.weasley@quality.firecloud.org"]'
         type: string
       service-account:
         description: 'Email address or unique identifier of the Google Cloud service account for which to generate credentials'
-        required: true
+        required: false
         default: 'firecloud-qa@broad-dsde-qa.iam.gserviceaccount.com'
+        type: string
+      bee-name:
+        description: Bee name to use. If this is defined then this job will skip bee-create
+        required: false
+        default: ''
+        type: string
+      is-triggered-from-pr-dispatch:
+        description: 'Whether this was trigger from an upstream job which built the chart and created the bee'
+        required: false
+        default: 'false'
+      run-name:
+        description: 'Specify the run name to fetch the run ID based on the actual run name'
+        required: false
         type: string
 
 env:
-  BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-dev'
+  BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-azure-dev'
   TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # github token for access to kick off a job in the private repo
   LEO_BUILD_RUN_NAME: 'leonardo-build-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   LEO_SWAT_TESTS_RUN_NAME: 'leonardo-swat-tests-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
@@ -73,6 +87,9 @@ jobs:
       service-account: ${{ steps.prepare-outputs.outputs.service-account }}
       log-results: ${{ steps.prepare-outputs.outputs.log-results }}
       test-context: ${{ steps.prepare-outputs.outputs.test-context }}
+      test-env: ${{ steps.prepare-outputs.outputs.test-env }}
+      bee-name: ${{ steps.prepare-outputs.outputs.bee-name }}
+      is-triggered-from-pr-dispatch: ${{ steps.prepare-outputs.outputs.is-triggered-from-pr-dispatch }}
     steps:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
@@ -85,10 +102,25 @@ jobs:
           echo "service-account=${{ inputs.service-account          || 'firecloud-qa@broad-dsde-qa.iam.gserviceaccount.com' }}" >> "$GITHUB_OUTPUT"
           echo "log-results=true" >> $GITHUB_OUTPUT
           echo "test-context=azure-e2e" >> $GITHUB_OUTPUT
+          # This env param is used to normalize a `workflow_dispatch` param into an env var that always exists
+          ENV=local
+          BEE_NAME_TEMP=${{ env.BEE_NAME }}
+          IS_TRIGGERED_FROM_PR_DISPATCH=false
+          if ${{ github.event_name == 'workflow_dispatch' }}; then
+            ENV=${{ inputs.terra-env }}
+            IS_TRIGGERED_FROM_PR_DISPATCH=${{ inputs.is-triggered-from-pr-dispatch }}
+            if ${{ inputs.is-triggered-from-pr-dispatch == 'true' }}; then
+              BEE_NAME_TEMP=${{ inputs.bee-name }}
+            fi
+          fi
+           echo "test-env=$ENV" >> $GITHUB_OUTPUT
+           echo "bee-name=$BEE_NAME_TEMP" >> $GITHUB_OUTPUT
+           echo "is-triggered-from-pr-dispatch=$IS_TRIGGERED_FROM_PR_DISPATCH" >> $GITHUB_OUTPUT
 
   create-bee-workflow:
     runs-on: ubuntu-latest
     needs: [ init-github-context ]
+    if: ${{ needs.init-github-context.outputs.is-triggered-from-pr-dispatch == 'false' }}
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -111,11 +143,12 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{
               "run-name": "${{ env.BEE_CREATE_RUN_NAME }}",
-              "bee-name": "${{ env.BEE_NAME }}",
+              "bee-name": "${{ needs.init-github-context.outputs.bee-name }}",
               "bee-template-name": "rawls-e2e-azure-tests",
               "version-template": "dev",
               "custom-version-json": "${{ steps.render-leo-version.outputs.custom-version-json }}"
             }'
+          wait-for-completion: true
 
   # This job can be used for generating parameters for E2E tests (e.g. a random project name).
   params-gen:
@@ -133,9 +166,11 @@ jobs:
 
   # Azure Managed App Coordinates are defined in the following workflow:
   #   https://github.com/broadinstitute/terra-github-workflows/blob/main/.github/workflows/attach-landing-zone-to-bee.yaml
+  # Here we specify we need `create-bee-workflow`, but `if: always()` ensures this is run even if that step is skipped
   attach-billing-project-to-landing-zone-workflow:
     runs-on: ubuntu-latest
-    needs: [ init-github-context, create-bee-workflow, params-gen ]
+    needs: [ init-github-context, params-gen, create-bee-workflow ]
+    if: always()
     steps:
       - name: dispatch to terra-github-workflows
         uses: broadinstitute/workflow-dispatch@v4.0.0
@@ -147,9 +182,9 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.ATTACH_BP_TO_LZ_RUN_NAME }}",
-            "mrg-id": "e2e-8n6xqg",
-            "landing-zone-id": "c6489e53-85b6-4bf1-ada1-d05f9602315d",
-            "bee-name": "${{ env.BEE_NAME }}",
+            "mrg-id": "e2e-n6bgy8",
+            "landing-zone-id": "9aa7e351-5448-4669-9f02-7e3466027c78",
+            "bee-name": "${{ needs.init-github-context.outputs.bee-name }}",
             "billing-project": "${{ needs.params-gen.outputs.project-name }}",
             "billing-project-creator": "${{ needs.init-github-context.outputs.owner-subject }}",
             "service-account": "${{ needs.init-github-context.outputs.service-account }}"
@@ -158,14 +193,16 @@ jobs:
   #
   # Test Run
   #
-
+  
+  # Here we specify we need `create-bee-workflow`, but `if: always()` ensures this is run even if that step is skipped
   leo-automation-test-job:
     runs-on: ubuntu-latest
     needs:
       - init-github-context
-      - create-bee-workflow
       - params-gen
       - attach-billing-project-to-landing-zone-workflow
+      - create-bee-workflow
+    if: always()
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -224,7 +261,7 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{
               "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
-              "bee-name": "${{ env.BEE_NAME }}",
+              "bee-name": "${{ needs.init-github-context.outputs.bee-name }}",
               "ENV": "qa",
               "test-group-name": "workspaces_azure",
               "sbt-test-command": "${{ env.leo_test_command }}",
@@ -234,6 +271,7 @@ jobs:
               "test-reporting": ${{ toJson(env.TEST_REPORTING) }},
               "user-subjects": ${{ toJson(env.USER_SUBJECTS) }}
             }'
+          wait-for-completion: true
 
   #
   # Cleanup
@@ -257,7 +295,7 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.DEL_BP_V2_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}",
+            "bee-name": "${{ needs.init-github-context.outputs.bee-name }}",
             "billing-project": "${{ needs.params-gen.outputs.project-name }}",
             "billing-project-owner": "${{ needs.init-github-context.outputs.owner-subject }}",
             "service-account": "${{ needs.init-github-context.outputs.service-account }}",
@@ -268,9 +306,9 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - init-github-context
-      - leo-automation-test-job
+      - create-bee-workflow
       - delete-billing-project-v2-from-bee-workflow
-    if: ${{ needs.init-github-context.outputs.delete-bee && always() }} # always run to confirm bee is destroyed unless explicitly requested not to
+    if: ${{ needs.init-github-context.outputs.delete-bee && needs.create-bee-workflow.result == 'success' && always() }} 
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -285,25 +323,37 @@ jobs:
           token: ${{ env.TOKEN }}
           inputs: '{
             "run-name": "${{ env.BEE_DESTROY_RUN_NAME }}",
-            "bee-name": "${{ env.BEE_NAME }}"
+            "bee-name": "${{ needs.init-github-context.outputs.bee-name }}"
             }'
           wait-for-completion: false
 
-  notify-slack-on-failure:
+  # The first step here is to notify ia-notification-test on failure from either scheduled runs or staging hook
+  # The second step here is to notify dsde-qa on runs from the staging beehive hook
+  notify-slack:
     runs-on: ubuntu-latest
     needs:
       - init-github-context
-      - create-bee-workflow
       - leo-automation-test-job
-      - destroy-bee-workflow
-    if: ${{ github.event_name == 'schedule' && failure() }} # Want to notify regardless of which step fails
+    if: always()
     steps:
-      - name: Notify slack
+      - id: notify-ia-on-failures
+        name: Notify ia on failures
+        if: ${{ failure() && github.ref_name == 'develop' }} # Want to notify regardless of which step fails.
         uses: slackapi/slack-github-action@v1.23.0
         with:
           # C03ATF4QXEV is for #ia-notification-test
+          channel-id: 'C03ATF4QXEV'
+          slack-message: "Azure E2E Tests FAILED, \n\tStatus: ${{ job.status }} \n\tBranch: ${{ needs.init-github-context.outputs.automation-branch }} \n\tRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}
+
+      - id: notify-dsde-qa-on-staging
+        uses: slackapi/slack-github-action@v1.23.0
+        name: Notify dsde-qa on staging runs
+        if: ${{ needs.init-github-context.outputs.test-env == 'staging' }}
+        with:
           # C53JYBV9A is for #dsde-qa
-          channel-id: 'C03ATF4QXEV,C53JYBV9A'
-          slack-message: "Azure E2E Tests FAILED, automation-branch: ${{ needs.init-github-context.outputs.automation-branch }}\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          channel-id: 'C53JYBV9A'
+          slack-message: "Leonardo Azure E2E Staging Tests Ran \n\tStatus: ${{ job.status }} \n\tBranch: ${{ needs.init-github-context.outputs.automation-branch }} \n\tRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACKBOT_TOKEN }}

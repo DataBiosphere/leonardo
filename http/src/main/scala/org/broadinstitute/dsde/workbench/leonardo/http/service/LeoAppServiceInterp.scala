@@ -490,7 +490,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- dbReference.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
       _ <- dbReference.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
       _ <- dbReference.inTransaction(kubernetesClusterQuery.markAsDeleted(dbApp.cluster.id, ctx.now))
-      // Notify SAM that the resource has been deleted
+      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
       _ <- authProvider
         .notifyResourceDeletedV2(
           dbApp.app.samResourceId,

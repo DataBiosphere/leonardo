@@ -172,7 +172,7 @@ jobs:
           echo "git checkout ${{ env.CURRENT_BRANCH }}"
           git checkout ${{ env.CURRENT_BRANCH }}
         fi
-        
+
         # Echo the HEAD commit of the provider branch that has been switched to.
         echo "git rev-parse HEAD"
         git rev-parse HEAD

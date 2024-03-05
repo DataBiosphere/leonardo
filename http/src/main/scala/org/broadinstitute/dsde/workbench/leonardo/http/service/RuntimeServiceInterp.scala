@@ -469,12 +469,11 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
-      // Notify SAM that the resource has been deleted
+      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
       _ <- authProvider
-        .notifyResourceDeleted(
+        .notifyResourceDeletedV2(
           runtime.samResource,
-          runtime.auditInfo.creator,
-          cloudContext.value
+          userInfo
         )
     } yield ()
 

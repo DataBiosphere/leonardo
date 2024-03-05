@@ -4,29 +4,13 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.defaultUserInfo
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  CloudContext,
-  KubernetesRuntimeConfig,
-  NumNodes
-}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsp.ChartName
 import org.mockito.ArgumentMatchers.{any, anyLong, anyString}
 import org.mockito.Mockito.{reset, when}
 import org.mockito.stubbing.OngoingStubbing
@@ -42,13 +26,7 @@ import pact4s.provider._
 import pact4s.scalatest.PactVerifier
 
 import java.lang.Thread.sleep
-import java.net.URL
-import java.time.Instant
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
-
-object States {
-  val AppExists = "there is an app in a Google project"
-}
 
 class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
@@ -66,6 +44,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   val mockAppService: AppService[IO] = mock[AppService[IO]]
   val mockRuntimeV2Service: RuntimeV2Service[IO] = mock[RuntimeV2Service[IO]]
   val mockAdminService: AdminService[IO] = mock[AdminService[IO]]
+  val mockResourcesService: ResourcesService[IO] = mock[ResourcesService[IO]]
   val mockContentSecurityPolicyConfig: ContentSecurityPolicyConfig = mock[ContentSecurityPolicyConfig]
   val refererConfig: RefererConfig = RefererConfig(Set("*"), enabled = true)
   val mockUserInfoDirectives: MockUserInfoDirectives = new MockUserInfoDirectives {
@@ -83,38 +62,18 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       mockAppService,
       mockRuntimeV2Service,
       mockAdminService,
-      MockResourcesService,
+      mockResourcesService,
       mockUserInfoDirectives,
       mockContentSecurityPolicyConfig,
       refererConfig
     )
 
+  // This function composes a large switch statement based on partial functions from
+  // multiple state mangers (each with their own state that they handle).
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
-    case ProviderState(States.AppExists, _) =>
-      when(mockAppService.getApp(any[UserInfo], any[CloudContext.Gcp], AppName(anyString()))(any[Ask[IO, AppContext]]))
-        .thenReturn(IO {
-          GetAppResponse(
-            None,
-            AppName("exampleApp"),
-            CloudContext.Gcp(GoogleProject("exampleProject")),
-            RegionName("exampleRegion"),
-            KubernetesRuntimeConfig(NumNodes(8), MachineTypeName("exampleMachine"), autoscalingEnabled = true),
-            List.empty[AppError],
-            AppStatus.Unspecified,
-            Map.empty[KubernetesSerializableName.ServiceName, URL],
-            Some(DiskName("exampleDiskName")),
-            Map.empty[String, String],
-            AuditInfo(WorkbenchEmail(""), Instant.now(), None, Instant.now()),
-            AppType.CromwellRunnerApp,
-            ChartName(""),
-            None,
-            Map.empty[String, String],
-            false,
-            None
-          )
-        })
-    case _ =>
-      loggerIO.debug("other state")
+    RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService)).orElse { case _ =>
+      loggerIO.debug("Whoops: other state")
+    }
   }
 
   lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
@@ -129,14 +88,17 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   // This matches the latest commit of the consumer branch that triggered the webhook event
   lazy val consumerVer: Option[String] = sys.env.get("CONSUMER_VERSION")
 
-  var consumerVersionSelectors: ConsumerVersionSelectors = ConsumerVersionSelectors()
+  var consumerVersionSelectors: ConsumerVersionSelectors = ConsumerVersionSelectors().branch("whoops")
   // consumerVersionSelectors = consumerVersionSelectors.mainBranch
   // The following match condition basically says
   // 1. If verification is triggered by consumer pact change, verify only the changed pact.
-  // 2. For normal Sam PR, verify all consumer pacts in Pact Broker labelled with a deployed environment (alpha, dev, prod, staging).
+  // 2. For normal Leo PR, verify all consumer pacts in Pact Broker labelled with a deployed environment (alpha, dev, prod, staging).
   consumerBranch match {
-    case Some(s) if !s.isBlank => consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName)
-    case _                     => consumerVersionSelectors = consumerVersionSelectors.deployedOrReleased.mainBranch
+    case Some(s) if !s.isBlank =>
+      consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName).matchingBranch
+    case _ =>
+      consumerVersionSelectors =
+        consumerVersionSelectors.deployedOrReleased.mainBranch.branch("eric/RW-11654", Option("aou-rwb-api"))
   }
 
   val provider: ProviderInfoBuilder =
@@ -145,8 +107,8 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       PactSource
         .PactBrokerWithSelectors(pactBrokerUrl)
         .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
-        .withPendingPacts(true)
-        .withProviderTags(ProviderTags("develop"))
+        .withPendingPactsEnabled(ProviderTags(providerVer))
+        .withConsumerVersionSelectors(consumerVersionSelectors)
     )
       .withStateManagementFunction(
         providerStatesHandler

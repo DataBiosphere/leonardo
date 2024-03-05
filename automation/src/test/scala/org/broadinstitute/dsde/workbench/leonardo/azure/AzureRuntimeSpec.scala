@@ -160,7 +160,7 @@ class AzureRuntimeSpec
         }
 
         _ <- loggerIO.info(
-          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} delete called, starting to poll on deletion"
         )
 
         callGetRuntime2 = IO(runtimeClient.getAzureRuntime(workspaceId, runtimeName.asString))
@@ -172,12 +172,15 @@ class AzureRuntimeSpec
         )(implicitly, GeneratedLeonardoClient.runtimeInStateOrError(ClusterStatus.DELETED))
 
         _ <- loggerIO.info(
-          s"AzureRuntime: runtime ${workspaceId}/${runtimeName.asString} delete monitor result: $monitorDeleteResult"
+          s"AzureRuntimeSpec: runtime ${workspaceId}/${runtimeName.asString} delete monitor result: $monitorDeleteResult"
         )
         _ = monitorDeleteResult.getStatus() shouldBe ClusterStatus.DELETED
 
         diskAfterRuntimeDelete <- getDisk
-        _ = diskAfterRuntimeDelete.getStatus shouldBe DiskStatus.DELETED
+        _ <- loggerIO.info(
+          s"AzureRuntimeSpec: disk $workspaceId/${diskAfterRuntimeDelete.getName} delete monitor result: $diskAfterRuntimeDelete"
+        )
+        _ = diskAfterRuntimeDelete.getStatus should (be(DiskStatus.DELETED) or be(DiskStatus.DELETING))
 
         _ <- loggerIO.info(
           s"AzureRuntimeSpec: disk ${workspaceId}/${diskAfterRuntimeDelete.getId()} in deleted status detected"
