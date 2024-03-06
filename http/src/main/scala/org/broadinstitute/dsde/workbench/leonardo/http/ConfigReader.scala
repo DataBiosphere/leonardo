@@ -9,6 +9,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import pureconfig.ConfigSource
+import _root_.pureconfig.generic.auto._
+import ConfigImplicits._
+
 
 object ConfigReader {
   lazy val appConfig =
@@ -16,7 +19,6 @@ object ConfigReader {
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
 }
-//pubSubConfig: AzureServiceBusPublisherConfig
 final case class AzureConfig(
   pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
@@ -30,7 +32,6 @@ final case class AzureConfig(
   tdr: TdrConfig,
   listenerChartConfig: ListenerChartConfig,
   hostingModeConfig: AzureHostingModeConfig,
-  publisherConfig: AzureServiceBusPublisherConfig
 )
 
 final case class OidcAuthConfig(

@@ -49,10 +49,10 @@ object Boot extends IOApp {
 
     AppDependenciesBuilder().createAppDependencies().use({ leoDependencies =>
 
-      val frontEndDependencies = leoDependencies.servicesDependencies
-      val backEndDependencies = leoDependencies.leoAppProcesses
+      val servicesDependencies = leoDependencies.servicesDependencies
+      val backEndProcesses = leoDependencies.leoAppProcesses
 
-      implicit val openTelemetryMetrics = frontEndDependencies.baselineDependencies.openTelemetryMetrics
+      implicit val openTelemetryMetrics = servicesDependencies.baselineDependencies.openTelemetryMetrics
 
       val resourcesService = new ResourcesServiceInterp[IO](
         appDependencies.authProvider,
@@ -62,13 +62,13 @@ object Boot extends IOApp {
       )
 
       val httpRoutes = new HttpRoutes(
-        frontEndDependencies.baselineDependencies.openIDConnectConfiguration,
-        frontEndDependencies.statusService,
-        frontEndDependencies.cloudSpecificDependenciesRegistry,
-        frontEndDependencies.diskV2Service,
-        frontEndDependencies.kubernetesService,
-        frontEndDependencies.azureService,
-        frontEndDependencies.adminService,
+        servicesDependencies.baselineDependencies.openIDConnectConfiguration,
+        servicesDependencies.statusService,
+        servicesDependencies.cloudSpecificDependenciesRegistry,
+        servicesDependencies.diskV2Service,
+        servicesDependencies.kubernetesService,
+        servicesDependencies.azureService,
+        servicesDependencies.adminService,
         resourcesService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
@@ -81,14 +81,14 @@ object Boot extends IOApp {
           AppContext(TraceId(s"Boot_${start}"), start)
         )
         // This only needs to happen once in each environment
-        _ <- frontEndDependencies.baselineDependencies.samDAO.registerLeo.handleErrorWith { case e =>
+        _ <- servicesDependencies.baselineDependencies.samDAO.registerLeo.handleErrorWith { case e =>
           logger.warn(e)("fail to register Leonardo SA")
         }
         _ <-
           if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
             //assuming this is only required when running on GCP, the dataprocInterp should be in the
             // in the dependencies registry.
-            frontEndDependencies.cloudSpecificDependenciesRegistry.lookup[DataprocInterpreter[IO]].get.setupDataprocImageGoogleGroup
+            servicesDependencies.cloudSpecificDependenciesRegistry.lookup[DataprocInterpreter[IO]].get.setupDataprocImageGoogleGroup
           } else IO.unit
 
         _ <- IO.fromFuture {
@@ -105,7 +105,7 @@ object Boot extends IOApp {
         }
       } yield ()
 
-      val allStreams = backEndDependencies.processesList ++ List(Stream.eval[IO, Unit](httpServer)) // start http server
+      val allStreams = backEndProcesses.processesList ++ List(Stream.eval[IO, Unit](httpServer)) // start http server
 
       val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)
 

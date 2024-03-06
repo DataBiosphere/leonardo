@@ -49,7 +49,7 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
  * This class builds the baseline dependencies for the Leo App.
  * Baseline dependencies have the following characteristics:
  *  - Required regardless of where the App is hosted.
- *  - Include clod-agnostic traits with interpreters for the cloud provider (i.e. CloudPublisher).
+ *  - Includes clod-agnostic traits with interpreters for the cloud provider (e.g. CloudPublisher, CloudAuthTokenProvider).
  */
 class BaselineDependenciesBuilder {
 
@@ -173,8 +173,6 @@ class BaselineDependenciesBuilder {
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
 
       cloudPublisher <- createCloudPublisher[F]
-
-      //  _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(applicationConfig.leoServiceAccountJsonFile.toString))
 
       underlyingNodepoolLockCache = buildCache[KubernetesClusterId, scalacache.Entry[Semaphore[F]]](
         gkeClusterConfig.nodepoolLockCacheMaxSize,
@@ -302,7 +300,6 @@ class BaselineDependenciesBuilder {
         recordMetricsProcesses,
         googleTokenCache,
         samResourceCache,
-        // dataprocInterp,
         oidcConfig,
         appDAO,
         wdsDao,
@@ -333,7 +330,7 @@ class BaselineDependenciesBuilder {
         case true =>
           GooglePublisher.cloudPublisherResource[F](publisherConfig)
         case false =>
-          AzurePublisherInterpreter.publisher[F](ConfigReader.appConfig.azure.publisherConfig)
+          AzurePublisherInterpreter.publisher[F](ConfigReader.appConfig.azure.hostingModeConfig.publisherConfig)
       }
   }
 
