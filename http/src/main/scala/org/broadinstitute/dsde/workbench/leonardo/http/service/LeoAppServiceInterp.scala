@@ -421,9 +421,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               diskOpt,
               Some(ctx.traceId)
             )
-            trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
-            _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage).recoverWith {
-              case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+            _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).recoverWith { case e: FailToRecordStoptime =>
+              log.error(ctx.loggingCtx)(e.getMessage)
             }
             _ <- publisherQueue.offer(deleteMessage)
           } yield ()
@@ -487,17 +486,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- dbReference.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
       _ <- dbReference.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
       _ <- dbReference.inTransaction(kubernetesClusterQuery.markAsDeleted(dbApp.cluster.id, ctx.now))
-      // Notify SAM that the resource has been deleted
+      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
       _ <- authProvider
-        .notifyResourceDeleted(
+        .notifyResourceDeletedV2(
           dbApp.app.samResourceId,
-          dbApp.app.auditInfo.creator,
-          cloudContext.value
+          userInfo
         )
       // Stop the usage of the SAS app
-      trackUsage = AllowedChartName.fromChartName(dbApp.app.chart.name).exists(_.trackUsage)
-      _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).whenA(trackUsage).recoverWith {
-        case e: FailToRecordStoptime => log.error(ctx.loggingCtx)(e.getMessage)
+      _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).recoverWith { case e: FailToRecordStoptime =>
+        log.error(ctx.loggingCtx)(e.getMessage)
       }
     } yield ()
 
@@ -559,8 +556,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         cloudContext.value,
         Some(ctx.traceId)
       )
-      trackUsage = AllowedChartName.fromChartName(appResult.app.chart.name).exists(_.trackUsage)
-      _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now).whenA(trackUsage)
+      _ <- appUsageQuery.recordStop(appResult.app.id, ctx.now)
       _ <- publisherQueue.offer(message)
     } yield ()
 

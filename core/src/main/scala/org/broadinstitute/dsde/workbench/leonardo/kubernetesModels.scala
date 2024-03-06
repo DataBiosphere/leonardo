@@ -312,16 +312,13 @@ object ErrorSource {
 
 sealed abstract class AllowedChartName extends Product with Serializable {
   def asString: String
-  def trackUsage: Boolean
 }
 object AllowedChartName {
   final case object RStudio extends AllowedChartName {
     def asString: String = "rstudio"
-    def trackUsage: Boolean = false
   }
   final case object Sas extends AllowedChartName {
     def asString: String = "sas"
-    def trackUsage: Boolean = true
   }
 
   // We used to have different chart names for RStudio and SAS. This is to handle the old names for backwards-compatibility
