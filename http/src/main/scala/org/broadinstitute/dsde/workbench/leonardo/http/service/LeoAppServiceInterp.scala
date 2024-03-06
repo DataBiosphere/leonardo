@@ -46,7 +46,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.{AuthScheme, Uri}
 import org.typelevel.log4cats.StructuredLogger
-import shapeless.syntax.std.tuple.productTupleOps
 import slick.jdbc.TransactionIsolation
 
 import java.time.Instant
