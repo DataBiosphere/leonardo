@@ -105,7 +105,7 @@ object Boot extends IOApp {
         }
       } yield ()
 
-      val allStreams = backEndDependencies.processesList ++ Stream.eval[IO, Unit](httpServer) // start http server
+      val allStreams = backEndDependencies.processesList ++ List(Stream.eval[IO, Unit](httpServer)) // start http server
 
       val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)
 
