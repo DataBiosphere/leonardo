@@ -3,35 +3,31 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 import akka.actor.ActorSystem
 import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
-import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor
-import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, CromwellAppInstall, CromwellRunnerAppInstall, HailBatchAppInstall, WdsAppInstall, WorkflowsAppInstall}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, appServiceConfig, applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, contentSecurityPolicy, dbConcurrency, gkeCustomAppConfig, leoPubsubMessageSubscriberConfig, liquibaseConfig, prometheusConfig, refererConfig, samConfig}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
+import org.broadinstitute.dsde.workbench.leonardo.app._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, appServiceConfig, applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, contentSecurityPolicy, dateAccessUpdaterConfig, dbConcurrency, gkeCustomAppConfig, leoExecutionModeConfig, leoPubsubMessageSubscriberConfig, liquibaseConfig, prometheusConfig, refererConfig, samConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{StandardUserInfoDirectives, UserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.StandardUserInfoDirectives
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{AutopauseMonitor, LeoMetricsMonitor, LeoPubsubMessageSubscriber}
-import org.broadinstitute.dsde.workbench.leonardo.util.{AKSInterpreter, AKSInterpreterConfig, AzurePubsubHandlerInterp, KubernetesInterpreter, ServicesRegistry}
-import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{AutopauseMonitor, DateAccessedUpdater, LeoMetricsMonitor, LeoPubsubMessageSubscriber}
+import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
-trait AppDependenciesBuilder {
-    def createAppDependencies(implicit
-                              logger: StructuredLogger[IO],
-                              ec: ExecutionContext,
-                              as: ActorSystem): Resource[IO,LeoAppDependencies]
-}
-
-abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
-  override def createAppDependencies(implicit
-                                  logger: StructuredLogger[IO],
-                                  ec: ExecutionContext,
-                                  as: ActorSystem): Resource[IO,LeoAppDependencies] = {
+/**
+ * Builds the App dependencies
+ * @param cloudHostDependenciesBuilder interpreter of the cloud hosting dependencies builder.
+ */
+class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuilder) {
+  def createAppDependencies()(implicit
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    as: ActorSystem
+  ): Resource[IO, LeoAppDependencies] =
     for {
       concurrentDbAccessPermits <- Resource.eval(Semaphore[IO](dbConcurrency))
 
@@ -39,82 +35,90 @@ abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
       implicit0(openTelemetry: OpenTelemetryMetrics[IO]) <- OpenTelemetryMetrics
         .resource[IO](applicationConfig.applicationName, prometheusConfig.endpointPort)
 
+      _ <- cloudHostDependenciesBuilder.registryOpenTelemetryTracing
+
       baseDependencies <- BaselineDependenciesBuilder().createBaselineDependencies[IO]()
 
-      dependenciesRegistry <- createDependenciesRegistry(baseDependencies)
+      dependenciesRegistry <- cloudHostDependenciesBuilder.createDependenciesRegistry(baseDependencies)
 
       httpRoutesDependencies <- createFrontEndDependencies(baseDependencies, dependenciesRegistry)
 
       backEndDependencies <- createBackEndDependencies(baseDependencies, dependenciesRegistry)
-    } yield {
-      LeoAppDependencies(httpRoutesDependencies, backEndDependencies)
-    }
+    } yield LeoAppDependencies(httpRoutesDependencies, backEndDependencies)
+
+  private def createFrontEndDependencies(baselineDependencies: BaselineDependencies[IO],
+                                         dependenciesRegistry: ServicesRegistry
+  )(implicit
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    dbReference: DbReference[IO],
+    openTelemetry: OpenTelemetryMetrics[IO]
+  ): Resource[IO, ServicesDependencies] = {
+    val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
+    val diskV2Service = new DiskV2ServiceInterp[IO](
+      ConfigReader.appConfig.persistentDisk,
+      baselineDependencies.authProvider,
+      baselineDependencies.wsmDAO,
+      baselineDependencies.samDAO,
+      baselineDependencies.publisherQueue,
+      baselineDependencies.wsmClientProvider
+    )
+    val leoKubernetesService =
+      new LeoAppServiceInterp(
+        appServiceConfig,
+        baselineDependencies.authProvider,
+        baselineDependencies.serviceAccountProvider,
+        baselineDependencies.publisherQueue,
+        dependenciesRegistry,
+        gkeCustomAppConfig,
+        baselineDependencies.wsmDAO,
+        baselineDependencies.wsmClientProvider
+      )
+
+    val azureService = new RuntimeV2ServiceInterp[IO](
+      baselineDependencies.runtimeServicesConfig,
+      baselineDependencies.authProvider,
+      baselineDependencies.wsmDAO,
+      baselineDependencies.publisherQueue,
+      baselineDependencies.dateAccessedUpdaterQueue,
+      baselineDependencies.wsmClientProvider
+    )
+    val adminService =
+      new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
+
+    Resource.make(
+      IO(
+        ServicesDependencies(
+          statusService,
+          dependenciesRegistry,
+          diskV2Service,
+          leoKubernetesService,
+          azureService,
+          adminService,
+          StandardUserInfoDirectives,
+          contentSecurityPolicy,
+          refererConfig,
+          baselineDependencies
+        )
+      )
+    )(_ => IO.unit)
   }
 
-    private def createFrontEndDependencies(baselineDependencies: BaselineDependencies[IO],
-                                           dependenciesRegistry: ServicesRegistry
-    )(implicit
-      logger: StructuredLogger[IO],
-      ec: ExecutionContext,
-      as: ActorSystem,
-      dbReference: DbReference[IO],
-      openTelemetry: OpenTelemetryMetrics[IO],
-    ): Resource[IO,FrontEndDependencies] = {
-      val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
-      val diskV2Service = new DiskV2ServiceInterp[IO](
-        ConfigReader.appConfig.persistentDisk,
-        baselineDependencies.authProvider,
-        baselineDependencies.wsmDAO,
-        baselineDependencies.samDAO,
-        baselineDependencies.publisherQueue,
-        baselineDependencies.wsmClientProvider
-      )
-      val leoKubernetesService =
-        new LeoAppServiceInterp(
-          appServiceConfig,
-          baselineDependencies.authProvider,
-          baselineDependencies.serviceAccountProvider,
-          baselineDependencies.publisherQueue,
-          dependenciesRegistry,
-          gkeCustomAppConfig,
-          baselineDependencies.wsmDAO,
-          baselineDependencies.wsmClientProvider
-        )
+  private def createBackEndDependencies(baselineDependencies: BaselineDependencies[IO],
+                                        cloudSpecificDependencies: ServicesRegistry
+  )(implicit
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    dbReference: DbReference[IO],
+    openTelemetry: OpenTelemetryMetrics[IO]
+  ): Resource[IO, LeoAppProcesses] = {
 
-      val azureService = new RuntimeV2ServiceInterp[IO](
-        baselineDependencies.runtimeServicesConfig,
-        baselineDependencies.authProvider,
-        baselineDependencies.wsmDAO,
-        baselineDependencies.publisherQueue,
-        baselineDependencies.dateAccessedUpdaterQueue,
-        baselineDependencies.wsmClientProvider
-      )
-      val adminService = new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
+    val dateAccessedUpdater =
+      new DateAccessedUpdater(dateAccessUpdaterConfig, baselineDependencies.dateAccessedUpdaterQueue)
 
-
-      Resource.make(IO(FrontEndDependencies(
-        baselineDependencies.openIDConnectConfiguration,
-        statusService,
-        dependenciesRegistry,
-        diskV2Service,
-        leoKubernetesService,
-        azureService,
-        adminService,
-        StandardUserInfoDirectives,
-        contentSecurityPolicy,
-        refererConfig
-      )))(_ => IO.unit)
-    }
-
-  private def createBackEndDependencies(baselineDependencies: BaselineDependencies[IO], cloudSpecificDependencies: ServicesRegistry)(implicit
-                                                                                logger: StructuredLogger[IO],
-                                                                                ec: ExecutionContext,
-                                                                                as: ActorSystem,
-                                                                                dbReference: DbReference[IO],
-                                                                                openTelemetry: OpenTelemetryMetrics[IO],
-  ): Resource[IO, BackEndDependencies] = {
-
-    val processesList = createCloudSpecificBackEndProcessesList(baselineDependencies, cloudSpecificDependencies)
+    val cloudSpecificProcessList = cloudHostDependenciesBuilder.createCloudSpecificProcessesList(baselineDependencies, cloudSpecificDependencies)
 
     val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, baselineDependencies.asyncTasksQueue)
 
@@ -129,8 +133,8 @@ abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
     // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
     implicit val clusterToolToToolDao =
       ToolDAO.clusterToolToToolDao(baselineDependencies.jupyterDAO,
-        baselineDependencies.welderDAO,
-        baselineDependencies.rstudioDAO
+                                   baselineDependencies.welderDAO,
+                                   baselineDependencies.rstudioDAO
       )
     val kubeAlg = new KubernetesInterpreter[IO](
       baselineDependencies.azureContainerService
@@ -149,7 +153,6 @@ abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
       baselineDependencies.azureContainerService
     )
 
-
     val cromwellAppInstall = new CromwellAppInstall[IO](
       ConfigReader.appConfig.azure.coaAppConfig,
       ConfigReader.appConfig.drs,
@@ -161,7 +164,8 @@ abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
     )
 
     val cromwellRunnerAppInstall =
-      new CromwellRunnerAppInstall[IO](ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
+      new CromwellRunnerAppInstall[IO](
+        ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
         ConfigReader.appConfig.drs,
         baselineDependencies.samDAO,
         baselineDependencies.cromwellDAO,
@@ -170,7 +174,8 @@ abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
       )
     val hailBatchAppInstall =
       new HailBatchAppInstall[IO](ConfigReader.appConfig.azure.hailBatchAppConfig, baselineDependencies.hailBatchDAO)
-    val wdsAppInstall = new WdsAppInstall[IO](ConfigReader.appConfig.azure.wdsAppConfig,
+    val wdsAppInstall = new WdsAppInstall[IO](
+      ConfigReader.appConfig.azure.wdsAppConfig,
       ConfigReader.appConfig.azure.tdr,
       baselineDependencies.samDAO,
       baselineDependencies.wdsDAO,
@@ -188,10 +193,11 @@ abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
       )
 
     implicit val appTypeToAppInstall = AppInstall.appTypeToAppInstall(wdsAppInstall,
-      cromwellAppInstall,
-      workflowsAppInstall,
-      hailBatchAppInstall,
-      cromwellRunnerAppInstall)
+                                                                      cromwellAppInstall,
+                                                                      workflowsAppInstall,
+                                                                      hailBatchAppInstall,
+                                                                      cromwellRunnerAppInstall
+    )
 
     val aksAlg = new AKSInterpreter[IO](
       AKSInterpreterConfig(
@@ -237,41 +243,39 @@ abstract class AppDependenciesBuilderImpl extends AppDependenciesBuilder {
     )
 
 
-    Resource.make(IO(BackEndDependencies(processesList)))(_ => IO.unit)
+    // These processes run independently of the hosting provider.
+    val baselineProcesses = List(
+      pubsubSubscriber.process(baselineDependencies.subscriber),
+      autopauseMonitorProcess,
+      metricsMonitor.process
+    )
+    val uniquefrontLeoOnlyProcesses = List(
+      dateAccessedUpdater.process // We only need to update dateAccessed in front leo
+    ) ++ baselineDependencies.recordCacheMetrics
 
+    val backLeoProcesses = baselineProcesses ++ cloudSpecificProcessList
+
+    val configuredProcesses = leoExecutionModeConfig match {
+      case LeoExecutionModeConfig.BackLeoOnly  => backLeoProcesses
+      case LeoExecutionModeConfig.FrontLeoOnly => asyncTasks.process :: uniquefrontLeoOnlyProcesses
+      case LeoExecutionModeConfig.Combined     => backLeoProcesses ++ uniquefrontLeoOnlyProcesses
+    }
+
+    val allProcesses = List(baselineDependencies.leoPublisher.process) ++ configuredProcesses
+
+    Resource.make(IO(LeoAppProcesses(allProcesses)))(_ => IO.unit)
   }
-
-  def createCloudSpecificBackEndProcessesList(baselineDependencies: BaselineDependencies[IO],
-                                              cloudSpecificDependenciesRegistry: ServicesRegistry)(implicit
-                                                                       logger: StructuredLogger[IO],
-                                                                       ec: ExecutionContext,
-                                                                       dbReference: DbReference[IO],
-                                                                       openTelemetry: OpenTelemetryMetrics[IO]
-                                ): List[Stream[IO,Unit]]
-
-  def createDependenciesRegistry(baselineDependencies: BaselineDependencies[IO])(implicit
-                                                                                 logger: StructuredLogger[IO],
-                                                                                 ec: ExecutionContext,
-                                                                                 as: ActorSystem,
-                                                                                 dbReference: DbReference[IO],
-                                                                                 openTelemetry: OpenTelemetryMetrics[IO],
-  ): Resource[IO, ServicesRegistry]
 }
 
-final case class LeoAppDependencies(
-                                     frontEndDependencies: FrontEndDependencies,
-                                     backEndDependencies: BackEndDependencies,
-                                   )
-final case class FrontEndDependencies(
-                                       oidcConfig: OpenIDConnectConfiguration,
-                                       statusService: StatusService,
-                                       cloudSpecificDependenciesRegistry: ServicesRegistry,
-                                       diskV2Service: DiskV2Service[IO],
-                                       kubernetesService: AppService[IO],
-                                       azureService: RuntimeV2Service[IO],
-                                       adminService: AdminService[IO],
-                                       userInfoDirectives: UserInfoDirectives,
-                                       contentSecurityPolicy: ContentSecurityPolicyConfig,
-                                       refererConfig: RefererConfig
-                                       )
-final case class BackEndDependencies(processesList:List[Stream[IO,Unit]])
+object AppDependenciesBuilder {
+  def apply(): AppDependenciesBuilder =
+    {
+      ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+        case true =>
+          new AppDependenciesBuilder(new AzureDependencyBuilder())
+        case false =>
+          new AppDependenciesBuilder(new GcpDependencyBuilder())
+      }
+    }
+
+}

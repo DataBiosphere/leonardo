@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import akka.actor.ActorSystem
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
-import cats.effect.{Async, IO, Ref, Resource}
+import cats.effect.{Async, Ref, Resource}
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
@@ -13,18 +13,16 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.app._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, CloudAuthTokenProvider, PetClusterServiceAccountProvider, SamAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, contentSecurityPolicy, dataprocConfig, dateAccessUpdaterConfig, gceConfig, gkeClusterConfig, httpSamDaoConfig, imageConfig, kubernetesDnsCacheConfig, leoPubsubMessageSubscriberConfig, nonLeoMessageSubscriberConfig, prometheusConfig, proxyConfig, publisherConfig, pubsubConfig, refererConfig, runtimeDnsCacheConfig, samAuthConfig, samConfig, serviceAccountProviderConfig, subscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, dataprocConfig, dateAccessUpdaterConfig, gceConfig, gkeClusterConfig, httpSamDaoConfig, imageConfig, kubernetesDnsCacheConfig, nonLeoMessageSubscriberConfig, prometheusConfig, proxyConfig, publisherConfig, pubsubConfig, runtimeDnsCacheConfig, samAuthConfig, serviceAccountProviderConfig, subscriberConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.Boot.{buildCache, buildHttpClient}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureServiceConfig, RuntimeServiceConfig, SamResourceCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageSubscriber, NonLeoMessage, UpdateDateAccessedMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, NonLeoMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.leonardo.{AppAccessScope, KeyLock, LeoPublisher}
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo}
@@ -47,7 +45,12 @@ import javax.net.ssl.SSLContext
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
-
+/**
+ * This class builds the baseline dependencies for the Leo App.
+ * Baseline dependencies have the following characteristics:
+ *  - Required regardless of where the App is hosted.
+ *  - Include clod-agnostic traits with interpreters for the cloud provider (i.e. CloudPublisher).
+ */
 class BaselineDependenciesBuilder {
 
   def createBaselineDependencies[F[_]:Parallel](
@@ -262,11 +265,7 @@ class BaselineDependenciesBuilder {
           .processWithUnderlyingCache(underlyingKubeClientCache)
       )
 
-
-    } yield {
-
-
-      val runtimeServiceConfig = RuntimeServiceConfig(
+      runtimeServiceConfig = RuntimeServiceConfig(
         proxyConfig.proxyUrlBase,
         imageConfig,
         autoFreezeConfig,
@@ -280,7 +279,7 @@ class BaselineDependenciesBuilder {
           ConfigReader.appConfig.azure.pubsubHandler.welderImage
         )
       )
-
+    } yield {
       BaselineDependencies[F](
         sslContext,
         runtimeDnsCache,
@@ -321,7 +320,8 @@ class BaselineDependenciesBuilder {
         azureVmService,
         operationFutureCache,
         azureBatchService,
-        azureApplicationInsightsService
+        azureApplicationInsightsService,
+        openTelemetry
       )
     }
 
@@ -452,5 +452,6 @@ final case class BaselineDependencies[F[_]](
   azureVmService: AzureVmService[F],
   operationFutureCache:  Cache[F, Long, OperationFuture[Operation, Operation]],
   azureBatchService: AzureBatchService[F],
-  azureApplicationInsightsService: AzureApplicationInsightsService[F]
+  azureApplicationInsightsService: AzureApplicationInsightsService[F],
+  openTelemetryMetrics:OpenTelemetryMetrics[F]
 )

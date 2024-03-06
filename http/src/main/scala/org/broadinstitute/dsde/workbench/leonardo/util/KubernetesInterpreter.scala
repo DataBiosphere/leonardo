@@ -6,20 +6,13 @@ import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.auth.oauth2.GoogleCredentials
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.models.{V1Namespace, V1NamespaceList, V1ObjectMeta}
 import io.kubernetes.client.util.Config
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, AzureContainerService}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
-import org.broadinstitute.dsde.workbench.google2.{
-  autoClosableResourceF,
-  recoverF,
-  GKEModels,
-  GKEService,
-  KubernetesClusterNotFoundException
-}
+import org.broadinstitute.dsde.workbench.google2.{autoClosableResourceF, recoverF}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.util2.withLogging
 import org.typelevel.log4cats.StructuredLogger

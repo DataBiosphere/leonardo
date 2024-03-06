@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import cats.mtl.Ask
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext}
-import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
 

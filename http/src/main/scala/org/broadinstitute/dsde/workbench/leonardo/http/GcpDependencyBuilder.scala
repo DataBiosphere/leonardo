@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{CloudService, googleDataprocR
 import org.broadinstitute.dsde.workbench.leonardo.http.Boot.workbenchMetricsBaseName
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{CloudServiceRuntimeMonitor, DataprocRuntimeMonitor, GceRuntimeMonitor, LeoPubsubMessageSubscriber, MonitorAtBoot, NonLeoMessage, NonLeoMessageSubscriber, NonLeoMessageSubscriberConfig, RuntimeMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{CloudServiceRuntimeMonitor, DataprocRuntimeMonitor, GceRuntimeMonitor, MonitorAtBoot, NonLeoMessage, NonLeoMessageSubscriber, NonLeoMessageSubscriberConfig, RuntimeMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
@@ -37,127 +37,11 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.jdk.CollectionConverters._
 
 
-class GcpDependencyBuilder extends AppDependenciesBuilderImpl {
+class GcpDependencyBuilder extends CloudDependenciesBuilder {
 
-  def registryOpenTelemetryTracing[F[_]: Async](): Unit =
-    for {
-      _ <- OpenTelemetryMetrics.registerTracing[F](applicationConfig.leoServiceAccountJsonFile)
-    } yield ()
+  override def registryOpenTelemetryTracing: Resource[IO,Unit] =
+    OpenTelemetryMetrics.registerTracing[IO](applicationConfig.leoServiceAccountJsonFile)
 
-  /***
-   * Create GCP dependencies that a require for GCP only functionality.
-   * These are the first of instances (leafs) in the dependency graph.
-   */
-  private def createGcpDependencies[F[_]: Parallel](
-    baselineDependencies: BaselineDependencies[F]
-  )(implicit
-    F: Async[F],
-    logger: StructuredLogger[F],
-    ec: ExecutionContext,
-    as: ActorSystem,
-    openTelemetry: OpenTelemetryMetrics[F],
-    files: Files[F]
-  ): Resource[F, GcpDependencies[F]] =
-    for {
-      semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
-      credential <- credentialResource(applicationConfig.leoServiceAccountJsonFile.toString)
-      scopedCredential = credential.createScoped(Seq("https://www.googleapis.com/auth/compute").asJava)
-      kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
-      credentialJson <- Resource.eval(
-        readFileToString(applicationConfig.leoServiceAccountJsonFile)
-      )
-      json = Json(credentialJson)
-      jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
-
-      // Set up Google DAOs
-      googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
-      googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
-      googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
-                                                      jsonWithServiceAccountUser,
-                                                      workbenchMetricsBaseName
-      )
-
-      googleResourceService <- GoogleResourceService.resource[F](applicationConfig.leoServiceAccountJsonFile, semaphore)
-      googleStorage <- GoogleStorageService
-        .resource[F](applicationConfig.leoServiceAccountJsonFile.toString, Some(semaphore))
-      googlePublisher <- GooglePublisher.cloudPublisherResource[F](publisherConfig)
-      cryptoMiningUserPublisher <- GooglePublisher.cloudPublisherResource[F](cryptominingTopicPublisherConfig)
-      gkeService <- GKEService.resource(applicationConfig.leoServiceAccountJsonFile, semaphore)
-
-      // Retry 400 responses from Google, as those can occur when resources aren't ready yet
-      // (e.g. if the subnet isn't ready when creating an instance).
-      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
-                                                                           RetryPredicates.whenStatusCode(400)
-      )
-
-      googleComputeService <- GoogleComputeService.fromCredential(scopedCredential, semaphore, googleComputeRetryPolicy)
-      dataprocService <- GoogleDataprocService.resource(googleComputeService,
-                                                        applicationConfig.leoServiceAccountJsonFile.toString,
-                                                        semaphore,
-                                                        dataprocConfig.supportedRegions,
-                                                        googleDataprocRetryPolicy
-      )
-      googleDiskService <- GoogleDiskService.resource(applicationConfig.leoServiceAccountJsonFile.toString, semaphore)
-      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
-
-      _ <- OpenTelemetryMetrics.registerTracing[F](applicationConfig.leoServiceAccountJsonFile)
-
-      bucketHelperConfig = BucketHelperConfig(
-        imageConfig,
-        welderConfig,
-        proxyConfig,
-        securityFilesConfig
-      )
-
-      bucketHelper = new BucketHelper[F](bucketHelperConfig,
-        googleStorage,
-        baselineDependencies.serviceAccountProvider
-      )
-
-      vpcInterp = new VPCInterpreter(vpcInterpreterConfig,
-        googleResourceService,
-        googleComputeService
-      )
-
-      // Set up k8s and helm clients
-      underlyingKubeClientCache = buildCache[KubernetesClusterId, scalacache.Entry[ApiClient]](
-        200,
-        2hours
-      )
-      kubeCache <- Resource.make(F.delay(CaffeineCache[F, KubernetesClusterId, ApiClient](underlyingKubeClientCache)))(
-        _.close
-      )
-      kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
-        .resource(applicationConfig.leoServiceAccountJsonFile, gkeService, kubeCache)
-
-
-      nonLeoMessageSubscriberQueue <- Resource.eval(
-        Queue.bounded[F, ReceivedMessage[NonLeoMessage]](pubsubConfig.queueSize)
-      )
-      //TODO: Verify why the queue is not referenced anywhere else. Is the subscriber's functionality self-contained?
-      nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
-
-    } yield GcpDependencies(
-      googleStorage,
-      googleComputeService,
-      googleResourceService,
-      googleDirectoryDAO,
-      cryptoMiningUserPublisher,
-      googlePublisher,
-      googleIamDAO,
-      dataprocService,
-      baselineDependencies.kubernetesDnsCache, // Assuming kubernetesDnsCache is provided as a parameter
-      gkeService,
-      openTelemetry, // Assuming openTelemetry is provided as a parameter
-      kubernetesScopedCredential,
-      googleOauth2DAO,
-      googleDiskService,
-      googleProjectDAO,
-      bucketHelper,
-      vpcInterp,
-      kubeService,
-      nonLeoMessageSubscriber
-    )
 
   def createGcpOnlyServicesRegistry(appDependencies: BaselineDependencies[IO], gcpDependencies: GcpDependencies[IO])(
     implicit
@@ -286,8 +170,8 @@ class GcpDependencyBuilder extends AppDependenciesBuilderImpl {
 
   }
 
-  override def createCloudSpecificBackEndProcessesList(baselineDependencies: BaselineDependencies[IO],
-                                                       cloudSpecificDependencies: ServicesRegistry)(implicit
+  override def createCloudSpecificProcessesList(baselineDependencies: BaselineDependencies[IO],
+                                                cloudSpecificDependencies: ServicesRegistry)(implicit
                                                                        logger: StructuredLogger[IO],
                                                                        ec: ExecutionContext,
                                                                        dbReference: DbReference[IO],
@@ -362,11 +246,123 @@ class GcpDependencyBuilder extends AppDependenciesBuilderImpl {
       .expireAfterWrite(expiresIn.toSeconds, TimeUnit.SECONDS)
       .recordStats()
       .build[K, V]()
+
+  /***
+   * Create GCP dependencies that a require for GCP only functionality.
+   * These are the first of instances (leafs) in the dependency graph.
+   */
+  private def createGcpDependencies[F[_]: Parallel](
+                                                     baselineDependencies: BaselineDependencies[F]
+                                                   )(implicit
+                                                     F: Async[F],
+                                                     logger: StructuredLogger[F],
+                                                     ec: ExecutionContext,
+                                                     as: ActorSystem,
+                                                     openTelemetry: OpenTelemetryMetrics[F],
+                                                     files: Files[F]
+                                                   ): Resource[F, GcpDependencies[F]] =
+    for {
+      semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
+      credential <- credentialResource(applicationConfig.leoServiceAccountJsonFile.toString)
+      scopedCredential = credential.createScoped(Seq("https://www.googleapis.com/auth/compute").asJava)
+      kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
+      credentialJson <- Resource.eval(
+        readFileToString(applicationConfig.leoServiceAccountJsonFile)
+      )
+      json = Json(credentialJson)
+      jsonWithServiceAccountUser = Json(credentialJson, Option(googleGroupsConfig.googleAdminEmail))
+
+      // Set up Google DAOs
+      googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
+      googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
+      googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
+        jsonWithServiceAccountUser,
+        workbenchMetricsBaseName
+      )
+
+      googleResourceService <- GoogleResourceService.resource[F](applicationConfig.leoServiceAccountJsonFile, semaphore)
+      googleStorage <- GoogleStorageService
+        .resource[F](applicationConfig.leoServiceAccountJsonFile.toString, Some(semaphore))
+      googlePublisher <- GooglePublisher.cloudPublisherResource[F](publisherConfig)
+      cryptoMiningUserPublisher <- GooglePublisher.cloudPublisherResource[F](cryptominingTopicPublisherConfig)
+      gkeService <- GKEService.resource(applicationConfig.leoServiceAccountJsonFile, semaphore)
+
+      // Retry 400 responses from Google, as those can occur when resources aren't ready yet
+      // (e.g. if the subnet isn't ready when creating an instance).
+      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
+        RetryPredicates.whenStatusCode(400)
+      )
+
+      googleComputeService <- GoogleComputeService.fromCredential(scopedCredential, semaphore, googleComputeRetryPolicy)
+      dataprocService <- GoogleDataprocService.resource(googleComputeService,
+        applicationConfig.leoServiceAccountJsonFile.toString,
+        semaphore,
+        dataprocConfig.supportedRegions,
+        googleDataprocRetryPolicy
+      )
+      googleDiskService <- GoogleDiskService.resource(applicationConfig.leoServiceAccountJsonFile.toString, semaphore)
+      googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
+
+      _ <- OpenTelemetryMetrics.registerTracing[F](applicationConfig.leoServiceAccountJsonFile)
+
+      bucketHelperConfig = BucketHelperConfig(
+        imageConfig,
+        welderConfig,
+        proxyConfig,
+        securityFilesConfig
+      )
+
+      bucketHelper = new BucketHelper[F](bucketHelperConfig,
+        googleStorage,
+        baselineDependencies.serviceAccountProvider
+      )
+
+      vpcInterp = new VPCInterpreter(vpcInterpreterConfig,
+        googleResourceService,
+        googleComputeService
+      )
+
+      // Set up k8s and helm clients
+      underlyingKubeClientCache = buildCache[KubernetesClusterId, scalacache.Entry[ApiClient]](
+        200,
+        2 hours
+      )
+      kubeCache <- Resource.make(F.delay(CaffeineCache[F, KubernetesClusterId, ApiClient](underlyingKubeClientCache)))(
+        _.close
+      )
+      kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
+        .resource(applicationConfig.leoServiceAccountJsonFile, gkeService, kubeCache)
+
+
+      nonLeoMessageSubscriberQueue <- Resource.eval(
+        Queue.bounded[F, ReceivedMessage[NonLeoMessage]](pubsubConfig.queueSize)
+      )
+      //TODO: Verify why the queue is not referenced anywhere else. Is the subscriber's functionality self-contained?
+      nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
+
+    } yield GcpDependencies(
+      googleStorage,
+      googleComputeService,
+      googleResourceService,
+      googleDirectoryDAO,
+      cryptoMiningUserPublisher,
+      googlePublisher,
+      googleIamDAO,
+      dataprocService,
+      baselineDependencies.kubernetesDnsCache, // Assuming kubernetesDnsCache is provided as a parameter
+      gkeService,
+      openTelemetry, // Assuming openTelemetry is provided as a parameter
+      kubernetesScopedCredential,
+      googleOauth2DAO,
+      googleDiskService,
+      googleProjectDAO,
+      bucketHelper,
+      vpcInterp,
+      kubeService,
+      nonLeoMessageSubscriber
+    )
 }
 
-object GcpDependencyBuilder {
-  def apply: GcpDependencyBuilder = new GcpDependencyBuilder()
-}
 
 final case class GcpDependencies[F[_]](
   googleStorageService: GoogleStorageService[F],
