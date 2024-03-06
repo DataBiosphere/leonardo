@@ -12,14 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteAppMessage
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AllowedChartName,
-  AppId,
-  AppName,
-  AppStatus,
-  CloudContext,
-  SamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppId, AppName, AppStatus, CloudContext, SamResourceId}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.ChartName
@@ -80,8 +73,7 @@ class AutoDeleteAppMonitor[F[_]](
                 None,
                 Some(traceId)
               )
-              trackUsage = AllowedChartName.fromChartName(a.chartName).exists(_.trackUsage)
-              _ <- appUsageQuery.recordStop(a.id, now).whenA(trackUsage).recoverWith { case e: FailToRecordStoptime =>
+              _ <- appUsageQuery.recordStop(a.id, now).recoverWith { case e: FailToRecordStoptime =>
                 logger.error(loggingCtx)(e.getMessage)
               }
               _ <- publisherQueue.offer(deleteMessage)
