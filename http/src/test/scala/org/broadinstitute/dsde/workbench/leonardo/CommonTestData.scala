@@ -527,6 +527,7 @@ object CommonTestData {
   val azureCloudContext =
     AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
+  val workspaceCreatedDate = java.time.OffsetDateTime.parse("1970-01-01T12:15:30-07:00")
   val workspaceIdForCloning = WorkspaceId(UUID.randomUUID())
   val workspaceIdForAppCreation = WorkspaceId(UUID.randomUUID())
   val workspaceIdOpt = Some(workspaceId)
