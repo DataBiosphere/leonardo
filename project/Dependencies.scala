@@ -148,7 +148,7 @@ object Dependencies {
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
   def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi, excludeJakartaXmlBindApi)
   def excludeSpringBoot = ExclusionRule("org.springframework.boot")
-  def excludeSpringAop = ExclusionRule("org.springframework.aop")
+  def excludeSpringAop = ExclusionRule("org.springframework.spring-aop")
   def excludeSpringData = ExclusionRule("org.springframework.data")
   def excludeOpenCensus = ExclusionRule("io.opencensus")
   def excludeGoogleFindBugs = ExclusionRule("com.google.code.findbugs")
