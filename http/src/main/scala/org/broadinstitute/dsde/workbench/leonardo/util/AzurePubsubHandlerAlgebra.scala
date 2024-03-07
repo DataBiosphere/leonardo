@@ -107,7 +107,7 @@ final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    vmJobId: WsmJobId,
                                    relayNamespace: RelayNamespace,
                                    useExistingDisk: Boolean,
-                                   runtimeResourcesResult: CreateResourcesRuntimeResult
+                                   runtimeResourcesResult: CreateRuntimeResourcesResult
 )
 
 final case class PollDiskParams(workspaceId: WorkspaceId,
@@ -120,7 +120,7 @@ final case class PollDiskParams(workspaceId: WorkspaceId,
 /**
  * This case class represents the necessary information to poll all objects associated with the runtime, namely disk and vm
  */
-final case class CreateResourcesRuntimeResult(vmRequest: CreateVmRequest, createDiskResult: CreateDiskForRuntimeResult)
+final case class CreateRuntimeResourcesResult(vmRequest: CreateVmRequest, createDiskResult: CreateDiskForRuntimeResult)
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           wsmUrl: Uri,

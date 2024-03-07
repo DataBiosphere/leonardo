@@ -143,7 +143,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
    * */
   private def createRuntime(params: CreateAzureRuntimeParams, jobControl: WsmJobControl)(implicit
     ev: Ask[F, AppContext]
-  ): F[CreateResourcesRuntimeResult] =
+  ): F[CreateRuntimeResourcesResult] =
     for {
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
@@ -164,6 +164,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            cloudContext
       )
 
+      // TODO, run this in parallel to VM creation polling in the async task
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
@@ -234,7 +235,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         ),
         jobControl
       )
-    } yield CreateResourcesRuntimeResult(createVmRequest, createDiskResult)
+    } yield CreateRuntimeResourcesResult(createVmRequest, createDiskResult)
 
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
