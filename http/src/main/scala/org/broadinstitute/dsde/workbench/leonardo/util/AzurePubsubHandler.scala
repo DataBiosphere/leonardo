@@ -111,10 +111,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
       createVmJobId = WsmJobId(s"create-vm-${runtime.id.toString.take(10)}")
 
-//      createDisk <- createAndMonitorDisk(
-//        CreateAzureDiskParams(msg.workspaceId, runtime, msg.useExistingDisk, azureConfig)
-//      )
-
       runtimeResourcesResult <- createRuntime(
         CreateAzureRuntimeParams(
           msg.workspaceId,

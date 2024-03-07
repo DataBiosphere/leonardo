@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.client.ApiClient
 import bio.terra.workspace.model.{ResourceMetadata, State}
