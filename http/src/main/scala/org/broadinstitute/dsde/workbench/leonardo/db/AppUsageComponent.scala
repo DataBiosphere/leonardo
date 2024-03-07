@@ -88,7 +88,7 @@ object appUsageQuery extends TableQuery(new AppUsageTable(_)) {
         case x =>
           metrics.incrementCounter("duplicateStartTime") >> logger.warn(
             s"App(${appId.id} has ${x} rows of unresolved startTime recorded. This is an anomaly that needs to be addressed"
-          ) >> F.unit
+          )
       }
     } yield ()
   }
