@@ -64,7 +64,6 @@ object appUsageQuery extends TableQuery(new AppUsageTable(_)) {
   }
 
   def recordStop[F[_]](appId: AppId, stopTime: Instant)(implicit
-    ec: ExecutionContext,
     dbReference: DbReference[F],
     metrics: OpenTelemetryMetrics[F],
     F: Sync[F],
@@ -75,25 +74,21 @@ object appUsageQuery extends TableQuery(new AppUsageTable(_)) {
       .filter(_.stopTime === dummyDate)
       .map(_.stopTime)
       .update(stopTime)
-      .flatMap { x =>
-        if (x == 1)
-          DBIO.successful(())
-        else
-          DBIO.failed(
-            FailToRecordStoptime(appId)
-          )
-      }
 
     for {
-      res <- dbio.transaction.attempt
+      res <- dbio.transaction
       _ <- res match {
-        case Left(e) if e.getMessage.contains("Cannot record stopTime") =>
-          // We should alert if this happens
-          metrics.incrementCounter("appStopUsageTimeRecordingFailure") >> logger.error(e)(e.getMessage) >> F.raiseError(
-            e
+        case 0 =>
+          val error = FailToRecordStoptime(appId)
+          metrics.incrementCounter("appStopUsageTimeRecordingFailure") >> logger.error(error)(error.getMessage) >> F
+            .raiseError(
+              error
+            )
+        case 1 => F.unit
+        case x =>
+          metrics.incrementCounter("duplicateStartTime") >> logger.warn(
+            s"App(${appId.id} has ${x} rows of unresolved startTime recorded. This is an anomaly that needs to be addressed"
           )
-        case Left(e)      => F.raiseError(e)
-        case Right(appId) => F.pure(appId)
       }
     } yield ()
   }
