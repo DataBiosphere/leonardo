@@ -1,15 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
+import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, AzureServiceBusPublisherConfig, AzureServiceBusSubscriberConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.google2.ZoneName
+import org.broadinstitute.dsde.workbench.google2.{PublisherConfig, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AzureRuntimeDefaults,
-  CustomScriptExtensionConfig,
-  VMCredential
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeDefaults, CustomScriptExtensionConfig, VMCredential}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp._
@@ -227,7 +223,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureHostingModeConfig(
           false,
           "AZURE",
-          AzureManagedIdentityAuthConfig(".default", 30)
+          AzureManagedIdentityAuthConfig(".default", 30),
+          AzureServiceBusPublisherConfig("topic",None,None),
+          AzureServiceBusSubscriberConfig("topic","subscription",None,None)
         )
       ),
       OidcAuthConfig(

@@ -61,10 +61,11 @@ class LeoPubsubMessageSubscriber[F[_]](
                                        )(implicit traceId: Ask[F, AppContext]): F[Unit] =
     ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
       case false =>
-        implicit val rInstances: RuntimeInstances[F] = cloudSpecificDependenciesRegistry.lookup[RuntimeInstances[F]].get // runtimeInstances
-        implicit val runtimeMonitor: RuntimeMonitor[F, CloudService] = cloudSpecificDependenciesRegistry.lookup[RuntimeMonitor[F, CloudService]].get  //monitor
-        implicit val diskService: GoogleDiskService[F] = cloudSpecificDependenciesRegistry.lookup[GcpDependencies[F]].get.googleDiskService //googleDiskService
-        implicit val gke: GKEAlgebra[F] = cloudSpecificDependenciesRegistry.lookup[GKEAlgebra[F]].get //gkeAlg
+        implicit val runtimeInstances: RuntimeInstances[F] = cloudSpecificDependenciesRegistry.lookup[RuntimeInstances[F]].get // runtimeInstances
+        implicit val monitor: RuntimeMonitor[F, CloudService] = cloudSpecificDependenciesRegistry.lookup[RuntimeMonitor[F, CloudService]].get //monitor
+        implicit val googleDiskService: GoogleDiskService[F] = cloudSpecificDependenciesRegistry.lookup[GcpDependencies[F]].get.googleDiskService //googleDiskService
+        implicit val gkeAlg: GKEAlgebra[F] = cloudSpecificDependenciesRegistry.lookup[GKEAlgebra[F]].get
+
         for {
           resp <- message match {
             case msg: CreateRuntimeMessage =>
@@ -152,6 +153,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           }
         } yield resp
     }
+
 
   private[monitor] def messageHandler(event: ReceivedMessage[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))

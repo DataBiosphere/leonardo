@@ -10,27 +10,10 @@ import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeComputeOperationFuture,
-  FakeGoogleComputeService,
-  FakeGooglePublisher,
-  FakeGoogleStorageInterpreter
-}
-import org.broadinstitute.dsde.workbench.google2.{
-  DataprocRole,
-  DeviceName,
-  DiskName,
-  GoogleComputeService,
-  MachineTypeName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeComputeOperationFuture, FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleStorageInterpreter}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DeviceName, DiskName, GoogleComputeService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
-  projectSamResourceDecoder,
-  runtimeSamResourceDecoder,
-  workspaceSamResourceIdDecoder,
-  wsmResourceSamResourceIdDecoder
-}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{projectSamResourceDecoder, runtimeSamResourceDecoder, workspaceSamResourceIdDecoder, wsmResourceSamResourceIdDecoder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer, leonardoExceptionEq}
@@ -38,29 +21,16 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
-  calculateAutopauseThreshold,
-  getToolFromImages
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-  projectSamResourceAction,
-  runtimeSamResourceAction,
-  workspaceSamResourceAction,
-  wsmResourceSamResourceAction,
-  AppSamResourceAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{calculateAutopauseThreshold, getToolFromImages}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{AppSamResourceAction, projectSamResourceAction, runtimeSamResourceAction, workspaceSamResourceAction, wsmResourceSamResourceAction}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  DiskUpdate,
-  LeoPubsubMessage,
-  LeoPubsubMessageType,
-  RuntimeConfigInCreateRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, LeoPubsubMessage,LeoPubsubMessageType, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.Assertion
@@ -2636,7 +2606,7 @@ class RuntimeServiceInterpTest
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)(
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mock[CloudPublisher[IO]])(
       implicitly,
       implicitly,
       implicitly,

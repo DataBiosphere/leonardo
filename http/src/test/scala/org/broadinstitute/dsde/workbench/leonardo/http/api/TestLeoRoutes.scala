@@ -3,24 +3,20 @@ package http
 package api
 
 import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
+import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import cats.effect.IO
 import com.github.benmanes.caffeine.cache.Caffeine
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.dns.{
-  KubernetesDnsCache,
-  KubernetesDnsCacheKey,
-  RuntimeDnsCache,
-  RuntimeDnsCacheKey
-}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, KubernetesDnsCacheKey, RuntimeDnsCache, RuntimeDnsCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -106,13 +102,18 @@ trait TestLeoRoutes {
     )
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
+  val registry = ServicesRegistry()
+
+  registry.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+  registry.register[GoogleResourceService[IO]](FakeGoogleResourceService)
+
+
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
     Config.appServiceConfig,
     allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService,
-    FakeGoogleResourceService,
+    registry,
     Config.gkeCustomAppConfig,
     wsmDao,
     wsmClientProvider

@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, AzureServiceBusPublisherConfig}
+import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig

@@ -37,7 +37,7 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
 
       _ <- cloudHostDependenciesBuilder.registryOpenTelemetryTracing
 
-      baseDependencies <- BaselineDependenciesBuilder().createBaselineDependencies[IO]()
+      baseDependencies <- BaselineDependyBuilder().createBaselineDependencies[IO]()
 
       dependenciesRegistry <- cloudHostDependenciesBuilder.createDependenciesRegistry(baseDependencies)
 

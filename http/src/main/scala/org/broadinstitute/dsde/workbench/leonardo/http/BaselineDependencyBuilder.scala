@@ -51,7 +51,7 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
  *  - Required regardless of where the App is hosted.
  *  - Includes clod-agnostic traits with interpreters for the cloud provider (e.g. CloudPublisher, CloudAuthTokenProvider).
  */
-class BaselineDependenciesBuilder {
+class BaselineDependyBuilder {
 
   def createBaselineDependencies[F[_]:Parallel](
   )(implicit
@@ -67,10 +67,6 @@ class BaselineDependenciesBuilder {
       // As best practice, we should have all related metrics under same prefix separated by `/`
       implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
         .resource[F](applicationConfig.applicationName, prometheusConfig.endpointPort)
-
-      // Set up database reference
-      // concurrentDbAccessPermits <- Resource.eval(Semaphore[F](dbConcurrency))
-      // implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits)
 
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[String, IP]))
@@ -190,7 +186,7 @@ class BaselineDependenciesBuilder {
         Queue.bounded[F, UpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
       )
       subscriberQueue <- Resource.eval(Queue.bounded[F, ReceivedMessage[LeoPubsubMessage]](pubsubConfig.queueSize))
-      subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
+      subscriber <- createCloudSubscriber(subscriberQueue)
       nonLeoMessageSubscriberQueue <- Resource.eval(
         Queue.bounded[F, ReceivedMessage[NonLeoMessage]](pubsubConfig.queueSize)
       )
@@ -322,14 +318,24 @@ class BaselineDependenciesBuilder {
       )
     }
 
+  private def createCloudSubscriber[F[_] : Parallel](subscriberQueue: Queue[F, ReceivedMessage[LeoPubsubMessage]])
+                                                    (implicit F: Async[F], logger: StructuredLogger[F]):Resource[F,CloudSubscriber[F,LeoPubsubMessage]] = {
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        GoogleSubscriber.resource[F,LeoPubsubMessage](subscriberConfig, subscriberQueue)
+      case true =>
+        AzureSubscriberInterpreter.subscriber[F,LeoPubsubMessage](ConfigReader.appConfig.azure.hostingModeConfig.subscriberConfig, subscriberQueue)
+    }
+  }
+
   private def createCloudPublisher[F[_]](
     implicit F: Async[F],
     logger: StructuredLogger[F]
   ): Resource[F, CloudPublisher[F]] = {
       ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
-        case true =>
-          GooglePublisher.cloudPublisherResource[F](publisherConfig)
         case false =>
+          GooglePublisher.cloudPublisherResource[F](publisherConfig)
+        case true =>
           AzurePublisherInterpreter.publisher[F](ConfigReader.appConfig.azure.hostingModeConfig.publisherConfig)
       }
   }
@@ -398,9 +404,9 @@ class BaselineDependenciesBuilder {
     StructuredLogger[F].info(s)
 }
 
-object BaselineDependenciesBuilder{
-  def apply(): BaselineDependenciesBuilder =
-    new BaselineDependenciesBuilder()
+object BaselineDependyBuilder{
+  def apply(): BaselineDependyBuilder =
+    new BaselineDependyBuilder()
 }
 
 final case class BaselineDependencies[F[_]](

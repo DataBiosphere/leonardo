@@ -8,12 +8,8 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGooglePublisher,
-  FakeGoogleResourceService
-}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleResourceService}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -21,30 +17,15 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  HttpWsmClientProvider,
-  MockWsmClientProvider,
-  MockWsmDAO,
-  WorkspaceDescription,
-  WsmApiClientProvider,
-  WsmDao
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpWsmClientProvider, MockWsmClientProvider, MockWsmDAO, WorkspaceDescription, WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  CreateAppV2Message,
-  DeleteAppMessage,
-  DeleteAppV2Message
-}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  ClusterNodepoolAction,
-  LeoPubsubMessage,
-  LeoPubsubMessageType
-}
-import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateAppV2Message, DeleteAppMessage, DeleteAppV2Message}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage, LeoPubsubMessageType}
+import org.broadinstitute.dsde.workbench.leonardo.util.{QueueFactory, ServicesRegistry}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -54,13 +35,14 @@ import org.mockito.Mockito.when
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
+import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
-trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
@@ -173,35 +155,49 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         IO(Some(Map("unused-label" -> "unused-label-value")))
     }
 
+    val registryWithPassCompute = ServicesRegistry()
+
+    registryWithPassCompute.register[GoogleComputeService[IO]](passComputeService)
+    registryWithPassCompute.register[GoogleResourceService[IO]](FakeGoogleResourceService)
+
     val passAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      passComputeService,
-      FakeGoogleResourceService,
+      registryWithPassCompute,
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
     )
+
+    val registryWithNotEnoughMemoryComputeService = ServicesRegistry()
+
+    registryWithNotEnoughMemoryComputeService.register[GoogleComputeService[IO]](notEnoughMemoryComputeService)
+    registryWithNotEnoughMemoryComputeService.register[GoogleResourceService[IO]](FakeGoogleResourceService)
+
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      notEnoughMemoryComputeService,
-      FakeGoogleResourceService,
+      registryWithNotEnoughMemoryComputeService,
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
     )
+
+    val registryWithNotEnoughCpuComputeService = ServicesRegistry()
+
+    registryWithNotEnoughCpuComputeService.register[GoogleComputeService[IO]](notEnoughCpuComputeService)
+    registryWithNotEnoughCpuComputeService.register[GoogleResourceService[IO]](FakeGoogleResourceService)
+
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      notEnoughCpuComputeService,
-      FakeGoogleResourceService,
+      registryWithNotEnoughCpuComputeService,
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -227,13 +223,18 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(None)
     }
+
+    val registryWithNoLabelsGoogleResourceService = ServicesRegistry()
+
+    registryWithNoLabelsGoogleResourceService.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registryWithNoLabelsGoogleResourceService.register[GoogleResourceService[IO]](noLabelsGoogleResourceService)
+
     val interp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noLabelsGoogleResourceService,
+      registryWithNoLabelsGoogleResourceService,
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -258,13 +259,18 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
+
+    val registry = ServicesRegistry()
+
+    registry.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registry.register[GoogleResourceService[IO]](FakeGoogleResourceService)
+
     val interp = new LeoAppServiceInterp[IO](
       AppServiceConfig(false, false, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      registry,
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -1360,13 +1366,18 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
+
+    val registry = ServicesRegistry()
+
+    registry.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registry.register[GoogleResourceService[IO]](FakeGoogleResourceService)
+
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      registry,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1511,13 +1522,17 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
+    val registry = ServicesRegistry()
+
+    registry.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registry.register[GoogleResourceService[IO]](FakeGoogleResourceService)
+
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      registry,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1555,13 +1570,18 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("not-security-group" -> "any-val")))
     }
+
+    val registryWithNoSecurityGroupGoogleResourceService = ServicesRegistry()
+
+    registryWithNoSecurityGroupGoogleResourceService.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registryWithNoSecurityGroupGoogleResourceService.register[GoogleResourceService[IO]](noSecurityGroupGoogleResourceService)
+
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      registryWithNoSecurityGroupGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1598,13 +1618,18 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("security-group" -> "high")))
     }
+
+    val registryWithHighSecurityGoogleResourceService = ServicesRegistry()
+
+    registryWithHighSecurityGoogleResourceService.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registryWithHighSecurityGoogleResourceService.register[GoogleResourceService[IO]](highSecurityGoogleResourceService)
+
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
+      registryWithHighSecurityGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1638,13 +1663,17 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("security-group" -> "high")))
     }
+    val registryWithHighSecurityGoogleResourceService = ServicesRegistry()
+
+    registryWithHighSecurityGoogleResourceService.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registryWithHighSecurityGoogleResourceService.register[GoogleResourceService[IO]](highSecurityGoogleResourceService)
+
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
+      registryWithHighSecurityGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1684,13 +1713,18 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("not-security-group" -> "any-val")))
     }
+
+    val registryWithNoSecurityGroupGoogleResourceService = ServicesRegistry()
+
+    registryWithNoSecurityGroupGoogleResourceService.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registryWithNoSecurityGroupGoogleResourceService.register[GoogleResourceService[IO]](noSecurityGroupGoogleResourceService)
+
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      registryWithNoSecurityGroupGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1730,13 +1764,18 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
         IO(Some(Map("not-security-group" -> "any-val")))
     }
+
+    val registryWithNoSecurityGroupGoogleResourceService = ServicesRegistry()
+
+    registryWithNoSecurityGroupGoogleResourceService.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registryWithNoSecurityGroupGoogleResourceService.register[GoogleResourceService[IO]](noSecurityGroupGoogleResourceService)
+
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      registryWithNoSecurityGroupGoogleResourceService,
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -3130,5 +3169,41 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .toOption
       .get
       .isInstanceOf[ForbiddenError] shouldBe true
+  }
+
+  private def withLeoPublisher(
+    publisherQueue: Queue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mock[CloudPublisher[IO]])
+    withInfiniteStream(leoPublisher.process, validations)
+  }
+
+  // used when we care about queue state
+  private def makeInterp(queue: Queue[IO, LeoPubsubMessage],
+                         authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
+                         wsmDao: WsmDao[IO] = wsmDao,
+                         enableCustomAppCheckFlag: Boolean = true,
+                         enableSasApp: Boolean = true,
+                         googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
+                         customAppConfig: CustomAppConfig = gkeCustomAppConfig,
+                         wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
+  ) = {
+    val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
+
+    val registry = ServicesRegistry()
+
+    registry.register[GoogleComputeService[IO]](FakeGoogleComputeService)
+    registry.register[GoogleResourceService[IO]](googleResourceService)
+
+    new LeoAppServiceInterp[IO](
+      appConfig,
+      authProvider,
+      serviceAccountProvider,
+      queue,
+      registry,
+      customAppConfig,
+      wsmDao,
+      wsmClientProvider
+    )
   }
 }
