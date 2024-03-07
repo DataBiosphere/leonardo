@@ -76,7 +76,7 @@ class AppUsageComponentSpec extends AnyFlatSpecLike with TestComponent {
       _ = appAfterRecordingStop.get.stopTime shouldBe stopTime
       appAfterRecordingStop2 <- testDbRef
         .inTransaction(appUsageQuery.get(appUsageId2))
-      _ = appAfterRecordingStop.get.stopTime shouldBe stopTime
+      _ = appAfterRecordingStop2.get.stopTime shouldBe stopTime
     } yield succeed
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
