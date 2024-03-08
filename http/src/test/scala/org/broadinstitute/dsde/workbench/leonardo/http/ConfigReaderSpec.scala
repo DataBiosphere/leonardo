@@ -70,7 +70,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:ad57bda",
             VMCredential(username = "username", password = "password")
-          )
+          ),
+          PollMonitorConfig(1 seconds, 10, 1 seconds)
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
