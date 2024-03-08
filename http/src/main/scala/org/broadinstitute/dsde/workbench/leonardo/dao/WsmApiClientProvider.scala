@@ -99,7 +99,8 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
   ): F[ControlledAzureResourceApi] =
     getApiClient(token).map(apiClient => new ControlledAzureResourceApi(apiClient))
 
-  def getWorkspaceApi(token: String)(implicit ev: Ask[F, AppContext]): F[WorkspaceApi] =
+
+  override def getWorkspaceApi(token: String)(implicit ev: Ask[F, AppContext]): F[WorkspaceApi] =
     getApiClient(token).map(apiClient => new WorkspaceApi(apiClient))
 
   override def getVm(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
