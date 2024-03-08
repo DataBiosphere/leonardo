@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, _}
 import cats.effect.IO
 import cats.mtl.Ask
@@ -56,7 +56,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureRelayService = setUpMockAzureRelayService
   val mockKube = setUpMockKube
-  val (mockWsm, mockControlledResourceApi, mockResourceApi) = setUpMockWsmApiClientProvider
+  val (mockWsm, mockControlledResourceApi, mockResourceApi, mockWorkspaceApi) = setUpMockWsmApiClientProvider
   val mockSamAuthProvider = setUpMockSamAuthProvider
 
   implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
@@ -588,7 +588,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "not create a WSM managed identity for a private app" in isolatedDbTest {
-    val (mockWsm, mockControlledResourceApi, _) = setUpMockWsmApiClientProvider
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
     val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -622,7 +622,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "not create a WSM controlled namespace if one already exists" in isolatedDbTest {
-    val (mockWsm, mockControlledResourceApi, _) = setUpMockWsmApiClientProvider
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
     val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -669,7 +669,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "not create a WSM managed identity if one already exists" in isolatedDbTest {
-    val (mockWsm, mockControlledResourceApi, _) = setUpMockWsmApiClientProvider
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
     val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -870,10 +870,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     sam
   }
 
-  private def setUpMockWsmApiClientProvider: (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi) = {
+  private def setUpMockWsmApiClientProvider
+    : (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
     val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
+    val workspaceApi = mock[WorkspaceApi]
     val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
     val namespacesByJob = mutable.Map.empty[String, CreateControlledAzureKubernetesNamespaceRequestBody]
     // Create managed identity
@@ -1088,10 +1090,22 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceList.add(resourceDesc)
       new ResourceList().resources(resourceList)
     }
+
+    when {
+      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId.value), any)
+    } thenReturn {
+      new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
+    }
+
     when {
       wsm.getResourceApi(any)(any)
     } thenReturn IO.pure(resourceApi)
-    (wsm, api, resourceApi)
+
+    when {
+      wsm.getWorkspaceApi(any)(any)
+    } thenReturn IO.pure(workspaceApi)
+
+    (wsm, api, resourceApi, workspaceApi)
 
   }
 
