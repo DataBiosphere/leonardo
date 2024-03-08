@@ -38,10 +38,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   AccessScope,
   CloningInstructions,
-  ControlledResourceCommonFields,
   ControlledResourceDescription,
   ControlledResourceIamRole,
   ControlledResourceName,
+  InternalDaoControlledResourceCommonFields,
   ManagedBy,
   MockSamDAO,
   PrivateResourceUser
@@ -54,13 +54,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.model._
-import org.broadinstitute.dsde.workbench.model.google.{
-  GoogleProject,
-  ServiceAccountKey,
-  ServiceAccountKeyId,
-  ServiceAccountPrivateKeyData,
-  _
-}
+import org.broadinstitute.dsde.workbench.model.google._
 
 import java.nio.file.Paths
 import java.time.Instant
@@ -538,10 +532,9 @@ object CommonTestData {
   val wsmResourceIdOpt = Some(wsmResourceId)
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
   val billingProfileId = BillingProfileId("spend-profile")
-
   val wsmWorkspaceDesc = new WorkspaceDescription().id(workspaceId.value).spendProfile("spendProfile")
 
-  val testCommonControlledResourceFields = ControlledResourceCommonFields(
+  val testCommonControlledResourceFields = InternalDaoControlledResourceCommonFields(
     ControlledResourceName("name"),
     ControlledResourceDescription("desc"),
     CloningInstructions.Nothing,
