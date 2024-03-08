@@ -1929,7 +1929,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-    } thenAnswer (_ => throw new Exception("workspace not found"))
+    } thenAnswer (_ => throw new Exception("User does not have access to this workspace"))
 
     val appName = AppName("app1")
 
@@ -1968,7 +1968,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-    } thenAnswer (_ => throw new Exception("workspace not found"))
+    } thenAnswer (_ => throw new Exception("User does not have access to this workspace"))
 
     val appName = AppName("app1")
 
