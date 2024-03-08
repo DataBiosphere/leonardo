@@ -462,6 +462,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+
+      _ <- log.info(s"Deleting app records for ${appName.value}")
       // Find the app ID and Sam resource id
       dbAppOpt <- KubernetesServiceDbQueries
         .getActiveFullAppByName(cloudContext, appName)
@@ -843,8 +845,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
-    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
-    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
+//    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
+//    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
     allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
 
@@ -859,6 +861,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
     }
 
+    _ <- log.info(s"Apps: $apps")
+
     nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app._1.status)).map(_._1)
 
     _ <- F
@@ -867,6 +871,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
     workspaceApi <- wsmClientProvider.getWorkspaceApi(userInfo.accessToken.token)
     attempt <- F.delay(workspaceApi.getWorkspace(workspaceId.value, IamRole.READER)).attempt
+
+    _ <- log.info(s"Attempt: $attempt")
+
 
     _ <- attempt match {
       // if the workspace is found, delete the app normally
