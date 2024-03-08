@@ -63,4 +63,5 @@ class MockWsmClientProvider(controlledAzureResourceApi: ControlledAzureResourceA
     log: StructuredLogger[IO]
   ): IO[WsmState] =
     IO.pure(WsmState(Some("READY")))
+
 }
