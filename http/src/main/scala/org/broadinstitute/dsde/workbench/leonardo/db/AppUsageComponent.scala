@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import cats.effect.Sync
+import cats.effect.Async
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.AppId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -11,10 +11,12 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 import slick.jdbc.TransactionIsolation
+import cats.effect.std.Random
 
 import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
 import scala.util.control.NoStackTrace
 
 class AppUsageTable(tag: Tag) extends Table[AppUsageRecord](tag, "APP_USAGE") {
@@ -32,7 +34,7 @@ object appUsageQuery extends TableQuery(new AppUsageTable(_)) {
     ec: ExecutionContext,
     dbReference: DbReference[F],
     metrics: OpenTelemetryMetrics[F],
-    F: Sync[F],
+    F: Async[F],
     logger: Logger[F]
   ): F[AppUsageId] = {
 
@@ -58,8 +60,19 @@ object appUsageQuery extends TableQuery(new AppUsageTable(_)) {
           // We should alert if this happens
           metrics.incrementCounter("appStartUsageTimeRecordingFailure") >> logger.error(e)(e.getMessage) >> F
             .raiseError(e)
-        case Left(e)      => F.raiseError(e)
-        case Right(appId) => F.pure(appId)
+        case Left(e: com.mysql.cj.jdbc.exceptions.MySQLTransactionRollbackException)
+            if e.getMessage contains "Deadlock" =>
+          // When two threads start the same transaction at the same time, they can both be deadlocked.
+          // Add some jitter to retry to avoid the deadlock.
+          for {
+            random <- Random.scalaUtilRandom[F]
+            numOfMilliseconds <- random.nextAlphaNumeric.map(_.toInt)
+            _ <- logger.info(s"Deadlock detected, sleeping for $numOfMilliseconds ms")
+            _ <- F.sleep(numOfMilliseconds milliseconds)
+            id <- recordStart(appId, startTime)
+          } yield id
+        case Left(e)   => F.raiseError(e)
+        case Right(id) => F.pure(id)
       }
     } yield id
   }
@@ -67,7 +80,7 @@ object appUsageQuery extends TableQuery(new AppUsageTable(_)) {
   def recordStop[F[_]](appId: AppId, stopTime: Instant)(implicit
     dbReference: DbReference[F],
     metrics: OpenTelemetryMetrics[F],
-    F: Sync[F],
+    F: Async[F],
     logger: Logger[F]
   ): F[Unit] = {
     val dbio = appUsageQuery

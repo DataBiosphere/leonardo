@@ -91,8 +91,10 @@ class AppUsageComponentSpec extends AnyFlatSpecLike with TestComponent {
     val test = for {
       startTime <- IO.realTimeInstant
       recordStart1 = appUsageQuery.recordStart(savedApp.id, startTime)
-      recordStart2 = IO.sleep(1 nanoseconds) >> appUsageQuery.recordStart(savedApp.id, startTime.plusSeconds(100))
-      _ <- List(recordStart1, recordStart2).parSequence.attempt
+      recordStart2 = appUsageQuery.recordStart(savedApp.id, startTime.plusSeconds(100))
+      _ <- List(recordStart1,
+                recordStart2
+      ).parSequence.attempt // use attempt because one of the recordStart is expected to fail
       recordedStartTimes <- testDbRef.inTransaction(appUsageQuery.filter(_.appId === savedApp.id).result)
     } yield recordedStartTimes.size shouldBe 1
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
