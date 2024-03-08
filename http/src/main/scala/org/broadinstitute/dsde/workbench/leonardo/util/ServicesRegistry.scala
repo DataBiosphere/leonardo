@@ -4,8 +4,8 @@ import scala.collection.concurrent.TrieMap
 import scala.reflect.ClassTag
 
 /**
- * A simple registry for services. It is used to register and look up services by their type.
- * Its purpose is primarily to enable lazy look-up of services that require instances of active GCP clients.
+ * A simple registry for dependencies. It is used to register and look up dependencies by their type.
+ * Its purpose is primarily to enable lazy look-up of services/dependencies that require instances of cloud-specific clients.
  */
 trait ServicesRegistry {
   def register[F: ClassTag](service: F): Unit
