@@ -5,6 +5,9 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.scalatest.flatspec.AnyFlatSpecLike
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+import scala.concurrent.duration._
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -48,9 +51,6 @@ class AppUsageComponentSpec extends AnyFlatSpecLike with TestComponent {
   }
 
   it should "recordStop even if there are multiple rows of unresolved startTime for the same app" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
-    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
@@ -78,6 +78,25 @@ class AppUsageComponentSpec extends AnyFlatSpecLike with TestComponent {
         .inTransaction(appUsageQuery.get(appUsageId2))
       _ = appAfterRecordingStop2.get.stopTime shouldBe stopTime
     } yield succeed
+    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "prevent race condition between 2 recordStart requests" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val app = makeApp(1, savedNodepool1.id)
+    val savedApp = app.save()
+
+    val test = for {
+      startTime <- IO.realTimeInstant
+      recordStart1 = appUsageQuery.recordStart(savedApp.id, startTime)
+      recordStart2 = appUsageQuery.recordStart(savedApp.id, startTime.plusSeconds(100))
+      _ <- List(recordStart1,
+                recordStart2
+      ).parSequence.attempt // use attempt because one of the recordStart is expected to fail
+      recordedStartTimes <- testDbRef.inTransaction(appUsageQuery.filter(_.appId === savedApp.id).result)
+    } yield recordedStartTimes.size shouldBe 1
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
