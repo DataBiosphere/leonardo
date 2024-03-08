@@ -3,7 +3,6 @@ package http
 package service
 
 import akka.http.scaladsl.model.StatusCodes
-import bio.terra.common.exception.NotFoundException
 import bio.terra.workspace.model.{IamRole, WorkspaceDescription}
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -827,11 +826,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case Right(workspaceDesc) =>
         deleteAppV2Base(appResult.app, appResult.cluster.cloudContext, userInfo, workspaceId, deleteDisk, workspaceDesc)
       // if the workspace can't be found, delete the workspace records
-      case Left(_: NotFoundException) =>
-        deleteAppRecords(userInfo, appResult.cluster.cloudContext, appResult.app.appName)
-      // raise error if the user doesn't have permission
-      case Left(_) =>
-        F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
+      case Left(error) =>
+        if (error.getMessage.contains("not found")) {
+          deleteAppRecords(userInfo, appResult.cluster.cloudContext, appResult.app.appName)
+        }
+        // raise error if the user doesn't have permission
+        else {
+          F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
+        }
     }
 
   } yield ()
@@ -872,14 +874,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           .traverse { app =>
             deleteAppV2Base(app._1, app._2, userInfo, workspaceId, deleteDisk, workspaceDesc)
           }
-      // if the workspace can't be found, delete the workspace records
-      case Left(_: NotFoundException) =>
-        apps.traverse { app =>
-          deleteAppRecords(userInfo, app._2, app._1.appName)
+      case Left(error) =>
+        // if the workspace can't be found, delete the workspace records
+        if (error.getMessage.contains("not found")) {
+          apps.traverse { app =>
+            deleteAppRecords(userInfo, app._2, app._1.appName)
+          }
         }
-      // raise error if the user doesn't have permission
-      case Left(_) =>
-        F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
+        // raise error if the user doesn't have permission
+        else {
+          F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
+        }
     }
 
   } yield ()

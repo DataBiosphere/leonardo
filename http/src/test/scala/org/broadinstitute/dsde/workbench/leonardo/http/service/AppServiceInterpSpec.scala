@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import bio.terra.common.exception.{ForbiddenException, NotFoundException}
 import bio.terra.workspace.api.WorkspaceApi
 import cats.effect.IO
 import cats.effect.std.Queue
@@ -74,9 +73,7 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   }
   when {
     workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-  } thenThrow {
-    new NotFoundException("Workspace not found")
-  }
+  } thenAnswer (_ => throw new Exception("workspace not found"))
 
   val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
   when {
@@ -1932,9 +1929,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-    } thenThrow {
-      new ForbiddenException("Unauthorized user")
-    }
+    } thenAnswer (_ => throw new Exception("workspace not found"))
 
     val appName = AppName("app1")
 
@@ -1973,9 +1968,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-    } thenThrow {
-      new ForbiddenException("Unauthorized user")
-    }
+    } thenAnswer (_ => throw new Exception("workspace not found"))
 
     val appName = AppName("app1")
 
