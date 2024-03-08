@@ -790,7 +790,7 @@ final case class AuthorizedIds(
 
 final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
-      s"WorkspaceId not found in workspace manager for workspace ${workspaceId}",
+      s"WorkspaceId not found in workspace manager for workspace ${workspaceId.value}",
       StatusCodes.NotFound,
       traceId = Some(traceId)
     )
