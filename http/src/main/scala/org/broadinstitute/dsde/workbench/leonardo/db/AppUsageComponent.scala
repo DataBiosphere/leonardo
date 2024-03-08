@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImpl
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
+import slick.jdbc.TransactionIsolation
 
 import java.sql.SQLDataException
 import java.time.Instant
@@ -51,7 +52,7 @@ object appUsageQuery extends TableQuery(new AppUsageTable(_)) {
     } yield id
 
     for {
-      res <- dbio.transaction.attempt
+      res <- dbio.transaction(TransactionIsolation.Serializable).attempt
       id <- res match {
         case Left(e) if e.getMessage.contains("usage startTime was recorded previously") =>
           // We should alert if this happens
