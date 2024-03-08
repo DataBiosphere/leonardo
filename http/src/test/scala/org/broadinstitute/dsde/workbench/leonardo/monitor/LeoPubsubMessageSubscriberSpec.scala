@@ -3,6 +3,7 @@ package monitor
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import bio.terra.workspace.model.JobReport
 import cats.data.Kleisli
 import cats.effect.IO
 import cats.effect.std.Queue
@@ -1899,6 +1900,55 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle top-level error in create azure disk properly" in isolatedDbTest {
+    val mockAckConsumer = mock[AckReplyConsumer]
+    val queue = makeTaskQueue()
+    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(JobReport.StatusEnum.FAILED)
+    val leoSubscriber = makeLeoSubscriber(azureInterp =
+                                            makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm),
+                                          asyncTaskQueue = queue
+    )
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        false,
+                                        None,
+                                        "WorkspaceName",
+                                        BillingProfileId("spend-profile")
+        )
+
+        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        } yield {
+          getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include("Wsm createDisk job failed due to")
+
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "handle delete azure vm failure properly" in isolatedDbTest {
     val wsm = new MockWsmDAO {
       override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
@@ -2124,12 +2174,14 @@ class LeoPubsubMessageSubscriberSpec
       operationFutureCache
     )
   }
+  val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
 
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
                       relayService: AzureRelayService[IO] = FakeAzureRelayService,
                       wsmDAO: MockWsmDAO = new MockWsmDAO,
-                      azureVmService: AzureVmService[IO] = FakeAzureVmService
+                      azureVmService: AzureVmService[IO] = FakeAzureVmService,
+                      mockWsmClient: WsmApiClientProvider[IO] = mockWsm
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -2149,7 +2201,8 @@ class LeoPubsubMessageSubscriberSpec
       relayService,
       azureVmService,
       new MockAKSInterp(),
-      refererConfig
+      refererConfig,
+      mockWsmClient
     )
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =
