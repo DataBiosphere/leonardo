@@ -3,7 +3,6 @@ package util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName, RelayNamespace}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CreateDiskForRuntimeResult, CreateVmRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -95,32 +94,16 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           workspaceName: String,
                                           storageContainerName: ContainerName
 )
+final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
-final case class CreateAzureDiskParams(workspaceId: WorkspaceId,
-                                       runtime: Runtime,
-                                       useExistingDisk: Boolean,
-                                       runtimeConfig: RuntimeConfig.AzureConfig
-)
+final case class StartAzureRuntimeParams(runtime: Runtime, runtimeConfig: RuntimeConfig.AzureConfig)
 
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
-                                   vmJobId: WsmJobId,
+                                   jobId: WsmJobId,
                                    relayNamespace: RelayNamespace,
-                                   useExistingDisk: Boolean,
-                                   runtimeResourcesResult: CreateRuntimeResourcesResult
+                                   useExistingDisk: Boolean
 )
-
-final case class PollDiskParams(workspaceId: WorkspaceId,
-                                jobId: WsmJobId,
-                                diskId: DiskId,
-                                runtime: Runtime,
-                                wsmResourceId: WsmControlledResourceId
-)
-
-/**
- * This case class represents the necessary information to poll all objects associated with the runtime, namely disk and vm
- */
-final case class CreateRuntimeResourcesResult(vmRequest: CreateVmRequest, createDiskResult: CreateDiskForRuntimeResult)
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           wsmUrl: Uri,
@@ -129,8 +112,7 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
                                           deleteDiskPollConfig: PollMonitorConfig,
-                                          runtimeDefaults: AzureRuntimeDefaults,
-                                          createDiskPollConfig: PollMonitorConfig
+                                          runtimeDefaults: AzureRuntimeDefaults
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"
 }

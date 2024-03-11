@@ -3,7 +3,6 @@ package util
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import bio.terra.workspace.model.JobReport
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.implicits._
@@ -50,8 +49,6 @@ class AzurePubsubHandlerSpec
     with Eventually
     with LeonardoTestSuite {
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
-
-  val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
 
   it should "create azure vm properly" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
@@ -332,48 +329,6 @@ class AzurePubsubHandlerSpec
 
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
 
-      } yield ()
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "handle azure disk creation failure from wsm properly" in isolatedDbTest {
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
-
-    val queue = QueueFactory.asyncTaskQueue()
-
-    val azurePubsubHandler =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
-
-    val res =
-      for {
-        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-
-        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       Some(disk.id),
-                                                       None
-        )
-        runtime = makeCluster(1)
-          .copy(
-            cloudContext = CloudContext.Azure(azureCloudContext)
-          )
-          .saveWithRuntimeConfig(azureRuntimeConfig)
-
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
-
-        _ <- azurePubsubHandler.createAndPollRuntime(msg)
-
-        assertions = for {
-          error <- clusterErrorQuery.get(runtime.id).transaction
-          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-        } yield {
-          getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
-          error.length shouldBe 1
-          error.map(_.errorMessage).head should include("Wsm createDisk job failed due to")
-
-        }
-        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1553,8 +1508,7 @@ class AzurePubsubHandlerSpec
                              wsmDAO: WsmDao[IO] = new MockWsmDAO,
                              welderDao: WelderDAO[IO] = new MockWelderDAO(),
                              azureVmService: AzureVmService[IO] = FakeAzureVmService,
-                             aksAlg: AKSAlgebra[IO] = new MockAKSInterp,
-                             wsmClient: WsmApiClientProvider[IO] = mockWsm
+                             aksAlg: AKSAlgebra[IO] = new MockAKSInterp
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -1574,8 +1528,7 @@ class AzurePubsubHandlerSpec
       relayService,
       azureVmService,
       aksAlg,
-      refererConfig,
-      wsmClient
+      refererConfig
     )
 
 }

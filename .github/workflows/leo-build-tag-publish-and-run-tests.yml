@@ -20,7 +20,7 @@ on:
         required: true
         default: 'develop'
         type: string
-
+  
 env:
   BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-gcp-dev'
   TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # github token for access to kick off a job in the private repo
@@ -263,7 +263,7 @@ jobs:
           workflow: leonardo-swat-tests
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          wait-for-completion-timeout: 85m
+          wait-for-completion-timeout: 75m
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
               "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
