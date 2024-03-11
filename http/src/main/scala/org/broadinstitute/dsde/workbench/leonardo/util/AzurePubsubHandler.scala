@@ -436,7 +436,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                         params.runtime.auditInfo.creator
           )
 
-          createDiskJobId = WsmJobId(s"create-disk-${disk.id.toString.take(10)}")
+          createDiskJobId = WsmJobId(s"${UUID.randomUUID()}")
           jobControl = new JobControl()
             .id(createDiskJobId.value)
 
