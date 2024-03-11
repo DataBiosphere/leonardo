@@ -8,7 +8,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleResourceService}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpWsmClientProvider, MockWsmClientProvider, MockWsmDAO, WorkspaceDescription, WsmApiClientProvider, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateAppV2Message, DeleteAppMessage, DeleteAppV2Message}

@@ -10,7 +10,7 @@ import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeComputeOperationFuture, FakeGoogleComputeService, FakeGooglePublisher, FakeGoogleStorageInterpreter}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeComputeOperationFuture, FakeGoogleComputeService, FakeGoogleStorageInterpreter}
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DeviceName, DiskName, GoogleComputeService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{projectSamResourceDecoder, runtimeSamResourceDecoder, workspaceSamResourceIdDecoder, wsmResourceSamResourceIdDecoder}

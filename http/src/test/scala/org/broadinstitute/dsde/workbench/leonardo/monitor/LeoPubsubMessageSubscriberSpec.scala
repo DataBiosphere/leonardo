@@ -13,7 +13,6 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
-import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
@@ -23,7 +22,7 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => _, _}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, Event, GKEModels, GoogleDiskService, KubernetesModels, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GKEModels, GoogleDiskService, KubernetesModels, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -1940,7 +1939,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle top-level error in create azure disk properly" in isolatedDbTest {
-    val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()
     val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(JobReport.StatusEnum.FAILED)
     val leoSubscriber = makeLeoSubscriber(azureInterp =
@@ -1970,7 +1969,7 @@ class LeoPubsubMessageSubscriberSpec
                                         BillingProfileId("spend-profile")
         )
 
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
 
         assertions = for {
           error <- clusterErrorQuery.get(runtime.id).transaction
