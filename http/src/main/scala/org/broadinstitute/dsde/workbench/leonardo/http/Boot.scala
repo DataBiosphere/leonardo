@@ -56,7 +56,7 @@ object Boot extends IOApp {
       val servicesDependencies = leoDependencies.servicesDependencies
       val backEndProcesses = leoDependencies.leoAppProcesses
 
-     implicit val openTelemetryMetrics = servicesDependencies.baselineDependencies.openTelemetryMetrics
+      implicit val openTelemetryMetrics = servicesDependencies.baselineDependencies.openTelemetryMetrics
 
       val httpRoutes = new HttpRoutes(
         servicesDependencies.baselineDependencies.openIDConnectConfiguration,

@@ -200,7 +200,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       googleDiskService <- GoogleDiskService.resource(applicationConfig.leoServiceAccountJsonFile.toString, semaphore)
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
 
-      //_ <- OpenTelemetryMetrics.registerTracing[F](applicationConfig.leoServiceAccountJsonFile)
+      // _ <- OpenTelemetryMetrics.registerTracing[F](applicationConfig.leoServiceAccountJsonFile)
 
       bucketHelperConfig = BucketHelperConfig(
         imageConfig,

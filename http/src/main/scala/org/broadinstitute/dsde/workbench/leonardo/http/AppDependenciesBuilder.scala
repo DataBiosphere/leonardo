@@ -58,7 +58,6 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       implicit0(openTelemetry: OpenTelemetryMetrics[IO]) <- OpenTelemetryMetrics
         .resource[IO](applicationConfig.applicationName, prometheusConfig.endpointPort)
 
-
       _ <- cloudHostDependenciesBuilder.registryOpenTelemetryTracing
 
       baseDependencies <- BaselineDependyBuilder().createBaselineDependencies[IO]()

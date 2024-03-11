@@ -442,7 +442,7 @@ final case class BaselineDependencies[F[_]](
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   subscriber: CloudSubscriber[F, LeoPubsubMessage],
-  //nonLeoMessageGoogleSubscriber: CloudSubscriber[F, NonLeoMessage],
+  // nonLeoMessageGoogleSubscriber: CloudSubscriber[F, NonLeoMessage],
   asyncTasksQueue: Queue[F, Task[F]],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   proxyResolver: ProxyResolver[F],
