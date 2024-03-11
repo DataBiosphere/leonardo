@@ -112,17 +112,27 @@ class HttpRoutes(
       Route.seal(
         oidcConfig
           .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
-                  pathPrefix("api") {
-                    val baseRoutes = runtimeV2Routes.routes  ~ appV2Routes.routes ~ diskV2Routes.routes ~ kubernetesRoutes.routes  ~ adminRoutes.routes
-                    val proxyRouteOption: Option[Route] = gcpOnlyServicesRegistry.lookup[ProxyService].map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig).route)
-                    val runtimeRouteOption: Option[Route] = gcpOnlyServicesRegistry.lookup[RuntimeService[IO]].map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives).routes)
-                    val diskRouteOption: Option[Route] = gcpOnlyServicesRegistry.lookup[DiskService[IO]].map(diskService => new DiskRoutes(diskService, userInfoDirectives).routes)
-                    val resourcesRoutes:Option[Route]= gcpOnlyServicesRegistry.lookup[ResourcesServiceInterp[IO]].map(resourcesService => new ResourcesRoutes(resourcesService, userInfoDirectives).routes)
+          pathPrefix("api") {
+            val baseRoutes =
+              runtimeV2Routes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ kubernetesRoutes.routes ~ adminRoutes.routes
+            val proxyRouteOption: Option[Route] = gcpOnlyServicesRegistry
+              .lookup[ProxyService]
+              .map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig).route)
+            val runtimeRouteOption: Option[Route] = gcpOnlyServicesRegistry
+              .lookup[RuntimeService[IO]]
+              .map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives).routes)
+            val diskRouteOption: Option[Route] = gcpOnlyServicesRegistry
+              .lookup[DiskService[IO]]
+              .map(diskService => new DiskRoutes(diskService, userInfoDirectives).routes)
+            val resourcesRoutes: Option[Route] = gcpOnlyServicesRegistry
+              .lookup[ResourcesServiceInterp[IO]]
+              .map(resourcesService => new ResourcesRoutes(resourcesService, userInfoDirectives).routes)
 
-                    val gcpRoutes: Seq[Route] = Seq(proxyRouteOption, runtimeRouteOption, diskRouteOption, resourcesRoutes).flatten
+            val gcpRoutes: Seq[Route] =
+              Seq(proxyRouteOption, runtimeRouteOption, diskRouteOption, resourcesRoutes).flatten
 
-                    (baseRoutes +: gcpRoutes).reduce(_ ~ _)
-                  }
+            (baseRoutes +: gcpRoutes).reduce(_ ~ _)
+          }
       )
     }
 }

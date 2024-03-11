@@ -13,12 +13,41 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, CloudAuthTokenProvider, PetClusterServiceAccountProvider, SamAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, dataprocConfig, dateAccessUpdaterConfig, gceConfig, gkeClusterConfig, httpSamDaoConfig, imageConfig, kubernetesDnsCacheConfig, nonLeoMessageSubscriberConfig, prometheusConfig, proxyConfig, publisherConfig, pubsubConfig, runtimeDnsCacheConfig, samAuthConfig, serviceAccountProviderConfig, subscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{
+  AuthCacheKey,
+  CloudAuthTokenProvider,
+  PetClusterServiceAccountProvider,
+  SamAuthProvider
+}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
+  applicationConfig,
+  asyncTaskProcessorConfig,
+  autoFreezeConfig,
+  dataprocConfig,
+  dateAccessUpdaterConfig,
+  gceConfig,
+  gkeClusterConfig,
+  httpSamDaoConfig,
+  imageConfig,
+  kubernetesDnsCacheConfig,
+  nonLeoMessageSubscriberConfig,
+  prometheusConfig,
+  proxyConfig,
+  publisherConfig,
+  pubsubConfig,
+  runtimeDnsCacheConfig,
+  samAuthConfig,
+  serviceAccountProviderConfig,
+  subscriberConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureServiceConfig, RuntimeServiceConfig, SamResourceCacheKey}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AzureServiceConfig,
+  RuntimeServiceConfig,
+  SamResourceCacheKey
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
@@ -33,7 +62,7 @@ import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
+import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
@@ -53,10 +82,10 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
  */
 class BaselineDependyBuilder {
 
-  def createBaselineDependencies[F[_]:Parallel](
+  def createBaselineDependencies[F[_]: Parallel](
   )(implicit
     logger: StructuredLogger[F],
-    F:Async[F],
+    F: Async[F],
     ec: ExecutionContext,
     as: ActorSystem,
     dbRef: DbReference[F]
@@ -242,7 +271,6 @@ class BaselineDependyBuilder {
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
       helmClient = new HelmInterpreter[F](helmConcurrency)
 
-
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
@@ -273,72 +301,72 @@ class BaselineDependyBuilder {
           ConfigReader.appConfig.azure.pubsubHandler.welderImage
         )
       )
-    } yield {
-      BaselineDependencies[F](
-        sslContext,
-        runtimeDnsCache,
-        samDao,
-        dockerDao,
-        jupyterDao,
-        rstudioDAO,
-        welderDao,
-        wsmDao,
-        serviceAccountProvider,
-        authProvider,
-        leoPublisher,
-        publisherQueue,
-        dataAccessedUpdater,
-        subscriber,
-        nonLeoMessageSubscriber,
-        asyncTasksQueue,
-        nodepoolLock,
-        proxyResolver,
-        recordMetricsProcesses,
-        googleTokenCache,
-        samResourceCache,
-        oidcConfig,
-        appDAO,
-        wdsDao,
-        cbasDao,
-        cromwellDao,
-        hailBatchDao,
-        listenerDao,
-        wsmClientProvider,
-        azureContainerService,
-        runtimeServiceConfig,
-        kubernetesDnsCache,
-        appDescriptorDAO,
-        helmClient,
-        azureRelay,
-        azureVmService,
-        operationFutureCache,
-        azureBatchService,
-        azureApplicationInsightsService,
-        openTelemetry
-      )
-    }
+    } yield BaselineDependencies[F](
+      sslContext,
+      runtimeDnsCache,
+      samDao,
+      dockerDao,
+      jupyterDao,
+      rstudioDAO,
+      welderDao,
+      wsmDao,
+      serviceAccountProvider,
+      authProvider,
+      leoPublisher,
+      publisherQueue,
+      dataAccessedUpdater,
+      subscriber,
+      nonLeoMessageSubscriber,
+      asyncTasksQueue,
+      nodepoolLock,
+      proxyResolver,
+      recordMetricsProcesses,
+      googleTokenCache,
+      samResourceCache,
+      oidcConfig,
+      appDAO,
+      wdsDao,
+      cbasDao,
+      cromwellDao,
+      hailBatchDao,
+      listenerDao,
+      wsmClientProvider,
+      azureContainerService,
+      runtimeServiceConfig,
+      kubernetesDnsCache,
+      appDescriptorDAO,
+      helmClient,
+      azureRelay,
+      azureVmService,
+      operationFutureCache,
+      azureBatchService,
+      azureApplicationInsightsService,
+      openTelemetry
+    )
 
-  private def createCloudSubscriber[F[_] : Parallel](subscriberQueue: Queue[F, ReceivedMessage[LeoPubsubMessage]])
-                                                    (implicit F: Async[F], logger: StructuredLogger[F]):Resource[F,CloudSubscriber[F,LeoPubsubMessage]] = {
+  private def createCloudSubscriber[F[_]: Parallel](
+    subscriberQueue: Queue[F, ReceivedMessage[LeoPubsubMessage]]
+  )(implicit F: Async[F], logger: StructuredLogger[F]): Resource[F, CloudSubscriber[F, LeoPubsubMessage]] =
     ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
       case false =>
-        GoogleSubscriber.resource[F,LeoPubsubMessage](subscriberConfig, subscriberQueue)
+        GoogleSubscriber.resource[F, LeoPubsubMessage](subscriberConfig, subscriberQueue)
       case true =>
-        AzureSubscriberInterpreter.subscriber[F,LeoPubsubMessage](ConfigReader.appConfig.azure.hostingModeConfig.subscriberConfig, subscriberQueue)
+        AzureSubscriberInterpreter.subscriber[F, LeoPubsubMessage](
+          ConfigReader.appConfig.azure.hostingModeConfig.subscriberConfig,
+          subscriberQueue
+        )
     }
-  }
 
-  private def createCloudPublisher[F[_]](
-    implicit F: Async[F],
+  private def createCloudPublisher[F[_]](implicit
+    F: Async[F],
     logger: StructuredLogger[F]
-  ): Resource[F, CloudPublisher[F]] = {
-      ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
-        case false =>
-          GooglePublisher.cloudPublisherResource[F](publisherConfig)
-        case true =>
-          AzurePublisherInterpreter.publisher[F](ConfigReader.appConfig.azure.hostingModeConfig.publisherConfig)
-      }
-  }
+  ): Resource[F, CloudPublisher[F]] =
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        GooglePublisher.cloudPublisherResource[F](publisherConfig)
+      case true =>
+        AzurePublisherInterpreter.publisher[F](ConfigReader.appConfig.azure.hostingModeConfig.publisherConfig)
+    }
 
   private def buildCache[K, V](maxSize: Int,
                                expiresIn: FiniteDuration
@@ -404,7 +432,7 @@ class BaselineDependyBuilder {
     StructuredLogger[F].info(s)
 }
 
-object BaselineDependyBuilder{
+object BaselineDependyBuilder {
   def apply(): BaselineDependyBuilder =
     new BaselineDependyBuilder()
 }
@@ -433,7 +461,7 @@ final case class BaselineDependencies[F[_]](
   recordCacheMetrics: List[Stream[F, Unit]],
   googleTokenCache: scalacache.Cache[F, String, (UserInfo, Instant)],
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
-  //pubsubSubscriber: LeoPubsubMessageSubscriber[F],
+  // pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   // gkeAlg: GKEAlgebra[F],
   // dataprocInterp: DataprocInterpreter[F],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
@@ -453,8 +481,8 @@ final case class BaselineDependencies[F[_]](
   helmClient: HelmInterpreter[F],
   azureRelay: AzureRelayService[F],
   azureVmService: AzureVmService[F],
-  operationFutureCache:  Cache[F, Long, OperationFuture[Operation, Operation]],
+  operationFutureCache: Cache[F, Long, OperationFuture[Operation, Operation]],
   azureBatchService: AzureBatchService[F],
   azureApplicationInsightsService: AzureApplicationInsightsService[F],
-  openTelemetryMetrics:OpenTelemetryMetrics[F]
+  openTelemetryMetrics: OpenTelemetryMetrics[F]
 )

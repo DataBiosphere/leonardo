@@ -20,8 +20,8 @@ import scala.concurrent.duration._
  * After pubsub message is published, we update database when necessary
  */
 final class LeoPublisher[F[_]](
-                                publisherQueue: Queue[F, LeoPubsubMessage],
-                                cloudPublisher: CloudPublisher[F]
+  publisherQueue: Queue[F, LeoPubsubMessage],
+  cloudPublisher: CloudPublisher[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -36,7 +36,7 @@ final class LeoPublisher[F[_]](
           Stream
             .eval(F.pure(event))
             .covary[F]
-            //.through(convertToPubsubMessagePipe)
+            // .through(convertToPubsubMessagePipe)
             .through(cloudPublisher.publish)
             .evalMap(_ => updateDatabase(event))
             .handleErrorWith { t =>

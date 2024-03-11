@@ -12,7 +12,6 @@ import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
 
-
 object ConfigReader {
   lazy val appConfig =
     ConfigSource
@@ -31,7 +30,7 @@ final case class AzureConfig(
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
   listenerChartConfig: ListenerChartConfig,
-  hostingModeConfig: AzureHostingModeConfig,
+  hostingModeConfig: AzureHostingModeConfig
 )
 
 final case class OidcAuthConfig(

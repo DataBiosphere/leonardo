@@ -16,7 +16,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{CryptoMining, CryptoMiningScc, DeleteKubernetesClusterMessage, DeleteNodepoolMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
+  CryptoMining,
+  CryptoMiningScc,
+  DeleteKubernetesClusterMessage,
+  DeleteNodepoolMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.cryptominingUserMessageEncoder
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, DeleteNodepoolParams, GKEAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId

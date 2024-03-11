@@ -11,20 +11,45 @@ import fs2.Stream
 import fs2.io.file.Files
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleProjectDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO
+}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GooglePublisher, GoogleResourceService, GoogleStorageService, GoogleSubscriber, KubernetesService, credentialResource}
+import org.broadinstitute.dsde.workbench.google2.{
+  credentialResource,
+  GKEService,
+  GoogleComputeService,
+  GoogleDataprocService,
+  GoogleDiskService,
+  GooglePublisher,
+  GoogleResourceService,
+  GoogleStorageService,
+  GoogleSubscriber,
+  KubernetesService
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.{CloudService, googleDataprocRetryPolicy}
+import org.broadinstitute.dsde.workbench.leonardo.{googleDataprocRetryPolicy, CloudService}
 import org.broadinstitute.dsde.workbench.leonardo.http.Boot.workbenchMetricsBaseName
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{CloudServiceRuntimeMonitor, DataprocRuntimeMonitor, GceRuntimeMonitor, MonitorAtBoot, NonLeoMessage, NonLeoMessageSubscriber, NonLeoMessageSubscriberConfig, RuntimeMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  CloudServiceRuntimeMonitor,
+  DataprocRuntimeMonitor,
+  GceRuntimeMonitor,
+  MonitorAtBoot,
+  NonLeoMessage,
+  NonLeoMessageSubscriber,
+  NonLeoMessageSubscriberConfig,
+  RuntimeMonitor
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
@@ -36,19 +61,19 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.jdk.CollectionConverters._
 
-
 class GcpDependencyBuilder extends CloudDependenciesBuilder {
 
-  override def registryOpenTelemetryTracing: Resource[IO,Unit] =
+  override def registryOpenTelemetryTracing: Resource[IO, Unit] =
     OpenTelemetryMetrics.registerTracing[IO](applicationConfig.leoServiceAccountJsonFile)
 
   override def createCloudSpecificProcessesList(baselineDependencies: BaselineDependencies[IO],
-                                                cloudSpecificDependencies: ServicesRegistry)(implicit
-                                                                       logger: StructuredLogger[IO],
-                                                                       ec: ExecutionContext,
-                                                                       dbReference: DbReference[IO],
-                                                                       openTelemetry: OpenTelemetryMetrics[IO]
-                                ): List[Stream[IO,Unit]] ={
+                                                cloudSpecificDependencies: ServicesRegistry
+  )(implicit
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    dbReference: DbReference[IO],
+    openTelemetry: OpenTelemetryMetrics[IO]
+  ): List[Stream[IO, Unit]] = {
 
     val gcpDependencies: GcpDependencies[IO] = cloudSpecificDependencies.lookup[GcpDependencies[IO]].get
 
@@ -68,31 +93,31 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       gcpDependencies.googleResourceService,
       gcpDependencies.googleComputeService
     )
-      val monitorAtBoot =
-        new MonitorAtBoot[IO](
-          baselineDependencies.publisherQueue,
-          gcpDependencies.googleComputeService,
-          baselineDependencies.samDAO,
-          baselineDependencies.wsmDAO
-        )
-
-      val nonLeoMessageSubscriber =
-        new NonLeoMessageSubscriber[IO](
-          NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
-          gkeAlg,
-          gcpDependencies.googleComputeService,
-          baselineDependencies.samDAO,
-          baselineDependencies.authProvider,
-          gcpDependencies.nonLeoMessageSubscriber,
-          gcpDependencies.cryptoMiningUserPublisher,
-          baselineDependencies.asyncTasksQueue
-        )
-
-      List(
-        nonLeoMessageSubscriber.process,
-        Stream.eval(gcpDependencies.nonLeoMessageSubscriber.start),
-        monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
+    val monitorAtBoot =
+      new MonitorAtBoot[IO](
+        baselineDependencies.publisherQueue,
+        gcpDependencies.googleComputeService,
+        baselineDependencies.samDAO,
+        baselineDependencies.wsmDAO
       )
+
+    val nonLeoMessageSubscriber =
+      new NonLeoMessageSubscriber[IO](
+        NonLeoMessageSubscriberConfig(gceConfig.userDiskDeviceName),
+        gkeAlg,
+        gcpDependencies.googleComputeService,
+        baselineDependencies.samDAO,
+        baselineDependencies.authProvider,
+        gcpDependencies.nonLeoMessageSubscriber,
+        gcpDependencies.cryptoMiningUserPublisher,
+        baselineDependencies.asyncTasksQueue
+      )
+
+    List(
+      nonLeoMessageSubscriber.process,
+      Stream.eval(gcpDependencies.nonLeoMessageSubscriber.start),
+      monitorAtBoot.process // checks database to see if there's on-going runtime status transition
+    )
   }
 
   override def createDependenciesRegistry(baselineDependencies: BaselineDependencies[IO])(implicit
@@ -111,7 +136,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
 
   private def buildCache[K, V](maxSize: Int,
                                expiresIn: FiniteDuration
-                              ): com.github.benmanes.caffeine.cache.Cache[K, V] =
+  ): com.github.benmanes.caffeine.cache.Cache[K, V] =
     Caffeine
       .newBuilder()
       .maximumSize(maxSize)
@@ -124,15 +149,15 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
    * These are the first of instances (leafs) in the dependency graph.
    */
   private def createGcpDependencies[F[_]: Parallel](
-                                                     baselineDependencies: BaselineDependencies[F]
-                                                   )(implicit
-                                                     F: Async[F],
-                                                     logger: StructuredLogger[F],
-                                                     ec: ExecutionContext,
-                                                     as: ActorSystem,
-                                                     openTelemetry: OpenTelemetryMetrics[F],
-                                                     files: Files[F]
-                                                   ): Resource[F, GcpDependencies[F]] =
+    baselineDependencies: BaselineDependencies[F]
+  )(implicit
+    F: Async[F],
+    logger: StructuredLogger[F],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    openTelemetry: OpenTelemetryMetrics[F],
+    files: Files[F]
+  ): Resource[F, GcpDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       credential <- credentialResource(applicationConfig.leoServiceAccountJsonFile.toString)
@@ -148,8 +173,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
-        jsonWithServiceAccountUser,
-        workbenchMetricsBaseName
+                                                      jsonWithServiceAccountUser,
+                                                      workbenchMetricsBaseName
       )
 
       googleResourceService <- GoogleResourceService.resource[F](applicationConfig.leoServiceAccountJsonFile, semaphore)
@@ -162,15 +187,15 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
       googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
-        RetryPredicates.whenStatusCode(400)
+                                                                           RetryPredicates.whenStatusCode(400)
       )
 
       googleComputeService <- GoogleComputeService.fromCredential(scopedCredential, semaphore, googleComputeRetryPolicy)
       dataprocService <- GoogleDataprocService.resource(googleComputeService,
-        applicationConfig.leoServiceAccountJsonFile.toString,
-        semaphore,
-        dataprocConfig.supportedRegions,
-        googleDataprocRetryPolicy
+                                                        applicationConfig.leoServiceAccountJsonFile.toString,
+                                                        semaphore,
+                                                        dataprocConfig.supportedRegions,
+                                                        googleDataprocRetryPolicy
       )
       googleDiskService <- GoogleDiskService.resource(applicationConfig.leoServiceAccountJsonFile.toString, semaphore)
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
@@ -184,15 +209,9 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         securityFilesConfig
       )
 
-      bucketHelper = new BucketHelper[F](bucketHelperConfig,
-        googleStorage,
-        baselineDependencies.serviceAccountProvider
-      )
+      bucketHelper = new BucketHelper[F](bucketHelperConfig, googleStorage, baselineDependencies.serviceAccountProvider)
 
-      vpcInterp = new VPCInterpreter(vpcInterpreterConfig,
-        googleResourceService,
-        googleComputeService
-      )
+      vpcInterp = new VPCInterpreter(vpcInterpreterConfig, googleResourceService, googleComputeService)
 
       // Set up k8s and helm clients
       underlyingKubeClientCache = buildCache[KubernetesClusterId, scalacache.Entry[ApiClient]](
@@ -205,11 +224,10 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(applicationConfig.leoServiceAccountJsonFile, gkeService, kubeCache)
 
-
       nonLeoMessageSubscriberQueue <- Resource.eval(
         Queue.bounded[F, ReceivedMessage[NonLeoMessage]](pubsubConfig.queueSize)
       )
-      //TODO: Verify why the queue is not referenced anywhere else. Is the subscriber's functionality self-contained?
+      // TODO: Verify why the queue is not referenced anywhere else. Is the subscriber's functionality self-contained?
       nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
 
     } yield GcpDependencies(
@@ -234,8 +252,9 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       nonLeoMessageSubscriber
     )
 
-  def createGcpOnlyServicesRegistry(baselineDependencies: BaselineDependencies[IO], gcpDependencies: GcpDependencies[IO])(
-    implicit
+  def createGcpOnlyServicesRegistry(baselineDependencies: BaselineDependencies[IO],
+                                    gcpDependencies: GcpDependencies[IO]
+  )(implicit
     logger: StructuredLogger[IO],
     ec: ExecutionContext,
     as: ActorSystem,
@@ -243,7 +262,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     openTelemetry: OpenTelemetryMetrics[IO]
   ): ServicesRegistry = {
 
-    //Services used by the HTTP routes (Front-End)
+    // Services used by the HTTP routes (Front-End)
     val proxyService = new ProxyService(
       baselineDependencies.sslContext,
       proxyConfig,
@@ -321,7 +340,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       diskService
     )
 
-    //Services used by Leo PubSub Message subscriber (Backend)
+    // Services used by Leo PubSub Message subscriber (Backend)
     val gkeAlg = new GKEInterpreter[IO](
       gkeInterpConfig,
       gcpDependencies.bucketHelper,
@@ -339,7 +358,10 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       gcpDependencies.googleComputeService
     )
 
-    implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(baselineDependencies.jupyterDAO, baselineDependencies.welderDAO, baselineDependencies.rstudioDAO)
+    implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(baselineDependencies.jupyterDAO,
+                                                                     baselineDependencies.welderDAO,
+                                                                     baselineDependencies.rstudioDAO
+    )
 
     val gceRuntimeMonitor = new GceRuntimeMonitor[IO](
       gceMonitorConfig,
@@ -364,9 +386,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     val cloudServiceRuntimeMonitor =
       new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-    //TODO: Verify why this is needed...
+    // TODO: Verify why this is needed...
     implicit val runtimeInstances: RuntimeInstances[IO] = new RuntimeInstances(dataprocInterp, gceInterp)
-
 
     val servicesRegistry = ServicesRegistry()
 
@@ -377,7 +398,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     servicesRegistry.register[GceInterpreter[IO]](gceInterp)
     servicesRegistry.register[GcpDependencies[IO]](gcpDependencies)
     servicesRegistry.register[GKEAlgebra[IO]](gkeAlg)
-    servicesRegistry.register[RuntimeMonitor[IO,CloudService]](cloudServiceRuntimeMonitor)
+    servicesRegistry.register[RuntimeMonitor[IO, CloudService]](cloudServiceRuntimeMonitor)
     servicesRegistry.register[ResourcesServiceInterp[IO]](resourcesService)
     servicesRegistry.register[LeoAppServiceInterp[IO]](leoKubernetesService)
 
@@ -386,7 +407,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
   }
 
 }
-
 
 final case class GcpDependencies[F[_]](
   googleStorageService: GoogleStorageService[F],
@@ -406,6 +426,6 @@ final case class GcpDependencies[F[_]](
   googleProjectDAO: GoogleProjectDAO,
   bucketHelper: BucketHelper[F],
   vpcInterp: VPCInterpreter[F],
-  kubeService : KubernetesService[F],
-  nonLeoMessageSubscriber:CloudSubscriber[F,NonLeoMessage]
+  kubeService: KubernetesService[F],
+  nonLeoMessageSubscriber: CloudSubscriber[F, NonLeoMessage]
 )

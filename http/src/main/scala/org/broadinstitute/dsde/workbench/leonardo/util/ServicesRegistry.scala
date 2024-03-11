@@ -16,9 +16,8 @@ object ServicesRegistry {
   def apply(): ServicesRegistry = new ServicesRegistry {
     private val services: TrieMap[Class[_], Any] = TrieMap.empty
 
-    override def register[F: ClassTag](service: F): Unit = {
+    override def register[F: ClassTag](service: F): Unit =
       services.putIfAbsent(implicitly[ClassTag[F]].runtimeClass, service)
-    }
 
     override def lookup[F: ClassTag]: Option[F] = {
       val lookUpClass = implicitly[ClassTag[F]].runtimeClass

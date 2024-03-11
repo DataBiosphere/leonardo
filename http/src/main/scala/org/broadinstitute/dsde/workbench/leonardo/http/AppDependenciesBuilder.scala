@@ -5,13 +5,32 @@ import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor
 import org.broadinstitute.dsde.workbench.leonardo.app._
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, contentSecurityPolicy, dateAccessUpdaterConfig, dbConcurrency, leoExecutionModeConfig, leoPubsubMessageSubscriberConfig, liquibaseConfig, prometheusConfig, refererConfig, samConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
+  appMonitorConfig,
+  applicationConfig,
+  asyncTaskProcessorConfig,
+  autoFreezeConfig,
+  contentSecurityPolicy,
+  dateAccessUpdaterConfig,
+  dbConcurrency,
+  leoExecutionModeConfig,
+  leoPubsubMessageSubscriberConfig,
+  liquibaseConfig,
+  prometheusConfig,
+  refererConfig,
+  samConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.http.api.StandardUserInfoDirectives
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{AutopauseMonitor, DateAccessedUpdater, LeoMetricsMonitor, LeoPubsubMessageSubscriber}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  AutopauseMonitor,
+  DateAccessedUpdater,
+  LeoMetricsMonitor,
+  LeoPubsubMessageSubscriber
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
@@ -79,9 +98,9 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
     val adminService =
       new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
 
-    //The instance must be present in both Azure and GCP modes.
-    //However, when running on Azure, the service is created without GCP dependencies.
-    //The LeoAppServiceInterp cannot be created in this method because it is a dependency of the Resources Services, which is GCP only.
+    // The instance must be present in both Azure and GCP modes.
+    // However, when running on Azure, the service is created without GCP dependencies.
+    // The LeoAppServiceInterp cannot be created in this method because it is a dependency of the Resources Services, which is GCP only.
     // This method only creates services that are agnostic of the cloud provider.
     val leoKubernetesService = dependenciesRegistry.lookup[LeoAppServiceInterp[IO]].get
 
@@ -115,7 +134,8 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
     val dateAccessedUpdater =
       new DateAccessedUpdater(dateAccessUpdaterConfig, baselineDependencies.dateAccessedUpdaterQueue)
 
-    val cloudSpecificProcessList = cloudHostDependenciesBuilder.createCloudSpecificProcessesList(baselineDependencies, cloudSpecificDependencies)
+    val cloudSpecificProcessList =
+      cloudHostDependenciesBuilder.createCloudSpecificProcessesList(baselineDependencies, cloudSpecificDependencies)
 
     val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, baselineDependencies.asyncTasksQueue)
 
@@ -241,7 +261,6 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       cloudSpecificDependencies
     )
 
-
     // These processes run independently of the hosting provider.
     val baselineProcesses = List(
       pubsubSubscriber.process(baselineDependencies.subscriber),
@@ -268,13 +287,11 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
 
 object AppDependenciesBuilder {
   def apply(): AppDependenciesBuilder =
-    {
-      ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
-        case true =>
-          new AppDependenciesBuilder(new AzureDependencyBuilder())
-        case false =>
-          new AppDependenciesBuilder(new GcpDependencyBuilder())
-      }
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case true =>
+        new AppDependenciesBuilder(new AzureDependencyBuilder())
+      case false =>
+        new AppDependenciesBuilder(new GcpDependencyBuilder())
     }
 
 }

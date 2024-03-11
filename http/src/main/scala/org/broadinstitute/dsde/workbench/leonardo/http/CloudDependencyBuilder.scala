@@ -22,7 +22,7 @@ trait CloudDependenciesBuilder {
    * Registers the OT tracing for the cloud hosting provider.
    * @return
    */
-  def registryOpenTelemetryTracing: Resource[IO,Unit]
+  def registryOpenTelemetryTracing: Resource[IO, Unit]
 
   /**
    * Creates a list back-end processes for the cloud hosting provider.
@@ -35,12 +35,13 @@ trait CloudDependenciesBuilder {
    * @return
    */
   def createCloudSpecificProcessesList(baselineDependencies: BaselineDependencies[IO],
-                                       cloudSpecificDependenciesRegistry: ServicesRegistry)(implicit
-                                                                                                   logger: StructuredLogger[IO],
-                                                                                                   ec: ExecutionContext,
-                                                                                                   dbReference: DbReference[IO],
-                                                                                                   openTelemetry: OpenTelemetryMetrics[IO]
-                                             ): List[Stream[IO,Unit]]
+                                       cloudSpecificDependenciesRegistry: ServicesRegistry
+  )(implicit
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    dbReference: DbReference[IO],
+    openTelemetry: OpenTelemetryMetrics[IO]
+  ): List[Stream[IO, Unit]]
 
   /**
    * Create a dependency registry of dependencies that are specific to the cloud hosting provider.
@@ -52,38 +53,36 @@ trait CloudDependenciesBuilder {
    * @return
    */
   def createDependenciesRegistry(baselineDependencies: BaselineDependencies[IO])(implicit
-                                                                                 logger: StructuredLogger[IO],
-                                                                                 ec: ExecutionContext,
-                                                                                 as: ActorSystem,
-                                                                                 dbReference: DbReference[IO],
-                                                                                 openTelemetry: OpenTelemetryMetrics[IO],
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    dbReference: DbReference[IO],
+    openTelemetry: OpenTelemetryMetrics[IO]
   ): Resource[IO, ServicesRegistry]
 }
 
-
-
 final case class LeoAppDependencies(
-                                     servicesDependencies: ServicesDependencies,
-                                     leoAppProcesses: LeoAppProcesses,
-                                   )
+  servicesDependencies: ServicesDependencies,
+  leoAppProcesses: LeoAppProcesses
+)
 
 /**
  * Contains all dependencies for the creation of the HTTP routes (services).
  */
 final case class ServicesDependencies(
-                                       statusService: StatusService,
-                                       cloudSpecificDependenciesRegistry: ServicesRegistry,
-                                       diskV2Service: DiskV2Service[IO],
-                                       kubernetesService: AppService[IO],
-                                       azureService: RuntimeV2Service[IO],
-                                       adminService: AdminService[IO],
-                                       userInfoDirectives: UserInfoDirectives,
-                                       contentSecurityPolicy: ContentSecurityPolicyConfig,
-                                       refererConfig: RefererConfig,
-                                       baselineDependencies: BaselineDependencies[IO]
-                                       )
+  statusService: StatusService,
+  cloudSpecificDependenciesRegistry: ServicesRegistry,
+  diskV2Service: DiskV2Service[IO],
+  kubernetesService: AppService[IO],
+  azureService: RuntimeV2Service[IO],
+  adminService: AdminService[IO],
+  userInfoDirectives: UserInfoDirectives,
+  contentSecurityPolicy: ContentSecurityPolicyConfig,
+  refererConfig: RefererConfig,
+  baselineDependencies: BaselineDependencies[IO]
+)
 
 /**
  * Contains a list of back-end processes.
  */
-final case class LeoAppProcesses(processesList:List[Stream[IO,Unit]])
+final case class LeoAppProcesses(processesList: List[Stream[IO, Unit]])

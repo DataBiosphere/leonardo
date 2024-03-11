@@ -21,8 +21,7 @@ import java.io.ByteArrayInputStream
 import java.util.Base64
 import scala.jdk.CollectionConverters._
 
-class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F]
-)(implicit
+class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F])(implicit
   F: Async[F],
   logger: StructuredLogger[F]
 ) extends KubernetesAlgebra[F] {
