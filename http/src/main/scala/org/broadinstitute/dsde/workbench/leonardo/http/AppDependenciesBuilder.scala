@@ -46,14 +46,17 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       backEndDependencies <- createBackEndDependencies(baseDependencies, dependenciesRegistry)
     } yield LeoAppDependencies(httpRoutesDependencies, backEndDependencies)
 
+  /**
+   *This method creates the services required to start HttpRoutes.
+   *The list of services returned must be cloud-provider agnostic.
+   */
   private def createFrontEndDependencies(baselineDependencies: BaselineDependencies[IO],
                                          dependenciesRegistry: ServicesRegistry
   )(implicit
     logger: StructuredLogger[IO],
     ec: ExecutionContext,
     as: ActorSystem,
-    dbReference: DbReference[IO],
-    openTelemetry: OpenTelemetryMetrics[IO]
+    dbReference: DbReference[IO]
   ): Resource[IO, ServicesDependencies] = {
     val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
     val diskV2Service = new DiskV2ServiceInterp[IO](
@@ -64,17 +67,6 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       baselineDependencies.publisherQueue,
       baselineDependencies.wsmClientProvider
     )
-//    val leoKubernetesService =
-//      new LeoAppServiceInterp(
-//        appServiceConfig,
-//        baselineDependencies.authProvider,
-//        baselineDependencies.serviceAccountProvider,
-//        baselineDependencies.publisherQueue,
-//        dependenciesRegistry,
-//        gkeCustomAppConfig,
-//        baselineDependencies.wsmDAO,
-//        baselineDependencies.wsmClientProvider
-//      )
 
     val azureService = new RuntimeV2ServiceInterp[IO](
       baselineDependencies.runtimeServicesConfig,
@@ -116,7 +108,6 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
   )(implicit
     logger: StructuredLogger[IO],
     ec: ExecutionContext,
-    as: ActorSystem,
     dbReference: DbReference[IO],
     openTelemetry: OpenTelemetryMetrics[IO]
   ): Resource[IO, LeoAppProcesses] = {

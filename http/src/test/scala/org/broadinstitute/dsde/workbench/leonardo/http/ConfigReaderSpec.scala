@@ -3,7 +3,7 @@ package http
 
 import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, AzureServiceBusPublisherConfig, AzureServiceBusSubscriberConfig, ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.google2.{PublisherConfig, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeDefaults, CustomScriptExtensionConfig, VMCredential}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}

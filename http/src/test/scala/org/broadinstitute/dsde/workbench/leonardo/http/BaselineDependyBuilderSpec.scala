@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.applicationConfi
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudSubscriber
 
-import java.time.Duration
 import scala.concurrent.ExecutionContext
 
 class BaselineDependyBuilderSpec extends AnyFlatSpec with Matchers with MockitoSugar {

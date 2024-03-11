@@ -102,18 +102,13 @@ trait TestLeoRoutes {
     )
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
-  val registry = ServicesRegistry()
-
-  registry.register[GoogleComputeService[IO]](FakeGoogleComputeService)
-  registry.register[GoogleResourceService[IO]](FakeGoogleResourceService)
-
-
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
     Config.appServiceConfig,
     allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
-    registry,
+    Some(FakeGoogleComputeService),
+    Some(FakeGoogleResourceService),
     Config.gkeCustomAppConfig,
     wsmDao,
     wsmClientProvider
@@ -201,6 +196,7 @@ trait TestLeoRoutes {
     registry.register[ProxyService](proxyService)
     registry.register[RuntimeService[IO]](runtimeService)
     registry.register[DiskService[IO]](MockDiskServiceInterp)
+    registry.register[ResourcesService[IO]](MockResourcesService)
     registry
   }
 
@@ -213,7 +209,6 @@ trait TestLeoRoutes {
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -228,7 +223,6 @@ trait TestLeoRoutes {
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

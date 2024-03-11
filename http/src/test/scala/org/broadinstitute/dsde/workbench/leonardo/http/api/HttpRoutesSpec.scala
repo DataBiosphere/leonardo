@@ -53,6 +53,7 @@ class HttpRoutesSpec
     registry.register[ProxyService](proxyService)
     registry.register[RuntimeService[IO]](MockRuntimeServiceInterp)
     registry.register[DiskService[IO]](MockDiskServiceInterp)
+    registry.register[ResourcesService[IO]](MockResourcesService)
     registry
   }
 
@@ -65,7 +66,6 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -80,7 +80,6 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -95,7 +94,6 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -110,7 +108,6 @@ class HttpRoutesSpec
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -928,7 +925,6 @@ class HttpRoutesSpec
       MockAppService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -949,7 +945,6 @@ class HttpRoutesSpec
       kubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
