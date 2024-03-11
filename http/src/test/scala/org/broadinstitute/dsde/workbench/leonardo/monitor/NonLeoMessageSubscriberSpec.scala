@@ -26,9 +26,10 @@ import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.InstanceName
-import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber}
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
+import org.broadinstitute.dsde.workbench.leonardo.FakeGoogleSubcriber
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -345,7 +346,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     asyncTaskQueue: Queue[IO, Task[IO]] =
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): NonLeoMessageSubscriber[IO] = {
-    val googleSubscriber = mock[CloudSubscriber[IO, NonLeoMessage]]
+    val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
     new NonLeoMessageSubscriber(
       NonLeoMessageSubscriberConfig(Config.gceConfig.userDiskDeviceName),
       gkeInterp,

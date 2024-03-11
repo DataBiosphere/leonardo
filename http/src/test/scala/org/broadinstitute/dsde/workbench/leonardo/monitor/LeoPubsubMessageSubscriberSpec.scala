@@ -2317,7 +2317,9 @@ class LeoPubsubMessageSubscriberSpec
 
     serviceRegistry.register[RuntimeInstances[IO]](runtimeInstances)
     serviceRegistry.register[RuntimeMonitor[IO, CloudService]](monitor)
-    serviceRegistry.register[GoogleDiskService[IO]](diskService)
+    val gcpDependencies = mock[GcpDependencies[IO]]
+    when(gcpDependencies.googleDiskService).thenReturn(diskService)
+    serviceRegistry.register[GcpDependencies[IO]](gcpDependencies)
     serviceRegistry.register[GKEAlgebra[IO]](gkeAlgebra)
 
     val underlyingOperationFutureCache =
