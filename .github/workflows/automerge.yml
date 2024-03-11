@@ -22,7 +22,7 @@ jobs:
     needs: auto-approve
     steps:
       - name: automerge
-        uses: "broadinstitute/automerge-action@v0.12.0"
+        uses: "broadinstitute/automerge-action@v0.15.6"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           MERGE_METHOD: squash
