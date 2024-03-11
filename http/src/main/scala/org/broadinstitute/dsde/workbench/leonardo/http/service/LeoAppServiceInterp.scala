@@ -3,6 +3,7 @@ package http
 package service
 
 import akka.http.scaladsl.model.StatusCodes
+import bio.terra.workspace.model.{IamRole, WorkspaceDescription}
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
@@ -454,7 +455,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         }
     } yield attachedPersistentDiskNames
 
-  override def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
+  override def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -502,7 +503,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      ctx <- as.ask
       apps <- listApp(
         userInfo,
         Some(cloudContext),
@@ -817,7 +817,25 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       appOpt,
       AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
     )
-    _ <- deleteAppV2Base(appResult.app, userInfo, workspaceId, deleteDisk)
+
+    workspaceApi <- wsmClientProvider.getWorkspaceApi(userInfo.accessToken.token)
+    attempt <- F.delay(workspaceApi.getWorkspace(workspaceId.value, IamRole.READER)).attempt
+
+    _ <- attempt match {
+      // if the workspace is found, delete the app normally
+      case Right(workspaceDesc) =>
+        deleteAppV2Base(appResult.app, appResult.cluster.cloudContext, userInfo, workspaceId, deleteDisk, workspaceDesc)
+      // if the workspace can't be found, delete the workspace records
+      case Left(error) =>
+        if (error.getMessage.contains("not found")) {
+          deleteAppRecords(userInfo, appResult.cluster.cloudContext, appResult.app.appName)
+        }
+        // raise error if the user doesn't have permission
+        else {
+          F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
+        }
+    }
+
   } yield ()
 
   override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
@@ -828,23 +846,56 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
     allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
-    apps = allClusters
-      .flatMap(_.nodepools)
-      .flatMap(n => n.apps)
 
-    nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app.status))
+    // need the cloudContext to delete the resources, get it from the KubernetesCluster here
+    // apps = List(App, CloudContext)
+    apps = allClusters.flatMap { cluster =>
+      val cloudContext = cluster.cloudContext
+      cluster.nodepools.flatMap { nodepool =>
+        nodepool.apps.map { app =>
+          (app, cloudContext)
+        }
+      }
+    }
+
+    nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app._1.status)).map(_._1)
 
     _ <- F
       .raiseError(DeleteAllAppsCannotBePerformed(workspaceId, nonDeletableApps, ctx.traceId))
       .whenA(!nonDeletableApps.isEmpty)
 
-    _ <- apps
-      .traverse { app =>
-        deleteAppV2Base(app, userInfo, workspaceId, deleteDisk)
-      }
+    workspaceApi <- wsmClientProvider.getWorkspaceApi(userInfo.accessToken.token)
+    attempt <- F.delay(workspaceApi.getWorkspace(workspaceId.value, IamRole.READER)).attempt
+
+    _ <- attempt match {
+      // if the workspace is found, delete the app normally
+      case Right(workspaceDesc) =>
+        apps
+          .traverse { app =>
+            deleteAppV2Base(app._1, app._2, userInfo, workspaceId, deleteDisk, workspaceDesc)
+          }
+      case Left(error) =>
+        // if the workspace can't be found, delete the workspace records
+        if (error.getMessage.contains("not found")) {
+          apps.traverse { app =>
+            deleteAppRecords(userInfo, app._2, app._1.appName)
+          }
+        }
+        // raise error if the user doesn't have permission
+        else {
+          F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
+        }
+    }
+
   } yield ()
 
-  private def deleteAppV2Base(app: App, userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
+  private def deleteAppV2Base(app: App,
+                              cloudContext: CloudContext,
+                              userInfo: UserInfo,
+                              workspaceId: WorkspaceId,
+                              deleteDisk: Boolean,
+                              workspaceDesc: WorkspaceDescription
+  )(implicit
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
@@ -865,17 +916,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       if (hasDeletePermission) F.unit
       else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-    // Resolve the workspace in WSM to get the cloud context
-    userToken = org.http4s.headers.Authorization(
-      org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-    )
-    workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
-    workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
-    cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
-      case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-      case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-      case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
-    }
     // check if app can be deleted (Leo manages apps, so checking the leo status)
     _ <- F.raiseUnless(app.status.isDeletable)(
       AppCannotBeDeletedException(cloudContext, app.appName, app.status, ctx.traceId)
@@ -915,7 +955,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           workspaceId,
           cloudContext,
           diskIdOpt,
-          BillingProfileId(workspaceDesc.spendProfile),
+          BillingProfileId(workspaceDesc.getSpendProfile),
           Some(ctx.traceId)
         )
         _ <- publisherQueue.offer(deleteMessage)
@@ -1701,6 +1741,13 @@ case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
 case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class AppWithoutWorkspaceIdException(appName: AppName, traceId: TraceId)
+    extends LeoException(
+      s"App ${appName.value} is missing a workspaceId. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
