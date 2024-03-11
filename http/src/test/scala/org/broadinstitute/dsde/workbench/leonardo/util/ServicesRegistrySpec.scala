@@ -4,7 +4,7 @@ import cats.effect.unsafe.implicits.global
 import cats.effect.{Async, IO}
 import org.scalatest.flatspec.AnyFlatSpecLike
 
-class ServicesRegistrySpec extends AnyFlatSpecLike  {
+class ServicesRegistrySpec extends AnyFlatSpecLike {
 
   it should "register a concrete implementation and look up using the instance type" in {
 
@@ -60,7 +60,10 @@ class ServicesRegistrySpec extends AnyFlatSpecLike  {
     assert(result.hashCode() == service.hashCode())
   }
 
-  private def assertServiceIsTheExpectedInstance(echoValue: String, service: TestEchoService, result: TestEchoService) = {
+  private def assertServiceIsTheExpectedInstance(echoValue: String,
+                                                 service: TestEchoService,
+                                                 result: TestEchoService
+  ) = {
     assert(result.hashCode() == service.hashCode())
     assert(result.getValue == echoValue)
   }
@@ -70,7 +73,7 @@ private trait AsyncTestEchoService[F[_]] {
   def getValue: F[String]
 }
 
-private class AsyncService[F[_]](value:String) (implicit F:Async[F]) extends AsyncTestEchoService[F]{
+private class AsyncService[F[_]](value: String)(implicit F: Async[F]) extends AsyncTestEchoService[F] {
   def getValue: F[String] = F.pure(value)
 }
 
@@ -78,11 +81,10 @@ private trait TestEchoService {
   def getValue: String
 }
 
-private class EchoService(value:String) extends TestEchoService {
+private class EchoService(value: String) extends TestEchoService {
   def getValue: String = value
 }
 
 private object EchoService {
   def apply(value: String): EchoService = new EchoService(value)
 }
-

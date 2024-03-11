@@ -19,7 +19,12 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodN
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GKEModels, GcsBlobName, GetMetadataResponse, KubernetesModels, PvName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, SamResource, SamResourceAction, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{
+  LeoAuthProvider,
+  SamResource,
+  SamResourceAction,
+  ServiceAccountProvider
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}

@@ -20,8 +20,17 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfi
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateAppV2Message, DeleteAppMessage, DeleteAppV2Message}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage, LeoPubsubMessageType}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAppMessage,
+  CreateAppV2Message,
+  DeleteAppMessage,
+  DeleteAppV2Message
+}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  ClusterNodepoolAction,
+  LeoPubsubMessage,
+  LeoPubsubMessageType
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -65,7 +74,7 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
 
   val gcpWsmDao = new MockWsmDAO {
     override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-                                                                                      ev: Ask[IO, AppContext]
+      ev: Ask[IO, AppContext]
     ): IO[Option[WorkspaceDescription]] =
       IO.pure(
         Some(
@@ -85,8 +94,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
 
   def withLeoPublisher(
-                        publisherQueue: Queue[IO, LeoPubsubMessage]
-                      )(validations: IO[Assertion]): IO[Assertion] = {
+    publisherQueue: Queue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
     val leoPublisher = new LeoPublisher[IO](publisherQueue, mock[CloudPublisher[IO]])
     withInfiniteStream(leoPublisher.process, validations)
   }
@@ -100,7 +109,7 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
                  googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                  customAppConfig: CustomAppConfig = gkeCustomAppConfig,
                  wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
-                ) = {
+  ) = {
     val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
 
     new LeoAppServiceInterp[IO](
@@ -122,19 +131,19 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val project = GoogleProject("project1")
     val passComputeService = new FakeGoogleComputeService {
       override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
-                                                                                                            ev: Ask[IO, TraceId]
+        ev: Ask[IO, TraceId]
       ): IO[Option[MachineType]] =
         IO.pure(Some(MachineType.newBuilder().setName("pass").setMemoryMb(6 * 1024).setGuestCpus(4).build()))
     }
     val notEnoughMemoryComputeService = new FakeGoogleComputeService {
       override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
-                                                                                                            ev: Ask[IO, TraceId]
+        ev: Ask[IO, TraceId]
       ): IO[Option[MachineType]] =
         IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(3 * 1024).setGuestCpus(4).build()))
     }
     val notEnoughCpuComputeService = new FakeGoogleComputeService {
       override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
-                                                                                                            ev: Ask[IO, TraceId]
+        ev: Ask[IO, TraceId]
       ): IO[Option[MachineType]] =
         IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(6 * 1024).setGuestCpus(2).build()))
     }
@@ -227,7 +236,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
           cloudContextGcp,
           AppName("foo"),
           createAppRequest.copy(appType = AppType.Custom,
-            descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
+                                descriptorPath = Some(Uri.unsafeFromString("https://www.myappdescriptor.com/finaldesc"))
           )
         )
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -366,17 +375,17 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
     val defaultAppReq =
       createAppRequest.copy(kubernetesRuntimeConfig = Some(defaultNodepoolConfig),
-        diskConfig = Some(diskConfig1),
-        customEnvironmentVariables = customEnvVars
+                            diskConfig = Some(diskConfig1),
+                            customEnvironmentVariables = customEnvVars
       )
     val appReqWithMoreNodes =
       defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreNodes), diskConfig = Some(diskConfig2))
     val appReqWithMoreCpuAndMem = defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreCpuAndMem),
-      diskConfig = Some(diskConfig3)
+                                                     diskConfig = Some(diskConfig3)
     )
     val appReqWithAutoscalingDisabled =
       defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithAutoscalingDisabled),
-        diskConfig = Some(diskConfig4)
+                         diskConfig = Some(diskConfig4)
       )
 
     appServiceInterp
@@ -480,8 +489,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val nodepool = makeNodepool(1, cluster.id).save()
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
-      formattedBy = Some(FormattedBy.Galaxy),
-      appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id))
+                                  formattedBy = Some(FormattedBy.Galaxy),
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id))
     )
       .copy(cloudContext = cloudContextGcp)
       .save()
@@ -490,7 +499,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig),
-      customEnvironmentVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws2")
+                                       customEnvironmentVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws2")
     )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
@@ -508,8 +517,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val nodepool = makeNodepool(1, cluster.id).save()
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
-      appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id)),
-      formattedBy = Some(FormattedBy.Galaxy)
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id)),
+                                  formattedBy = Some(FormattedBy.Galaxy)
     )
       .copy(cloudContext = cloudContextGcp)
       .save()
@@ -732,8 +741,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val nodepool = makeNodepool(1, cluster.id).save()
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
-      formattedBy = Some(FormattedBy.Galaxy),
-      appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id))
+                                  formattedBy = Some(FormattedBy.Galaxy),
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), app.id))
     )
       .copy(cloudContext = cloudContextGcp)
       .save()
@@ -1016,7 +1025,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName3 = AppName("app3")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      diskConfig = Some(createDiskConfig1)
+                                        diskConfig = Some(createDiskConfig1)
     )
     val diskName2 = DiskName("newDiskName")
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
@@ -1093,7 +1102,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName1 = AppName("app1")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      diskConfig = Some(createDiskConfig1)
+                                        diskConfig = Some(createDiskConfig1)
     )
 
     appServiceInterp
@@ -1190,9 +1199,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
       listResponse <- appServiceInterp.listApp(userInfo, None, Map.empty)
     } yield
-      // Since the calling user is allowlisted in the auth provider, it should return
-      // the apps belonging to other users.
-      listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName, app3.appName, app4.appName)
+    // Since the calling user is allowlisted in the auth provider, it should return
+    // the apps belonging to other users.
+    listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName, app3.appName, app4.appName)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1751,9 +1760,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
     val appReq =
       createAppRequest.copy(kubernetesRuntimeConfig = None,
-        appType = AppType.Allowed,
-        allowedChartName = Some(AllowedChartName.Sas),
-        diskConfig = Some(diskConfig)
+                            appType = AppType.Allowed,
+                            allowedChartName = Some(AllowedChartName.Sas),
+                            diskConfig = Some(diskConfig)
       )
 
     kubeServiceInterp
@@ -2244,12 +2253,12 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "V2 Azure - create an app V2" in isolatedDbTest {
     val appName = AppName("app1")
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace",
-      "RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}"
+                            "RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}"
     )
     val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = None,
-      customEnvironmentVariables = customEnvVars
+                                       appType = AppType.Cromwell,
+                                       diskConfig = None,
+                                       customEnvironmentVariables = customEnvVars
     )
 
     appServiceInterp
@@ -2343,9 +2352,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = AppName("app1")
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = None,
-      customEnvironmentVariables = customEnvVars
+                                       appType = AppType.Cromwell,
+                                       diskConfig = None,
+                                       customEnvironmentVariables = customEnvVars
     )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
@@ -2513,7 +2522,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val diskName1 = DiskName("newDiskName1")
     val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      diskConfig = Some(createDiskConfig1)
+                                        diskConfig = Some(createDiskConfig1)
     )
     gcpWorkspaceAppServiceInterp
       .createAppV2(userInfo, workspaceId, appName1, appReq1)
@@ -2562,7 +2571,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val diskName1 = DiskName("newDiskName1")
     val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      diskConfig = Some(createDiskConfig1)
+                                        diskConfig = Some(createDiskConfig1)
     )
     gcpWorkspaceAppServiceInterp
       .createAppV2(userInfo, workspaceId, appName1, appReq1)
@@ -2589,9 +2598,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "V2 Azure - list apps V2 should return apps for workspace" in isolatedDbTest {
     val appName1 = AppName("app1")
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = None
+                                        kubernetesRuntimeConfig = None,
+                                        appType = AppType.Cromwell,
+                                        diskConfig = None
     )
     appServiceInterp
       .createAppV2(userInfo, workspaceId, appName1, appReq1)
@@ -2637,9 +2646,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "V2 Azure - list apps V2 should fail to return apps for workspace if creator lost workspace access" in isolatedDbTest {
     val appName1 = AppName("app1")
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = None
+                                        kubernetesRuntimeConfig = None,
+                                        appType = AppType.Cromwell,
+                                        diskConfig = None
     )
     appServiceInterp
       .createAppV2(userInfo, workspaceId, appName1, appReq1)
@@ -2668,7 +2677,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val diskName1 = DiskName("newDiskName1")
     val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-      diskConfig = Some(createDiskConfig1)
+                                        diskConfig = Some(createDiskConfig1)
     )
     gcpWorkspaceAppServiceInterp
       .createAppV2(userInfo, workspaceId, appName1, appReq1)
@@ -3000,7 +3009,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
                                workspaceId: WorkspaceId,
                                wsmResourceId: WsmControlledResourceId,
                                wsmResourceType: WsmResourceType
-                              )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
+      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
     }
     val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)

@@ -15,9 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCl
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, SamDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, clusterQuery, kubernetesClusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{DeleteKubernetesClusterMessage, DeleteNodepoolMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
+  DeleteKubernetesClusterMessage,
+  DeleteNodepoolMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -342,7 +345,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     asyncTaskQueue: Queue[IO, Task[IO]] =
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): NonLeoMessageSubscriber[IO] = {
-    val googleSubscriber = mock[CloudSubscriber[IO,NonLeoMessage]]
+    val googleSubscriber = mock[CloudSubscriber[IO, NonLeoMessage]]
     new NonLeoMessageSubscriber(
       NonLeoMessageSubscriberConfig(Config.gceConfig.userDiskDeviceName),
       gkeInterp,

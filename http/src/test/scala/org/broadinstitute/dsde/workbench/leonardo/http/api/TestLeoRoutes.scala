@@ -3,7 +3,7 @@ package http
 package api
 
 import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import cats.effect.IO
 import com.github.benmanes.caffeine.cache.Caffeine
@@ -15,7 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, KubernetesDnsCacheKey, RuntimeDnsCache, RuntimeDnsCacheKey}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{
+  KubernetesDnsCache,
+  KubernetesDnsCacheKey,
+  RuntimeDnsCache,
+  RuntimeDnsCacheKey
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo

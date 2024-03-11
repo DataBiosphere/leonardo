@@ -17,7 +17,6 @@ import scala.concurrent.ExecutionContext
 
 class BaselineDependyBuilderSpec extends AnyFlatSpec with Matchers with MockitoSugar {
 
-
   it should "create gcp specific interpreters when azure hosting mode is false" in {
 
     implicit val dbRef = mock[DbReference[IO]]
@@ -30,7 +29,7 @@ class BaselineDependyBuilderSpec extends AnyFlatSpec with Matchers with MockitoS
     val dependenciesResource = dependyBuilder.createBaselineDependencies[IO]()
 
     val serviceTypeCheck: IO[Boolean] = dependenciesResource.use { deps =>
-      IO(deps.subscriber.isInstanceOf[CloudSubscriber[IO,LeoPubsubMessage]])
+      IO(deps.subscriber.isInstanceOf[CloudSubscriber[IO, LeoPubsubMessage]])
     }
 
     val result = serviceTypeCheck.unsafeRunSync()
