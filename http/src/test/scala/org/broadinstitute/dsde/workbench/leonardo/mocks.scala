@@ -26,7 +26,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesModels,
   PvName
 }
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.tokenValue
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
