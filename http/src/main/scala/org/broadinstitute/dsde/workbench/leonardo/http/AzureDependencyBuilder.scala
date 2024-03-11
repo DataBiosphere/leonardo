@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 import akka.actor.ActorSystem
 import cats.effect.{IO, Resource}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appServiceConfig, gkeCustomAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp
 import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
@@ -40,5 +42,26 @@ class AzureDependencyBuilder extends CloudDependenciesBuilder {
    * @param openTelemetry        OT metrics
    * @return
    */
-  override def createDependenciesRegistry(baselineDependencies: BaselineDependencies[IO])(implicit logger: StructuredLogger[IO], ec: ExecutionContext, as: ActorSystem, dbReference: DbReference[IO], openTelemetry: OpenTelemetryMetrics[IO]): Resource[IO, ServicesRegistry] = Resource.make(IO(ServicesRegistry()))(_=>IO.unit)
+  override def createDependenciesRegistry(baselineDependencies: BaselineDependencies[IO])(implicit logger: StructuredLogger[IO], ec: ExecutionContext, as: ActorSystem, dbReference: DbReference[IO], openTelemetry: OpenTelemetryMetrics[IO]): Resource[IO, ServicesRegistry] = {
+    //The AppService is used by App V1, App V2 and the Resources routes.
+    // Only App V2 routes are required for Azure functionality,
+    // so we need an instance of the AppService without gcp deps (Compute and Resources)
+    val leoKubernetesService: LeoAppServiceInterp[IO] =
+      new LeoAppServiceInterp(
+        appServiceConfig,
+        baselineDependencies.authProvider,
+        baselineDependencies.serviceAccountProvider,
+        baselineDependencies.publisherQueue,
+        None,
+        None,
+        gkeCustomAppConfig,
+        baselineDependencies.wsmDAO,
+        baselineDependencies.wsmClientProvider
+      )
+
+    var servicesRegistry = ServicesRegistry()
+
+    servicesRegistry.register[LeoAppServiceInterp[IO]](leoKubernetesService)
+
+    Resource.make(IO(servicesRegistry))(_=>IO.unit)}
 }

@@ -14,7 +14,15 @@ import monocle.macros.syntax.lens._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, KubernetesName, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  GoogleResourceService,
+  KubernetesName,
+  MachineTypeName,
+  RegionName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -23,12 +31,14 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{checkIfCanBeDeleted, isPatchVersionDifference}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
+  checkIfCanBeDeleted,
+  isPatchVersionDifference
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
-import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -45,26 +55,27 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
                                                 serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
-                                                gcpServicesRegistry: ServicesRegistry,
+                                                computeService: Option[GoogleComputeService[F]],
+                                                googleResourceService: Option[GoogleResourceService[F]],
                                                 customAppConfig: CustomAppConfig,
                                                 wsmDao: WsmDao[F],
                                                 wsmClientProvider: WsmApiClientProvider[F]
-)(implicit
-  F: Async[F],
-  log: StructuredLogger[F],
-  dbReference: DbReference[F],
-  metrics: OpenTelemetryMetrics[F],
-  ec: ExecutionContext
-) extends AppService[F] {
+                                               )(implicit
+                                                 F: Async[F],
+                                                 log: StructuredLogger[F],
+                                                 dbReference: DbReference[F],
+                                                 metrics: OpenTelemetryMetrics[F],
+                                                 ec: ExecutionContext
+                                               ) extends AppService[F] {
   override def createApp(
-    userInfo: UserInfo,
-    cloudContext: CloudContext.Gcp,
-    appName: AppName,
-    req: CreateAppRequest,
-    workspaceId: Option[WorkspaceId] = None
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] =
+                          userInfo: UserInfo,
+                          cloudContext: CloudContext.Gcp,
+                          appName: AppName,
+                          req: CreateAppRequest,
+                          workspaceId: Option[WorkspaceId] = None
+                        )(implicit
+                          as: Ask[F, AppContext]
+                        ): F[Unit] =
     for {
       ctx <- as.ask
       googleProject = cloudContext.value
@@ -78,7 +89,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
-            AppType.CromwellRunnerApp =>
+             AppType.CromwellRunnerApp =>
           F.unit
         case AppType.Allowed =>
           req.allowedChartName match {
@@ -96,7 +107,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                         } else
                           F.raiseError[Unit](
                             AuthenticationError(Some(userInfo.userEmail),
-                                                "You need to obtain a license in order to create a SAS App"
+                              "You need to obtain a license in order to create a SAS App"
                             )
                           )
                       }
@@ -112,7 +123,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case None =>
               F.raiseError(
                 BadRequestException("when AppType is ALLOWED, allowedChartName needs to be specified",
-                                    Some(ctx.traceId)
+                  Some(ctx.traceId)
                 )
               )
           }
@@ -236,16 +247,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
       saveApp <- F.fromEither(
         getSavableApp(cloudContext,
-                      appName,
-                      originatingUserEmail,
-                      samResourceId,
-                      req,
-                      diskResultOpt.map(_.disk),
-                      lastUsedApp,
-                      petSA,
-                      nodepool.id,
-                      req.workspaceId,
-                      ctx
+          appName,
+          originatingUserEmail,
+          samResourceId,
+          req,
+          diskResultOpt.map(_.disk),
+          lastUsedApp,
+          petSA,
+          nodepool.id,
+          req.workspaceId,
+          ctx
         )
       )
       app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
@@ -273,12 +284,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   override def getApp(
-    userInfo: UserInfo,
-    cloudContext: CloudContext.Gcp,
-    appName: AppName
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[GetAppResponse] =
+                       userInfo: UserInfo,
+                       cloudContext: CloudContext.Gcp,
+                       appName: AppName
+                     )(implicit
+                       as: Ask[F, AppContext]
+                     ): F[GetAppResponse] =
     for {
       ctx <- as.ask
       // throw 403 if no project-level permission
@@ -293,8 +304,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // throw 404 if no GetAppStatus permission
       hasPermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
-                                                                               AppAction.GetAppStatus,
-                                                                               userInfo
+        AppAction.GetAppStatus,
+        userInfo
       )
       _ <-
         if (hasPermission) F.unit
@@ -308,10 +319,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
-    userInfo: UserInfo,
-    cloudContext: Option[CloudContext.Gcp],
-    params: Map[String, String]
-  )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]] =
+                        userInfo: UserInfo,
+                        cloudContext: Option[CloudContext.Gcp],
+                        params: Map[String, String]
+                      )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]] =
     for {
       ctx <- as.ask
 
@@ -396,8 +407,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           for {
             // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
             _ <- authProvider.notifyResourceDeleted(appResult.app.samResourceId,
-                                                    appResult.app.auditInfo.creator,
-                                                    cloudContext.value
+              appResult.app.auditInfo.creator,
+              cloudContext.value
             )
             _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
           } yield ()
@@ -420,7 +431,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   override def deleteAllApps(userInfo: UserInfo, cloudContext: CloudContext.Gcp, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
+                                                                                                      as: Ask[F, AppContext]
   ): F[Vector[DiskName]] =
     for {
       ctx <- as.ask
@@ -445,7 +456,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield attachedPersistentDiskNames
 
   override def deleteAppRecords(userInfo: UserInfo, cloudContext: CloudContext, appName: AppName)(implicit
-    as: Ask[F, AppContext]
+                                                                                                      as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -489,7 +500,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   override def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
-    as: Ask[F, AppContext]
+                                                                                        as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       apps <- listApp(
@@ -501,7 +512,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
-    as: Ask[F, AppContext]
+                                                                                    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -514,7 +525,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
       appResult <- F.fromOption(appOpt,
-                                AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
       tags = Map("appType" -> appResult.app.appType.toString)
       _ <- metrics.incrementCounter("stopApp", 1, tags)
@@ -550,7 +561,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   def startApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
-    as: Ask[F, AppContext]
+                                                                                     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -563,7 +574,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
       appResult <- F.fromOption(appOpt,
-                                AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
       tags = Map("appType" -> appResult.app.appType.toString)
       _ <- metrics.incrementCounter("startApp", 1, tags)
@@ -598,7 +609,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
-    as: Ask[F, AppContext]
+                                                                                                    as: Ask[F, AppContext]
   ): F[Vector[ListAppResponse]] =
     for {
       ctx <- as.ask
@@ -619,7 +630,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield res
 
   override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
-    as: Ask[F, AppContext]
+                                                                                        as: Ask[F, AppContext]
   ): F[GetAppResponse] =
     for {
       ctx <- as.ask
@@ -635,8 +646,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       hasResourcePermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
-                                                                                       AppAction.GetAppStatus,
-                                                                                       userInfo
+        AppAction.GetAppStatus,
+        userInfo
       )
       _ <-
         if (hasResourcePermission) F.unit
@@ -795,7 +806,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
+                                                                                                                as: Ask[F, AppContext]
   ): F[Unit] = for {
     hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
     _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
@@ -828,7 +839,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   } yield ()
 
   override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
+                                                                                                  as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
     hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
@@ -885,7 +896,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                               deleteDisk: Boolean,
                               workspaceDesc: WorkspaceDescription
   )(implicit
-    as: Ask[F, AppContext]
+                                                                                                           as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
     listOfPermissions <- authProvider.getActions(app.samResourceId, userInfo)
@@ -955,9 +966,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                            resourceType: WsmResourceType,
                                            userInfo: UserInfo,
                                            workspaceId: WorkspaceId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] = for {
+                                          )(implicit
+                                            ev: Ask[F, AppContext]
+                                          ): F[Unit] = for {
     ctx <- ev.ask
     wsmResources <- appControlledResourceQuery
       .getAllForAppByType(appId.id, resourceType)
@@ -965,9 +976,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     _ <- wsmResources.traverse { resource =>
       for {
         wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
-                                                  workspaceId,
-                                                  resource.resourceId,
-                                                  resourceType
+          workspaceId,
+          resource.resourceId,
+          resourceType
         )
         _ <- F
           .raiseUnless(wsmState.isDeletable)(
@@ -978,10 +989,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   } yield ()
 
   private[service] def getSavableCluster(
-    userEmail: WorkbenchEmail,
-    cloudContext: CloudContext,
-    now: Instant
-  ): Either[Throwable, SaveKubernetesCluster] = {
+                                          userEmail: WorkbenchEmail,
+                                          cloudContext: CloudContext,
+                                          now: Instant
+                                        ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
     val defaultNodepool = for {
@@ -1030,16 +1041,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private[service] def checkIfAppCreationIsAllowed(userEmail: WorkbenchEmail,
                                                    googleProject: GoogleProject,
                                                    descriptorPath: Uri
-  )(implicit
-    ev: Ask[F, TraceId]
-  ): F[Unit] =
+                                                  )(implicit
+                                                    ev: Ask[F, TraceId]
+                                                  ): F[Unit] =
     if (config.enableCustomAppCheck)
       for {
         ctx <- ev.ask
 
         allowedOrError <-
           for {
-            projectLabels <-  gcpServicesRegistry.lookup[GoogleResourceService[F]].get.getLabels(googleProject)
+            projectLabels <- googleResourceService.get.getLabels(googleProject)
             isAppAllowed <- projectLabels match {
               case Some(labels) =>
                 labels.get(SECURITY_GROUP) match {
@@ -1078,12 +1089,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     else F.unit
 
   private[service] def checkIfSasAppCreationIsAllowed(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    ev: Ask[F, TraceId]
+                                                                                                               ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
       ctx <- ev.ask
 
-      projectLabels <- gcpServicesRegistry.lookup[GoogleResourceService[F]].get.getLabels(googleProject)
+      projectLabels <- googleResourceService.get.getLabels(googleProject)
 
       allowedOrError = projectLabels match {
         case Some(labels) =>
@@ -1112,9 +1123,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     } yield ()
 
   private def getLastUsedAppForDisk(
-    req: CreateAppRequest,
-    diskResultOpt: Option[PersistentDiskRequestResult]
-  )(implicit as: Ask[F, AppContext]): F[Option[LastUsedApp]] = for {
+                                     req: CreateAppRequest,
+                                     diskResultOpt: Option[PersistentDiskRequestResult]
+                                   )(implicit as: Ask[F, AppContext]): F[Option[LastUsedApp]] = for {
     ctx <- as.ask
     lastUsedApp <- diskResultOpt match {
       case Some(diskResult) =>
@@ -1123,8 +1134,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
-                (Some(FormattedBy.Cromwell), Some(AppRestore.Other(_))) |
-                (Some(FormattedBy.Allowed), Some(AppRestore.Other(_))) =>
+                 (Some(FormattedBy.Cromwell), Some(AppRestore.Other(_))) |
+                 (Some(FormattedBy.Allowed), Some(AppRestore.Other(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
                 lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
@@ -1144,7 +1155,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                 }
               } yield lastUsed.some
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
-                (Some(FormattedBy.Allowed), None) =>
+                 (Some(FormattedBy.Allowed), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
               )
@@ -1183,7 +1194,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      config: PersistentDiskConfig,
                                      req: CreateAppRequest,
                                      now: Instant
-  ): Either[Throwable, PersistentDisk] = {
+                                    ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabelMap: LabelMap =
       Map(
@@ -1229,7 +1240,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                        userEmail: WorkbenchEmail,
                                        machineConfig: KubernetesRuntimeConfig,
                                        now: Instant
-  ): Either[Throwable, Nodepool] = {
+                                      ): Either[Throwable, Nodepool] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
     for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
@@ -1252,9 +1263,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private[service] def validateGalaxy(googleProject: GoogleProject,
                                       diskSize: Option[DiskSize],
                                       machineTypeName: MachineTypeName
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[AppMachineType] =
+                                     )(implicit
+                                       as: Ask[F, AppContext]
+                                     ): F[AppMachineType] =
     for {
       ctx <- as.ask
       _ <- diskSize
@@ -1268,10 +1279,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             )
           } else F.unit
         }
-      machineType <- gcpServicesRegistry.lookup[GoogleComputeService[F]].get
+      machineType <- computeService.get
         .getMachineType(googleProject,
-                        ZoneName("us-central1-a"),
-                        machineTypeName
+          ZoneName("us-central1-a"),
+          machineTypeName
         ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
         .flatMap(opt =>
           F.fromOption(
@@ -1299,7 +1310,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      nodepoolId: NodepoolLeoId,
                                      workspaceId: Option[WorkspaceId],
                                      ctx: AppContext
-  ): Either[Throwable, SaveApp] = {
+                                    ): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userEmail, now, None, now)
     val allLabels =
@@ -1383,7 +1394,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           // if there's a patch version bump, then we use the later version defined in leo config; otherwise, we use lastUsed chart definition
           if (
             lastUsed.chart.name == potentialNewChart.name && isPatchVersionDifference(lastUsed.chart.version,
-                                                                                      gkeAppConfig.chartVersion
+              gkeAppConfig.chartVersion
             )
           )
             potentialNewChart
@@ -1411,8 +1422,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autodeleteThreshold = req.autodeleteThreshold.getOrElse(0)
 
       _ <- Either.cond(!(autodeleteEnabled && autodeleteThreshold <= 0),
-                       (),
-                       BadRequestException("autodeleteThreshold should be a positive value", Some(ctx.traceId))
+        (),
+        BadRequestException("autodeleteThreshold should be a positive value", Some(ctx.traceId))
       )
     } yield SaveApp(
       App(
@@ -1448,7 +1459,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   }
 
   private def getVisibleApps(allClusters: List[KubernetesCluster], userInfo: UserInfo)(implicit
-    as: Ask[F, AppContext]
+                                                                                       as: Ask[F, AppContext]
   ): F[Option[List[AppSamResourceId]]] = for {
     _ <- as.ask
     samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
@@ -1473,7 +1484,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   } yield samVisibleAppsOpt
 
   private def getVisibleAppsByProject(allClusters: List[KubernetesCluster], userInfo: UserInfo)(implicit
-    as: Ask[F, AppContext]
+                                                                                                as: Ask[F, AppContext]
   ): F[Option[List[AppSamResourceId]]] = for {
     ctx <- as.ask
     samResources = allClusters.map(a =>
@@ -1510,9 +1521,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                         userInfo: UserInfo,
                                         labels: List[String],
                                         useGoogleProject: Boolean
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] = for {
+                                       )(implicit
+                                         as: Ask[F, AppContext]
+                                       ): F[Vector[ListAppResponse]] = for {
     _ <- as.ask
 
     // V1 endpoints use google project to determine user access, but V2 doesn't
@@ -1563,7 +1574,7 @@ object LeoAppServiceInterp {
                                  cromwellAppConfig: CromwellAppConfig,
                                  customAppConfig: CustomAppConfig,
                                  allowedAppConfig: AllowedAppConfig
-  )
+                                )
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {
     val aSplited = a.asString.split("\\.")
@@ -1590,151 +1601,149 @@ object LeoAppServiceInterp {
 }
 
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
-    extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
-      StatusCodes.NotFound,
-      null,
-      extraMsg,
-      traceId = Some(traceId)
-    )
+  extends LeoException(
+    s"App ${cloudContext.asStringWithProvider}/${appName.value} not found",
+    StatusCodes.NotFound,
+    null,
+    extraMsg,
+    traceId = Some(traceId)
+  )
 
 case class AppNotFoundByWorkspaceIdException(workspaceId: WorkspaceId,
                                              appName: AppName,
                                              traceId: TraceId,
                                              extraMsg: String
-) extends LeoException(
-      s"App ${workspaceId.value.toString}/${appName.value} not found",
-      StatusCodes.NotFound,
-      null,
-      extraMsg,
-      traceId = Some(traceId)
-    )
+                                            ) extends LeoException(
+  s"App ${workspaceId.value.toString}/${appName.value} not found",
+  StatusCodes.NotFound,
+  null,
+  extraMsg,
+  traceId = Some(traceId)
+)
 
 case class AppAlreadyExistsInWorkspaceException(workspaceId: WorkspaceId,
                                                 appName: AppName,
                                                 status: AppStatus,
                                                 traceId: TraceId
-) extends LeoException(
-      s"App ${workspaceId.value.toString}/${appName.value} already exists in ${status.toString} status.",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+                                               ) extends LeoException(
+  s"App ${workspaceId.value.toString}/${appName.value} already exists in ${status.toString} status.",
+  StatusCodes.Conflict,
+  traceId = Some(traceId)
+)
 
 case class AppAlreadyExistsException(cloudContext: CloudContext, appName: AppName, status: AppStatus, traceId: TraceId)
-    extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} already exists in ${status.toString} status.",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+  extends LeoException(
+    s"App ${cloudContext.asStringWithProvider}/${appName.value} already exists in ${status.toString} status.",
+    StatusCodes.Conflict,
+    traceId = Some(traceId)
+  )
 
 case class AppCannotBeDeletedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
                                        traceId: TraceId,
                                        extraMsg: String = ""
-) extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be deleted in ${status} status." +
-        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
-      StatusCodes.Conflict,
-      traceId = Some(traceId),
-      extraMessageInLogging = extraMsg
-    )
+                                      ) extends LeoException(
+  s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be deleted in ${status} status." +
+    (if (status == AppStatus.Stopped) " Please start the app first." else ""),
+  StatusCodes.Conflict,
+  traceId = Some(traceId),
+  extraMessageInLogging = extraMsg
+)
 
 case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
                                                     appName: AppName,
                                                     status: AppStatus,
                                                     traceId: TraceId
-) extends LeoException(
-      s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
-        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+                                                   ) extends LeoException(
+  s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
+    (if (status == AppStatus.Stopped) " Please start the app first." else ""),
+  StatusCodes.Conflict,
+  traceId = Some(traceId)
+)
 
 case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
-    extends LeoException(
-      s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
-          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+  extends LeoException(
+    s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
+      .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
+    StatusCodes.Conflict,
+    traceId = Some(traceId)
+  )
 
 case class DeleteAllAppsV1CannotBePerformed(googleProject: GoogleProject,
                                             apps: Vector[ListAppResponse],
                                             traceId: TraceId
-) extends LeoException(
-      s"App(s) in project ${googleProject.value} with (name(s), status(es)) ${apps
-          .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+                                           ) extends LeoException(
+  s"App(s) in project ${googleProject.value} with (name(s), status(es)) ${apps
+    .map(app => s"(${app.appName.value},${app.status})")} cannot be deleted due to their status(es).",
+  StatusCodes.Conflict,
+  traceId = Some(traceId)
+)
 
 case class AppRequiresDiskException(cloudContext: CloudContext, appName: AppName, appType: AppType, traceId: TraceId)
-    extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be created because the request does not contain a valid disk. Apps of type ${appType} require a disk. Trace ID: ${traceId.asString}",
-      StatusCodes.BadRequest,
-      traceId = Some(traceId)
-    )
+  extends LeoException(
+    s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be created because the request does not contain a valid disk. Apps of type ${appType} require a disk. Trace ID: ${traceId.asString}",
+    StatusCodes.BadRequest,
+    traceId = Some(traceId)
+  )
 
 case class AppDiskNotSupportedException(cloudContext: CloudContext,
                                         appName: AppName,
                                         appType: AppType,
                                         traceId: TraceId
-) extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} of type ${appType} does not support persistent disk. Trace ID: ${traceId.toString}",
-      StatusCodes.BadRequest,
-      traceId = Some(traceId)
-    )
+                                       ) extends LeoException(
+  s"App ${cloudContext.asStringWithProvider}/${appName.value} of type ${appType} does not support persistent disk. Trace ID: ${traceId.toString}",
+  StatusCodes.BadRequest,
+  traceId = Some(traceId)
+)
 
 case class AppCannotBeStoppedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
                                        traceId: TraceId
-) extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be stopped in ${status} status. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+                                      ) extends LeoException(
+  s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be stopped in ${status} status. Trace ID: ${traceId.asString}",
+  StatusCodes.Conflict,
+  traceId = Some(traceId)
+)
 
 case class AppCannotBeStartedException(cloudContext: CloudContext,
                                        appName: AppName,
                                        status: AppStatus,
                                        traceId: TraceId
-) extends LeoException(
-      s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+                                      ) extends LeoException(
+  s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
+  StatusCodes.Conflict,
+  traceId = Some(traceId)
+)
 
 case class AppMachineConfigNotSupportedException(traceId: TraceId)
-    extends LeoException(
-      s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
-      StatusCodes.BadRequest,
-      traceId = Some(traceId)
-    )
+  extends LeoException(
+    s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
+    StatusCodes.BadRequest,
+    traceId = Some(traceId)
+  )
 
 case class AppTypeNotSupportedOnCloudException(cloudProvider: CloudProvider, appType: AppType, traceId: TraceId)
-    extends LeoException(
-      s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+  extends LeoException(
+    s"Apps of type ${appType.toString} not supported on ${cloudProvider.asString}. Trace ID: ${traceId.asString}",
+    StatusCodes.Conflict,
+    traceId = Some(traceId)
+  )
 
 case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
-    extends LeoException(
-      s"App with type ${appType.toString} cannot be launched with shared access scope. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+  extends LeoException(
+    s"App with type ${appType.toString} cannot be launched with shared access scope. Trace ID: ${traceId.asString}",
+    StatusCodes.Conflict,
+    traceId = Some(traceId)
+  )
 
 case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
-    extends LeoException(
-      s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-
-case class AppWithoutWorkspaceIdException(appName: AppName, traceId: TraceId)
+  extends LeoException(
+    s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
+    StatusCodes.Conflict,
+    traceId = Some(traceId)
+  )case class AppWithoutWorkspaceIdException(appName: AppName, traceId: TraceId)
     extends LeoException(
       s"App ${appName.value} is missing a workspaceId. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,

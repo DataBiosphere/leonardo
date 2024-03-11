@@ -10,7 +10,12 @@ import fs2.Stream
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, LivenessRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{
+  BuildTimeVersion,
+  HttpRoutes,
+  LivenessRoutes,
+  StandardUserInfoDirectives
+}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.typelevel.log4cats.StructuredLogger
@@ -47,19 +52,11 @@ object Boot extends IOApp {
 
     logger.info("Liveness server has been started").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    AppDependenciesBuilder().createAppDependencies().use({ leoDependencies =>
-
+    AppDependenciesBuilder().createAppDependencies().use { leoDependencies =>
       val servicesDependencies = leoDependencies.servicesDependencies
       val backEndProcesses = leoDependencies.leoAppProcesses
 
       implicit val openTelemetryMetrics = servicesDependencies.baselineDependencies.openTelemetryMetrics
-
-      val resourcesService = new ResourcesServiceInterp[IO](
-        appDependencies.authProvider,
-        runtimeService,
-        leoKubernetesService,
-        diskService
-      )
 
       val httpRoutes = new HttpRoutes(
         servicesDependencies.baselineDependencies.openIDConnectConfiguration,
@@ -69,7 +66,6 @@ object Boot extends IOApp {
         servicesDependencies.kubernetesService,
         servicesDependencies.azureService,
         servicesDependencies.adminService,
-        resourcesService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig
@@ -86,9 +82,12 @@ object Boot extends IOApp {
         }
         _ <-
           if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
-            //assuming this is only required when running on GCP, the dataprocInterp should be in the
+            // assuming this is only required when running on GCP, the dataprocInterp should be in the
             // in the dependencies registry.
-            servicesDependencies.cloudSpecificDependenciesRegistry.lookup[DataprocInterpreter[IO]].get.setupDataprocImageGoogleGroup
+            servicesDependencies.cloudSpecificDependenciesRegistry
+              .lookup[DataprocInterpreter[IO]]
+              .get
+              .setupDataprocImageGoogleGroup
           } else IO.unit
 
         _ <- IO.fromFuture {
@@ -113,9 +112,8 @@ object Boot extends IOApp {
         .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to start leonardo")))
         .compile
         .drain
-    })
+    }
   }
-
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }

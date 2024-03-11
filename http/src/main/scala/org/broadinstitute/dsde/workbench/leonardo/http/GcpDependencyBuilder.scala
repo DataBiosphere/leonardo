@@ -42,134 +42,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
   override def registryOpenTelemetryTracing: Resource[IO,Unit] =
     OpenTelemetryMetrics.registerTracing[IO](applicationConfig.leoServiceAccountJsonFile)
 
-
-  def createGcpOnlyServicesRegistry(appDependencies: BaselineDependencies[IO], gcpDependencies: GcpDependencies[IO])(
-    implicit
-    logger: StructuredLogger[IO],
-    ec: ExecutionContext,
-    as: ActorSystem,
-    dbReference: DbReference[IO],
-    openTelemetry: OpenTelemetryMetrics[IO]
-  ): ServicesRegistry = {
-
-    //Services used by the HTTP routes (Front-End)
-    val proxyService = new ProxyService(
-      appDependencies.sslContext,
-      proxyConfig,
-      appDependencies.jupyterDAO,
-      appDependencies.runtimeDnsCache,
-      gcpDependencies.kubernetesDnsCache,
-      appDependencies.authProvider,
-      appDependencies.dateAccessedUpdaterQueue,
-      gcpDependencies.googleOauth2DAO,
-      appDependencies.proxyResolver,
-      appDependencies.samDAO,
-      appDependencies.googleTokenCache,
-      appDependencies.samResourceCache
-    )
-
-    val diskService = new DiskServiceInterp[IO](
-      ConfigReader.appConfig.persistentDisk,
-      appDependencies.authProvider,
-      appDependencies.serviceAccountProvider,
-      appDependencies.publisherQueue,
-      gcpDependencies.googleDiskService,
-      gcpDependencies.googleProjectDAO
-    )
-
-    val runtimeService = RuntimeService(
-      appDependencies.runtimeServicesConfig,
-      ConfigReader.appConfig.persistentDisk,
-      appDependencies.authProvider,
-      appDependencies.serviceAccountProvider,
-      appDependencies.dockerDAO,
-      gcpDependencies.googleStorageService,
-      gcpDependencies.googleComputeService,
-      appDependencies.publisherQueue
-    )
-
-    val dataprocInterp = new DataprocInterpreter(
-      dataprocInterpreterConfig,
-      gcpDependencies.bucketHelper,
-      gcpDependencies.vpcInterp,
-      gcpDependencies.googleDataproc,
-      gcpDependencies.googleComputeService,
-      gcpDependencies.googleDiskService,
-      gcpDependencies.googleDirectoryDAO,
-      gcpDependencies.googleIamDAO,
-      gcpDependencies.googleResourceService,
-      appDependencies.welderDAO
-    )
-
-    val gceInterp = new GceInterpreter(
-      gceInterpreterConfig,
-      gcpDependencies.bucketHelper,
-      gcpDependencies.vpcInterp,
-      gcpDependencies.googleComputeService,
-      gcpDependencies.googleDiskService,
-      appDependencies.welderDAO
-    )
-
-    //Services used by Leo PubSub Message subscriber (Backend)
-    val gkeAlg = new GKEInterpreter[IO](
-      gkeInterpConfig,
-      gcpDependencies.bucketHelper,
-      gcpDependencies.vpcInterp,
-      gcpDependencies.gkeService,
-      gcpDependencies.kubeService,
-      appDependencies.helmClient,
-      appDependencies.appDAO,
-      gcpDependencies.credentials,
-      gcpDependencies.googleIamDAO,
-      gcpDependencies.googleDiskService,
-      appDependencies.appDescriptorDAO,
-      appDependencies.nodepoolLock,
-      gcpDependencies.googleResourceService,
-      gcpDependencies.googleComputeService
-    )
-
-    implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO, appDependencies.welderDAO, appDependencies.rstudioDAO)
-
-    val gceRuntimeMonitor = new GceRuntimeMonitor[IO](
-      gceMonitorConfig,
-      gcpDependencies.googleComputeService,
-      appDependencies.authProvider,
-      gcpDependencies.googleStorageService,
-      gcpDependencies.googleDiskService,
-      appDependencies.publisherQueue,
-      gceInterp
-    )
-
-    val dataprocRuntimeMonitor = new DataprocRuntimeMonitor[IO](
-      dataprocMonitorConfig,
-      gcpDependencies.googleComputeService,
-      appDependencies.authProvider,
-      gcpDependencies.googleStorageService,
-      gcpDependencies.googleDiskService,
-      dataprocInterp,
-      gcpDependencies.googleDataproc
-    )
-
-    val cloudServiceRuntimeMonitor =
-      new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
-
-    //TODO: Verify why this is needed...
-    implicit val runtimeInstances: RuntimeInstances[IO] = new RuntimeInstances(dataprocInterp, gceInterp)
-
-    val servicesRegistry = ServicesRegistry()
-
-    servicesRegistry.register[ProxyService](proxyService)
-    servicesRegistry.register[RuntimeService[IO]](runtimeService)
-    servicesRegistry.register[DiskService[IO]](diskService)
-    servicesRegistry.register[DataprocInterpreter[IO]](dataprocInterp)
-    servicesRegistry.register[GceInterpreter[IO]](gceInterp)
-    servicesRegistry.register[GcpDependencies[IO]](gcpDependencies)
-    servicesRegistry.register[GKEAlgebra[IO]](gkeAlg)
-    servicesRegistry.register[RuntimeMonitor[IO,CloudService]](cloudServiceRuntimeMonitor)
-    servicesRegistry
-
-  }
-
   override def createCloudSpecificProcessesList(baselineDependencies: BaselineDependencies[IO],
                                                 cloudSpecificDependencies: ServicesRegistry)(implicit
                                                                        logger: StructuredLogger[IO],
@@ -361,6 +233,158 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       kubeService,
       nonLeoMessageSubscriber
     )
+
+  def createGcpOnlyServicesRegistry(baselineDependencies: BaselineDependencies[IO], gcpDependencies: GcpDependencies[IO])(
+    implicit
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    dbReference: DbReference[IO],
+    openTelemetry: OpenTelemetryMetrics[IO]
+  ): ServicesRegistry = {
+
+    //Services used by the HTTP routes (Front-End)
+    val proxyService = new ProxyService(
+      baselineDependencies.sslContext,
+      proxyConfig,
+      baselineDependencies.jupyterDAO,
+      baselineDependencies.runtimeDnsCache,
+      gcpDependencies.kubernetesDnsCache,
+      baselineDependencies.authProvider,
+      baselineDependencies.dateAccessedUpdaterQueue,
+      gcpDependencies.googleOauth2DAO,
+      baselineDependencies.proxyResolver,
+      baselineDependencies.samDAO,
+      baselineDependencies.googleTokenCache,
+      baselineDependencies.samResourceCache
+    )
+
+    val diskService = new DiskServiceInterp[IO](
+      ConfigReader.appConfig.persistentDisk,
+      baselineDependencies.authProvider,
+      baselineDependencies.serviceAccountProvider,
+      baselineDependencies.publisherQueue,
+      gcpDependencies.googleDiskService,
+      gcpDependencies.googleProjectDAO
+    )
+
+    val runtimeService = RuntimeService(
+      baselineDependencies.runtimeServicesConfig,
+      ConfigReader.appConfig.persistentDisk,
+      baselineDependencies.authProvider,
+      baselineDependencies.serviceAccountProvider,
+      baselineDependencies.dockerDAO,
+      gcpDependencies.googleStorageService,
+      gcpDependencies.googleComputeService,
+      baselineDependencies.publisherQueue
+    )
+
+    val dataprocInterp = new DataprocInterpreter(
+      dataprocInterpreterConfig,
+      gcpDependencies.bucketHelper,
+      gcpDependencies.vpcInterp,
+      gcpDependencies.googleDataproc,
+      gcpDependencies.googleComputeService,
+      gcpDependencies.googleDiskService,
+      gcpDependencies.googleDirectoryDAO,
+      gcpDependencies.googleIamDAO,
+      gcpDependencies.googleResourceService,
+      baselineDependencies.welderDAO
+    )
+
+    val gceInterp = new GceInterpreter(
+      gceInterpreterConfig,
+      gcpDependencies.bucketHelper,
+      gcpDependencies.vpcInterp,
+      gcpDependencies.googleComputeService,
+      gcpDependencies.googleDiskService,
+      baselineDependencies.welderDAO
+    )
+
+    val leoKubernetesService: LeoAppServiceInterp[IO] =
+      new LeoAppServiceInterp(
+        appServiceConfig,
+        baselineDependencies.authProvider,
+        baselineDependencies.serviceAccountProvider,
+        baselineDependencies.publisherQueue,
+        Some(gcpDependencies.googleComputeService),
+        Some(gcpDependencies.googleResourceService),
+        gkeCustomAppConfig,
+        baselineDependencies.wsmDAO,
+        baselineDependencies.wsmClientProvider
+      )
+
+    val resourcesService = new ResourcesServiceInterp[IO](
+      baselineDependencies.authProvider,
+      runtimeService,
+      leoKubernetesService,
+      diskService
+    )
+
+    //Services used by Leo PubSub Message subscriber (Backend)
+    val gkeAlg = new GKEInterpreter[IO](
+      gkeInterpConfig,
+      gcpDependencies.bucketHelper,
+      gcpDependencies.vpcInterp,
+      gcpDependencies.gkeService,
+      gcpDependencies.kubeService,
+      baselineDependencies.helmClient,
+      baselineDependencies.appDAO,
+      gcpDependencies.credentials,
+      gcpDependencies.googleIamDAO,
+      gcpDependencies.googleDiskService,
+      baselineDependencies.appDescriptorDAO,
+      baselineDependencies.nodepoolLock,
+      gcpDependencies.googleResourceService,
+      gcpDependencies.googleComputeService
+    )
+
+    implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(baselineDependencies.jupyterDAO, baselineDependencies.welderDAO, baselineDependencies.rstudioDAO)
+
+    val gceRuntimeMonitor = new GceRuntimeMonitor[IO](
+      gceMonitorConfig,
+      gcpDependencies.googleComputeService,
+      baselineDependencies.authProvider,
+      gcpDependencies.googleStorageService,
+      gcpDependencies.googleDiskService,
+      baselineDependencies.publisherQueue,
+      gceInterp
+    )
+
+    val dataprocRuntimeMonitor = new DataprocRuntimeMonitor[IO](
+      dataprocMonitorConfig,
+      gcpDependencies.googleComputeService,
+      baselineDependencies.authProvider,
+      gcpDependencies.googleStorageService,
+      gcpDependencies.googleDiskService,
+      dataprocInterp,
+      gcpDependencies.googleDataproc
+    )
+
+    val cloudServiceRuntimeMonitor =
+      new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
+
+    //TODO: Verify why this is needed...
+    implicit val runtimeInstances: RuntimeInstances[IO] = new RuntimeInstances(dataprocInterp, gceInterp)
+
+
+    val servicesRegistry = ServicesRegistry()
+
+    servicesRegistry.register[ProxyService](proxyService)
+    servicesRegistry.register[RuntimeService[IO]](runtimeService)
+    servicesRegistry.register[DiskService[IO]](diskService)
+    servicesRegistry.register[DataprocInterpreter[IO]](dataprocInterp)
+    servicesRegistry.register[GceInterpreter[IO]](gceInterp)
+    servicesRegistry.register[GcpDependencies[IO]](gcpDependencies)
+    servicesRegistry.register[GKEAlgebra[IO]](gkeAlg)
+    servicesRegistry.register[RuntimeMonitor[IO,CloudService]](cloudServiceRuntimeMonitor)
+    servicesRegistry.register[ResourcesServiceInterp[IO]](resourcesService)
+    servicesRegistry.register[LeoAppServiceInterp[IO]](leoKubernetesService)
+
+    servicesRegistry
+
+  }
+
 }
 
 

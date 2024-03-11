@@ -5,7 +5,7 @@ import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor
 import org.broadinstitute.dsde.workbench.leonardo.app._
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, appServiceConfig, applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, contentSecurityPolicy, dateAccessUpdaterConfig, dbConcurrency, gkeCustomAppConfig, leoExecutionModeConfig, leoPubsubMessageSubscriberConfig, liquibaseConfig, prometheusConfig, refererConfig, samConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appMonitorConfig, applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, contentSecurityPolicy, dateAccessUpdaterConfig, dbConcurrency, leoExecutionModeConfig, leoPubsubMessageSubscriberConfig, liquibaseConfig, prometheusConfig, refererConfig, samConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -64,17 +64,17 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       baselineDependencies.publisherQueue,
       baselineDependencies.wsmClientProvider
     )
-    val leoKubernetesService =
-      new LeoAppServiceInterp(
-        appServiceConfig,
-        baselineDependencies.authProvider,
-        baselineDependencies.serviceAccountProvider,
-        baselineDependencies.publisherQueue,
-        dependenciesRegistry,
-        gkeCustomAppConfig,
-        baselineDependencies.wsmDAO,
-        baselineDependencies.wsmClientProvider
-      )
+//    val leoKubernetesService =
+//      new LeoAppServiceInterp(
+//        appServiceConfig,
+//        baselineDependencies.authProvider,
+//        baselineDependencies.serviceAccountProvider,
+//        baselineDependencies.publisherQueue,
+//        dependenciesRegistry,
+//        gkeCustomAppConfig,
+//        baselineDependencies.wsmDAO,
+//        baselineDependencies.wsmClientProvider
+//      )
 
     val azureService = new RuntimeV2ServiceInterp[IO](
       baselineDependencies.runtimeServicesConfig,
@@ -86,6 +86,12 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
     )
     val adminService =
       new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
+
+    //The instance must be present in both Azure and GCP modes.
+    //However, when running on Azure, the service is created without GCP dependencies.
+    //The LeoAppServiceInterp cannot be created in this method because it is a dependency of the Resources Services, which is GCP only.
+    // This method only creates services that are agnostic of the cloud provider.
+    val leoKubernetesService = dependenciesRegistry.lookup[LeoAppServiceInterp[IO]].get
 
     Resource.make(
       IO(
@@ -215,7 +221,8 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       baselineDependencies.wsmDAO,
       kubeAlg,
       baselineDependencies.wsmClientProvider,
-      baselineDependencies.wsmDAO
+      baselineDependencies.wsmDAO,
+      baselineDependencies.authProvider
     )
 
     val azureAlg = new AzurePubsubHandlerInterp[IO](
@@ -230,7 +237,8 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       baselineDependencies.azureRelay,
       baselineDependencies.azureVmService,
       aksAlg,
-      refererConfig
+      refererConfig,
+      baselineDependencies.wsmClientProvider
     )
 
     val pubsubSubscriber = new LeoPubsubMessageSubscriber[IO](
