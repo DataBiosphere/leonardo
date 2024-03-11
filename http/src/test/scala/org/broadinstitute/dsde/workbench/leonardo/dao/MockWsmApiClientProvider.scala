@@ -10,7 +10,8 @@ import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.StructuredLogger
 
 class MockWsmClientProvider(controlledAzureResourceApi: ControlledAzureResourceApi = mock[ControlledAzureResourceApi],
-                            resourceApi: ResourceApi = mock[ResourceApi]
+                            resourceApi: ResourceApi = mock[ResourceApi],
+                            workspaceApi: WorkspaceApi = mock[WorkspaceApi]
 ) extends WsmApiClientProvider[IO] {
 
   override def getControlledAzureResourceApi(token: String)(implicit
@@ -22,6 +23,11 @@ class MockWsmClientProvider(controlledAzureResourceApi: ControlledAzureResourceA
     ev: Ask[IO, AppContext]
   ): IO[ResourceApi] =
     IO.pure(resourceApi)
+
+  override def getWorkspaceApi(token: String)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[WorkspaceApi] =
+    IO.pure(workspaceApi)
 
   override def getIdentity(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[IO, AppContext],
@@ -57,4 +63,5 @@ class MockWsmClientProvider(controlledAzureResourceApi: ControlledAzureResourceA
     log: StructuredLogger[IO]
   ): IO[WsmState] =
     IO.pure(WsmState(Some("READY")))
+
 }
