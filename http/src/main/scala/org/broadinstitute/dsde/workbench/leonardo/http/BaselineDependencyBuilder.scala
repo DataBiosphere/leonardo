@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.{
   SamAuthProvider
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
-  applicationConfig,
   asyncTaskProcessorConfig,
   autoFreezeConfig,
   dataprocConfig,
@@ -30,8 +29,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
   httpSamDaoConfig,
   imageConfig,
   kubernetesDnsCacheConfig,
-  nonLeoMessageSubscriberConfig,
-  prometheusConfig,
   proxyConfig,
   publisherConfig,
   pubsubConfig,
@@ -50,8 +47,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, NonLeoMessage, UpdateDateAccessedMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.leonardo.{AppAccessScope, KeyLock, LeoPublisher}
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo}
@@ -88,14 +84,10 @@ class BaselineDependyBuilder {
     F: Async[F],
     ec: ExecutionContext,
     as: ActorSystem,
-    dbRef: DbReference[F]
+    dbRef: DbReference[F],
+    openTelemetry: OpenTelemetryMetrics[F]
   ): Resource[F, BaselineDependencies[F]] =
     for {
-      // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
-      // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
-      // As best practice, we should have all related metrics under same prefix separated by `/`
-      implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
-        .resource[F](applicationConfig.applicationName, prometheusConfig.endpointPort)
 
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[String, IP]))
@@ -216,10 +208,7 @@ class BaselineDependyBuilder {
       )
       subscriberQueue <- Resource.eval(Queue.bounded[F, ReceivedMessage[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- createCloudSubscriber(subscriberQueue)
-      nonLeoMessageSubscriberQueue <- Resource.eval(
-        Queue.bounded[F, ReceivedMessage[NonLeoMessage]](pubsubConfig.queueSize)
-      )
-      nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
+
       asyncTasksQueue <- Resource.eval(Queue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
 
       // Set up k8s and helm clients
@@ -316,7 +305,6 @@ class BaselineDependyBuilder {
       publisherQueue,
       dataAccessedUpdater,
       subscriber,
-      nonLeoMessageSubscriber,
       asyncTasksQueue,
       nodepoolLock,
       proxyResolver,
@@ -454,7 +442,7 @@ final case class BaselineDependencies[F[_]](
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   subscriber: CloudSubscriber[F, LeoPubsubMessage],
-  nonLeoMessageGoogleSubscriber: CloudSubscriber[F, NonLeoMessage],
+  //nonLeoMessageGoogleSubscriber: CloudSubscriber[F, NonLeoMessage],
   asyncTasksQueue: Queue[F, Task[F]],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   proxyResolver: ProxyResolver[F],

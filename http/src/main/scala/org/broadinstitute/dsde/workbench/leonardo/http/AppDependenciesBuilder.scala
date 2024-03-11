@@ -51,8 +51,13 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       concurrentDbAccessPermits <- Resource.eval(Semaphore[IO](dbConcurrency))
 
       implicit0(dbRef: DbReference[IO]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits)
+
+      // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
+      // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
+      // As best practice, we should have all related metrics under same prefix separated by `/`
       implicit0(openTelemetry: OpenTelemetryMetrics[IO]) <- OpenTelemetryMetrics
         .resource[IO](applicationConfig.applicationName, prometheusConfig.endpointPort)
+
 
       _ <- cloudHostDependenciesBuilder.registryOpenTelemetryTracing
 

@@ -17,7 +17,8 @@ class AzureDependencyBuilder extends CloudDependenciesBuilder {
    *
    * @return
    */
-  override def registryOpenTelemetryTracing: Resource[IO, Unit] = ??? // TODO: we must implement this for Azure.
+  // TODO: we must implement this for Azure.
+  override def registryOpenTelemetryTracing: Resource[IO, Unit] =  Resource.pure[IO, Unit](())
 
   /**
    * Creates an empty list back-end processes for azure..
