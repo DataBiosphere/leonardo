@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import bio.terra.common.tracing.JerseyTracingFilter
-import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.client.ApiClient
 import bio.terra.workspace.model.{ResourceMetadata, State}
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.opencensus.trace.Tracing
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId, WsmControlledResourceId, WsmState}
 import org.broadinstitute.dsde.workbench.leonardo.util.WithSpanFilter
@@ -30,6 +28,8 @@ trait WsmApiClientProvider[F[_]] {
 
   def getControlledAzureResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi]
   def getResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ResourceApi]
+
+  def getWorkspaceApi(token: String)(implicit ev: Ask[F, AppContext]): F[WorkspaceApi]
   def getDisk(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
     log: StructuredLogger[F]
@@ -74,7 +74,6 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
           super.performAdditionalClientConfiguration(clientConfig)
           ctx.span.foreach { span =>
             clientConfig.register(new WithSpanFilter(span))
-            clientConfig.register(new JerseyTracingFilter(Tracing.getTracer))
           }
         }
       }
@@ -96,6 +95,9 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
     ev: Ask[F, AppContext]
   ): F[ControlledAzureResourceApi] =
     getApiClient(token).map(apiClient => new ControlledAzureResourceApi(apiClient))
+
+  override def getWorkspaceApi(token: String)(implicit ev: Ask[F, AppContext]): F[WorkspaceApi] =
+    getApiClient(token).map(apiClient => new WorkspaceApi(apiClient))
 
   override def getVm(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
     ev: Ask[F, AppContext],
