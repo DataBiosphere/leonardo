@@ -777,7 +777,8 @@ object Boot extends IOApp {
         azureRelay,
         azureVmService,
         aksAlg,
-        refererConfig
+        refererConfig,
+        wsmClientProvider
       )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)

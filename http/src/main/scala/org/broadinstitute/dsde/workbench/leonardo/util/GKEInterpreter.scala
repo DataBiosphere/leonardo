@@ -1484,7 +1484,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart for RStudio app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+        s"Installing helm chart for Allowed app ${appName.value} in cluster ${cluster.getClusterId.toString}"
       )
 
       googleProject <- F.fromOption(

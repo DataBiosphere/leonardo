@@ -2,6 +2,16 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.model.{
+  AzureDiskCreationParameters,
+  CloningInstructionsEnum,
+  ControlledResourceCommonFields,
+  CreateControlledAzureDiskRequestV2Body,
+  CreateControlledAzureResourceResult,
+  JobControl,
+  JobReport
+}
 import cats.Parallel
 import cats.effect.Async
 import cats.effect.std.Queue
@@ -45,7 +55,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F],
   aksAlgebra: AKSAlgebra[F],
-  refererConfig: RefererConfig
+  refererConfig: RefererConfig,
+  wsmClientProvider: WsmApiClientProvider[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
 
@@ -56,9 +67,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   implicit private def wsmDeleteDoneCheckable: DoneCheckable[GetDeleteJobResult] = (v: GetDeleteJobResult) =>
     v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
 
+  implicit private def wsmCreateAzureResourceResultDoneCheckable: DoneCheckable[CreateControlledAzureResourceResult] =
+    (v: CreateControlledAzureResourceResult) =>
+      v.getJobReport().getStatus().equals(JobReport.StatusEnum.SUCCEEDED) || v
+        .getJobReport()
+        .getStatus()
+        .equals(JobReport.StatusEnum.FAILED)
+
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      ctx <- ev.ask
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
@@ -93,7 +110,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       )
       createVmJobId = WsmJobId(s"create-vm-${runtime.id.toString.take(10)}")
-      _ <- createRuntime(
+
+      runtimeResourcesResult <- createRuntime(
         CreateAzureRuntimeParams(
           msg.workspaceId,
           runtime,
@@ -112,18 +130,20 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                           runtime,
                           createVmJobId,
                           landingZoneResources.relayNamespace,
-                          msg.useExistingDisk
+                          msg.useExistingDisk,
+                          runtimeResourcesResult
         )
       )
     } yield ()
 
   /** Creates an Azure VM but doesn't wait for its completion.
-   * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
+   * This includes creation of all Azure resources excluding disk (network, ip), and assumes these are created synchronously
+   * Disk needs to be created before this function is called
    * If useExistingDisk is specified, disk is transferred to new runtime and no new disk is created
    * */
   private def createRuntime(params: CreateAzureRuntimeParams, jobControl: WsmJobControl)(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[CreateRuntimeResourcesResult] =
     for {
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
@@ -144,76 +164,78 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                            cloudContext
       )
 
-      createDiskAction = createDisk(params, auth)
-
+      // TODO, run this in parallel to VM creation polling in the async task
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
 
       samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
       // Construct the workspace storage container URL which will be passed to the JupyterLab environment variables.
       wsStorageContainerUrl =
         s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.storageContainerName.value}"
-      createVmRequest <- createDiskAction.map { diskResp =>
-        val vmCommon = getCommonFields(
-          ControlledResourceName(params.runtime.runtimeName.asString),
-          config.runtimeDefaults.vmControlledResourceDesc,
-          params.runtime.auditInfo.creator,
-          Some(samResourceId)
-        )
-        val arguments = List(
-          params.landingZoneResources.relayNamespace.value,
-          hcName.value,
-          "localhost",
-          primaryKey.value,
-          config.runtimeDefaults.listenerImage,
-          config.samUrl.renderString,
-          samResourceId.value.toString,
-          "csp.txt",
-          config.wsmUrl.renderString,
-          params.workspaceId.value.toString,
-          params.storageContainerResourceId.value.toString,
-          config.welderImage,
-          params.runtime.auditInfo.creator.value,
-          stagingContainerName.value,
-          stagingContainerResourceId.value.toString,
-          params.workspaceName,
-          wsStorageContainerUrl,
-          applicationConfig.leoUrlBase,
-          params.runtime.runtimeName.asString,
-          s"'${refererConfig.validHosts.mkString("','")}'"
-        )
 
-        val cmdToExecute =
-          s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
-            s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
-                .map(s => s"'$s'")
-                .mkString(" ")} > /var/log/azure_vm_init_script.log"
+      createDiskResult <- createDiskForRuntime(
+        CreateAzureDiskParams(params.workspaceId, params.runtime, params.useExistingDisk, params.runtimeConfig)
+      )
 
-        CreateVmRequest(
-          params.workspaceId,
-          vmCommon,
-          CreateVmRequestData(
-            params.runtime.runtimeName,
-            VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
-            config.runtimeDefaults.image,
-            CustomScriptExtension(
-              name = config.runtimeDefaults.customScriptExtension.name,
-              publisher = config.runtimeDefaults.customScriptExtension.publisher,
-              `type` = config.runtimeDefaults.customScriptExtension.`type`,
-              version = config.runtimeDefaults.customScriptExtension.version,
-              minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
-              protectedSettings = ProtectedSettings(
-                config.runtimeDefaults.customScriptExtension.fileUris,
-                cmdToExecute
-              )
-            ),
-            config.runtimeDefaults.vmCredential,
-            diskResp.resourceId
+      // Vm logic
+      vmCommon = getCommonFields(
+        ControlledResourceName(params.runtime.runtimeName.asString),
+        config.runtimeDefaults.vmControlledResourceDesc,
+        params.runtime.auditInfo.creator,
+        Some(samResourceId)
+      )
+      arguments = List(
+        params.landingZoneResources.relayNamespace.value,
+        hcName.value,
+        "localhost",
+        primaryKey.value,
+        config.runtimeDefaults.listenerImage,
+        config.samUrl.renderString,
+        samResourceId.value.toString,
+        "csp.txt",
+        config.wsmUrl.renderString,
+        params.workspaceId.value.toString,
+        params.storageContainerResourceId.value.toString,
+        config.welderImage,
+        params.runtime.auditInfo.creator.value,
+        stagingContainerName.value,
+        stagingContainerResourceId.value.toString,
+        params.workspaceName,
+        wsStorageContainerUrl,
+        applicationConfig.leoUrlBase,
+        params.runtime.runtimeName.asString,
+        s"'${refererConfig.validHosts.mkString("','")}'"
+      )
+
+      cmdToExecute =
+        s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
+          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
+              .map(s => s"'$s'")
+              .mkString(" ")} > /var/log/azure_vm_init_script.log"
+
+      createVmRequest = CreateVmRequest(
+        params.workspaceId,
+        vmCommon,
+        CreateVmRequestData(
+          params.runtime.runtimeName,
+          VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
+          config.runtimeDefaults.image,
+          CustomScriptExtension(
+            name = config.runtimeDefaults.customScriptExtension.name,
+            publisher = config.runtimeDefaults.customScriptExtension.publisher,
+            `type` = config.runtimeDefaults.customScriptExtension.`type`,
+            version = config.runtimeDefaults.customScriptExtension.version,
+            minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
+            protectedSettings = ProtectedSettings(
+              config.runtimeDefaults.customScriptExtension.fileUris,
+              cmdToExecute
+            )
           ),
-          jobControl
-        )
-      }
-      _ <- wsmDao.createVm(createVmRequest, auth)
-    } yield ()
+          config.runtimeDefaults.vmCredential,
+          createDiskResult.resourceId
+        ),
+        jobControl
+      )
+    } yield CreateRuntimeResourcesResult(createVmRequest, createDiskResult)
 
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
@@ -346,9 +368,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield (stagingContainerName, resp.resourceId)
   }
 
-  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
+  private def createDiskForRuntime(params: CreateAzureDiskParams)(implicit
     ev: Ask[F, AppContext]
-  ): F[CreateDiskResponse] = for {
+  ): F[CreateDiskForRuntimeResult] = for {
 
     diskId <- F.fromOption(
       params.runtimeConfig.persistentDiskId,
@@ -364,7 +386,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       // if using existing disk, check conditions and update tables
       case true =>
         for {
-          ctx <- ev.ask
           diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
@@ -395,13 +416,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           _ <- controlledResourceQuery
             .updateRuntime(wsmDisk.resourceId, WsmResourceType.AzureDisk, params.runtime.id)
             .transaction
-          diskResp = CreateDiskResponse(wsmDisk.resourceId)
+          diskResp = CreateDiskForRuntimeResult(wsmDisk.resourceId, None)
         } yield diskResp
 
       // if not using existing disk, send a create disk request
       case false =>
         for {
-          ctx <- ev.ask
           diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
@@ -411,36 +431,97 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                       params.useExistingDisk
             )
           )
-          common = getCommonFields(ControlledResourceName(disk.name.value),
-                                   config.runtimeDefaults.diskControlledResourceDesc,
-                                   params.runtime.auditInfo.creator,
-                                   None
+          common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(disk.name.value),
+                                                        config.runtimeDefaults.diskControlledResourceDesc,
+                                                        params.runtime.auditInfo.creator
           )
-          request: CreateDiskRequest = CreateDiskRequest(
-            params.workspaceId,
-            common,
-            CreateDiskRequestData(
-              // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
-              AzureDiskName(disk.name.value),
-              disk.size
+
+          createDiskJobId = WsmJobId(UUID.randomUUID().toString)
+          jobControl = new JobControl()
+            .id(createDiskJobId.value)
+
+          azureDisk = new AzureDiskCreationParameters()
+            .name(disk.name.value)
+            .size(disk.size.gb)
+
+          request = new CreateControlledAzureDiskRequestV2Body()
+            .common(common)
+            .azureDisk(azureDisk)
+            .jobControl(jobControl)
+
+          wsmApi <- buildWsmControlledResourceApiClient
+          _ <- F.delay(wsmApi.createAzureDiskV2(request, params.workspaceId.value))
+
+          syncDiskResp = CreateDiskForRuntimeResult(
+            WsmControlledResourceId(common.getResourceId()),
+            Some(
+              PollDiskParams(params.workspaceId,
+                             createDiskJobId,
+                             disk.id,
+                             params.runtime,
+                             WsmControlledResourceId(common.getResourceId())
+              )
             )
           )
-          diskResp <- wsmDao.createDisk(request, leoAuth)
-          _ <- controlledResourceQuery
-            .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
-            .transaction
-          _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
-          _ <- persistentDiskQuery.updateWSMResourceId(disk.id, diskResp.resourceId, ctx.now).transaction
-        } yield diskResp
+        } yield syncDiskResp
     }
   } yield resp
+
+  private def monitorCreateDisk(params: PollDiskParams)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+      getWsmJobResult = F.delay(wsmApi.getCreateAzureDiskResult(params.workspaceId.value, params.jobId.value))
+
+      _ <- F.sleep(
+        config.createDiskPollConfig.initialDelay
+      )
+
+      // it does not take long to create a disk
+      resp <- streamFUntilDone(
+        getWsmJobResult,
+        config.createDiskPollConfig.maxAttempts,
+        config.createDiskPollConfig.interval
+      ).compile.lastOrError
+
+      _ <- resp.getJobReport().getStatus() match {
+        case JobReport.StatusEnum.FAILED =>
+          F.raiseError[Unit](
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"Wsm createDisk job failed due to ${resp.getErrorReport().getMessage()}",
+              false
+            )
+          )
+        case JobReport.StatusEnum.RUNNING =>
+          F.raiseError[Unit](
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"Wsm createDisk job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay",
+              false
+            )
+          )
+        case JobReport.StatusEnum.SUCCEEDED =>
+          for {
+            _ <- controlledResourceQuery
+              .save(params.runtime.id, params.wsmResourceId, WsmResourceType.AzureDisk)
+              .transaction
+            _ <- persistentDiskQuery.updateStatus(params.diskId, DiskStatus.Ready, ctx.now).transaction
+            _ <- persistentDiskQuery.updateWSMResourceId(params.diskId, params.wsmResourceId, ctx.now).transaction
+          } yield ()
+      }
+    } yield ()
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
                               userEmail: WorkbenchEmail,
                               resourceId: Option[WsmControlledResourceId]
   ) =
-    ControlledResourceCommonFields(
+    InternalDaoControlledResourceCommonFields(
       name,
       ControlledResourceDescription(resourceDesc),
       CloningInstructions.Nothing,
@@ -455,11 +536,28 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       resourceId
     )
 
+  private def getCommonFieldsForWsmGeneratedClient(name: ControlledResourceName,
+                                                   resourceDesc: String,
+                                                   userEmail: WorkbenchEmail
+  ) =
+    new ControlledResourceCommonFields()
+      .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+      .cloningInstructions(CloningInstructionsEnum.NOTHING)
+      .description(resourceDesc)
+      .name(name.value)
+      .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
+      .resourceId(UUID.randomUUID())
+      .privateResourceUser(
+        new bio.terra.workspace.model.PrivateResourceUser()
+          .userName(userEmail.value)
+          .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+      )
+
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
-      getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId), auth)
+      getWsmVmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.vmJobId), auth)
 
       cloudContext = params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
@@ -474,12 +572,18 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
+        _ <- params.runtimeResourcesResult.createDiskResult.pollParams.traverse(params => monitorCreateDisk(params))
+
+        _ <- wsmDao.createVm(params.runtimeResourcesResult.vmRequest, auth)
+
         _ <- F.sleep(
           config.createVmPollConfig.initialDelay
         ) // it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
         // first poll the WSM createVm job for completion
+
+        // VM result
         resp <- streamFUntilDone(
-          getWsmJobResult,
+          getWsmVmJobResult,
           config.createVmPollConfig.maxAttempts,
           config.createVmPollConfig.interval
         ).compile.lastOrError
@@ -763,7 +867,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
     } yield ()
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
+  override def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -1020,4 +1124,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   def getWsmJobId(jobName: String, resourceId: WsmControlledResourceId): WsmJobId = WsmJobId(
     s"${jobName}-${resourceId.value.toString.take(10)}"
   )
+
+  private def buildWsmControlledResourceApiClient(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi] =
+    for {
+      auth <- samDAO.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmApi
+
 }
