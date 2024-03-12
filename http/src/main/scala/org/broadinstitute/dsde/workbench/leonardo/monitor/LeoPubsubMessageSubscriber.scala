@@ -16,9 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
   streamUntilDoneOrTimeout,
   DiskName,
-  Event,
   GoogleDiskService,
-  GoogleSubscriber,
   MachineTypeName,
   ZoneName
 }
@@ -42,6 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.ChartVersion
 
 import java.time.Instant
@@ -64,7 +63,7 @@ import scala.jdk.CollectionConverters._
  */
 class LeoPubsubMessageSubscriber[F[_]](
   config: LeoPubsubMessageSubscriberConfig,
-  subscriber: GoogleSubscriber[F, LeoPubsubMessage],
+  subscriber: CloudSubscriber[F, LeoPubsubMessage],
   asyncTasks: Queue[F, Task[F]],
   googleDiskService: GoogleDiskService[F],
   authProvider: LeoAuthProvider[F],
@@ -135,9 +134,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
     } yield resp
 
-  private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
+  private[monitor] def messageHandler(event: ReceivedMessage[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
-    val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
+    val now = event.publishedTime
     implicit val ev = Ask.const[F, AppContext](AppContext(traceId, now, span = None))
     childSpan(event.msg.messageType.asString).use { implicit ev =>
       messageHandlerWithContext(event)
@@ -145,7 +144,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
   }
   private[monitor] def messageHandlerWithContext(
-    event: Event[LeoPubsubMessage]
+    event: ReceivedMessage[LeoPubsubMessage]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val res = for {
       res <- messageResponder(event.msg)
@@ -163,7 +162,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield ()
 
     res.handleErrorWith(e =>
-      logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.consumer.ack())
+      logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.ackHandler.ack())
     )
   }
 
@@ -171,17 +170,17 @@ class LeoPubsubMessageSubscriber[F[_]](
     .parEvalMapUnordered(config.concurrency)(messageHandler)
     .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
-  private def ack(event: Event[LeoPubsubMessage]): F[Unit] =
+  private def ack(event: ReceivedMessage[LeoPubsubMessage]): F[Unit] =
     for {
       _ <- logger.info(s"acking message: ${event}")
       _ <- F.delay(
-        event.consumer.ack()
+        event.ackHandler.ack()
       )
       _ <- recordMessageMetric(event)
     } yield ()
 
-  private[monitor] def processMessageFailure(ctx: AppContext, event: Event[LeoPubsubMessage], e: Throwable)(implicit
-    ev: Ask[F, AppContext]
+  private[monitor] def processMessageFailure(ctx: AppContext, event: ReceivedMessage[LeoPubsubMessage], e: Throwable)(
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val handleErrorMessages = e match {
       case ee: PubsubHandleMessageError =>
@@ -200,7 +199,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           _ <-
             if (ee.isRetryable)
               logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F.delay(
-                event.consumer.nack()
+                event.ackHandler.nack()
               )
             else
               logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
@@ -208,17 +207,19 @@ class LeoPubsubMessageSubscriber[F[_]](
       case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
         logger.error(ctx.loggingCtx, e)(
           "Fail to process retryable pubsub message due to Google API call failure"
-        ) >> F.delay(event.consumer.nack())
+        ) >> F.delay(event.ackHandler.nack())
       case _ =>
         logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
     }
     recordMessageMetric(event, Some(e)) >> handleErrorMessages
   }
 
-  private[monitor] def recordMessageMetric(event: Event[LeoPubsubMessage], e: Option[Throwable] = None): F[Unit] =
+  private[monitor] def recordMessageMetric(event: ReceivedMessage[LeoPubsubMessage],
+                                           e: Option[Throwable] = None
+  ): F[Unit] =
     for {
       end <- F.realTimeInstant
-      duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
+      duration = (end.toEpochMilli - event.publishedTime.toEpochMilli).millis
       distributionBucket = List(0.5 minutes,
                                 1 minutes,
                                 1.5 minutes,

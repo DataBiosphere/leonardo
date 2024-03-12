@@ -8,17 +8,12 @@ import com.google.pubsub.v1.PubsubMessage
 import fs2.{Pipe, Stream}
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  clusterQuery,
-  persistentDiskQuery,
-  DbReference,
-  KubernetesServiceDbQueries
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, appQuery, clusterQuery, persistentDiskQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
@@ -30,7 +25,7 @@ import scala.concurrent.duration._
  */
 final class LeoPublisher[F[_]](
   publisherQueue: Queue[F, LeoPubsubMessage],
-  googlePublisher: GooglePublisher[F]
+  googlePublisher: CloudPublisher[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],

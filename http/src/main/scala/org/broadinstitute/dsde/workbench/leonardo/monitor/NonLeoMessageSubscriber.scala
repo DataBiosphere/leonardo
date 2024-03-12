@@ -6,38 +6,20 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DeviceName
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  clusterQuery,
-  kubernetesClusterQuery,
-  persistentDiskQuery,
-  DbReference,
-  RuntimeConfigQueries
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, appQuery, clusterQuery, kubernetesClusterQuery, persistentDiskQuery}
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import fs2.Stream
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
-import org.broadinstitute.dsde.workbench.google2.{
-  Event,
-  GoogleComputeService,
-  GooglePublisher,
-  GoogleSubscriber,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
-  CryptoMining,
-  CryptoMiningScc,
-  DeleteKubernetesClusterMessage,
-  DeleteNodepoolMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{CryptoMining, CryptoMiningScc, DeleteKubernetesClusterMessage, DeleteNodepoolMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.cryptominingUserMessageEncoder
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, DeleteNodepoolParams, GKEAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -47,6 +29,7 @@ import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -59,8 +42,8 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
                                     computeService: GoogleComputeService[F],
                                     samDao: SamDAO[F],
                                     authProvider: LeoAuthProvider[F],
-                                    subscriber: GoogleSubscriber[F, NonLeoMessage],
-                                    publisher: GooglePublisher[F],
+                                    subscriber: CloudSubscriber[F, NonLeoMessage],
+                                    publisher: CloudPublisher[F],
                                     asyncTasks: Queue[F, Task[F]]
 )(implicit
   logger: StructuredLogger[F],
@@ -72,7 +55,7 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
     .parEvalMapUnordered(10)(messageHandler)
     .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
-  private[monitor] def messageHandler(event: Event[NonLeoMessage]): F[Unit] =
+  private[monitor] def messageHandler(event: ReceivedMessage[NonLeoMessage]): F[Unit] =
     for {
       now <- F.realTimeInstant
       uuid <- F.delay(java.util.UUID.randomUUID())
@@ -83,8 +66,8 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
       res <- messageResponder(event.msg).attempt
       _ <- res match {
         case Left(e) =>
-          logger.error(ctx.loggingCtx, e)("Fail to process pubsub message") >> F.delay(event.consumer.nack())
-        case Right(_) => F.delay(event.consumer.ack())
+          logger.error(ctx.loggingCtx, e)("Fail to process pubsub message") >> F.delay(event.ackHandler.nack())
+        case Right(_) => F.delay(event.ackHandler.ack())
       }
     } yield ()
 

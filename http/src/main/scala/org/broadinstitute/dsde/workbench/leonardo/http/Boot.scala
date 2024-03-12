@@ -17,61 +17,22 @@ import fs2.io.file.Files
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.azure.{
-  AzureApplicationInsightsService,
-  AzureBatchService,
-  AzureContainerService,
-  AzureRelayService,
-  AzureVmService
-}
+import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService, AzureBatchService, AzureContainerService, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleProjectDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO
-}
+import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{
-  credentialResource,
-  Event,
-  GKEService,
-  GoogleComputeService,
-  GoogleDataprocService,
-  GoogleDiskService,
-  GooglePublisher,
-  GoogleResourceService,
-  GoogleStorageService,
-  GoogleSubscriber
-}
+import org.broadinstitute.dsde.workbench.google2.{GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GooglePublisher, GoogleResourceService, GoogleStorageService, GoogleSubscriber, credentialResource}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.app.{
-  AppInstall,
-  CromwellAppInstall,
-  CromwellRunnerAppInstall,
-  HailBatchAppInstall,
-  WdsAppInstall,
-  WorkflowsAppInstall
-}
-import org.broadinstitute.dsde.workbench.leonardo.auth.{
-  AuthCacheKey,
-  CloudAuthTokenProvider,
-  PetClusterServiceAccountProvider,
-  SamAuthProvider
-}
+import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, CromwellAppInstall, CromwellRunnerAppInstall, HailBatchAppInstall, WdsAppInstall, WorkflowsAppInstall}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, CloudAuthTokenProvider, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{
-  BuildTimeVersion,
-  HttpRoutes,
-  LivenessRoutes,
-  StandardUserInfoDirectives
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, LivenessRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -81,11 +42,12 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
+import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
@@ -506,8 +468,8 @@ object Boot extends IOApp {
       )
       googleResourceService <- GoogleResourceService.resource[F](Paths.get(pathToCredentialJson), semaphore)
       googleStorage <- GoogleStorageService.resource[F](pathToCredentialJson, Some(semaphore))
-      googlePublisher <- GooglePublisher.resource[F](publisherConfig)
-      cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
+      googlePublisher <- GooglePublisher.cloudPublisherResource[F](publisherConfig)
+      cryptoMiningUserPublisher <- GooglePublisher.cloudPublisherResource[F](cryptominingTopicPublisherConfig)
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), semaphore)
 
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
@@ -550,10 +512,10 @@ object Boot extends IOApp {
       dataAccessedUpdater <- Resource.eval(
         Queue.bounded[F, UpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
       )
-      subscriberQueue <- Resource.eval(Queue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
+      subscriberQueue <- Resource.eval(Queue.bounded[F, ReceivedMessage[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
       nonLeoMessageSubscriberQueue <- Resource.eval(
-        Queue.bounded[F, Event[NonLeoMessage]](pubsubConfig.queueSize)
+        Queue.bounded[F, ReceivedMessage[NonLeoMessage]](pubsubConfig.queueSize)
       )
       nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
       asyncTasksQueue <- Resource.eval(Queue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
@@ -929,7 +891,7 @@ final case class GoogleDependencies[F[_]](
   googleComputeService: GoogleComputeService[F],
   googleResourceService: GoogleResourceService[F],
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
-  cryptoMiningUserPublisher: GooglePublisher[F],
+  cryptoMiningUserPublisher: CloudPublisher[F],
   googleIamDAO: HttpGoogleIamDAO,
   googleDataproc: GoogleDataprocService[F],
   kubernetesDnsCache: KubernetesDnsCache[F],
@@ -957,8 +919,8 @@ final case class AppDependencies[F[_]](
   leoPublisher: LeoPublisher[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
-  subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  nonLeoMessageGoogleSubscriber: GoogleSubscriber[F, NonLeoMessage],
+  subscriber: CloudSubscriber[F, LeoPubsubMessage],
+  nonLeoMessageGoogleSubscriber: CloudSubscriber[F, NonLeoMessage],
   asyncTasksQueue: Queue[F, Task[F]],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   proxyResolver: ProxyResolver[F],

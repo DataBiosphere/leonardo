@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GKEModels,
   GcsBlobName,
   GetMetadataResponse,
-  GoogleSubscriber,
   KubernetesModels,
   PvName
 }
@@ -36,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudSubscriber
 import org.broadinstitute.dsp.Release
 
 object FakeGoogleStorageService extends BaseFakeGoogleStorage {
