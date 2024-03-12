@@ -1067,7 +1067,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           new AzureDatabaseAttributes().databaseName("cbas_db_abcxyz")
         )
       )
-      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata").resourceId(cromwellmetadataUuidForUpdateApp))
+      resourceDesc.metadata(
+        new ResourceMetadata().name("cromwellmetadata").resourceId(cromwellmetadataUuidForUpdateApp)
+      )
       resourceDesc.resourceAttributes(
         new ResourceAttributesUnion().azureDatabase(
           new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
@@ -1078,9 +1080,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     }
     // getAzureDatabase for an updating app
     when {
-      api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value),
-                                   ArgumentMatchers.eq(cbasUuidForUpdateApp)
-      )
+      api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value), ArgumentMatchers.eq(cbasUuidForUpdateApp))
     } thenReturn {
       new AzureDatabaseResource()
         .metadata(
@@ -1096,7 +1096,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     }
     when {
       api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value),
-                                   ArgumentMatchers.eq(cromwellmetadataUuidForUpdateApp)
+                           ArgumentMatchers.eq(cromwellmetadataUuidForUpdateApp)
       )
     } thenReturn {
       new AzureDatabaseResource()
