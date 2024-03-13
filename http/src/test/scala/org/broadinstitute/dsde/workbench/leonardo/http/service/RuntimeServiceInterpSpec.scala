@@ -9,6 +9,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
+import fs2.Pipe
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeComputeOperationFuture,
@@ -2636,7 +2637,12 @@ class RuntimeServiceInterpTest
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, mock[CloudPublisher[IO]])(
+
+    val mockCloudPublisher = mock[CloudPublisher[IO]]
+    def noOpPipe[A]: Pipe[IO, A, Unit] = _.evalMap(_ => IO.unit)
+    when(mockCloudPublisher.publish[LeoPubsubMessage](any)).thenReturn(noOpPipe)
+
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mockCloudPublisher)(
       implicitly,
       implicitly,
       implicitly,

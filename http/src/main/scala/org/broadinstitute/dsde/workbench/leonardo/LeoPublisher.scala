@@ -36,7 +36,6 @@ final class LeoPublisher[F[_]](
           Stream
             .eval(F.pure(event))
             .covary[F]
-            // .through(convertToPubsubMessagePipe)
             .through(cloudPublisher.publish)
             .evalMap(_ => updateDatabase(event))
             .handleErrorWith { t =>
@@ -56,19 +55,6 @@ final class LeoPublisher[F[_]](
     val record = Stream.eval(publisherQueue.size.flatMap(size => metrics.gauge("publisherQueueSize", size)))
     (record ++ Stream.sleep_(30 seconds)).repeat
   }
-
-//  private def convertToPubsubMessagePipe: Pipe[F, LeoPubsubMessage, PubsubMessage] =
-//    in =>
-//      in.map { msg =>
-//        val stringMessage = msg.asJson.noSpaces
-//        val byteString = ByteString.copyFromUtf8(stringMessage)
-//        PubsubMessage
-//          .newBuilder()
-//          .setData(byteString)
-//          .putAttributes("traceId", msg.traceId.map(_.asString).getOrElse("null"))
-//          .putAttributes("leonardo", "true")
-//          .build()
-//      }
 
   private def updateDatabase(msg: LeoPubsubMessage): F[Unit] =
     for {

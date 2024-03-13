@@ -7,6 +7,7 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
+import fs2.Pipe
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
@@ -38,7 +39,6 @@ import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.Assertion
@@ -96,7 +96,12 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, mock[CloudPublisher[IO]])
+
+    val mockCloudPublisher = mock[CloudPublisher[IO]]
+    def noOpPipe[A]: Pipe[IO, A, Unit] = _.evalMap(_ => IO.unit)
+    when(mockCloudPublisher.publish[LeoPubsubMessage](any)).thenReturn(noOpPipe)
+
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mockCloudPublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }
 
