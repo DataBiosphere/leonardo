@@ -1159,6 +1159,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     }
 
     when {
+      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceIdForUpdating.value), any)
+    } thenReturn {
+      new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
+    }
+
+    when {
       wsm.getResourceApi(any)(any)
     } thenReturn IO.pure(resourceApi)
 
