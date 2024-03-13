@@ -208,7 +208,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           .transaction
 
         _ <- aksInterp.updateAndPollApp(
-          UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceId), cloudContext)
+          UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceIdForUpdating), cloudContext)
         )
         app <- KubernetesServiceDbQueries
           .getActiveFullAppByName(CloudContext.Azure(cloudContext), appName)
@@ -1050,6 +1050,67 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceList.add(resourceDesc)
       new ResourceList().resources(resourceList)
     }
+    // enumerate workspace database resources for an updating app
+    when {
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForUpdating.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
+                                     any
+      )
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("cbas").resourceId(cbasUuidForUpdateApp))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cbas_db_abcxyz")
+        )
+      )
+      resourceDesc.metadata(
+        new ResourceMetadata().name("cromwellmetadata").resourceId(cromwellmetadataUuidForUpdateApp)
+      )
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
+        )
+      )
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
+    // getAzureDatabase for an updating app
+    when {
+      api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value), ArgumentMatchers.eq(cbasUuidForUpdateApp))
+    } thenReturn {
+      new AzureDatabaseResource()
+        .metadata(
+          new ResourceMetadata()
+            .resourceId(cbasUuidForUpdateApp)
+            .name("cbas")
+        )
+        .attributes(
+          new AzureDatabaseAttributes()
+            .allowAccessForAllWorkspaceUsers(true)
+            .databaseName("cbas_db_abcxyz")
+        )
+    }
+    when {
+      api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value),
+                           ArgumentMatchers.eq(cromwellmetadataUuidForUpdateApp)
+      )
+    } thenReturn {
+      new AzureDatabaseResource()
+        .metadata(
+          new ResourceMetadata()
+            .resourceId(cromwellmetadataUuidForUpdateApp)
+            .name("cromwellmetadata")
+        )
+        .attributes(
+          new AzureDatabaseAttributes()
+            .allowAccessForAllWorkspaceUsers(true)
+            .databaseName("cromwellmetadata_db_abcxyz")
+        )
+    }
     // enumerate workspace managed identity resources
     when {
       resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
@@ -1093,6 +1154,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId.value), any)
+    } thenReturn {
+      new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
+    }
+
+    when {
+      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceIdForUpdating.value), any)
     } thenReturn {
       new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
     }
