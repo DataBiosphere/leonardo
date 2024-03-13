@@ -182,7 +182,6 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def messageHandlerWithContext(
     event: ReceivedMessage[LeoPubsubMessage]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-
     val res = for {
       res <- messageResponder(event.msg)
         .timeout(config.timeout)
@@ -193,45 +192,13 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- logger.debug(ctx.loggingCtx)(s"using timeout ${config.timeout} in messageHandler")
 
       _ <- res match {
-        case Left(e) =>
-          e match {
-            case ee: PubsubHandleMessageError =>
-              for {
-                _ <- ee match {
-                  case ee: PubsubKubernetesError =>
-                    logger.error(ctx.loggingCtx, e)(
-                      s"Encountered an error for app ${ee.appId}, ${ee.getMessage}"
-                    ) >> handleKubernetesError(
-                      ee
-                    )
-                  case ee: AzureRuntimeCreationError =>
-                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
-                  case ee: AzureRuntimeDeletionError =>
-                    azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
-                  case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
-                }
-                _ <-
-                  if (ee.isRetryable)
-                    logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F
-                      .delay(event.ackHandler.nack())
-                  else
-                    logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
-              } yield ()
-            case ee: WorkbenchException if ee.getMessage.contains("Call to Messaging API failed") =>
-              logger
-                .error(ctx.loggingCtx, e)(
-                  "Fail to process retryable pubsub message due to Messaging API call failure"
-                ) >> F.blocking(event.ackHandler.nack())
-            case _ =>
-              logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
-          }
+        case Left(e)  => processMessageFailure(ctx, event, e)
         case Right(_) => ack(event)
       }
     } yield ()
 
     res.handleErrorWith(e =>
-      logger.error(e)("Fail to process pubsub message for some reason") >>
-        F.blocking(event.ackHandler.nack())
+      logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.ackHandler.ack())
     )
   }
 

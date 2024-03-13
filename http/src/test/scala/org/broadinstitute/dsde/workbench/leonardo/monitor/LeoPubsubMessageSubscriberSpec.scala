@@ -59,6 +59,7 @@ import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.{any, startsWith}
 import org.mockito.Mockito._
+import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -82,7 +83,8 @@ class LeoPubsubMessageSubscriberSpec
     with Matchers
     with MockitoSugar
     with Eventually
-    with LeonardoTestSuite {
+    with LeonardoTestSuite
+    with BeforeAndAfterEach {
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   val mockWelderDAO = mock[WelderDAO[IO]]
@@ -161,6 +163,20 @@ class LeoPubsubMessageSubscriberSpec
   )
 
   val serviceRegistry = ServicesRegistry()
+
+  override def beforeEach(): Unit = {
+    serviceRegistry.clear
+
+//    val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+//
+//    serviceRegistry.register[RuntimeInstances[IO]](runtimeInstances)
+//    serviceRegistry.register[RuntimeMonitor[IO, CloudService]](MockRuntimeMonitor)
+    val gcpDependencies = mock[GcpDependencies[IO]]
+    when(gcpDependencies.googleDiskService).thenReturn(MockGoogleDiskService)
+    serviceRegistry.register[GcpDependencies[IO]](gcpDependencies)
+    serviceRegistry.register[GKEAlgebra[IO]](new org.broadinstitute.dsde.workbench.leonardo.MockGKEService)
+
+  }
 
   it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
@@ -832,10 +848,6 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "handle create app message with a create cluster" in isolatedDbTest {
 
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
-
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val disk = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Galaxy))
@@ -891,9 +903,12 @@ class LeoPubsubMessageSubscriberSpec
       )
     }
 
+    implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release))
+    implicit val googleDiskService = MockGoogleDiskService
+
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg)
 
     val res =
       for {
@@ -946,16 +961,12 @@ class LeoPubsubMessageSubscriberSpec
     } yield getApp.app.status shouldBe AppStatus.Running
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
-    implicit val runtimeInstances: RuntimeInstances[IO] =
-      serviceRegistry.lookup[RuntimeInstances[IO]].get // runtimeInstances
-    implicit val monitor: RuntimeMonitor[IO, CloudService] =
-      serviceRegistry.lookup[RuntimeMonitor[IO, CloudService]].get // monitor
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
+    implicit val gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release))
+    implicit val googleDiskService = MockGoogleDiskService
+
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlgebra)
 
     val res =
       for {
@@ -1050,13 +1061,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                          gkeAlgebra =
-                                            makeGKEInterp(nodepoolLock, List(savedApp1.release, savedApp2.release))
-    )
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
+    implicit val gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release, savedApp2.release))
+    implicit val googleDiskService = MockGoogleDiskService
+
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlgebra)
 
     val res =
       for {
@@ -1224,11 +1232,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
+    implicit val googleDiskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService
 
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = googleDiskService, gkeAlgebra = gkeAlg)
 
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -1345,12 +1352,12 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
+    implicit val gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release))
+    implicit val googleDiskService = MockGoogleDiskService
+
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlgebra)
 
     val res =
       for {
@@ -1440,7 +1447,7 @@ class LeoPubsubMessageSubscriberSpec
           deleteCalled = true
         }
     }
-    val gkeInterp = new GKEInterpreter[IO](
+    implicit val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
       bucketHelper,
       vpcInterp,
@@ -1456,12 +1463,11 @@ class LeoPubsubMessageSubscriberSpec
       resourceService,
       FakeGoogleComputeService
     )
-    val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
+    implicit val googleDiskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, diskService = googleDiskService, gkeAlgebra = gkeInterp)
 
     val res =
       for {
@@ -1710,7 +1716,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val gkeInterp = new GKEInterpreter[IO](
+    implicit val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
       bucketHelper,
       vpcInterp,
@@ -1729,8 +1735,6 @@ class LeoPubsubMessageSubscriberSpec
 
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
-
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
 
     val res =
       for {
@@ -1800,12 +1804,12 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber =
-      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
+    implicit val gkeAlg = makeGKEInterp(nodepoolLock, List(savedApp1.release))
+    implicit val googleDiskService = MockGoogleDiskService
+
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeAlg)
 
     val res =
       for {
@@ -2309,18 +2313,19 @@ class LeoPubsubMessageSubscriberSpec
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
     azureInterp: AzurePubsubHandlerAlgebra[IO] = makeAzureInterp()
   )(implicit metrics: OpenTelemetryMetrics[IO]): LeoPubsubMessageSubscriber[IO] = {
-    val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
 
-    serviceRegistry.register[RuntimeInstances[IO]](runtimeInstances)
-    serviceRegistry.register[RuntimeMonitor[IO, CloudService]](monitor)
+    val subscriberServicesRegistry = ServicesRegistry()
+
+    subscriberServicesRegistry.register[RuntimeInstances[IO]](runtimeInstances)
+    subscriberServicesRegistry.register[RuntimeMonitor[IO, CloudService]](monitor)
     val gcpDependencies = mock[GcpDependencies[IO]]
     when(gcpDependencies.googleDiskService).thenReturn(diskService)
-    serviceRegistry.register[GcpDependencies[IO]](gcpDependencies)
-    serviceRegistry.register[GKEAlgebra[IO]](gkeAlgebra)
+    subscriberServicesRegistry.register[GcpDependencies[IO]](gcpDependencies)
+    subscriberServicesRegistry.register[GKEAlgebra[IO]](gkeAlgebra)
 
     val underlyingOperationFutureCache =
       Caffeine
@@ -2341,7 +2346,7 @@ class LeoPubsubMessageSubscriberSpec
       MockAuthProvider,
       azureInterp,
       operationFutureCache,
-      serviceRegistry
+      subscriberServicesRegistry
     )
   }
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()

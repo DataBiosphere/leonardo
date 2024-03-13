@@ -10,6 +10,8 @@ import scala.reflect.ClassTag
 trait ServicesRegistry {
   def register[F: ClassTag](service: F): Unit
   def lookup[F: ClassTag]: Option[F]
+
+  def clear: Unit
 }
 
 object ServicesRegistry {
@@ -23,5 +25,7 @@ object ServicesRegistry {
       val lookUpClass = implicitly[ClassTag[F]].runtimeClass
       services.get(lookUpClass).asInstanceOf[Option[F]]
     }
+
+    override def clear: Unit = services.clear
   }
 }

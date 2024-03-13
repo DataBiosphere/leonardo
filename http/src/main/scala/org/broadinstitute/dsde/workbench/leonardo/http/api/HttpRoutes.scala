@@ -39,6 +39,7 @@ class HttpRoutes(
   contentSecurityPolicy: ContentSecurityPolicyConfig,
   refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
+
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
@@ -111,13 +112,16 @@ class HttpRoutes(
     logRequestResult {
       Route.seal(
         oidcConfig
-          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
+          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~ {
+          gcpOnlyServicesRegistry
+            .lookup[ProxyService]
+            .map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig))
+            .get
+            .route
+        } ~
           pathPrefix("api") {
             val baseRoutes =
               runtimeV2Routes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ kubernetesRoutes.routes ~ adminRoutes.routes
-            val proxyRouteOption: Option[Route] = gcpOnlyServicesRegistry
-              .lookup[ProxyService]
-              .map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig).route)
             val runtimeRouteOption: Option[Route] = gcpOnlyServicesRegistry
               .lookup[RuntimeService[IO]]
               .map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives).routes)
@@ -129,7 +133,7 @@ class HttpRoutes(
               .map(resourcesService => new ResourcesRoutes(resourcesService, userInfoDirectives).routes)
 
             val gcpRoutes: Seq[Route] =
-              Seq(proxyRouteOption, runtimeRouteOption, diskRouteOption, resourcesRoutes).flatten
+              Seq(runtimeRouteOption, diskRouteOption, resourcesRoutes).flatten
 
             (baseRoutes +: gcpRoutes).reduce(_ ~ _)
           }
