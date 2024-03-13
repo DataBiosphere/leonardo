@@ -34,7 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
-import org.broadinstitute.dsp.{ChartVersion, HelmException}
+import org.broadinstitute.dsp.ChartVersion
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
