@@ -34,7 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
-import org.broadinstitute.dsp.ChartVersion
+import org.broadinstitute.dsp.{ChartVersion, HelmException}
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
@@ -955,23 +955,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     for {
       ctx <- ev.ask
       params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
-      _ <- aksAlgebra.updateAndPollApp(params).adaptError { case e =>
-        PubsubKubernetesError(
-          AppError(
-            s"Error updating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
-            ctx.now,
-            ErrorAction.UpdateApp,
-            ErrorSource.App,
-            None,
-            Some(ctx.traceId)
-          ),
-          Some(appId),
-          false,
-          None,
-          None,
-          None
-        )
-      }
+      _ <- aksAlgebra.updateAndPollApp(params)
     } yield ()
 
   override def deleteApp(

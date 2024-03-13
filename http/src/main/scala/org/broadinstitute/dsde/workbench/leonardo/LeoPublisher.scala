@@ -123,7 +123,7 @@ final class LeoPublisher[F[_]](
         case m: LeoPubsubMessage.StartAppMessage =>
           appQuery.updateStatus(m.appId, AppStatus.Starting).transaction
         case m: LeoPubsubMessage.UpdateAppMessage =>
-          appQuery.updateStatus(m.appId, AppStatus.Updating).transaction
+          F.unit
         case _: LeoPubsubMessage.UpdateDiskMessage =>
           F.unit
         case _: LeoPubsubMessage.UpdateRuntimeMessage =>

@@ -442,7 +442,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         namespaceName
       )
 
-      // Update the relay listener deployment
+      // The app is blocked in updating now
+      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
+
+      // Update the relay listener deployment if the app is not already updating from a message submission
+      // TODO: discuss this check. (if (dbApp.app.status != AppStatus.Updating))
+      // TODO: This might be sufficient, but really, we would need to store >>what version<< the app is being updated to determine if we should pass-through to polling or ignore
+      // TODO: the issue is that if we simply exit out if `Updating` status, then the app can remain stuck in updating if leo restarts during polling
+      // TODO: perhaps monitor at boot should just grab all apps in Updating and transition them to running + save an error to avoid this complexity?
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
         updateListener(authContext,
                        app,
@@ -492,7 +499,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           F.unit
         else
           F.raiseError[Unit](
-            AppUpdateException(
+            AppUpdatePollingException(
               s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
