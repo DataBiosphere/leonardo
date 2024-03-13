@@ -8,7 +8,13 @@ import com.google.pubsub.v1.PubsubMessage
 import fs2.{Pipe, Stream}
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, appQuery, clusterQuery, persistentDiskQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  clusterQuery,
+  persistentDiskQuery,
+  DbReference,
+  KubernetesServiceDbQueries
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
@@ -41,6 +47,7 @@ final class LeoPublisher[F[_]](
             .eval(F.pure(event))
             .covary[F]
             .through(convertToPubsubMessagePipe)
+            // TODO: Not sure what to do about this missing method
             .through(googlePublisher.publishNative)
             .evalMap(_ => updateDatabase(event))
             .handleErrorWith { t =>

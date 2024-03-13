@@ -6,20 +6,32 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DeviceName
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, RuntimeConfigQueries, appQuery, clusterQuery, kubernetesClusterQuery, persistentDiskQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  clusterQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  DbReference,
+  RuntimeConfigQueries
+}
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import fs2.Stream
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{CryptoMining, CryptoMiningScc, DeleteKubernetesClusterMessage, DeleteNodepoolMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
+  CryptoMining,
+  CryptoMiningScc,
+  DeleteKubernetesClusterMessage,
+  DeleteNodepoolMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.cryptominingUserMessageEncoder
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, DeleteNodepoolParams, GKEAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -188,6 +200,7 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
                 .putAttributes("traceId", ctx.traceId.asString)
                 .putAttributes("cryptomining", "true")
                 .build()
+              // TODO: Not sure what to do about this missing method
               publisher.publishNativeOne(message)
             }
           } yield ()
