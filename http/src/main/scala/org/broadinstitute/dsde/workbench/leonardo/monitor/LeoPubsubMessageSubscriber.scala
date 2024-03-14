@@ -271,7 +271,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           .drain
       } yield ()
       labels <- labelQuery.getAllForResource(msg.runtimeId, LabelResourceType.runtime).transaction
-      isAoU = labels.exists { case (k, v) => k == AOU_UI_LABEL && v == "true" }
+      isAoU = labels.get(AOU_UI_LABEL).contains("true").toString
       _ <- asyncTasks.offer(
         Task(
           ctx.traceId,
@@ -279,7 +279,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           Some(createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)),
           ctx.now,
           "createRuntime",
-          Map("isAoU" -> isAoU.toString)
+          Map("isAoU" -> isAoU)
         )
       )
     } yield ()
