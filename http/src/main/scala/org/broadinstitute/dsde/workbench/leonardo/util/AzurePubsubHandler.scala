@@ -955,6 +955,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     for {
       ctx <- ev.ask
       params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
+      _ <- logger.info("here in azure pubsubhandler")
       _ <- aksAlgebra.updateAndPollApp(params)
     } yield ()
 

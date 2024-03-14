@@ -1401,6 +1401,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
       }
 
+      _ <- logger.info(s"here in handle in Leopubsubmessage, ${msg.cloudContext}")
+
       updateApp = msg.cloudContext match {
         case CloudContext.Gcp(_) =>
           gkeAlg

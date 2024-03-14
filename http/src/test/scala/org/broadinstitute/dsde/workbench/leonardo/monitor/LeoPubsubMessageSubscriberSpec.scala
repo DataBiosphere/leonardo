@@ -38,6 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeApp,
+  makeAzureCluster,
   makeKubeCluster,
   makeNodepool,
   makeService
@@ -64,6 +65,7 @@ import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
+import org.scalatest.prop.TableDrivenPropertyChecks._
 import scalacache.caffeine.CaffeineCache
 
 import java.net.URL
@@ -186,7 +188,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "createRuntimeErrorHandler" should "handle runtime creation failure properly" in isolatedDbTest {
+  it should "handle runtime creation failure properly" in isolatedDbTest {
     val runtimeMonitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
@@ -229,7 +231,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "createRuntimeErrorHandler" should "delete creating disk on failed runtime start" in isolatedDbTest {
+  it should "delete creating disk on failed runtime start" in isolatedDbTest {
     val runtimeMonitor = new MockRuntimeMonitor {
       override def process(
         a: CloudService
@@ -2065,6 +2067,105 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  final case class TestExceptionIndexTuple(exception: Throwable, index: Int)
+  it should "save an error and transition app to error when a fatal error occurs in azure" in isolatedDbTest {
+    val errors = Table(
+      "exception",
+      TestExceptionIndexTuple(HelmException("test helm exception"), 1),
+      TestExceptionIndexTuple(AppUpdatePollingException("test polling exception", None), 2)
+    )
+    forAll(errors) { (tuple: TestExceptionIndexTuple) =>
+      val exception = tuple.exception
+      val index = tuple.index
+      val queue = makeTaskQueue()
+      val mockAckConsumer = mock[AckReplyConsumer]
+
+      val mockAksInterp = new MockAKSInterp {
+        override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+          IO.raiseError(exception)
+      }
+
+      val leoSubscriber = makeLeoSubscriber(
+        azureInterp = makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm, mockAksInterp = mockAksInterp),
+        asyncTaskQueue = queue
+      )
+
+      val savedCluster1 = makeAzureCluster(index).save()
+      val savedNodepool1 = makeNodepool(index, savedCluster1.id).save()
+      val savedApp1 = makeApp(index, savedNodepool1.id, appType = AppType.Cromwell).save()
+      val msg =
+        UpdateAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext, savedApp1.workspaceId, None, None)
+
+      val res =
+        for {
+          _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+
+          assertions = for {
+            getAppOpt <- KubernetesServiceDbQueries
+              .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+              .transaction
+            getApp = getAppOpt.get
+          } yield {
+            getApp.app.errors.size shouldBe 1
+            getApp.app.errors.map(_.action) should contain(ErrorAction.UpdateApp)
+            getApp.app.errors.map(_.source) should contain(ErrorSource.App)
+            getApp.app.errors.head.errorMessage should include("test")
+            getApp.app.status shouldBe AppStatus.Error
+          }
+          asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+          _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+        } yield ()
+
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      verify(mockAckConsumer, times(1)).ack()
+    }
+  }
+
+  it should "save an error and transition app to running when a non-fatal error occurs in azure" in isolatedDbTest {
+    val exception = new RuntimeException("random test exception")
+    val queue = makeTaskQueue()
+    val mockAckConsumer = mock[AckReplyConsumer]
+
+    val mockAksInterp = new MockAKSInterp {
+      override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+        IO.raiseError(exception)
+    }
+
+    val leoSubscriber = makeLeoSubscriber(
+      azureInterp = makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm, mockAksInterp = mockAksInterp),
+      asyncTaskQueue = queue
+    )
+
+    val savedCluster1 = makeAzureCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
+    val msg =
+      UpdateAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext, savedApp1.workspaceId, None, None)
+
+    val res =
+      for {
+        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+
+        assertions = for {
+          getAppOpt <- KubernetesServiceDbQueries
+            .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+            .transaction
+          getApp = getAppOpt.get
+        } yield {
+          getApp.app.errors.size shouldBe 1
+          getApp.app.errors.map(_.action) should contain(ErrorAction.UpdateApp)
+          getApp.app.errors.map(_.source) should contain(ErrorSource.App)
+          getApp.app.errors.head.errorMessage should include("test")
+          getApp.app.status shouldBe AppStatus.Running
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    verify(mockAckConsumer, times(1)).ack()
+  }
+
   it should "create a metric for a successful and failed condition" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
@@ -2181,7 +2282,8 @@ class LeoPubsubMessageSubscriberSpec
                       relayService: AzureRelayService[IO] = FakeAzureRelayService,
                       wsmDAO: MockWsmDAO = new MockWsmDAO,
                       azureVmService: AzureVmService[IO] = FakeAzureVmService,
-                      mockWsmClient: WsmApiClientProvider[IO] = mockWsm
+                      mockWsmClient: WsmApiClientProvider[IO] = mockWsm,
+                      mockAksInterp: AKSAlgebra[IO] = new MockAKSInterp()
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -2200,7 +2302,7 @@ class LeoPubsubMessageSubscriberSpec
       new MockJupyterDAO(),
       relayService,
       azureVmService,
-      new MockAKSInterp(),
+      mockAksInterp,
       refererConfig,
       mockWsmClient
     )

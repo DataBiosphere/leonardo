@@ -870,6 +870,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     sam
   }
 
+  // TODO, delete if this works
   private def setUpMockWsmApiClientProvider
     : (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
     val wsm = mock[WsmApiClientProvider[IO]]
