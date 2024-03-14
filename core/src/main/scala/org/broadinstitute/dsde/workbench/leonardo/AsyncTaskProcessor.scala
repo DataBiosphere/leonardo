@@ -29,7 +29,7 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
     for {
       now <- F.realTimeInstant
       latency = (now.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
-      tags = Map("taskName" -> task.taskName)
+      tags = Map("taskName" -> task.taskName) ++ task.additionalMetricsTags
       _ <- recordLatency("asyncTaskLatency", latency, tags)
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
         s"Executing task ${task.taskName} with latency of ${latency.toSeconds} seconds"
@@ -37,7 +37,7 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
       _ <- task.op.handleErrorWith { case err =>
         task.errorHandler.traverse(cb => cb(err)) >> logger.error(Map("traceId" -> task.traceId.asString), err)(
           s"Error when executing async task"
-        )
+        ) >> metrics.incrementCounter("asyncTaskError", 1, tags)
       }
       end <- F.realTimeInstant
       timeToFinishTask = (end.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
@@ -81,7 +81,8 @@ object AsyncTaskProcessor {
                               op: F[Unit],
                               errorHandler: Option[Throwable => F[Unit]] = None,
                               metricsStartTime: Instant,
-                              taskName: String
+                              taskName: String,
+                              additionalMetricsTags: Map[String, String] = Map.empty
   )
   final case class Config(queueBound: Int, maxConcurrentTasks: Int)
 }

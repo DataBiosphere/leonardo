@@ -270,13 +270,16 @@ class LeoPubsubMessageSubscriber[F[_]](
           .compile
           .drain
       } yield ()
+      labels <- labelQuery.getAllForResource(msg.runtimeId, LabelResourceType.runtime).transaction
+      isAoU = labels.exists { case (k, v) => k == AOU_UI_LABEL && v == "true" }
       _ <- asyncTasks.offer(
         Task(
           ctx.traceId,
           taskToRun,
           Some(createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)),
           ctx.now,
-          "createRuntime"
+          "createRuntime",
+          Map("isAoU" -> isAoU.toString)
         )
       )
     } yield ()
@@ -1095,8 +1098,10 @@ class LeoPubsubMessageSubscriber[F[_]](
           }
       } yield ()
 
+      appChart <- appQuery.getAppChart(msg.appId).transaction
+      additionalMetricsTags = Map("app" -> resolveAppType(msg.appType, appChart))
       _ <- asyncTasks.offer(
-        Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createApp")
+        Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createApp", additionalMetricsTags)
       )
     } yield ()
 
@@ -1266,10 +1271,12 @@ class LeoPubsubMessageSubscriber[F[_]](
 
       _ <-
         if (sync) task
-        else
+        else {
+          val additionalMetricsTags = Map("app" -> resolveAppType(dbApp.app.appType, Some(dbApp.app.chart)))
           asyncTasks.offer(
             Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteApp")
           )
+        }
     } yield ()
 
   private def getDiskDetachStatus(originalDetachTimestampOpt: Option[String],
@@ -1298,6 +1305,21 @@ class LeoPubsubMessageSubscriber[F[_]](
         )
       }
     } yield ()
+
+  private def resolveAppType(appType: AppType, chart: Option[Chart]): String = appType match {
+    case AppType.Allowed =>
+      chart match {
+        case Some(value) =>
+          AllowedChartName.fromChartName(value.name) match {
+            case Some(AllowedChartName.Sas)     => "sas"
+            case Some(AllowedChartName.RStudio) => "rstudio"
+            case _                              => "unknown"
+          }
+        case None => "unknown"
+      }
+
+    case x => x.toString.toLowerCase()
+  }
 
   // clean-up resources in the event of an app creation error
   private def cleanUpAfterCreateAppError(appId: AppId,
