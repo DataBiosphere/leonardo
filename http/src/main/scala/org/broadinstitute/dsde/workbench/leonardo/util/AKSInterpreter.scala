@@ -488,6 +488,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Poll until all pods in the app namespace are running
+      // TODO: we should be able to test this method and the subsequent `AppUpdatePollingException` more easily when we start to implement rollbacks
       appOk <- childSpan("pollAppUpdate").use { implicit ev =>
         pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
       }
