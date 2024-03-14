@@ -11,7 +11,7 @@ trait ServicesRegistry {
   def register[F: ClassTag](service: F): Unit
   def lookup[F: ClassTag]: Option[F]
 
-  def clear: Unit
+  def clear(): Unit
 }
 
 object ServicesRegistry {
@@ -26,6 +26,6 @@ object ServicesRegistry {
       services.get(lookUpClass).asInstanceOf[Option[F]]
     }
 
-    override def clear: Unit = services.clear
+    override def clear(): Unit = services.clear()
   }
 }
