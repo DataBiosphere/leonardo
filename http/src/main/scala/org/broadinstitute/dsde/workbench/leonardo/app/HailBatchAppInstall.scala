@@ -38,10 +38,7 @@ class HailBatchAppInstall[F[_]](config: HailBatchAppConfig, hailBatchDao: HailBa
           raw"persistence.leoAppName=${params.app.appName.value}",
 
           // identity configs
-          // TODO: can Hail Batch chart migrate to Workfload Identity?
-//          raw"identity.name=${petManagedIdentity.map(_.name).getOrElse("none")}",
-//          raw"identity.resourceId=${petManagedIdentity.map(_.id).getOrElse("none")}",
-//          raw"identity.clientId=${petManagedIdentity.map(_.clientId).getOrElse("none")}",
+          raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
 
           // relay configs
           raw"relay.domain=${params.relayPath.authority.getOrElse("none")}",
