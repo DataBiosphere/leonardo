@@ -38,7 +38,6 @@ class HttpRoutes(
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
   refererConfig: RefererConfig,
-  // enableAzureOnlyRoutes: Boolean = ConfigReader.appConfig.azure.hostingModeConfig.enabled
   enableAzureOnlyRoutes: Boolean = false
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
 

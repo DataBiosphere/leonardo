@@ -68,7 +68,8 @@ object Boot extends IOApp {
         servicesDependencies.adminService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
-        refererConfig
+        refererConfig,
+        ConfigReader.appConfig.azure.hostingModeConfig.enabled
       )
 
       val httpServer = for {
