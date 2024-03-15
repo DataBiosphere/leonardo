@@ -52,7 +52,10 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
-    helm repo update
+    helm repo update \
+
+COPY ./wds-0.71.1.tgz /leonardo
+RUN tar -xzf /leonardo/wds-0.71.1.tgz -C /leonardo
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart. As a result we need to pull all GKE
