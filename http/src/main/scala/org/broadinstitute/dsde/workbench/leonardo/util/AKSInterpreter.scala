@@ -365,20 +365,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         F.blocking(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
       }
 
-      // Call WSM to get the list of databases for the app.
-      wsmDatabases <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
-        .transaction
-      wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
-        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
-          .map(db =>
-            WsmControlledDatabaseResource(db.getMetadata.getName,
-                                          db.getAttributes.getDatabaseName,
-                                          db.getMetadata.getResourceId
-            )
-          )
-      }
-
       wsmResourceApi <- buildWsmResourceApiClient
 
       // create any missing AppControlledResources
@@ -389,6 +375,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         landingZoneResources,
         wsmResourceApi
       )
+
+      // get list of APP_CONTROLLED_RESOURCES
+      controlledDatabases <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+      // Call WSM to get more info about each database (by resourceId) that exists in APP_CONTROLLED_RESOURCE
+      wsmDatabases <- controlledDatabases.traverse { controlledDatabase =>
+        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, controlledDatabase.resourceId.value))
+          .map(db =>
+            WsmControlledDatabaseResource(db.getMetadata.getName,
+                                          db.getAttributes.getDatabaseName,
+                                          db.getMetadata.getResourceId
+            )
+          )
+      }
 
       // call WSM resource API to get list of ReferenceDatabases
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
