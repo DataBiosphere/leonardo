@@ -1135,6 +1135,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       preDeleteCluster <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
 
       _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
+      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, context.now).transaction
 
       _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
 
@@ -1435,6 +1436,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
       disk = disks.head
       _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
+      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, context.now).transaction
 
       _ <- publisherQueue.tryTake // clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
@@ -1466,7 +1468,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage =
         DeleteAzureRuntimeMessage(
           preDeleteCluster.id,
-          Some(disk.id),
+          None,
           workspaceId,
           None,
           BillingProfileId("spend-profile"),
@@ -1689,6 +1691,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- persistentDiskQuery.updateWSMResourceId(disk1.get.id, wsmResourceId, context.now).transaction
       _ <- persistentDiskQuery.updateWSMResourceId(disk2.get.id, wsmResourceId, context.now).transaction
       _ <- persistentDiskQuery.updateWSMResourceId(disk3.get.id, wsmResourceId, context.now).transaction
+
+      _ <- persistentDiskQuery.updateStatus(disk1.get.id, DiskStatus.Ready, context.now).transaction
+      _ <- persistentDiskQuery.updateStatus(disk2.get.id, DiskStatus.Ready, context.now).transaction
+      _ <- persistentDiskQuery.updateStatus(disk3.get.id, DiskStatus.Ready, context.now).transaction
 
       _ <- publisherQueue.tryTakeN(Some(3)) // clean out create msg
 
