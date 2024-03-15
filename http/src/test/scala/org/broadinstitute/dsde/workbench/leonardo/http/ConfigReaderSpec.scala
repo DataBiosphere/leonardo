@@ -235,8 +235,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           false,
           "AZURE",
           AzureManagedIdentityAuthConfig(".default", 30),
-          AzureServiceBusPublisherConfig("topic", None, None),
-          AzureServiceBusSubscriberConfig("topic", "subscription", None, None)
+          AzureServiceBusPublisherConfig("replace_me", Some("replace_me"), Some("replace_me")),
+          AzureServiceBusSubscriberConfig("replace_me", "replace_me", Some("replace_me"), Some("replace_me"), 1, 1)
         )
       ),
       OidcAuthConfig(
