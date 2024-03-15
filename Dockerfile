@@ -45,6 +45,9 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
     ./get_helm.sh --version v3.11.2 && \
     rm get_helm.sh
 
+COPY ./wds-0.71.11.tgz /leonardo
+RUN tar -xzf /leonardo/wds-0.71.11.tgz -C /leonardo
+
 # Add the repos containing nginx, galaxy, setup apps, custom apps, cromwell and aou charts
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
