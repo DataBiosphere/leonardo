@@ -1170,6 +1170,75 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "delete a runtime and not delete the disk if the disk is already deleted" in isolatedDbTest {
+    val userInfo = UserInfo(
+      OAuth2BearerToken(""),
+      WorkbenchUserId("userId"),
+      WorkbenchEmail("user1@example.com"),
+      0
+    ) // this email is allowlisted
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+
+    val res = for {
+      context <- appContext.ask[AppContext]
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          false,
+          defaultCreateAzureRuntimeReq
+        )
+      disks <- DiskServiceDbQueries
+        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .transaction
+      disk = disks.head
+      _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
+      _ <- persistentDiskQuery.delete(disk.id, context.now).transaction
+
+      _ <- publisherQueue.tryTake // clean out create msg
+      preDeleteCluster <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
+
+      _ <- clusterQuery.updateClusterStatus(preDeleteCluster.id, RuntimeStatus.Running, context.now).transaction
+
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
+
+      message <- publisherQueue.take
+
+      postDeleteClusterOpt <- clusterQuery
+        .getClusterById(preDeleteCluster.id)
+        .transaction
+
+      wsmResourceId = WsmControlledResourceId(UUID.fromString(preDeleteCluster.internalId))
+
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(preDeleteCluster.runtimeConfigId).transaction
+      diskOpt <- persistentDiskQuery
+        .getById(runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig].persistentDiskId.get)
+        .transaction
+      disk = diskOpt.get
+    } yield {
+      postDeleteClusterOpt.map(_.status) shouldBe Some(RuntimeStatus.Deleting)
+
+      val expectedMessage =
+        DeleteAzureRuntimeMessage(
+          preDeleteCluster.id,
+          None,
+          workspaceId,
+          Some(wsmResourceId),
+          BillingProfileId("spend-profile"),
+          Some(context.traceId)
+        )
+      message shouldBe expectedMessage
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "not delete a runtime in a creating status in Wsm" in isolatedDbTest {
     val userInfo = UserInfo(
       OAuth2BearerToken(""),
