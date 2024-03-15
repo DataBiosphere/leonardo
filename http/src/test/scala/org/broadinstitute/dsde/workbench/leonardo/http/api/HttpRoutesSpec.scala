@@ -68,28 +68,30 @@ class HttpRoutesSpec
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      refererConfig
+      refererConfig,
+      false
     )
 
   val routesWithStrictRefererConfig =
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      gcpOnlyServicesRegistry,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
+      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true),
+      false
     )
 
   val routesWithWildcardReferer =
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      gcpOnlyServicesRegistry,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
@@ -103,7 +105,7 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      gcpOnlyServicesRegistry,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
@@ -916,6 +918,7 @@ class HttpRoutesSpec
     gcpOnlyServicesRegistry.register[ProxyService](proxyService)
     gcpOnlyServicesRegistry.register[RuntimeService[IO]](runtimeService)
     gcpOnlyServicesRegistry.register[DiskService[IO]](MockDiskServiceInterp)
+    gcpOnlyServicesRegistry.register[ResourcesService[IO]](MockResourcesService)
 
     new HttpRoutes(
       openIdConnectionConfiguration,
@@ -936,6 +939,7 @@ class HttpRoutesSpec
     gcpOnlyServicesRegistry.register[ProxyService](proxyService)
     gcpOnlyServicesRegistry.register[RuntimeService[IO]](runtimeService)
     gcpOnlyServicesRegistry.register[DiskService[IO]](MockDiskServiceInterp)
+    gcpOnlyServicesRegistry.register[ResourcesService[IO]](MockResourcesService)
 
     new HttpRoutes(
       openIdConnectionConfiguration,
@@ -947,7 +951,8 @@ class HttpRoutesSpec
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      refererConfig
+      refererConfig,
+      false
     )
   }
 }

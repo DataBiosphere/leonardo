@@ -37,7 +37,9 @@ class HttpRoutes(
   adminService: AdminService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
-  refererConfig: RefererConfig
+  refererConfig: RefererConfig,
+  // enableAzureOnlyRoutes: Boolean = ConfigReader.appConfig.azure.hostingModeConfig.enabled
+  enableAzureOnlyRoutes: Boolean = false
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
 
   private val statusRoutes = new StatusRoutes(statusService)
@@ -47,6 +49,10 @@ class HttpRoutes(
   private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
   private val diskV2Routes = new DiskV2Routes(diskV2Service, userInfoDirectives)
   private val adminRoutes = new AdminRoutes(adminService, userInfoDirectives)
+  private val diskRoutes = createDiskRoutesUsingServicesRegistry
+  private val runtimeRoutes = createRuntimeRoutesUsingServicesRegistry
+  private val resourcesRoutes = createResourcesRoutesUsingServicesRegistry
+  private val proxyRoutes = createProxyRoutesUsingServicesRegistry
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private val logRequestResult: Directive0 = {
@@ -110,35 +116,49 @@ class HttpRoutes(
 
   val route: Route =
     logRequestResult {
-      Route.seal(
-        oidcConfig
-          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~ {
-          gcpOnlyServicesRegistry
-            .lookup[ProxyService]
-            .map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig))
-            .get
-            .route
-        } ~
-          pathPrefix("api") {
-            val baseRoutes =
-              runtimeV2Routes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ kubernetesRoutes.routes ~ adminRoutes.routes
-            val runtimeRouteOption: Option[Route] = gcpOnlyServicesRegistry
-              .lookup[RuntimeService[IO]]
-              .map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives).routes)
-            val diskRouteOption: Option[Route] = gcpOnlyServicesRegistry
-              .lookup[DiskService[IO]]
-              .map(diskService => new DiskRoutes(diskService, userInfoDirectives).routes)
-            val resourcesRoutes: Option[Route] = gcpOnlyServicesRegistry
-              .lookup[ResourcesServiceInterp[IO]]
-              .map(resourcesService => new ResourcesRoutes(resourcesService, userInfoDirectives).routes)
-
-            val gcpRoutes: Seq[Route] =
-              Seq(runtimeRouteOption, diskRouteOption, resourcesRoutes).flatten
-
-            (baseRoutes +: gcpRoutes).reduce(_ ~ _)
-          }
-      )
+      enableAzureOnlyRoutes match {
+        case false =>
+          Route.seal(
+            oidcConfig
+              .swaggerRoutes(
+                "swagger/api-docs.yaml"
+              ) ~ oidcConfig.oauth2Routes ~ proxyRoutes.get.route ~ statusRoutes.route ~
+              pathPrefix("api") {
+                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
+                  diskRoutes.get.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes ~
+                  resourcesRoutes.get.routes
+              }
+          )
+        case true =>
+          Route.seal(
+            oidcConfig
+              .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
+              pathPrefix("api") {
+                runtimeV2Routes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ kubernetesRoutes.routes ~ adminRoutes.routes
+              }
+          )
+      }
     }
+  private def createResourcesRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[ResourcesService[IO]]
+      .map(resourcesService => new ResourcesRoutes(resourcesService, userInfoDirectives))
+
+  private def createDiskRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[DiskService[IO]]
+      .map(diskService => new DiskRoutes(diskService, userInfoDirectives))
+
+  private def createRuntimeRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[RuntimeService[IO]]
+      .map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives))
+
+  private def createProxyRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[ProxyService]
+      .map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig))
+
 }
 
 object HttpRoutes {

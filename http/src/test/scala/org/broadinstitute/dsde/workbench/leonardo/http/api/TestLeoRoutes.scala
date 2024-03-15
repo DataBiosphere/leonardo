@@ -195,6 +195,7 @@ trait TestLeoRoutes {
     FakeGoogleComputeService,
     QueueFactory.makePublisherQueue()
   )
+
   val gcpOnlyServicesRegistry = {
     val registry = ServicesRegistry()
     registry.register[ProxyService](proxyService)
@@ -231,7 +232,6 @@ trait TestLeoRoutes {
       contentSecurityPolicy,
       refererConfig
     )
-
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r
 
