@@ -52,7 +52,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo add terra-helm https://terra-helm.storage.googleapis.com && \
-    helm repo update \
+    helm repo update
 
 COPY ./wds-0.71.1.tgz /leonardo
 RUN tar -xzf /leonardo/wds-0.71.1.tgz -C /leonardo
