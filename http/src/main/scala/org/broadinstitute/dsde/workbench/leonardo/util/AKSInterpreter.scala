@@ -306,7 +306,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     for {
       ctx <- ev.ask
-      _ <- logger.info("here in aksinterp")
 
       workspaceId <- F.fromOption(
         params.workspaceId,
@@ -446,7 +445,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       // The app is blocked in updating now
       _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
 
-      // Update the relay listener deployment if the app is not already updating from a message submission
+      // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
         updateListener(authContext,
                        app,

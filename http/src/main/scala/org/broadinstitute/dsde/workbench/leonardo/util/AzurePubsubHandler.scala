@@ -952,12 +952,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
-      _ <- logger.info("here in azure pubsubhandler")
-      _ <- aksAlgebra.updateAndPollApp(params)
-    } yield ()
+    aksAlgebra.updateAndPollApp(UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext))
 
   override def deleteApp(
     appId: AppId,

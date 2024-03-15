@@ -2068,7 +2068,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   final case class TestExceptionIndexTuple(exception: Throwable, index: Int)
-  it should "save an error and transition app to error when a fatal error occurs in azure" in isolatedDbTest {
+  it should "save an error and transition app to error when a fatal error occurs in azure updateAndPollApp" in isolatedDbTest {
     val errors = Table(
       "exception",
       TestExceptionIndexTuple(HelmException("test helm exception"), 1),
@@ -2109,7 +2109,7 @@ class LeoPubsubMessageSubscriberSpec
             getApp.app.errors.size shouldBe 1
             getApp.app.errors.map(_.action) should contain(ErrorAction.UpdateApp)
             getApp.app.errors.map(_.source) should contain(ErrorSource.App)
-            getApp.app.errors.head.errorMessage should include("test")
+            getApp.app.errors.head.errorMessage should include(exception.getMessage)
             getApp.app.status shouldBe AppStatus.Error
           }
           asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -2121,7 +2121,7 @@ class LeoPubsubMessageSubscriberSpec
     }
   }
 
-  it should "save an error and transition app to running when a non-fatal error occurs in azure" in isolatedDbTest {
+  it should "save an error and transition app to running when a non-fatal error occurs in azure updateAndPollApp" in isolatedDbTest {
     val exception = new RuntimeException("random test exception")
     val queue = makeTaskQueue()
     val mockAckConsumer = mock[AckReplyConsumer]
