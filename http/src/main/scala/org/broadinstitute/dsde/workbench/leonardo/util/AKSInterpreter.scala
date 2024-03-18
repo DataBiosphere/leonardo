@@ -442,6 +442,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         namespaceName
       )
 
+      // The app is blocked in updating now (as in, if leo restarts between here and the app transitioning back to `Running`, it is unusable
+      // See: https://broadworkbench.atlassian.net/browse/IA-4867
+      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
+
       // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
         updateListener(authContext,
@@ -484,6 +488,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Poll until all pods in the app namespace are running
+      // TODO: we should be able to test this method and the subsequent `AppUpdatePollingException` more easily when we start to implement rollbacks
       appOk <- childSpan("pollAppUpdate").use { implicit ev =>
         pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
       }
@@ -492,7 +497,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           F.unit
         else
           F.raiseError[Unit](
-            AppUpdateException(
+            AppUpdatePollingException(
               s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )

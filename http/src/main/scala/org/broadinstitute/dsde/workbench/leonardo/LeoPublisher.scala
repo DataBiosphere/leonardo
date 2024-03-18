@@ -122,8 +122,9 @@ final class LeoPublisher[F[_]](
           appQuery.updateStatus(m.appId, AppStatus.Stopping).transaction
         case m: LeoPubsubMessage.StartAppMessage =>
           appQuery.updateStatus(m.appId, AppStatus.Starting).transaction
-        case m: LeoPubsubMessage.UpdateAppMessage =>
-          appQuery.updateStatus(m.appId, AppStatus.Updating).transaction
+        // We update this in backleo to prevent apps getting stuck in updating as much as possible, https://broadworkbench.atlassian.net/browse/IA-4749
+        case _: LeoPubsubMessage.UpdateAppMessage =>
+          F.unit
         case _: LeoPubsubMessage.UpdateDiskMessage =>
           F.unit
         case _: LeoPubsubMessage.UpdateRuntimeMessage =>
