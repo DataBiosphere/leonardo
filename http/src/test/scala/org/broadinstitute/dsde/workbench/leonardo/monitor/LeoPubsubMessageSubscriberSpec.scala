@@ -36,7 +36,8 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeApp,
- makeAzureCluster, makeKubeCluster,
+  makeAzureCluster,
+  makeKubeCluster,
   makeNodepool,
   makeService
 }
@@ -2142,7 +2143,7 @@ class LeoPubsubMessageSubscriberSpec
       val exception = tuple.exception
       val index = tuple.index
       val queue = makeTaskQueue()
-      val mockAckConsumer = mock[AckReplyConsumer]
+      val mockAckConsumer = mock[AckHandler]
 
       val mockAksInterp = new MockAKSInterp {
         override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
@@ -2162,7 +2163,7 @@ class LeoPubsubMessageSubscriberSpec
 
       val res =
         for {
-          _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+          _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
 
           assertions = for {
             getAppOpt <- KubernetesServiceDbQueries
@@ -2188,7 +2189,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "save an error and transition app to running when a non-fatal error occurs in azure updateAndPollApp" in isolatedDbTest {
     val exception = new RuntimeException("random test exception")
     val queue = makeTaskQueue()
-    val mockAckConsumer = mock[AckReplyConsumer]
+    val mockAckConsumer = mock[AckHandler]
 
     val mockAksInterp = new MockAKSInterp {
       override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
@@ -2208,7 +2209,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res =
       for {
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
 
         assertions = for {
           getAppOpt <- KubernetesServiceDbQueries
