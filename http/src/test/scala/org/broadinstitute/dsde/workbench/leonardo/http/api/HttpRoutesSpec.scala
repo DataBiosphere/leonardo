@@ -68,9 +68,22 @@ class HttpRoutesSpec
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      refererConfig,
-      false
+      refererConfig
     )
+
+  val httpRoutesAzureOnly = new HttpRoutes(
+    openIdConnectionConfiguration,
+    statusService,
+    createGcpOnlyServicesRegistry(),
+    MockDiskV2ServiceInterp,
+    MockAppService,
+    new MockRuntimeV2Interp,
+    MockAdminServiceInterp,
+    timedUserInfoDirectives,
+    contentSecurityPolicy,
+    refererConfig,
+    true
+  )
 
   val routesWithStrictRefererConfig =
     new HttpRoutes(
@@ -83,8 +96,7 @@ class HttpRoutesSpec
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true),
-      false
+      RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
     )
 
   val routesWithWildcardReferer =
@@ -685,6 +697,35 @@ class HttpRoutesSpec
     }
   }
 
+  it should "have expected azure routes when azure hosting mode is true" in {
+
+    val adminRoute = "/api/admin/v2/apps/update"
+    val appsV2Route = s"/api/apps/v2/${workspaceId.value.toString}/app1"
+    val diskV2Route = "/api/v2/disks/-1"
+    val runtimeV2Route = "/api/v2/runtimes"
+    val statusRoute = "/status"
+
+    Get(adminRoute) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(appsV2Route) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(diskV2Route) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(runtimeV2Route) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(statusRoute) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+  }
+
   "Kubernetes Routes" should "create an app" in {
     Post("/api/google/v1/apps/googleProject1/app1")
       .withEntity(ContentTypes.`application/json`, createAppRequest.asJson.spaces2) ~> routes.route ~> check {
@@ -951,8 +992,7 @@ class HttpRoutesSpec
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
-      refererConfig,
-      false
+      refererConfig
     )
   }
 }

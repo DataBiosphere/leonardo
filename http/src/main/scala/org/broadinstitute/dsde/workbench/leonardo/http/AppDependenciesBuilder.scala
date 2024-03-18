@@ -39,9 +39,12 @@ import scala.concurrent.ExecutionContext
 
 /**
  * Builds the App dependencies
+ * @param baselineDependenciesBuilder Baseline dependencies builder.
  * @param cloudHostDependenciesBuilder interpreter of the cloud hosting dependencies builder.
  */
-class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuilder) {
+class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBuilder,
+                             cloudHostDependenciesBuilder: CloudDependenciesBuilder
+) {
   def createAppDependencies()(implicit
     logger: StructuredLogger[IO],
     ec: ExecutionContext,
@@ -60,13 +63,13 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
 
       _ <- cloudHostDependenciesBuilder.registryOpenTelemetryTracing
 
-      baseDependencies <- BaselineDependyBuilder().createBaselineDependencies[IO]()
+      baseDependencies <- baselineDependenciesBuilder.createBaselineDependencies[IO]()
 
       dependenciesRegistry <- cloudHostDependenciesBuilder.createDependenciesRegistry(baseDependencies)
 
       httpRoutesDependencies <- createFrontEndDependencies(baseDependencies, dependenciesRegistry)
 
-      backEndDependencies <- createBackEndDependencies(baseDependencies, dependenciesRegistry)
+      backEndDependencies <- createBackEndDependencies(baseDependencies, dependenciesRegistry, leoExecutionModeConfig)
     } yield LeoAppDependencies(httpRoutesDependencies, backEndDependencies)
 
   /**
@@ -108,7 +111,7 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
     // This method only creates services that are agnostic of the cloud provider.
     val leoKubernetesService = dependenciesRegistry.lookup[LeoAppServiceInterp[IO]].get
 
-    Resource.make(
+    Resource.make[IO, ServicesDependencies](
       IO(
         ServicesDependencies(
           statusService,
@@ -126,8 +129,9 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
     )(_ => IO.unit)
   }
 
-  private def createBackEndDependencies(baselineDependencies: BaselineDependencies[IO],
-                                        cloudSpecificDependencies: ServicesRegistry
+  def createBackEndDependencies(baselineDependencies: BaselineDependencies[IO],
+                                cloudSpecificDependencies: ServicesRegistry,
+                                leoExecutionModeConfig: LeoExecutionModeConfig
   )(implicit
     logger: StructuredLogger[IO],
     ec: ExecutionContext,
@@ -135,13 +139,8 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
     openTelemetry: OpenTelemetryMetrics[IO]
   ): Resource[IO, LeoAppProcesses] = {
 
-    val dateAccessedUpdater =
-      new DateAccessedUpdater(dateAccessUpdaterConfig, baselineDependencies.dateAccessedUpdaterQueue)
-
     val cloudSpecificProcessList =
       cloudHostDependenciesBuilder.createCloudSpecificProcessesList(baselineDependencies, cloudSpecificDependencies)
-
-    val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, baselineDependencies.asyncTasksQueue)
 
     val autopauseMonitorProcess = AutopauseMonitor.process(
       autoFreezeConfig,
@@ -265,27 +264,43 @@ class AppDependenciesBuilder(cloudHostDependenciesBuilder: CloudDependenciesBuil
       cloudSpecificDependencies
     )
 
-    // These processes run independently of the hosting provider.
-    val baselineProcesses = List(
-      pubsubSubscriber.process(baselineDependencies.subscriber),
-      autopauseMonitorProcess,
-      metricsMonitor.process
-    )
-    val uniquefrontLeoOnlyProcesses = List(
-      dateAccessedUpdater.process // We only need to update dateAccessed in front leo
-    ) ++ baselineDependencies.recordCacheMetrics
-
-    val backLeoProcesses = baselineProcesses ++ cloudSpecificProcessList
-
     val configuredProcesses = leoExecutionModeConfig match {
-      case LeoExecutionModeConfig.BackLeoOnly  => backLeoProcesses
-      case LeoExecutionModeConfig.FrontLeoOnly => asyncTasks.process :: uniquefrontLeoOnlyProcesses
-      case LeoExecutionModeConfig.Combined     => backLeoProcesses ++ uniquefrontLeoOnlyProcesses
+      case LeoExecutionModeConfig.BackLeoOnly =>
+        List(
+          pubsubSubscriber.process(baselineDependencies.subscriber),
+          autopauseMonitorProcess,
+          metricsMonitor.process
+        ) ++ cloudSpecificProcessList
+      case LeoExecutionModeConfig.FrontLeoOnly =>
+        AsyncTaskProcessor(asyncTaskProcessorConfig,
+                           baselineDependencies.asyncTasksQueue
+        ).process :: createFrontEndLeoProcesses(baselineDependencies)
+      case LeoExecutionModeConfig.Combined =>
+        List(
+          pubsubSubscriber.process(baselineDependencies.subscriber),
+          autopauseMonitorProcess,
+          metricsMonitor.process
+        ) ++ cloudSpecificProcessList ++ createFrontEndLeoProcesses(baselineDependencies)
     }
 
     val allProcesses = List(baselineDependencies.leoPublisher.process) ++ configuredProcesses
 
     Resource.make(IO(LeoAppProcesses(allProcesses)))(_ => IO.unit)
+  }
+
+  private def createFrontEndLeoProcesses(baselineDependencies: BaselineDependencies[IO])(implicit
+    logger: StructuredLogger[IO],
+    ec: ExecutionContext,
+    dbReference: DbReference[IO],
+    openTelemetry: OpenTelemetryMetrics[IO]
+  ) = {
+    val dateAccessedUpdater =
+      new DateAccessedUpdater(dateAccessUpdaterConfig, baselineDependencies.dateAccessedUpdaterQueue)
+
+    val uniquefrontLeoOnlyProcesses = List(
+      dateAccessedUpdater.process // We only need to update dateAccessed in front-end leo
+    ) ++ baselineDependencies.recordMetricsProcesses
+    uniquefrontLeoOnlyProcesses
   }
 }
 
@@ -293,9 +308,8 @@ object AppDependenciesBuilder {
   def apply(): AppDependenciesBuilder =
     ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
       case true =>
-        new AppDependenciesBuilder(new AzureDependencyBuilder())
+        new AppDependenciesBuilder(BaselineDependenciesBuilder(), new AzureDependenciesBuilder())
       case false =>
-        new AppDependenciesBuilder(new GcpDependencyBuilder())
+        new AppDependenciesBuilder(BaselineDependenciesBuilder(), new GcpDependencyBuilder())
     }
-
 }

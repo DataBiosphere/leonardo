@@ -76,7 +76,7 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
  *  - Required regardless of where the App is hosted.
  *  - Includes clod-agnostic traits with interpreters for the cloud provider (e.g. CloudPublisher, CloudAuthTokenProvider).
  */
-class BaselineDependyBuilder {
+class BaselineDependenciesBuilder {
 
   def createBaselineDependencies[F[_]: Parallel](
   )(implicit
@@ -420,9 +420,9 @@ class BaselineDependyBuilder {
     StructuredLogger[F].info(s)
 }
 
-object BaselineDependyBuilder {
-  def apply(): BaselineDependyBuilder =
-    new BaselineDependyBuilder()
+object BaselineDependenciesBuilder {
+  def apply(): BaselineDependenciesBuilder =
+    new BaselineDependenciesBuilder()
 }
 
 final case class BaselineDependencies[F[_]](
@@ -443,7 +443,7 @@ final case class BaselineDependencies[F[_]](
   asyncTasksQueue: Queue[F, Task[F]],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   proxyResolver: ProxyResolver[F],
-  recordCacheMetrics: List[Stream[F, Unit]],
+  recordMetricsProcesses: List[Stream[F, Unit]],
   googleTokenCache: scalacache.Cache[F, String, (UserInfo, Instant)],
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   openIDConnectConfiguration: OpenIDConnectConfiguration,

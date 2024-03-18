@@ -167,10 +167,6 @@ class LeoPubsubMessageSubscriberSpec
   override def beforeEach(): Unit = {
     serviceRegistry.clear
 
-//    val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
-//
-//    serviceRegistry.register[RuntimeInstances[IO]](runtimeInstances)
-//    serviceRegistry.register[RuntimeMonitor[IO, CloudService]](MockRuntimeMonitor)
     val gcpDependencies = mock[GcpDependencies[IO]]
     when(gcpDependencies.googleDiskService).thenReturn(MockGoogleDiskService)
     serviceRegistry.register[GcpDependencies[IO]](gcpDependencies)

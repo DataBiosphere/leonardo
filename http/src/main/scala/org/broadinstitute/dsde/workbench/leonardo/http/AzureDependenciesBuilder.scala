@@ -4,13 +4,14 @@ import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appServiceConfig, gkeCustomAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorAtBoot
 import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
-class AzureDependencyBuilder extends CloudDependenciesBuilder {
+class AzureDependenciesBuilder extends CloudDependenciesBuilder {
 
   /**
    * Registers the OT tracing for the cloud hosting provider.
@@ -38,7 +39,18 @@ class AzureDependencyBuilder extends CloudDependenciesBuilder {
     ec: ExecutionContext,
     dbReference: DbReference[IO],
     openTelemetry: OpenTelemetryMetrics[IO]
-  ): List[fs2.Stream[IO, Unit]] = List.empty
+  ): List[fs2.Stream[IO, Unit]] = {
+
+    val monitorAtBoot =
+      new MonitorAtBoot[IO](
+        baselineDependencies.publisherQueue,
+        None, // no GCP dependency
+        baselineDependencies.samDAO,
+        baselineDependencies.wsmDAO
+      )
+
+    List(monitorAtBoot.process)
+  }
 
   /**
    * Create a dependency registry for Azure, as there is no Azure specific references required only when hosting Leo on Azure.

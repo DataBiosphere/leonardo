@@ -96,7 +96,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     val monitorAtBoot =
       new MonitorAtBoot[IO](
         baselineDependencies.publisherQueue,
-        gcpDependencies.googleComputeService,
+        Some(gcpDependencies.googleComputeService),
         baselineDependencies.samDAO,
         baselineDependencies.wsmDAO
       )
@@ -147,8 +147,9 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
   /***
    * Create GCP dependencies that a require for GCP only functionality.
    * These are the first of instances (leafs) in the dependency graph.
+   * Note: This method is public to allow overriding the results in tests.
    */
-  private def createGcpDependencies[F[_]: Parallel](
+  def createGcpDependencies[F[_]: Parallel](
     baselineDependencies: BaselineDependencies[F]
   )(implicit
     F: Async[F],
