@@ -225,6 +225,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
+  // Note that the app will eventually transition to error or running status, but `Running` occurs on success and `Error` occurs in `LeoPubsubMessageSubscriber` (the latter being applicable to this test).
+  // This test ensures that the underlying `AKSInterpreter` correctly transitions app to `Upgrading` and doesn't transition it to `Running` if an error occurs
   it should s"exit with app in Updating status if error occurs in helm client" in isolatedDbTest {
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())

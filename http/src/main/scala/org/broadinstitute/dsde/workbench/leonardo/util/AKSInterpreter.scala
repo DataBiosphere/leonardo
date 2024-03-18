@@ -442,7 +442,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         namespaceName
       )
 
-      // The app is blocked in updating now
+      // The app is blocked in updating now (as in, if leo restarts between here and the app transitioning back to `Running`, it is unusable
+      // See: https://broadworkbench.atlassian.net/browse/IA-4867
       _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
 
       // Update the relay listener deployment

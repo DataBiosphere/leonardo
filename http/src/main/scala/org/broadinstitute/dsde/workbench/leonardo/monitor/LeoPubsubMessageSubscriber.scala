@@ -1412,7 +1412,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
       _ <- updateApp
         .handleErrorWith {
-          // Fatal case, polling app liveliness failed
+          // Fatal case (as in, the app is no longer usable), polling app liveliness failed
           // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
           // This would provide more cases in which an app is left in a usable state
           case e: AppUpdatePollingException => F.raiseError(e)
