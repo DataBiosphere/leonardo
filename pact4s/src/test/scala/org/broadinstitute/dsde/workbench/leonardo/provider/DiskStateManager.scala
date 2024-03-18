@@ -4,10 +4,10 @@ import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
-import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskNotFoundException, DiskService}
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AuditInfo, BlockSize, CloudContext, DiskId, DiskSize, DiskStatus, DiskType, FormattedBy, LabelMap, SamResourceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.mockito.stubbing.OngoingStubbing
@@ -55,5 +55,11 @@ object DiskStateManager {
                     mockedGetPersistentDiskResponse
                   }
       )
+    case ProviderState(States.DiskDoesNotExist, _) =>
+        mockGetDisk(mockDiskService,
+                    IO {
+                        throw DiskNotFoundException(CloudContext.Gcp(GoogleProject("exampleProject")), DiskName("exampleDiskName"),TraceId("exampleTraceId"))
+                    }
+        )
   }
 }
