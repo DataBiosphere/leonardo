@@ -89,7 +89,7 @@ class GcpDependenciesBuilderSpec
     registry.lookup[GcpDependencies[IO]].get shouldBe a[GcpDependencies[IO]]
     registry.lookup[GKEAlgebra[IO]].get shouldBe a[GKEAlgebra[IO]]
     registry.lookup[RuntimeMonitor[IO, CloudService]].get shouldBe a[RuntimeMonitor[IO, CloudService]]
-    registry.lookup[ResourcesServiceInterp[IO]].get shouldBe a[ResourcesServiceInterp[IO]]
+    registry.lookup[ResourcesService[IO]].get shouldBe a[ResourcesServiceInterp[IO]]
     registry.lookup[LeoAppServiceInterp[IO]].get shouldBe a[LeoAppServiceInterp[IO]]
   }
 

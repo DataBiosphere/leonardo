@@ -400,7 +400,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     servicesRegistry.register[GcpDependencies[IO]](gcpDependencies)
     servicesRegistry.register[GKEAlgebra[IO]](gkeAlg)
     servicesRegistry.register[RuntimeMonitor[IO, CloudService]](cloudServiceRuntimeMonitor)
-    servicesRegistry.register[ResourcesServiceInterp[IO]](resourcesService)
+    servicesRegistry.register[ResourcesService[IO]](resourcesService)
     servicesRegistry.register[LeoAppServiceInterp[IO]](leoKubernetesService)
 
     servicesRegistry
