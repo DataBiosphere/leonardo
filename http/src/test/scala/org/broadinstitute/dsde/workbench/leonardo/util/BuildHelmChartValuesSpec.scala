@@ -10,10 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makePersistent
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeCustomAppService, makeKubeCluster}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
-  buildCromwellAppChartOverrideValuesString,
-  _
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.Release
