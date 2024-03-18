@@ -741,7 +741,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
           // if no wsmResource to delete, delete the disk and set runtime to deleted
           _ <- deleteDiskAction
-          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+          _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
           _ <- logger.info(ctx.loggingCtx)(
             s"runtime ${msg.runtimeId} with name ${runtime.runtimeName.asString} is deleted successfully"
           )
