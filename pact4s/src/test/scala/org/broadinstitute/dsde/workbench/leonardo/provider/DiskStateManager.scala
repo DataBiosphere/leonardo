@@ -33,7 +33,7 @@ object DiskStateManager {
     DiskSize(100),
     DiskType.SSD,
     BlockSize(1024),
-    Map("labelA" -> "first", "labelB" -> "second"),
+    Map("labelA" -> "first"),
     Some(FormattedBy.GCE),
   )
 
