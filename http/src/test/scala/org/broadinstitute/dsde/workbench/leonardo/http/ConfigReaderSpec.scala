@@ -169,11 +169,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          chartVersionsToExcludeFromUpdates = List.empty
+          chartVersionsToExcludeFromUpdates = List.empty,
+          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
         ),
         WdsAppConfig(
           ChartName("terra-helm/wds"),
-          ChartVersion("0.71.0"),
+          ChartVersion("0.72.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),

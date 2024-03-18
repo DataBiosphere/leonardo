@@ -1485,7 +1485,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                           if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
                             persistentDiskOpt.traverse_(d =>
                               googleDiskService.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
-                                .updateStatus(d.id, DiskStatus.Deleted, now)
+                                .delete(d.id, now)
                                 .transaction
                             )
                           } else F.unit
