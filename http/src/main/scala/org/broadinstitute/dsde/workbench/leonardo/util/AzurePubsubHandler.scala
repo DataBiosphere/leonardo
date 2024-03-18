@@ -952,27 +952,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
-      _ <- aksAlgebra.updateAndPollApp(params).adaptError { case e =>
-        PubsubKubernetesError(
-          AppError(
-            s"Error updating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
-            ctx.now,
-            ErrorAction.UpdateApp,
-            ErrorSource.App,
-            None,
-            Some(ctx.traceId)
-          ),
-          Some(appId),
-          false,
-          None,
-          None,
-          None
-        )
-      }
-    } yield ()
+    aksAlgebra.updateAndPollApp(UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext))
 
   override def deleteApp(
     appId: AppId,
