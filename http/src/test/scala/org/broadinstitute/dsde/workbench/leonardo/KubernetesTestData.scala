@@ -178,7 +178,7 @@ object KubernetesTestData {
   ): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueCloudContextAzure = CloudContext.Azure(
-      AzureCloudContext(tenantId = TenantId("tenant-id"),
+      AzureCloudContext(tenantId = TenantId("tenant-id" + index),
                         subscriptionId = SubscriptionId("sub-id"),
                         managedResourceGroupName = ManagedResourceGroupName("mrg-name")
       )
