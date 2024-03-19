@@ -35,7 +35,7 @@ object DiskStateManager {
   object States {
     final val DiskExists = "there is a disk in a Google project"
     final val DiskDoesNotExist = "there is not a disk in a Google project"
-    final val GoogleProjectExists = "there is a Google project with disks"
+    final val GoogleProjectWithDisksExists = "there is a Google project with disks"
   }
 
   private val mockedGetPersistentDiskResponse = GetPersistentDiskResponse(
@@ -125,7 +125,7 @@ object DiskStateManager {
           )
         }
       )
-    case ProviderState(States.GoogleProjectExists, _) =>
+    case ProviderState(States.GoogleProjectWithDisksExists, _) =>
       mockListDisksByProject(mockDiskService,
                              IO {
                                Vector(mockedListDiskResponse)
