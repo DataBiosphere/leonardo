@@ -599,6 +599,7 @@ object LeoPubsubCodec {
     )
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
+    println(s"message: $message")
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       _ = println(s"messageType: $messageType, message: $message")
