@@ -3,9 +3,25 @@ package org.broadinstitute.dsde.workbench.leonardo.provider
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.http.{GetPersistentDiskResponse, ListPersistentDiskResponse, UpdateDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  GetPersistentDiskResponse,
+  ListPersistentDiskResponse,
+  UpdateDiskRequest
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskNotFoundException, DiskService}
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AuditInfo, BlockSize, CloudContext, DiskId, DiskSize, DiskStatus, DiskType, FormattedBy, LabelMap, SamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  AuditInfo,
+  BlockSize,
+  CloudContext,
+  DiskId,
+  DiskSize,
+  DiskStatus,
+  DiskType,
+  FormattedBy,
+  LabelMap,
+  SamResourceId
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.mockito.ArgumentMatchers.{any, anyString}
@@ -35,7 +51,7 @@ object DiskStateManager {
     DiskType.SSD,
     BlockSize(1024),
     Map("labelA" -> "first"),
-    Some(FormattedBy.GCE),
+    Some(FormattedBy.GCE)
   )
 
   private val mockedListDiskResponse = ListPersistentDiskResponse(
@@ -48,7 +64,8 @@ object DiskStateManager {
     DiskSize(100),
     DiskType.SSD,
     BlockSize(1024),
-    Map("labelA" -> "first"))
+    Map("labelA" -> "first")
+  )
 
   private def mockGetDisk(mockDiskService: DiskService[IO],
                           mockResponse: IO[GetPersistentDiskResponse]
@@ -61,11 +78,9 @@ object DiskStateManager {
       mockResponse
     }
 
-  private def mockUpdateDisk(mockDiskService: DiskService[IO],
-                          mockResponse: IO[Unit]
-                         ): OngoingStubbing[IO[Unit]] =
+  private def mockUpdateDisk(mockDiskService: DiskService[IO], mockResponse: IO[Unit]): OngoingStubbing[IO[Unit]] =
     when {
-      mockDiskService.updateDisk(any[UserInfo], any[GoogleProject], DiskName(anyString()),any[UpdateDiskRequest])(
+      mockDiskService.updateDisk(any[UserInfo], any[GoogleProject], DiskName(anyString()), any[UpdateDiskRequest])(
         any[Ask[IO, AppContext]]
       )
     } thenReturn {
@@ -73,8 +88,8 @@ object DiskStateManager {
     }
 
   private def mockListDisksByProject(mockDiskService: DiskService[IO],
-                          mockResponse: IO[Vector[ListPersistentDiskResponse]]
-                         ): OngoingStubbing[IO[Vector[ListPersistentDiskResponse]]] =
+                                     mockResponse: IO[Vector[ListPersistentDiskResponse]]
+  ): OngoingStubbing[IO[Vector[ListPersistentDiskResponse]]] =
     when {
       mockDiskService.listDisks(any[UserInfo], any[Option[CloudContext.Gcp]], any[Map[String, String]])(
         any[Ask[IO, AppContext]]
@@ -92,21 +107,29 @@ object DiskStateManager {
       )
       mockUpdateDisk(mockDiskService, IO.unit)
     case ProviderState(States.DiskDoesNotExist, _) =>
-        mockGetDisk(mockDiskService,
-                    IO {
-                        throw DiskNotFoundException(CloudContext.Gcp(GoogleProject("exampleProject")), DiskName("exampleDiskName"),TraceId("exampleTraceId"))
-                    }
-        )
-      mockUpdateDisk(mockDiskService,
+      mockGetDisk(
+        mockDiskService,
         IO {
-          throw DiskNotFoundException(CloudContext.Gcp(GoogleProject("exampleProject")), DiskName("exampleDiskName"), TraceId("exampleTraceId"))
+          throw DiskNotFoundException(CloudContext.Gcp(GoogleProject("exampleProject")),
+                                      DiskName("exampleDiskName"),
+                                      TraceId("exampleTraceId")
+          )
+        }
+      )
+      mockUpdateDisk(
+        mockDiskService,
+        IO {
+          throw DiskNotFoundException(CloudContext.Gcp(GoogleProject("exampleProject")),
+                                      DiskName("exampleDiskName"),
+                                      TraceId("exampleTraceId")
+          )
         }
       )
     case ProviderState(States.GoogleProjectExists, _) =>
       mockListDisksByProject(mockDiskService,
-        IO {
-          Vector(mockedListDiskResponse)
-        }
+                             IO {
+                               Vector(mockedListDiskResponse)
+                             }
       )
   }
 }
