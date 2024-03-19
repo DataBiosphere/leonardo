@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.provider
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
+import org.broadinstitute.dsde.workbench.leonardo.http.{GetPersistentDiskResponse, UpdateDiskRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskNotFoundException, DiskService}
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AuditInfo, BlockSize, CloudContext, DiskId, DiskSize, DiskStatus, DiskType, FormattedBy, LabelMap, SamResourceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -48,6 +48,17 @@ object DiskStateManager {
       mockResponse
     }
 
+  private def mockUpdateDisk(mockDiskService: DiskService[IO],
+                          mockResponse: IO[Unit]
+                         ): OngoingStubbing[IO[Unit]] =
+    when {
+      mockDiskService.updateDisk(any[UserInfo], any[GoogleProject], DiskName(anyString()),any[UpdateDiskRequest])(
+        any[Ask[IO, AppContext]]
+      )
+    } thenReturn {
+      mockResponse
+    }
+
   def handler(mockDiskService: DiskService[IO]): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.DiskExists, _) =>
       mockGetDisk(mockDiskService,
@@ -55,11 +66,17 @@ object DiskStateManager {
                     mockedGetPersistentDiskResponse
                   }
       )
+      mockUpdateDisk(mockDiskService, IO.unit)
     case ProviderState(States.DiskDoesNotExist, _) =>
         mockGetDisk(mockDiskService,
                     IO {
                         throw DiskNotFoundException(CloudContext.Gcp(GoogleProject("exampleProject")), DiskName("exampleDiskName"),TraceId("exampleTraceId"))
                     }
         )
+      mockUpdateDisk(mockDiskService,
+        IO {
+          throw DiskNotFoundException(CloudContext.Gcp(GoogleProject("exampleProject")), DiskName("exampleDiskName"), TraceId("exampleTraceId"))
+        }
+      )
   }
 }
