@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{
   getGalaxyPostgresDiskName,
@@ -42,6 +43,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchE
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.{ChartVersion, HelmException}
+
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
