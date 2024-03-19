@@ -37,7 +37,7 @@ object AppStateManager {
   object States {
     final val AppExists = "there is an app in a Google project"
     final val AppDoesNotExist = "there is not an app in a Google project"
-    final val GoogleProjectExists = "there is a Google project"
+    final val GoogleProjectExists = "there is a Google project with apps"
   }
 
   private val mockedGetAppResponse = GetAppResponse(
