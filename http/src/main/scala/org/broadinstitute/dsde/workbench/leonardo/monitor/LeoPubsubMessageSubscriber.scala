@@ -1099,7 +1099,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       } yield ()
 
       appChart <- appQuery.getAppChart(msg.appId).transaction
-      additionalMetricsTags = Map("app" -> resolveAppType(msg.appType, appChart))
+      additionalMetricsTags = Map("appType" -> resolveAppType(msg.appType, appChart))
       _ <- asyncTasks.offer(
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createApp", additionalMetricsTags)
       )
@@ -1272,7 +1272,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <-
         if (sync) task
         else {
-          val additionalMetricsTags = Map("app" -> resolveAppType(dbApp.app.appType, Some(dbApp.app.chart)))
+          val additionalMetricsTags = Map("appType" -> resolveAppType(dbApp.app.appType, Some(dbApp.app.chart)))
           asyncTasks.offer(
             Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteApp")
           )
