@@ -601,6 +601,7 @@ object LeoPubsubCodec {
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
+      _ = println(s"messageType: $messageType, message: $message")
       value <- messageType match {
         case LeoPubsubMessageType.CreateDisk         => message.as[CreateDiskMessage]
         case LeoPubsubMessageType.UpdateDisk         => message.as[UpdateDiskMessage]
