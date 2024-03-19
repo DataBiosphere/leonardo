@@ -25,7 +25,7 @@ import java.time.Instant
 trait AzurePubsubHandlerAlgebra[F[_]] {
 
   /** Creates an Azure VM but doesn't wait for its completion.
-   * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created syncronously
+   * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
    * */
   def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
