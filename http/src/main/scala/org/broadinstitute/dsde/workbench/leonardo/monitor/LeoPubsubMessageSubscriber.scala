@@ -356,13 +356,16 @@ class LeoPubsubMessageSubscriber[F[_]](
             .void
         )
       }
+      labels <- labelQuery.getAllForResource(msg.runtimeId, LabelResourceType.runtime).transaction
+      isAoU = labels.get(AOU_UI_LABEL).contains("true").toString
       _ <- asyncTasks.offer(
         Task(
           ctx.traceId,
           fa,
           Some(handleRuntimeMessageError(runtime.id, ctx.now, s"deleting runtime ${runtime.projectNameString} failed")),
           ctx.now,
-          "deleteRuntime"
+          "deleteRuntime",
+          Map("isAoU" -> isAoU)
         )
       )
     } yield ()
