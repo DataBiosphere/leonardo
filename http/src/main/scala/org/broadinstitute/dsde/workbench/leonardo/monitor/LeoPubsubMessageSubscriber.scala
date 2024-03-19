@@ -427,6 +427,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             _ <- logger.info(
               s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
             )
+            isAoU = runtime.labels.get(AOU_UI_LABEL).contains("true").toString
             _ <- asyncTasks.offer(
               Task(
                 ctx.traceId,
@@ -439,7 +440,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                "stopRuntime"
+                "stopRuntime",
+                Map("isAoU" -> isAoU)
               )
             )
           } yield ()
@@ -485,6 +487,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             )
             _ <- runtimeConfig.cloudService.interpreter
               .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
+            isAoU = runtime.labels.get(AOU_UI_LABEL).contains("true").toString
             _ <- asyncTasks.offer(
               Task(
                 ctx.traceId,
@@ -496,7 +499,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                "startRuntime"
+                "startRuntime",
+                Map("isAoU" -> isAoU)
               )
             )
           } yield ()
@@ -592,7 +596,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               )(dd => persistentDiskQuery.updateSize(dd.diskId, dd.newDiskSize, ctx.now).transaction)
           } yield ()
         }
-
+      isAoU = runtime.labels.get(AOU_UI_LABEL).contains("true").toString
       _ <-
         if (msg.stopToUpdateMachineType) {
           for {
@@ -638,7 +642,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                "stopAndUpdateRuntime"
+                "stopAndUpdateRuntime",
+                Map("isAoU" -> isAoU)
               )
             )
           } yield ()
