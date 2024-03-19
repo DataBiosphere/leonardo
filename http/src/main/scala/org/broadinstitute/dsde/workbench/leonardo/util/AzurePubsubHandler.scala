@@ -571,8 +571,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
     } yield ()
 
-  // TODO: move
-  final case class PollVmParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
   private def monitorDeleteVm(params: PollVmParams)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -617,9 +615,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
       }
     } yield ()
-  private def monitorDeleteStorageContainer()(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] = F.unit // TODO
+//  private def monitorDeleteStorageContainer()(implicit
+//    ev: Ask[F, AppContext]
+//  ): F[Unit] = F.unit // TODO
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
@@ -755,7 +753,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
     } yield ()
 
-  final case class WsmDiskAndLeoDisk(diskId: DiskId, wsmControlledResourceId: WsmControlledResourceId)
   override def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     for {
       ctx <- ev.ask

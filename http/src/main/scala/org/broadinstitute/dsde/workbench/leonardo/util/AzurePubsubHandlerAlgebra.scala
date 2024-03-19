@@ -117,6 +117,10 @@ final case class PollDiskParams(workspaceId: WorkspaceId,
                                 wsmResourceId: WsmControlledResourceId
 )
 
+final case class PollVmParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
+
+final case class WsmDiskAndLeoDisk(diskId: DiskId, wsmControlledResourceId: WsmControlledResourceId)
+
 /**
  * This case class represents the necessary information to poll all objects associated with the runtime, namely disk and vm
  */
