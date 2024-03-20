@@ -23,7 +23,6 @@ object MockDiskServiceInterp extends DiskService[IO] {
         CommonTestData.zone,
         CommonTestData.diskName,
         CommonTestData.serviceAccount,
-        CommonTestData.diskSamResource,
         DiskStatus.Ready,
         CommonTestData.auditInfo,
         CommonTestData.diskSize,

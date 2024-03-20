@@ -57,7 +57,6 @@ object DiskRoutesTestJsonCodec {
                                       zone,
                                       name,
                                       serviceAccount,
-                                      PersistentDiskSamResourceId("test"),
                                       status,
                                       auditInfo,
                                       size,
