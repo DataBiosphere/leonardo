@@ -42,7 +42,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsp.ChartVersion
+import org.broadinstitute.dsp.{ChartVersion, HelmException}
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -1410,16 +1410,39 @@ class LeoPubsubMessageSubscriber[F[_]](
             .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
       }
 
-      _ <- updateApp.adaptError { case e =>
-        PubsubKubernetesError(
-          AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
-          Some(msg.appId),
-          false,
-          None,
-          None,
-          None
-        )
-      }
+      _ <- updateApp
+        .handleErrorWith {
+          // Fatal case (as in, the app is no longer usable), polling app liveliness failed
+          // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
+          // This would provide more cases in which an app is left in a usable state
+          case e: AppUpdatePollingException => F.raiseError(e)
+          // Fatal case, helm call failed for either listener or app charts
+          case e: HelmException => F.raiseError(e)
+          // Non fatal catch-all case, set app status back to running but append whatever error occurred in db for traceability
+          case e =>
+            for {
+              _ <- appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
+              error = AppError(
+                s"Error updating Azure app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}: ${e.getMessage}",
+                ctx.now,
+                ErrorAction.UpdateApp,
+                ErrorSource.App,
+                None,
+                Some(ctx.traceId)
+              )
+              _ <- appErrorQuery.save(msg.appId, error).transaction
+            } yield ()
+        }
+        .adaptError { case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
+            Some(msg.appId),
+            false,
+            None,
+            None,
+            None
+          )
+        }
 
       _ <- asyncTasks.offer(Task(ctx.traceId, updateApp, Some(handleKubernetesError), ctx.now, "updateApp"))
     } yield ()
