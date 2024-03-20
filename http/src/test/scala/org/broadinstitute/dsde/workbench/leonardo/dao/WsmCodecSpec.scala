@@ -128,7 +128,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
 
   it should "encode DeleteVmRequest" in {
     val fixedUUID = UUID.randomUUID().toString
-    val req = DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(fixedUUID)))
+    val req = WsmDaoDeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(fixedUUID)))
 
     req.asJson.deepDropNullValues.noSpaces shouldBe
       s"""
