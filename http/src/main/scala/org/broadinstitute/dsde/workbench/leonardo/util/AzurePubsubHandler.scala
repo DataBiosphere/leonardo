@@ -495,7 +495,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       _ <- resp.getJobReport.getStatus match {
         case JobReport.StatusEnum.FAILED =>
-          F.raiseError[Unit](
+          logger.error() >> F.raiseError[Unit](
             AzureRuntimeCreationError(
               params.runtime.id,
               params.workspaceId,
@@ -798,6 +798,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   override def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     for {
+      // Perform initial db retrievals
       ctx <- ev.ask
 
       runtimeOpt <- dbRef.inTransaction(clusterQuery.getClusterById(msg.runtimeId))
@@ -805,7 +806,19 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       auth <- samDAO.getLeoAuthToken
       wsmApi <- buildWsmControlledResourceApiClient
 
-      // Delete the staging storage container in WSM if it exists
+      // Grab the cloud context for the runtime
+      cloudContext <- runtime.cloudContext match {
+        case _: CloudContext.Gcp =>
+          F.raiseError[AzureCloudContext](
+            PubsubHandleMessageError.ClusterError(msg.runtimeId,
+                                                  ctx.traceId,
+                                                  "Azure runtime should not have GCP cloud context"
+            )
+          )
+        case x: CloudContext.Azure => F.pure(x.value)
+      }
+
+      // Delete the storage container in WSM if it exists
       storageContainerResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
         .transaction
@@ -831,18 +844,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
       }
 
-      // Grab the cloud context for the runtime
-      cloudContext <- runtime.cloudContext match {
-        case _: CloudContext.Gcp =>
-          F.raiseError[AzureCloudContext](
-            PubsubHandleMessageError.ClusterError(msg.runtimeId,
-                                                  ctx.traceId,
-                                                  "Azure runtime should not have GCP cloud context"
-            )
-          )
-        case x: CloudContext.Azure => F.pure(x.value)
-      }
-
       // Query the Landing Zone service for the landing zone resources
       landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, auth)
 
@@ -855,9 +856,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // if there's a disk to delete, find the disk record associated with the runtime
       // - if there's a disk record, then delete in WSM
-      // - update the disk's Leo state
-
-      // Option[DiskId] -> (Option[DiskId], Option[Record])
+      // - update the disk's Leo state if it exists in leo
 
       // Perform lookups needed to get wsm disk information from DB
       diskRecordOpt <- msg.diskIdToDelete.flatTraverse { _ =>
@@ -890,14 +889,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       }
 
+      // Even if there is no wsm record yet, we may still have a leo disk record to clean up
       leoDiskCleanupActionOpt = msg.diskIdToDelete.traverse { diskId =>
         dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
       }
 
       // Formulate the WSM call and polling params for later use in async VM deletion
       deleteVmActionOpt = msg.wsmResourceId.fold {
-        // Error'd runtimes might not have a WSM resourceId and therefore no WsmJobStatus.
-        // We still want deletion to succeed in this case.
+        // Error'd runtimes might not have a WSM resourceId. We still want deletion to succeed in this case.
         logger
           .info(ctx.loggingCtx)(
             s"No VM wsmResourceId found for delete azure runtime msg $msg. No-op for wsmApi.deleteAzureVm."
@@ -910,7 +909,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         } yield Some(PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime))
       }
 
-      // Delete the Runtime in WSM
+      // Delete and poll on all associated resources in WSM, and then mark the runtime as deleted
+      // It is worth noting disk error handling is a bit special as it has its own table, the polling method for that is responsible for updating the disk to error state
+      // A possible optimization is pairing each (wsmCall, pollingOnCompletion) into operations and running them in parallel
+      // This would ensure that the ordering in conjunction with a single failure doesn't prevent as many things as possible from being deleted
       taskToRun = for {
         _ <- logger.info(ctx.loggingCtx)(
           s"beginning azure storage container deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
