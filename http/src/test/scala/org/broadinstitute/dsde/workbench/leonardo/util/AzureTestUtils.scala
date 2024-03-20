@@ -90,7 +90,7 @@ object AzureTestUtils extends MockitoSugar {
 
     // delete vm result
     when {
-      api.getDeleteAzureDiskResult(any, any)
+      api.getDeleteAzureVmResult(any, any)
     } thenAnswer { _ =>
       new DeleteControlledAzureResourceResult()
         .jobReport(

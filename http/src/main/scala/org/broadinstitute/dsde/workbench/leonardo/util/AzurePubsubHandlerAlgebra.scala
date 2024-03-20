@@ -117,9 +117,14 @@ final case class PollDiskParams(workspaceId: WorkspaceId,
                                 wsmResourceId: WsmControlledResourceId
 )
 
-final case class PollVmParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
+final case class PollDeleteDiskParams(workspaceId: WorkspaceId,
+                                      jobId: WsmJobId,
+                                      diskId: Option[DiskId],
+                                      runtime: Runtime,
+                                      wsmResourceId: WsmControlledResourceId
+)
 
-final case class WsmDiskAndLeoDisk(leoDiskId: DiskId, wsmControlledResourceId: WsmControlledResourceId)
+final case class PollVmParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
 
 final case class PollStorageContainerParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
 

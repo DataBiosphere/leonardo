@@ -523,7 +523,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
     } yield ()
 
-  private def monitorDeleteDisk(params: PollDiskParams)(implicit
+  private def monitorDeleteDisk(params: PollDeleteDiskParams)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -543,30 +543,30 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       _ <- resp.getJobReport.getStatus match {
         case JobReport.StatusEnum.FAILED =>
-          F.raiseError[Unit](
-            AzureDiskDeletionError(
-              params.diskId,
-              params.wsmResourceId,
+          params.diskId.traverse(id =>
+            dbRef.inTransaction(persistentDiskQuery.updateStatus(id, DiskStatus.Error, ctx.now))
+          ) >> F.raiseError[Unit](
+            AzureRuntimeDeletionError(
+              params.runtime.id,
               params.workspaceId,
-              s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}"
+              s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}, disk resource id ${params.wsmResourceId}"
             )
           )
         case JobReport.StatusEnum.RUNNING =>
-          F.raiseError[Unit](
-            AzureDiskDeletionError(
-              params.diskId,
-              params.wsmResourceId,
+          params.diskId.traverse(id =>
+            dbRef.inTransaction(persistentDiskQuery.updateStatus(id, DiskStatus.Error, ctx.now))
+          ) >> F.raiseError[Unit](
+            AzureRuntimeDeletionError(
+              params.runtime.id,
               params.workspaceId,
-              s"Wsm deleteDisk was not completed within ${config.deleteDiskPollConfig.maxAttempts} attempts with ${config.deleteDiskPollConfig.interval} delay"
+              s"Wsm deleteDisk was not completed within ${config.deleteDiskPollConfig.maxAttempts} attempts with ${config.deleteDiskPollConfig.interval} delay, disk resource id ${params.wsmResourceId}"
             )
           )
         case JobReport.StatusEnum.SUCCEEDED =>
           for {
             _ <- logger.info(ctx.loggingCtx)(
-              s"disk ${params.diskId.value} for runtime ${params.runtime.id} is deleted successfully"
+              s"disk  for runtime ${params.runtime.id} with resource id ${params.wsmResourceId} is deleted successfully"
             )
-            _ <- clusterQuery.setDiskDeleted(params.runtime.id, ctx.now).transaction
-            _ <- dbRef.inTransaction(persistentDiskQuery.delete(params.diskId, ctx.now))
           } yield ()
       }
     } yield ()
@@ -856,38 +856,42 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       // if there's a disk to delete, find the disk record associated with the runtime
       // - if there's a disk record, then delete in WSM
       // - update the disk's Leo state
-      // Perform lookups needed to get disk information from DB
-      diskRecordOpt <- msg.diskIdToDelete.flatTraverse { diskId =>
-        for {
-          record <- controlledResourceQuery
-            .getWsmRecordForRuntime(msg.runtimeId, WsmResourceType.AzureDisk)
-            .transaction
-        } yield record.map(record => WsmDiskAndLeoDisk(diskId, record.resourceId))
+
+      // Option[DiskId] -> (Option[DiskId], Option[Record])
+
+      // Perform lookups needed to get wsm disk information from DB
+      diskRecordOpt <- msg.diskIdToDelete.flatTraverse { _ =>
+        controlledResourceQuery
+          .getWsmRecordForRuntime(msg.runtimeId, WsmResourceType.AzureDisk)
+          .transaction
       }
 
       // Formulate the WSM call and polling params for later use in async disk deletion
-      deleteDiskActionOpt = diskRecordOpt.fold {
+      wsmDeleteDiskActionOpt = diskRecordOpt.fold {
         // if the disk hasn't been created in WSM yet, skip disk deletion
-        for {
-          _ <- logger.info(
-            s"No disk resource found for runtime ${msg.runtimeId.toString} in ${msg.workspaceId.value}. No-op for wsmDao.deleteDisk."
+        logger
+          .info(
+            s"No disk resource found for runtime ${msg.runtimeId.toString} in workspace ${msg.workspaceId.value}. No-op for wsmApi.deleteAzureDisk."
           )
-          _ <- clusterQuery.setDiskDeleted(msg.runtimeId, ctx.now).transaction
-        } yield none[PollDiskParams]
-      } { wsmAndLeoDisk =>
+          .map(_ => none[PollDeleteDiskParams])
+      } { wsmDiskRecord =>
         for {
           deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
           _ <- F.delay(
-            wsmApi.deleteAzureDisk(deleteJobControl, msg.workspaceId.value, wsmAndLeoDisk.wsmControlledResourceId.value)
+            wsmApi.deleteAzureDisk(deleteJobControl, msg.workspaceId.value, wsmDiskRecord.resourceId.value)
           )
         } yield Some(
-          PollDiskParams(msg.workspaceId,
-                         WsmJobId(deleteJobControl.getJobControl.getId),
-                         wsmAndLeoDisk.leoDiskId,
-                         runtime,
-                         wsmAndLeoDisk.wsmControlledResourceId
+          PollDeleteDiskParams(msg.workspaceId,
+                               WsmJobId(deleteJobControl.getJobControl.getId),
+                               msg.diskIdToDelete,
+                               runtime,
+                               wsmDiskRecord.resourceId
           )
         )
+      }
+
+      leoDiskCleanupActionOpt = msg.diskIdToDelete.traverse { diskId =>
+        dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
       }
 
       // Formulate the WSM call and polling params for later use in async VM deletion
@@ -896,7 +900,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         // We still want deletion to succeed in this case.
         logger
           .info(ctx.loggingCtx)(
-            s"No VM wsmResourceId found for delete azure runtime msg $msg. No-op for wsmDao.deleteVm."
+            s"No VM wsmResourceId found for delete azure runtime msg $msg. No-op for wsmApi.deleteAzureVm."
           )
           .map(_ => none[PollVmParams])
       } { resourceId =>
@@ -908,16 +912,35 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // Delete the Runtime in WSM
       taskToRun = for {
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning azure storage container deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
         pollStagingParamsOpt <- deleteStorageContainerActionOpt
         _ <- pollStagingParamsOpt.traverse(params => monitorDeleteStorageContainer(params))
 
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning hybrid connection deletion for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
         _ <- deleteHybridConnectionAction
 
-        pollDiskParamsOpt <- deleteDiskActionOpt
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning azure disk deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
+
+        // if Some(leodisk) None(wsmDisk) -> mark deleted
+        // if Some(leodisk) Some(wsmDisk) -> poll then mark deleted
+        // if none(leodisk)  Some(wsmDisk) -> poll
+        // if none(LeoDisk) none(wsmDisk) -> noop
+        pollDiskParamsOpt <- wsmDeleteDiskActionOpt
         _ <- pollDiskParamsOpt.traverse(params => monitorDeleteDisk(params))
+        _ <- leoDiskCleanupActionOpt
 
         pollDeleteVmParamsOpt <- deleteVmActionOpt
         _ <- pollDeleteVmParamsOpt.traverse(params => monitorDeleteVm(params))
+
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning azure vm deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
 
         _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
         _ <- logger.info(ctx.loggingCtx)(
@@ -1222,8 +1245,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case org.http4s.Credentials.Token(_, token) => F.pure(token)
         case _ => F.raiseError[String](new RuntimeException("Could not obtain Leo auth token"))
       }
-      wsmApi <- wsmClientProvider.getControlledAzureResourceApi(token)
-    } yield wsmApi
+      wsmControlledResourceClient <- wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmControlledResourceClient
 
   private def getDeleteControlledResourceRequest: bio.terra.workspace.model.DeleteControlledAzureResourceRequest = {
     val deleteStorageContainerJobId = WsmJobId(UUID.randomUUID().toString)
