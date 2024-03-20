@@ -41,7 +41,7 @@ final class LeoPublisher[F[_]](
           Stream
             .eval(F.pure(event))
             .covary[F]
-            .through(publishMessageWithAttributes)
+            .through(publishMessageWithAttributes())
             .evalMap(_ => updateDatabase(event))
             .handleErrorWith { t =>
               val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
