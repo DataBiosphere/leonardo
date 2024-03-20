@@ -3265,7 +3265,6 @@ components:
         - zone
         - name
         - serviceAccount
-        - samResourceId
         - status
         - auditInfo
         - size
@@ -3288,9 +3287,6 @@ components:
         serviceAccount:
           type: string
           description: The account used to create the disk
-        samResourceId:
-          type: string
-          description: Internal resource ID of the persistent disk
         status:
           $ref: "#/components/schemas/DiskStatus"
         auditInfo:
