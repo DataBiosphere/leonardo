@@ -37,7 +37,7 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
       _ <- task.op.handleErrorWith { case err =>
         task.errorHandler.traverse(cb => cb(err)) >> logger.error(Map("traceId" -> task.traceId.asString), err)(
           s"Error when executing async task"
-        ) >> metrics.gauge("asyncTaskError", 1, tags)
+        ) >> metrics.incrementCounter("asyncTaskError", 1, tags)
       }
       end <- F.realTimeInstant
       timeToFinishTask = (end.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
