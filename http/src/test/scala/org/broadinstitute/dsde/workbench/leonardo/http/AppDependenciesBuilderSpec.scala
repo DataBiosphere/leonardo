@@ -69,10 +69,11 @@ class AppDependenciesBuilderSpec
   }
 
   // There are 3 processes that are common to backend and combined modes:
-  // 1. LeoPubsubMessageSubscriber
-  // 2. AutopauseMonitor
-  // 3. LeoMetricsMonitor
-  private val baselineNumberOfExpectedProcessesForBackendAndCombinedModes = 3
+  // 1. CloudSubscriber (Leo messaging subscriber)
+  // 2. LeoPubsubMessageSubscriber
+  // 3. AutopauseMonitor
+  // 4. LeoMetricsMonitor
+  private val baselineNumberOfExpectedProcessesForBackendAndCombinedModes = 4
 
   // There are 2 processes that are specific to frontend:
   // 1. DateAccessedUpdater

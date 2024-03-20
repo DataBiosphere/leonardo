@@ -36,6 +36,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
+import fs2.Stream
 
 /**
  * Builds the App dependencies
@@ -257,6 +258,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
 
     val pubsubSubscriber = new LeoPubsubMessageSubscriber[IO](
       leoPubsubMessageSubscriberConfig,
+      baselineDependencies.subscriber,
       baselineDependencies.asyncTasksQueue,
       baselineDependencies.authProvider,
       azureAlg,
@@ -267,7 +269,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     val configuredProcesses = leoExecutionModeConfig match {
       case LeoExecutionModeConfig.BackLeoOnly =>
         List(
-          pubsubSubscriber.process(baselineDependencies.subscriber),
+          Stream.eval(baselineDependencies.subscriber.start),
+          pubsubSubscriber.process,
           autopauseMonitorProcess,
           metricsMonitor.process
         ) ++ cloudSpecificProcessList
@@ -277,7 +280,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
         ).process :: createFrontEndLeoProcesses(baselineDependencies)
       case LeoExecutionModeConfig.Combined =>
         List(
-          pubsubSubscriber.process(baselineDependencies.subscriber),
+          Stream.eval(baselineDependencies.subscriber.start),
+          pubsubSubscriber.process,
           autopauseMonitorProcess,
           metricsMonitor.process
         ) ++ cloudSpecificProcessList ++ createFrontEndLeoProcesses(baselineDependencies)

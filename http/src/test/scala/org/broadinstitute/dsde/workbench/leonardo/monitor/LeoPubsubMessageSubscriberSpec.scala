@@ -54,7 +54,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerInterp
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.util2.messaging.{AckHandler, ReceivedMessage}
+import org.broadinstitute.dsde.workbench.util2.messaging.{AckHandler, CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
@@ -2312,7 +2312,6 @@ class LeoPubsubMessageSubscriberSpec
   )(implicit metrics: OpenTelemetryMetrics[IO]): LeoPubsubMessageSubscriber[IO] = {
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)
-
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
 
     val subscriberServicesRegistry = ServicesRegistry()
@@ -2323,6 +2322,8 @@ class LeoPubsubMessageSubscriberSpec
     when(gcpDependencies.googleDiskService).thenReturn(diskService)
     subscriberServicesRegistry.register[GcpDependencies[IO]](gcpDependencies)
     subscriberServicesRegistry.register[GKEAlgebra[IO]](gkeAlgebra)
+    val cloudSubscriber = mock[CloudSubscriber[IO, LeoPubsubMessage]]
+    when(cloudSubscriber.messages).thenReturn(Stream.empty)
 
     val underlyingOperationFutureCache =
       Caffeine
@@ -2339,6 +2340,7 @@ class LeoPubsubMessageSubscriberSpec
                                        Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig,
                                        Config.leoPubsubMessageSubscriberConfig.galaxyDiskConfig
       ),
+      cloudSubscriber,
       asyncTaskQueue,
       MockAuthProvider,
       azureInterp,

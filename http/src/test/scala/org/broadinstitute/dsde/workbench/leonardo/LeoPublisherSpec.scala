@@ -77,6 +77,28 @@ class LeoPublisherSpec extends AnyFlatSpecLike with MockitoSugar with Matchers w
     capturedMap should contain("traceId" -> "1")
   }
 
+  it should "publish message with traceId and leonardo=true attributes" in {
+    val cloudPublisher = new TestCloudPublisher()
+    val publisherQueue = Queue.unbounded[IO, LeoPubsubMessage].unsafeRunSync()
+
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, cloudPublisher)
+    val traceId = TraceId("1")
+    val message: LeoPubsubMessage.CreateRuntimeMessage = createRuntimeMessage(Some(traceId))
+
+    val result = for {
+      _ <- leoPublisher.process.compile.drain.start
+      _ <- publisherQueue.offer(message)
+      _ <- cloudPublisher.stopSignal.get.attempt
+    } yield ()
+
+    result.unsafeRunSync()
+
+    cloudPublisher.messages.length shouldEqual 1
+    val (_, capturedMap) = cloudPublisher.messages.head
+    capturedMap should contain("traceId" -> "1")
+    capturedMap should contain("leonardo" -> "true")
+  }
+
   it should "publish multiple messages" in {
     val cloudPublisher = new TestCloudPublisher(2)
     val publisherQueue = Queue.unbounded[IO, LeoPubsubMessage].unsafeRunSync()
