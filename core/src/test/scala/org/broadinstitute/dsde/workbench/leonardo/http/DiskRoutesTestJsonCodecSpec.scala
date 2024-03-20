@@ -3,7 +3,6 @@ package http
 
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -52,7 +51,6 @@ class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with A
       ZoneName("us-central1-a"),
       DiskName("rzxybksgvy"),
       WorkbenchEmail("b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"),
-      PersistentDiskSamResourceId("test"),
       DiskStatus.Ready,
       AuditInfo(
         WorkbenchEmail("ron.weasley@test.firecloud.org"),

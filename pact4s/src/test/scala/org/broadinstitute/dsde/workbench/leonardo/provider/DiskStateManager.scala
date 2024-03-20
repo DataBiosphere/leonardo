@@ -44,7 +44,6 @@ object DiskStateManager {
     ZoneName("exampleZone"),
     DiskName("exampleDiskName"),
     WorkbenchEmail("example@email.com"),
-    SamResourceId.PersistentDiskSamResourceId("exampleSamResourceId"),
     DiskStatus.Ready,
     AuditInfo(WorkbenchEmail(""), Instant.now(), None, Instant.now()),
     DiskSize(100),

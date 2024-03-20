@@ -99,7 +99,6 @@ object DiskServiceDbQueries {
           diskRec.zone,
           diskRec.name,
           diskRec.serviceAccount,
-          diskRec.samResource,
           diskRec.status,
           AuditInfo(diskRec.creator,
                     diskRec.createdDate,
