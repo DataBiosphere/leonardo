@@ -495,7 +495,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       _ <- resp.getJobReport.getStatus match {
         case JobReport.StatusEnum.FAILED =>
-          logger.error() >> F.raiseError[Unit](
+          logger.error(s"Wsm createDisk job failed due to ${resp.getErrorReport.getMessage}") >> F.raiseError[Unit](
             AzureRuntimeCreationError(
               params.runtime.id,
               params.workspaceId,
@@ -543,15 +543,19 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       _ <- resp.getJobReport.getStatus match {
         case JobReport.StatusEnum.FAILED =>
-          params.diskId.traverse(id =>
-            dbRef.inTransaction(persistentDiskQuery.updateStatus(id, DiskStatus.Error, ctx.now))
-          ) >> F.raiseError[Unit](
-            AzureRuntimeDeletionError(
-              params.runtime.id,
-              params.workspaceId,
-              s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}, disk resource id ${params.wsmResourceId}"
+          for {
+            _ <- logger.error(s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}")
+            _ <- params.diskId.traverse(id =>
+              dbRef.inTransaction(persistentDiskQuery.updateStatus(id, DiskStatus.Error, ctx.now))
             )
-          )
+            _ <- F.raiseError[Unit](
+              AzureRuntimeDeletionError(
+                params.runtime.id,
+                params.workspaceId,
+                s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}, disk resource id ${params.wsmResourceId}"
+              )
+            )
+          } yield ()
         case JobReport.StatusEnum.RUNNING =>
           params.diskId.traverse(id =>
             dbRef.inTransaction(persistentDiskQuery.updateStatus(id, DiskStatus.Error, ctx.now))
@@ -597,7 +601,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           } yield ()
         case JobReport.StatusEnum.FAILED =>
-          F.raiseError[Unit](
+          logger.error(s"Wsm deleteVm job failed due to ${resp.getErrorReport.getMessage}") >> F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
               params.workspaceId,
@@ -644,13 +648,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           } yield ()
         case JobReport.StatusEnum.FAILED =>
-          F.raiseError[Unit](
-            AzureRuntimeDeletionError(
-              params.runtime.id,
-              params.workspaceId,
-              s"WSM storage container delete job failed due to ${resp.getErrorReport.getMessage} for runtime ${params.runtime.id}"
+          logger.error(s"Wsm deleteStorageContainer job failed due to ${resp.getErrorReport.getMessage}") >> F
+            .raiseError[Unit](
+              AzureRuntimeDeletionError(
+                params.runtime.id,
+                params.workspaceId,
+                s"WSM storage container delete job failed due to ${resp.getErrorReport.getMessage} for runtime ${params.runtime.id}"
+              )
             )
-          )
         case JobReport.StatusEnum.RUNNING =>
           F.raiseError[Unit](
             AzureRuntimeDeletionError(
