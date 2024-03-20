@@ -2,16 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.Async
 import cats.effect.std.Queue
+import cats.mtl.Ask
 import cats.syntax.all._
-import fs2.Stream
+import fs2.{Pipe, Stream}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.typelevel.log4cats.StructuredLogger
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -33,10 +36,12 @@ final class LeoPublisher[F[_]](
     val publishingStream =
       Stream.eval(logger.info(s"Initializing publisher")) ++ Stream.fromQueueUnterminated(publisherQueue).flatMap {
         event =>
+          implicit val traceIdImplicit: Ask[F, TraceId] =
+            Ask.const[F, TraceId](event.traceId.getOrElse(TraceId(UUID.randomUUID().toString)))
           Stream
             .eval(F.pure(event))
             .covary[F]
-            .through(cloudPublisher.publish)
+            .through(publishMessageWithAttributes)
             .evalMap(_ => updateDatabase(event))
             .handleErrorWith { t =>
               val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
@@ -49,6 +54,18 @@ final class LeoPublisher[F[_]](
             }
       }
     Stream(publishingStream, recordMetrics).covary[F].parJoin(2)
+  }
+
+  private def publishMessageWithAttributes()(implicit traceId: Ask[F, TraceId]): Pipe[F, LeoPubsubMessage, Unit] =
+    in =>
+      in.map { msg =>
+        val attributes = createAttributes(msg)
+        cloudPublisher.publishOne(msg, attributes)
+      }
+
+  private def createAttributes(message: LeoPubsubMessage): Map[String, String] = {
+    val baseAttributes = Map("leonardo" -> "true")
+    message.traceId.fold(baseAttributes)(traceId => baseAttributes + ("traceId" -> traceId.asString))
   }
 
   private def recordMetrics: Stream[F, Unit] = {
