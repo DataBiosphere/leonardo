@@ -2641,6 +2641,7 @@ class RuntimeServiceInterpTest
     val mockCloudPublisher = mock[CloudPublisher[IO]]
     def noOpPipe[A]: Pipe[IO, A, Unit] = _.evalMap(_ => IO.unit)
     when(mockCloudPublisher.publish[LeoPubsubMessage](any)).thenReturn(noOpPipe)
+    when(mockCloudPublisher.publishOne[LeoPubsubMessage](any, any)(any, any)).thenReturn(IO.unit)
 
     val leoPublisher = new LeoPublisher[IO](publisherQueue, mockCloudPublisher)(
       implicitly,

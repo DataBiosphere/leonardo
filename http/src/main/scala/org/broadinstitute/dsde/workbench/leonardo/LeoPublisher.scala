@@ -51,13 +51,11 @@ final class LeoPublisher[F[_]](
     Stream(publishingStream, recordMetrics).covary[F].parJoin(2)
   }
 
-  private def publishMessageAndSetAttributes(event: LeoPubsubMessage) = {
-    implicit val traceIdImplicit: Ask[F, TraceId] = traceIdAsk(event)
+  private def publishMessageAndSetAttributes(event: LeoPubsubMessage) =
     for {
-      _ <- cloudPublisher.publishOne(event, createAttributes(event))
-      - <- logger.info(s"Published message of type ${event.messageType.asString}, message: $event")
+      _ <- cloudPublisher.publishOne(event, createAttributes(event))(leoPubsubMessageEncoder, traceIdAsk(event))
+      _ <- logger.info(s"Published message of type ${event.messageType.asString}, message: $event")
     } yield ()
-  }
 
   private def traceIdAsk(message: LeoPubsubMessage): Ask[F, TraceId] =
     Ask.const[F, TraceId](message.traceId.getOrElse(TraceId("None")))
