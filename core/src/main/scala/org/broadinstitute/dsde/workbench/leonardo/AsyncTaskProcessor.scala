@@ -30,7 +30,7 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
       now <- F.realTimeInstant
       latency = (now.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
       tags = Map("taskName" -> task.taskName) ++ task.additionalMetricsTags
-      _ <- recordLatency("asyncTaskLatency", latency, tags)
+      _ <- recordLatency("asyncTaskLatency", latency, tags, task.traceId)
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
         s"Executing task ${task.taskName} with latency of ${latency.toSeconds} seconds"
       )
@@ -41,7 +41,7 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
       }
       end <- F.realTimeInstant
       timeToFinishTask = (end.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
-      _ <- recordLatency("asyncTaskDuration", timeToFinishTask, tags)
+      _ <- recordLatency("asyncTaskDuration", timeToFinishTask, tags, task.traceId)
     } yield ()
 
   private def recordCurrentNumOfTasks: Stream[F, Unit] = {
@@ -54,20 +54,26 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
   }
 
   // record the latency between message being enqueued and task gets executed
-  private def recordLatency(metricsName: String, latency: FiniteDuration, tags: Map[String, String]): F[Unit] =
-    metrics.recordDuration(metricsName,
-                           latency,
-                           List(
-                             10 seconds,
-                             1 minutes,
-                             2 minutes,
-                             4 minutes,
-                             8 minutes,
-                             16 minutes,
-                             32 minutes
-                           ),
-                           tags
-    )
+  private def recordLatency(metricsName: String,
+                            latency: FiniteDuration,
+                            tags: Map[String, String],
+                            traceId: TraceId
+  ): F[Unit] =
+    metrics
+      .recordDuration(metricsName,
+                      latency,
+                      List(
+                        10 seconds,
+                        1 minutes,
+                        2 minutes,
+                        4 minutes,
+                        8 minutes,
+                        16 minutes,
+                        32 minutes
+                      ),
+                      tags
+      )
+      .handleErrorWith(e => logger.error(Map("traceId" -> traceId.asString), e)(s"Error recording latency"))
 }
 
 object AsyncTaskProcessor {
