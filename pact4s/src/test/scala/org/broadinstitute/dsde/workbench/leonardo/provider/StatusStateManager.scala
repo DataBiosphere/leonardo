@@ -24,13 +24,25 @@ object StatusStateManager {
 
   def handler(mockStatusService: StatusService): PartialFunction[ProviderState, Unit] = {
     case ProviderState(States.SystemOk, _) =>
-
-      mockGetStatus(mockStatusService, Future.successful(StatusCheckResponse(ok = true, Map(
-        Subsystems.Cromwell -> SubsystemStatus(ok = true, Some(List("Looks good"))),
-      ))))
+      mockGetStatus(mockStatusService,
+                    Future.successful(
+                      StatusCheckResponse(ok = true,
+                                          Map(
+                                            Subsystems.Cromwell -> SubsystemStatus(ok = true, Some(List("Looks good")))
+                                          )
+                      )
+                    )
+      )
     case ProviderState(States.SystemDown, _) =>
-      mockGetStatus(mockStatusService, Future.successful(StatusCheckResponse(ok = false, Map(
-        Subsystems.Cromwell -> SubsystemStatus(ok = false, Some(List("System is down"))),
-      ))))
+      mockGetStatus(
+        mockStatusService,
+        Future.successful(
+          StatusCheckResponse(ok = false,
+                              Map(
+                                Subsystems.Cromwell -> SubsystemStatus(ok = false, Some(List("System is down")))
+                              )
+          )
+        )
+      )
   }
 }
