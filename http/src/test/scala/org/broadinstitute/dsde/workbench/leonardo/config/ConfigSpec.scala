@@ -83,7 +83,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "69.173.127.240/28",
         "69.173.112.0/21"
       ).map(CidrIP),
-      KubernetesClusterVersion("1.25"),
+      KubernetesClusterVersion("1.28"),
       1 hour,
       200
     )
@@ -138,7 +138,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         ChartVersion("2.5.1"),
         ChartVersion("2.5.2"),
         ChartVersion("2.8.0"),
-        ChartVersion("2.8.1")
+        ChartVersion("2.8.1"),
+        ChartVersion("2.9.0")
       )
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
