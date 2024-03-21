@@ -3,7 +3,7 @@ package util
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import bio.terra.workspace.model.JobReport
+import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, DeleteControlledAzureResourceResult, JobReport}
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.implicits._
@@ -34,11 +34,11 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
-
 import java.net.URL
 import java.nio.file.Paths
 import java.time.{Instant, ZonedDateTime}
 import java.util.UUID
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AzurePubsubHandlerSpec
@@ -599,6 +599,10 @@ class AzurePubsubHandlerSpec
         } yield {
           verify(mockControlledResourceApi, times(1)).getDeleteAzureStorageContainerResult(any[UUID], any[String])
           verify(mockControlledResourceApi, times(1)).getDeleteAzureVmResult(any[UUID], any[String])
+          verify(mockControlledResourceApi, times(0)).deleteAzureDisk(any[DeleteControlledAzureResourceRequest],
+                                                                      any[UUID],
+                                                                      any[UUID]
+          )
           getRuntime.status shouldBe RuntimeStatus.Deleted
           controlledResources.length shouldBe 2
           val resourceTypes = controlledResources.map(_.resourceType)

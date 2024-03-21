@@ -861,7 +861,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // if there's a disk to delete, find the disk record associated with the runtime
       // - if there's a disk record, then delete in WSM
-      // - update the disk's Leo state if it exists in leo
+      //   - update the disk's Leo state if it exists in leo AND the user specifies deletion
 
       // Perform lookups needed to get wsm disk information from DB
       diskRecordOpt <- msg.diskIdToDelete.flatTraverse { _ =>
@@ -936,9 +936,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
         // if Some(leodisk) None(wsmDisk) -> mark deleted
         // if Some(leodisk) Some(wsmDisk) -> poll then mark deleted
-        // if none(leodisk)  Some(wsmDisk) -> poll
+        // if none(leodisk) Some(wsmDisk) -> do not poll, user wants to keep disk, noop
         // if none(LeoDisk) none(wsmDisk) -> noop
-        pollDiskParamsOpt <- wsmDeleteDiskActionOpt
+        pollDiskParamsOpt <-
+          if (msg.diskIdToDelete.isDefined) wsmDeleteDiskActionOpt else F.delay(none[PollDeleteDiskParams])
         _ <- pollDiskParamsOpt.traverse(params => monitorDeleteDisk(params))
         _ <- leoDiskCleanupActionOpt
 
