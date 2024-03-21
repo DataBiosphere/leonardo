@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
   Jupyter,
   Proxy,
   RStudio,
+  sfkit,
   Welder
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
@@ -229,6 +230,8 @@ object CommonTestData {
     RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val customDataprocImage =
     RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val sfkitImage =
+    RuntimeImage(sfkit, imageConfig.sfkitImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
@@ -386,7 +389,7 @@ object CommonTestData {
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = Some("clientId"),
     allowStop = false,
-    runtimeImages = Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage),
+    runtimeImages = Set(jupyterImage, welderImage, proxyImage, sfkitImage, cryptoDetectorImage),
     scopes = defaultScopes,
     welderEnabled = true,
     customEnvironmentVariables = Map.empty,

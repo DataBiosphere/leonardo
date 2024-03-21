@@ -389,6 +389,7 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   // or boot disk snapshot for GCE VMs
   case object BootSource extends RuntimeImageType
   case object Proxy extends RuntimeImageType
+  case object sfkit extends RuntimeImageType
   case object CryptoDetector extends RuntimeImageType
 
   case object Azure extends RuntimeImageType

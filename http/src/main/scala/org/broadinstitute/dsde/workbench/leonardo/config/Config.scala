@@ -173,6 +173,7 @@ object Config {
       config.getString("welderHash"),
       config.as[ContainerImage]("jupyterImage"),
       config.as[ContainerImage]("proxyImage"),
+      config.as[ContainerImage]("sfkitImage"),
       config.as[ContainerImage]("cryptoDetectorImage"),
       config.getString("jupyterContainerName"),
       config.getString("rstudioContainerName"),

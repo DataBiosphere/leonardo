@@ -51,7 +51,7 @@ object RuntimeStateManager {
     None,
     30,
     Some("clientId"),
-    Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
+    Set(jupyterImage, welderImage, proxyImage, sfkitImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
     defaultScopes,
     welderEnabled = true,
     patchInProgress = true,

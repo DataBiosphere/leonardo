@@ -8,6 +8,7 @@ final case class ImageConfig(
   welderHash: String,
   jupyterImage: ContainerImage,
   proxyImage: ContainerImage,
+  sfkitImage: ContainerImage,
   cryptoDetectorImage: ContainerImage,
   jupyterContainerName: String,
   rstudioContainerName: String,

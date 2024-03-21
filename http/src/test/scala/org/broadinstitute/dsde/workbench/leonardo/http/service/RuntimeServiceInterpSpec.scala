@@ -337,6 +337,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -487,6 +488,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -560,6 +562,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -781,6 +784,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -2624,12 +2628,12 @@ class RuntimeServiceInterpTest
   }
 
   it should "test getToolFromImages - get the Jupyter tool from list of cluster images" in isolatedDbTest {
-    val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage))
+    val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, sfkitImage, cryptoDetectorImage))
     tool shouldBe Some(Tool.Jupyter)
   }
 
   it should "test getToolFromImages - get the RStudio tool from list of cluster images" in isolatedDbTest {
-    val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, cryptoDetectorImage))
+    val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, sfkitImage, cryptoDetectorImage))
     tool shouldBe Some(Tool.RStudio)
   }
 

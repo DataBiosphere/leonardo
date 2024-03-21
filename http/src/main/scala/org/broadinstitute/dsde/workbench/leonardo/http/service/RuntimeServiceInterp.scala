@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, sfkit, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   ProjectSamResourceId,
@@ -731,12 +731,14 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       // Get the proxy image
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, None, now)
+      // sfkit sidecar image
+      sfkitImage = RuntimeImage(sfkit, config.imageConfig.sfkitImage.imageUrl, None, now)
       // Crypto detector image - note it's not currently supported on Dockerhub
       cryptoDetectorImageOpt = welderRegistry match {
         case Some(ContainerRegistry.DockerHub) => None
         case _ => Some(RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, None, now))
       }
-    } yield Set(Some(toolImage), welderImage, Some(proxyImage), cryptoDetectorImageOpt).flatten
+    } yield Set(Some(toolImage), welderImage, Some(proxyImage), Some(sfkitImage), cryptoDetectorImageOpt).flatten
 
   private[service] def validateBucketObjectUri(
     userEmail: WorkbenchEmail,
