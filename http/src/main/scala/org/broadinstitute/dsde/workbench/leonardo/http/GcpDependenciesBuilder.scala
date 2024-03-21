@@ -387,8 +387,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     val cloudServiceRuntimeMonitor =
       new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-    // TODO: Verify why this is needed...
-    implicit val runtimeInstances: RuntimeInstances[IO] = new RuntimeInstances(dataprocInterp, gceInterp)
+    val runtimeInstances: RuntimeInstances[IO] = new RuntimeInstances(dataprocInterp, gceInterp)
 
     val servicesRegistry = ServicesRegistry()
 
@@ -402,6 +401,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     servicesRegistry.register[RuntimeMonitor[IO, CloudService]](cloudServiceRuntimeMonitor)
     servicesRegistry.register[ResourcesService[IO]](resourcesService)
     servicesRegistry.register[LeoAppServiceInterp[IO]](leoKubernetesService)
+    servicesRegistry.register[RuntimeInstances[IO]](runtimeInstances)
 
     servicesRegistry
 

@@ -91,6 +91,7 @@ class GcpDependenciesBuilderSpec
     registry.lookup[RuntimeMonitor[IO, CloudService]].get shouldBe a[RuntimeMonitor[IO, CloudService]]
     registry.lookup[ResourcesService[IO]].get shouldBe a[ResourcesServiceInterp[IO]]
     registry.lookup[LeoAppServiceInterp[IO]].get shouldBe a[LeoAppServiceInterp[IO]]
+    registry.lookup[RuntimeInstances[IO]].get shouldBe a[RuntimeInstances[IO]]
   }
 
   // NonLeoMessageSubscriber[IO], CloudSubscriber (NonLeoMessageSubscriber), and MonitorAtBoot
