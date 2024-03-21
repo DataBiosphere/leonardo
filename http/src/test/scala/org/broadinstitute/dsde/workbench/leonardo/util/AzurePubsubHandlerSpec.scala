@@ -3,7 +3,7 @@ package util
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, DeleteControlledAzureResourceResult, JobReport}
+import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, JobReport}
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.implicits._
@@ -1317,40 +1317,12 @@ class AzurePubsubHandlerSpec
 
   it should "not send delete to WSM without a disk record" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val mockWsmDao = mock[WsmDao[IO]]
-    when {
-      mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(landingZoneResources)
-    when {
-      mockWsmDao.getWorkspaceStorageContainer(WorkspaceId(any[UUID]), any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-    when {
-      mockWsmDao.deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(
-      GetDeleteJobResult(
-        WsmJobReport(
-          WsmJobId("job1"),
-          "desc",
-          WsmJobStatus.Succeeded,
-          200,
-          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-          "resultUrl"
-        ),
-        None
-      )
-    )
 
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val (mockWsm, mockControlledResourceApi, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
+
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -1371,10 +1343,7 @@ class AzurePubsubHandlerSpec
           diskStatusOpt <- persistentDiskQuery.getStatus(disk.id).transaction
           diskStatus = diskStatusOpt.get
         } yield {
-          verify(mockWsmDao, times(0)).deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(
-            any[Ask[IO, AppContext]]
-          )
-
+          verify(mockControlledResourceApi, times(0)).deleteAzureDisk(any[DeleteControlledAzureResourceRequest], any[UUID], any[UUID])
           diskStatus shouldBe DiskStatus.Deleted
         }
         msg = DeleteAzureRuntimeMessage(runtime.id,
