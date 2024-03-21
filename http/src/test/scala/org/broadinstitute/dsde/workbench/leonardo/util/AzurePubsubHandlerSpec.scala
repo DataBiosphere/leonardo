@@ -1321,7 +1321,6 @@ class AzurePubsubHandlerSpec
     val (mockWsm, mockControlledResourceApi, _) =
       AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
 
-
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
@@ -1343,7 +1342,10 @@ class AzurePubsubHandlerSpec
           diskStatusOpt <- persistentDiskQuery.getStatus(disk.id).transaction
           diskStatus = diskStatusOpt.get
         } yield {
-          verify(mockControlledResourceApi, times(0)).deleteAzureDisk(any[DeleteControlledAzureResourceRequest], any[UUID], any[UUID])
+          verify(mockControlledResourceApi, times(0)).deleteAzureDisk(any[DeleteControlledAzureResourceRequest],
+                                                                      any[UUID],
+                                                                      any[UUID]
+          )
           diskStatus shouldBe DiskStatus.Deleted
         }
         msg = DeleteAzureRuntimeMessage(runtime.id,
