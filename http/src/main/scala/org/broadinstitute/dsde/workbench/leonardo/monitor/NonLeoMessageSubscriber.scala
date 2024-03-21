@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleSubscriber,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
@@ -227,11 +227,12 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
       } yield ()
 
       _ <- asyncTasks.offer(
-        Task(ctx.traceId,
-             task,
-             Some(logError(s"${msg.nodepoolId}/${msg.googleProject}", DeleteNodepool.toString)),
-             ctx.now,
-             "deleteNodepool"
+        Task(
+          ctx.traceId,
+          task,
+          Some(logError(s"${msg.nodepoolId}/${msg.googleProject}", DeleteNodepool.toString)),
+          ctx.now,
+          TaskMetricsTags("deleteNodepool", None, None, CloudProvider.Gcp)
         )
       )
     } yield ()

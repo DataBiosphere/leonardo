@@ -29,19 +29,18 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
     for {
       now <- F.realTimeInstant
       latency = (now.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
-      tags = Map("taskName" -> task.taskName) ++ task.additionalMetricsTags
-      _ <- recordLatency("asyncTaskLatency", latency, tags, task.traceId)
+      _ <- recordLatency("asyncTaskLatency", latency, task.tags, task.traceId)
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
-        s"Executing task ${task.taskName} with latency of ${latency.toSeconds} seconds"
+        s"Executing task ${task.metricsTags.taskName} with latency of ${latency.toSeconds} seconds"
       )
       _ <- task.op.handleErrorWith { case err =>
         task.errorHandler.traverse(cb => cb(err)) >> logger.error(Map("traceId" -> task.traceId.asString), err)(
           s"Error when executing async task"
-        ) >> metrics.incrementCounter("asyncTaskError", 1, tags)
+        ) >> metrics.incrementCounter("asyncTaskError", 1, task.tags)
       }
       end <- F.realTimeInstant
       timeToFinishTask = (end.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
-      _ <- recordLatency("asyncTaskDuration", timeToFinishTask, tags, task.traceId)
+      _ <- recordLatency("asyncTaskDuration", timeToFinishTask, task.tags, task.traceId)
     } yield ()
 
   private def recordCurrentNumOfTasks: Stream[F, Unit] = {
@@ -73,7 +72,6 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
                       ),
                       tags
       )
-      .handleErrorWith(e => logger.error(Map("traceId" -> traceId.asString), e)(s"Error recording latency"))
 }
 
 object AsyncTaskProcessor {
@@ -83,12 +81,24 @@ object AsyncTaskProcessor {
   )(implicit logger: StructuredLogger[F], metrics: OpenTelemetryMetrics[F]): AsyncTaskProcessor[F] =
     new AsyncTaskProcessor(config, asyncTasks)
 
+  final case class TaskMetricsTags(taskName: String,
+                                   toolType: Option[String] = None,
+                                   isAoU: Option[Boolean],
+                                   cloudProvider: CloudProvider
+  )
   final case class Task[F[_]](traceId: TraceId,
                               op: F[Unit],
                               errorHandler: Option[Throwable => F[Unit]] = None,
                               metricsStartTime: Instant,
-                              taskName: String,
-                              additionalMetricsTags: Map[String, String] = Map.empty
-  )
+                              metricsTags: TaskMetricsTags
+  ) {
+    def tags: Map[String, String] =
+      Map(
+        "taskName" -> metricsTags.taskName,
+        "toolType" -> metricsTags.toolType.getOrElse("unknown"),
+        "isAoU" -> metricsTags.isAoU.map(_.toString).getOrElse("unknown"),
+        "cloud" -> metricsTags.cloudProvider.asString
+      )
+  }
   final case class Config(queueBound: Int, maxConcurrentTasks: Int)
 }
