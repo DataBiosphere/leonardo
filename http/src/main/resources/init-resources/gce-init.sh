@@ -345,16 +345,15 @@ chmod a+rwx ${WORK_DIRECTORY}
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
-# Start local sfkit server component.
-# It should be started after the main containers.
-# Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
-# NET_ADMIN capability is required to increase UDP network buffer sizes for performance:
+# Start local sfkit server component, with access to ${NOTEBOOKS_DIR}.
+# Use `docker run` instead of docker-compose for simplicity.
+# We increase UDP network buffer sizes for performance:
 # https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
 # For more information, see https://github.com/hcholab/sfkit/tree/main
 if [ -n "${SFKIT_DOCKER_IMAGE}" ] ; then
   docker run "--name=${SFKIT_SERVER_NAME}" --rm -d --restart unless-stopped \
-    -e "SFKIT_DIR=${NOTEBOOKS_DIR}/.sfkit" -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" \
-    "--net=container:${TOOL_SERVER_NAME}" --cap-add NET_ADMIN "${SFKIT_DOCKER_IMAGE}"
+    --sysctl net.core.rmem_max=2500000 --sysctl net.core.wmem_max=2500000 \
+    -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" "${SFKIT_DOCKER_IMAGE}"
 fi
 
 # Start up crypto detector, if enabled.
