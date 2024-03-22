@@ -462,6 +462,11 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |      "timestamp" : "2020-11-20T17:23:24.650Z"
         |    },
         |    {
+        |      "imageType" : "sfkit",
+        |      "imageUrl" : "us-central1-docker.pkg.dev/dsp-artifact-registry/sfkit/sfkit",
+        |      "timestamp" : "2020-11-20T17:23:24.650Z"
+        |    },
+        |    {
         |      "imageType" : "Welder",
         |      "imageUrl" : "welder/welder:latest",
         |      "timestamp" : "2020-11-20T17:23:24.650Z"
