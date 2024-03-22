@@ -216,7 +216,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
       tags = Map(
         "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
-        "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo")
+        "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo"),
+        "isAoU" -> runtimeAndRuntimeConfig.runtime.labels.get(AOU_UI_LABEL).contains("true").toString
       )
       _ <- openTelemetry.incrementCounter(s"runtimeFailure", 1, tags)
     } yield ((), None): CheckResult
