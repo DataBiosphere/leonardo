@@ -181,6 +181,26 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       .asPredicate()
       .test("unknown.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe false
 
+    ContainerRegistry.GAR.regex.pattern
+      .asPredicate()
+      .test("us-docker.pkg.dev/myproject/myrepo/myimage:v1") shouldBe true
+    ContainerRegistry.GAR.regex.pattern
+      .asPredicate()
+      .test("us-docker.pkg.dev/dsp-artifact-registry/myrepo/myimage") shouldBe true
+    ContainerRegistry.GAR.regex.pattern
+      .asPredicate()
+      .test("us-docker.pkg.dev/dsp-artifact-registry/myrepoorimage") shouldBe false
+    ContainerRegistry.GAR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe false
+    ContainerRegistry.GAR.regex.pattern
+      .asPredicate()
+      .test("europe-west1-docker.pkg.dev/dsp-artifact-registry/myrepo/myimage") shouldBe true
+    ContainerRegistry.GAR.regex.pattern
+      .asPredicate()
+      .test("unknown-location-docker.pkg.dev/broad-dsp-gcr-public/ubuntu1804") shouldBe false
+    ContainerRegistry.GAR.regex.pattern
+      .asPredicate()
+      .test("unknown1-location-docker.pkg.dev/broad-dsp-gcr-public/ubuntu1804") shouldBe false
+
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/asdf") shouldBe true
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe false
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_sd_as:asdf") shouldBe false

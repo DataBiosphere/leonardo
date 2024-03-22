@@ -18,6 +18,12 @@ object ContainerRegistry extends Enum[ContainerRegistry] {
     override def toString: String = "GCR"
   }
 
+  final case object GAR extends ContainerRegistry {
+    val regex: Regex =
+      """^([a-z]+(?:-[a-z]+\d?)?-docker.pkg.dev)/([\w.-]+/[\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+    override def toString: String = "GAR"
+  }
+
   final case object GHCR extends ContainerRegistry {
     val regex: Regex =
       """^(ghcr.io)/((?:[\w.-]+/)+[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
