@@ -1132,6 +1132,13 @@ object PubsubHandleMessageError {
 
     val isRetryable: Boolean = false
   }
+
+  final case class AppIsAlreadyUpdatingException(message: UpdateAppMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process update for app ${message.appId} because it is already in updating status. \n\tPubsub message:${message} "
+
+    val isRetryable: Boolean = false
+  }
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)

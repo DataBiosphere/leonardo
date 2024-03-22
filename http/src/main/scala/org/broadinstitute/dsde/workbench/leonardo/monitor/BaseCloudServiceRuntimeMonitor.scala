@@ -172,7 +172,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
                       persistentDiskOpt.traverse_(d =>
                         googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
-                          .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
+                          .delete(d.id, ctx.now)
                           .transaction
                       )
                     } else F.unit

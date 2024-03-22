@@ -436,7 +436,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                         params.runtime.auditInfo.creator
           )
 
-          createDiskJobId = WsmJobId(s"create-disk-${disk.id.toString.take(10)}")
+          createDiskJobId = WsmJobId(UUID.randomUUID().toString)
           jobControl = new JobControl()
             .id(createDiskJobId.value)
 
@@ -741,7 +741,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
           // if no wsmResource to delete, delete the disk and set runtime to deleted
           _ <- deleteDiskAction
-          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+          _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
           _ <- logger.info(ctx.loggingCtx)(
             s"runtime ${msg.runtimeId} with name ${runtime.runtimeName.asString} is deleted successfully"
           )
@@ -952,27 +952,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
-      _ <- aksAlgebra.updateAndPollApp(params).adaptError { case e =>
-        PubsubKubernetesError(
-          AppError(
-            s"Error updating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
-            ctx.now,
-            ErrorAction.UpdateApp,
-            ErrorSource.App,
-            None,
-            Some(ctx.traceId)
-          ),
-          Some(appId),
-          false,
-          None,
-          None,
-          None
-        )
-      }
-    } yield ()
+    aksAlgebra.updateAndPollApp(UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext))
 
   override def deleteApp(
     appId: AppId,

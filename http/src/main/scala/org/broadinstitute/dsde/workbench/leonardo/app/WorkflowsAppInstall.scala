@@ -119,7 +119,10 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${params.ksaName.value}",
           raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}",
-          raw"postgres.dbnames.cbas=${dbNames.cbas}"
+          raw"postgres.dbnames.cbas=${dbNames.cbas}",
+
+          // ECM configs
+          raw"ecm.baseUri=${config.ecmBaseUri}"
         )
     } yield Values(values.mkString(","))
 
