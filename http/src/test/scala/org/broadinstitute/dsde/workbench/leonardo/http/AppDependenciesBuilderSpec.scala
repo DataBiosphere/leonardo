@@ -68,12 +68,14 @@ class AppDependenciesBuilderSpec
     verify(cloudHostDependenciesBuilder).createCloudSpecificProcessesList(any(), any())(any(), any(), any(), any())
   }
 
-  // There are 3 processes that are common to backend and combined modes:
-  // 1. CloudSubscriber (Leo messaging subscriber)
+  // There are 6 processes that are common to backend and combined modes:
+  // 1. AsyncTaskProcessor
   // 2. LeoPubsubMessageSubscriber
-  // 3. AutopauseMonitor
-  // 4. LeoMetricsMonitor
-  private val baselineNumberOfExpectedProcessesForBackendAndCombinedModes = 4
+  // 3. CloudSubscriber (Leo messaging subscriber)
+  // 4. AutopauseMonitor
+  // 5. AutodeleteMonitor
+  // 6. LeoMetricsMonitor
+  private val baselineNumberOfExpectedProcessesForBackendAndCombinedModes = 6
 
   // There are 2 processes that are specific to frontend:
   // 1. DateAccessedUpdater

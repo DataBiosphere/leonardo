@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
   applicationConfig,
   asyncTaskProcessorConfig,
   autoFreezeConfig,
+  autodeleteConfig,
   contentSecurityPolicy,
   dateAccessUpdaterConfig,
   dbConcurrency,
@@ -26,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.http.api.StandardUserInfoDirectives
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  AutoDeleteAppMonitor,
   AutopauseMonitor,
   DateAccessedUpdater,
   LeoMetricsMonitor,
@@ -149,6 +151,12 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.publisherQueue
     )
 
+    val autodeleteAppMonitorProcess = AutoDeleteAppMonitor.process(
+      autodeleteConfig,
+      baselineDependencies.publisherQueue,
+      baselineDependencies.authProvider
+    )
+
     // LeoMetricsMonitor collects metrics from both runtimes and apps.
     // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
     // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
@@ -266,23 +274,27 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       cloudSpecificDependencies
     )
 
+    val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, baselineDependencies.asyncTasksQueue)
+
     val configuredProcesses = leoExecutionModeConfig match {
       case LeoExecutionModeConfig.BackLeoOnly =>
         List(
-          Stream.eval(baselineDependencies.subscriber.start),
+          asyncTasks.process,
           pubsubSubscriber.process,
+          Stream.eval(baselineDependencies.subscriber.start),
           autopauseMonitorProcess,
+          autodeleteAppMonitorProcess,
           metricsMonitor.process
         ) ++ cloudSpecificProcessList
       case LeoExecutionModeConfig.FrontLeoOnly =>
-        AsyncTaskProcessor(asyncTaskProcessorConfig,
-                           baselineDependencies.asyncTasksQueue
-        ).process :: createFrontEndLeoProcesses(baselineDependencies)
+        asyncTasks.process :: createFrontEndLeoProcesses(baselineDependencies)
       case LeoExecutionModeConfig.Combined =>
         List(
-          Stream.eval(baselineDependencies.subscriber.start),
+          asyncTasks.process,
           pubsubSubscriber.process,
+          Stream.eval(baselineDependencies.subscriber.start),
           autopauseMonitorProcess,
+          autodeleteAppMonitorProcess,
           metricsMonitor.process
         ) ++ cloudSpecificProcessList ++ createFrontEndLeoProcesses(baselineDependencies)
     }
