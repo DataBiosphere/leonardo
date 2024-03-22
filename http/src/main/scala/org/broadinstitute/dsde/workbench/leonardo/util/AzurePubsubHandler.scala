@@ -523,6 +523,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
     } yield ()
 
+  // we expect the caller of this to update the disk status, since this is monitoring for the WSM record deletion
+  // this is important not to conflate the two, since a Wsm resource can exist without a leo resource and vice versa (if the systems get into a bad state)
   private def monitorDeleteDisk(params: PollDeleteDiskParams)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -542,6 +544,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       ).compile.lastOrError
 
       _ <- resp.getJobReport.getStatus match {
+        case JobReport.StatusEnum.SUCCEEDED =>
+          for {
+            _ <- logger.info(ctx.loggingCtx)(
+              s"disk  for runtime ${params.runtime.id} with resource id ${params.wsmResourceId} is deleted successfully"
+            )
+          } yield ()
         case JobReport.StatusEnum.FAILED =>
           for {
             _ <- logger.error(s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}")
@@ -566,12 +574,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               s"Wsm deleteDisk was not completed within ${config.deleteDiskPollConfig.maxAttempts} attempts with ${config.deleteDiskPollConfig.interval} delay, disk resource id ${params.wsmResourceId}"
             )
           )
-        case JobReport.StatusEnum.SUCCEEDED =>
-          for {
-            _ <- logger.info(ctx.loggingCtx)(
-              s"disk  for runtime ${params.runtime.id} with resource id ${params.wsmResourceId} is deleted successfully"
-            )
-          } yield ()
       }
     } yield ()
 
@@ -915,6 +917,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
 
       // Delete and poll on all associated resources in WSM, and then mark the runtime as deleted
+      // The resources handled here are Storage container, Hybrid connection, Virtual Machine, and Disk
       // It is worth noting disk error handling is a bit special as it has its own table, the polling method for that is responsible for updating the disk to error state
       // A possible optimization is pairing each (wsmCall, pollingOnCompletion) into operations and running them in parallel
       // This would ensure that the ordering in conjunction with a single failure doesn't prevent as many things as possible from being deleted
@@ -922,33 +925,32 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         _ <- logger.info(ctx.loggingCtx)(
           s"beginning azure storage container deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
         )
-        pollStagingParamsOpt <- deleteStorageContainerActionOpt
-        _ <- pollStagingParamsOpt.traverse(params => monitorDeleteStorageContainer(params))
+        pollStorageContainerParamsOpt <- deleteStorageContainerActionOpt
+        _ <- pollStorageContainerParamsOpt.traverse(params => monitorDeleteStorageContainer(params))
 
         _ <- logger.info(ctx.loggingCtx)(
           s"beginning hybrid connection deletion for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
         )
         _ <- deleteHybridConnectionAction
 
+        // Vm must be done before disk
         _ <- logger.info(ctx.loggingCtx)(
-          s"beginning azure disk deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+          s"beginning azure vm deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
         )
+        pollDeleteVmParamsOpt <- deleteVmActionOpt
+        _ <- pollDeleteVmParamsOpt.traverse(params => monitorDeleteVm(params))
 
         // if Some(leodisk) None(wsmDisk) -> mark deleted
         // if Some(leodisk) Some(wsmDisk) -> poll then mark deleted
         // if none(leodisk) Some(wsmDisk) -> do not poll, user wants to keep disk, noop
         // if none(LeoDisk) none(wsmDisk) -> noop
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning azure disk deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
         pollDiskParamsOpt <-
           if (msg.diskIdToDelete.isDefined) wsmDeleteDiskActionOpt else F.delay(none[PollDeleteDiskParams])
         _ <- pollDiskParamsOpt.traverse(params => monitorDeleteDisk(params))
         _ <- leoDiskCleanupActionOpt
-
-        pollDeleteVmParamsOpt <- deleteVmActionOpt
-        _ <- pollDeleteVmParamsOpt.traverse(params => monitorDeleteVm(params))
-
-        _ <- logger.info(ctx.loggingCtx)(
-          s"beginning azure vm deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
-        )
 
         _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
         _ <- logger.info(ctx.loggingCtx)(
