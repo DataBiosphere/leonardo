@@ -160,16 +160,6 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
           )
         } yield res
-      case GAR.regex(registry, imageName, tagOpt, shaOpt) =>
-        val version = Option(tagOpt)
-          .map(Tag)
-          .orElse(Option(shaOpt).map(Sha))
-        for {
-          traceId <- ev.ask
-          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
-            F.pure(ParsedImage(GAR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
-          )
-        } yield res
       case DockerHub.regex(imageName, tagOpt, shaOpt) =>
         val identifier = Option(tagOpt)
           .map(Tag)
