@@ -1410,7 +1410,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
       }
 
-      _ <- updateApp
+      updateAppWithErrorHandling = updateApp
         .handleErrorWith {
           // Fatal case (as in, the app is no longer usable), polling app liveliness failed
           // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
@@ -1444,7 +1444,9 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
         }
 
-      _ <- asyncTasks.offer(Task(ctx.traceId, updateApp, Some(handleKubernetesError), ctx.now, "updateApp"))
+      _ <- asyncTasks.offer(
+        Task(ctx.traceId, updateAppWithErrorHandling, Some(handleKubernetesError), ctx.now, "updateApp")
+      )
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>
