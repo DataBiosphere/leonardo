@@ -709,7 +709,12 @@ class RuntimeServiceInterpTest
       r2.isRight shouldBe true
       runtime2.runtimeName shouldBe runtimeName2
       runtime2Images
-        .map(_.imageType) should contain theSameElementsAs Set(Jupyter, Welder, RuntimeImageType.Proxy, CryptoDetector)
+        .map(_.imageType) should contain theSameElementsAs Set(Jupyter,
+                                                               sfkit,
+                                                               Welder,
+                                                               RuntimeImageType.Proxy,
+                                                               CryptoDetector
+      )
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
