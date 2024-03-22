@@ -346,13 +346,16 @@ chmod a+rwx ${WORK_DIRECTORY}
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
 # Start local sfkit server component, with access to ${NOTEBOOKS_DIR}.
-# Use `docker run` instead of docker-compose for simplicity.
+# The client running inside the notebook container communicates to the server over a Unix socket.
+# This should be started after other containers.
+# Use `docker run` instead of docker-compose for simplicity and to avoid ${NOTEBOOKS_DIR} collisions.
 # We increase UDP network buffer sizes for performance:
 # https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
 # For more information, see https://github.com/hcholab/sfkit/tree/main
 if [ -n "${SFKIT_DOCKER_IMAGE}" ] ; then
   docker run "--name=${SFKIT_SERVER_NAME}" --rm -d --restart unless-stopped \
     --sysctl net.core.rmem_max=2500000 --sysctl net.core.wmem_max=2500000 \
+    -e "SFKIT_SOCK=${NOTEBOOKS_DIR}/.config/sfkit/server.sock" \
     -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" "${SFKIT_DOCKER_IMAGE}"
 fi
 
