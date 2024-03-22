@@ -25,12 +25,12 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
+  sfkit,
   BootSource,
   CryptoDetector,
   Jupyter,
   Proxy,
   RStudio,
-  sfkit,
   Welder
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._

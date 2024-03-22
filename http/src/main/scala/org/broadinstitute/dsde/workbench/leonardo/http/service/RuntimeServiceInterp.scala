@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, sfkit, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{sfkit, CryptoDetector, Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   ProjectSamResourceId,

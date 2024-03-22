@@ -2,7 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import java.time.format.{DateTimeFormatter, FormatStyle}
 import java.time.{Instant, ZoneId}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, sfkit, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
+  sfkit,
+  CryptoDetector,
+  Jupyter,
+  Proxy,
+  RStudio,
+  Welder
+}
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config._
