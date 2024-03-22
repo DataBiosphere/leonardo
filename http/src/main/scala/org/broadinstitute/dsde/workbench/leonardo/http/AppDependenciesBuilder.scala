@@ -41,7 +41,11 @@ import scala.concurrent.ExecutionContext
 import fs2.Stream
 
 /**
- * Builds the App dependencies
+ * This is the main entry point to start building the dependencies required to start the Leonardo application.
+ * The class takes the baseline dependencies builder which are common to all cloud providers and the cloud hosting,
+ * dependencies builder which are specific to the cloud provider.
+ * Using both of these the builder creates the dependencies required for the Frontend Leo and the backend Leo processes
+ * that must be started.
  * @param baselineDependenciesBuilder Baseline dependencies builder.
  * @param cloudHostDependenciesBuilder interpreter of the cloud hosting dependencies builder.
  */
@@ -66,12 +70,16 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
 
       _ <- cloudHostDependenciesBuilder.registryOpenTelemetryTracing
 
+      // Create the baseline dependencies that are cloud provider and hosting agnostic.
       baseDependencies <- baselineDependenciesBuilder.createBaselineDependencies[IO]()
 
+      // Create a registry that holds all the services/dependencies that are cloud provider specific.
       dependenciesRegistry <- cloudHostDependenciesBuilder.createDependenciesRegistry(baseDependencies)
 
+      // Create the services required to start HttpRoutes (Leo Frontend).
       httpRoutesDependencies <- createFrontEndDependencies(baseDependencies, dependenciesRegistry)
 
+      // Create the services required to start Leo Backend processes (Leo Backend).
       backEndDependencies <- createBackEndDependencies(baseDependencies, dependenciesRegistry, leoExecutionModeConfig)
     } yield LeoAppDependencies(httpRoutesDependencies, backEndDependencies)
 

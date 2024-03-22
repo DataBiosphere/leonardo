@@ -51,7 +51,7 @@ final class LeoPublisher[F[_]](
     Stream(publishingStream, recordMetrics).covary[F].parJoin(2)
   }
 
-  private def publishMessageAndSetAttributes(event: LeoPubsubMessage) =
+  private def publishMessageAndSetAttributes(event: LeoPubsubMessage): F[Unit] =
     for {
       _ <- cloudPublisher.publishOne(event, createAttributes(event))(leoPubsubMessageEncoder, traceIdAsk(event))
       _ <- logger.info(s"Published message of type ${event.messageType.asString}, message: $event")

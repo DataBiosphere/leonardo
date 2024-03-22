@@ -900,9 +900,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       override def createAzureClient(cloudContext: AzureCloudContext, clusterName: AKSClusterName)(implicit
         ev: Ask[IO, AppContext]
       ): IO[CoreV1Api] = IO.pure(coreV1Api)
-//      override def createGcpClient(clusterId: GKEModels.KubernetesClusterId)(implicit
-//        ev: Ask[IO, AppContext]
-//      ): IO[CoreV1Api] = IO.pure(coreV1Api)
       override def listPodStatus(clusterId: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit
         ev: Ask[IO, AppContext]
       ): IO[List[PodStatus]] = IO.pure(List(PodStatus.Failed))

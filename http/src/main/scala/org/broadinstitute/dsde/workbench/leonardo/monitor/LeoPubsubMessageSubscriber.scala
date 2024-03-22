@@ -63,9 +63,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   config: LeoPubsubMessageSubscriberConfig,
   subscriber: CloudSubscriber[F, LeoPubsubMessage],
   asyncTasks: Queue[F, Task[F]],
-  // googleDiskService: GoogleDiskService[F],
   authProvider: LeoAuthProvider[F],
-  // gkeAlg: GKEAlgebra[F],
   azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
   operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]],
   cloudSpecificDependenciesRegistry: ServicesRegistry
@@ -74,8 +72,6 @@ class LeoPubsubMessageSubscriber[F[_]](
   F: Async[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
-  // runtimeInstances: RuntimeInstances[F],
-  // monitor: RuntimeMonitor[F, CloudService],
   metrics: OpenTelemetryMetrics[F]
 ) {
 
