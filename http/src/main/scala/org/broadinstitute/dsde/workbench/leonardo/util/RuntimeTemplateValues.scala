@@ -219,8 +219,8 @@ object RuntimeTemplateValues {
       config.runtimeImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == Proxy).map(_.imageUrl).getOrElse(""),
-      config.runtimeImages.find(_.imageType == sfkit).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == Welder).map(_.imageUrl).getOrElse(""),
+      config.runtimeImages.find(_.imageType == sfkit).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == CryptoDetector).map(_.imageUrl).getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.proxyServerCrt.getFileName.toString)).toUri)
