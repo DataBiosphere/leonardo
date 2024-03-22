@@ -353,6 +353,7 @@ ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 # For more information, see https://github.com/hcholab/sfkit/tree/main
 if [ -n "${SFKIT_DOCKER_IMAGE}" ] ; then
   docker run "--name=${SFKIT_SERVER_NAME}" --rm -d --restart unless-stopped \
+    -e "SFKIT_DIR=${NOTEBOOKS_DIR}/.sfkit" -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" \
     "--net=container:${TOOL_SERVER_NAME}" --cap-add NET_ADMIN "${SFKIT_DOCKER_IMAGE}"
 fi
 
