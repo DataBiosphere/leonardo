@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   workspaceSamResourceIdDecoder,
   wsmResourceSamResourceIdDecoder
 }
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{sfkit, CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer, leonardoExceptionEq}
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
@@ -700,7 +700,11 @@ class RuntimeServiceInterpTest
       // Crypto detector not supported on DockerHub
       r1.isRight shouldBe true
       runtime1.runtimeName shouldBe runtimeName1
-      runtime1Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter, Welder, RuntimeImageType.Proxy)
+      runtime1Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter,
+                                                                           Welder,
+                                                                           RuntimeImageType.Proxy,
+                                                                           sfkit
+      )
 
       r2.isRight shouldBe true
       runtime2.runtimeName shouldBe runtimeName2
