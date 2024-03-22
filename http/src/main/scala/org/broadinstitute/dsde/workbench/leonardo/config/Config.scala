@@ -179,6 +179,7 @@ object Config {
       config.getString("rstudioContainerName"),
       config.getString("welderContainerName"),
       config.getString("proxyContainerName"),
+      config.getString("skfitContainerName"),
       config.getString("cryptoDetectorContainerName"),
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),

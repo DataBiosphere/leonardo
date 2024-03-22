@@ -14,6 +14,7 @@ final case class ImageConfig(
   rstudioContainerName: String,
   welderContainerName: String,
   proxyContainerName: String,
+  sfkitContainerName: String,
   cryptoDetectorContainerName: String,
   jupyterImageRegex: String,
   rstudioImageRegex: String,

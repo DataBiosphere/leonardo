@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import java.time.format.{DateTimeFormatter, FormatStyle}
 import java.time.{Instant, ZoneId}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, sfkit, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -34,6 +34,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           rstudioServerName: String,
                                           welderServerName: String,
                                           proxyServerName: String,
+                                          sfkitServerName: String,
                                           cryptoDetectorServerName: String,
                                           userScriptUri: String,
                                           userScriptOutputUri: String,
@@ -211,6 +212,7 @@ object RuntimeTemplateValues {
       config.runtimeImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == Proxy).map(_.imageUrl).getOrElse(""),
+      config.runtimeImages.find(_.imageType == sfkit).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == Welder).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == CryptoDetector).map(_.imageUrl).getOrElse(""),
       config.initBucketName
@@ -246,6 +248,7 @@ object RuntimeTemplateValues {
       config.imageConfig.rstudioContainerName,
       config.imageConfig.welderContainerName,
       config.imageConfig.proxyContainerName,
+      config.imageConfig.sfkitContainerName,
       config.imageConfig.cryptoDetectorContainerName,
       config.userScriptUri.map(_.asString).getOrElse(""),
       config.stagingBucketName.map(n => userScriptOutputUriPath(n).toUri).getOrElse(""),
