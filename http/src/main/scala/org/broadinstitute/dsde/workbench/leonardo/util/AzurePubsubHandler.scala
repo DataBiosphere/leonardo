@@ -5,10 +5,12 @@ package util
 import bio.terra.workspace.api.ControlledAzureResourceApi
 import bio.terra.workspace.model.{
   AzureDiskCreationParameters,
+  AzureStorageContainerCreationParameters,
   CloningInstructionsEnum,
   ControlledResourceCommonFields,
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
+  CreateControlledAzureStorageContainerRequestBody,
   JobControl,
   JobReport
 }
@@ -158,25 +160,26 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         case x: CloudContext.Azure => F.pure(x.value)
       }
+
+      // These resources (relay connection, staging container) must be created before the VM
       hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
       primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                            hcName,
                                                            cloudContext
       )
-
-      // TODO, run this in parallel to VM creation polling in the async task
       (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
-
-      samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
       // Construct the workspace storage container URL which will be passed to the JupyterLab environment variables.
       wsStorageContainerUrl =
         s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.storageContainerName.value}"
 
+      // Send createDisk message to WSM
       createDiskResult <- createDiskForRuntime(
         CreateAzureDiskParams(params.workspaceId, params.runtime, params.useExistingDisk, params.runtimeConfig)
       )
 
-      // Vm logic
+      samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
+
+      // Setup create VM message
       vmCommon = getCommonFields(
         ControlledResourceName(params.runtime.runtimeName.asString),
         config.runtimeDefaults.vmControlledResourceDesc,
@@ -339,24 +342,23 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     ev: Ask[F, AppContext]
   ): F[(ContainerName, WsmControlledResourceId)] = {
     val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
-    val storageContainerCommonFields = getCommonFields(
-      ControlledResourceName(s"c-${stagingContainerName.value}"),
-      "leonardo staging bucket",
-      params.runtime.auditInfo.creator,
-      None
-    )
     for {
       ctx <- ev.ask[AppContext]
-      resp <- wsmDao.createStorageContainer(
-        CreateStorageContainerRequest(
-          params.workspaceId,
-          storageContainerCommonFields,
-          StorageContainerRequest(stagingContainerName)
-        ),
-        auth
+      wsmApi <- buildWsmControlledResourceApiClient
+      common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(stagingContainerName.value),
+                                                    "leonardo staging bucket",
+                                                    params.runtime.auditInfo.creator
       )
+      azureStorageContainer = new AzureStorageContainerCreationParameters()
+        .storageContainerName(stagingContainerName.value)
+
+      request = new CreateControlledAzureStorageContainerRequestBody()
+        .common(common)
+        .azureStorageContainer(azureStorageContainer)
+      resp <- F.delay(wsmApi.createAzureStorageContainer(request, params.workspaceId.value))
+      resourceId = WsmControlledResourceId(resp.getResourceId)
       _ <- controlledResourceQuery
-        .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
+        .save(params.runtime.id, resourceId, WsmResourceType.AzureStorageContainer)
         .transaction
       _ <- clusterQuery
         .updateStagingBucket(
@@ -365,7 +367,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           ctx.now
         )
         .transaction
-    } yield (stagingContainerName, resp.resourceId)
+    } yield (stagingContainerName, resourceId)
   }
 
   private def createDiskForRuntime(params: CreateAzureDiskParams)(implicit
