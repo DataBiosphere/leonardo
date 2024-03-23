@@ -11,6 +11,7 @@ import bio.terra.workspace.model.{
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
   CreateControlledAzureStorageContainerRequestBody,
+  CreatedControlledAzureStorageContainer,
   JobControl,
   JobReport
 }
@@ -355,19 +356,27 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       request = new CreateControlledAzureStorageContainerRequestBody()
         .common(common)
         .azureStorageContainer(azureStorageContainer)
-      resp <- F.delay(wsmApi.createAzureStorageContainer(request, params.workspaceId.value))
-      resourceId = WsmControlledResourceId(resp.getResourceId)
-      _ <- controlledResourceQuery
-        .save(params.runtime.id, resourceId, WsmResourceType.AzureStorageContainer)
-        .transaction
-      _ <- clusterQuery
-        .updateStagingBucket(
-          params.runtime.id,
-          Some(StagingBucket.Azure(stagingContainerName)),
-          ctx.now
+      storageContainer <- F
+        .delay(wsmApi.createAzureStorageContainer(request, params.workspaceId.value))
+        .handleErrorWith(err =>
+          handleAzureRuntimeCreationError(
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"Wsm createStorageContainer failed due to ${err.getMessage}",
+              params.useExistingDisk
+            ),
+            ctx.now
+          ) >> F.raiseError[CreatedControlledAzureStorageContainer](
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"Wsm createStorageContainer failed due to ${err.getMessage}",
+              params.useExistingDisk
+            )
+          )
         )
-        .transaction
-    } yield (stagingContainerName, resourceId)
+    } yield (stagingContainerName, WsmControlledResourceId(storageContainer.getResourceId))
   }
 
   private def createDiskForRuntime(params: CreateAzureDiskParams)(implicit

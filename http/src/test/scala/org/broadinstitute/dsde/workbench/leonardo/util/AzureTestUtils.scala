@@ -8,11 +8,17 @@ import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.model.{
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
+  CreateControlledAzureStorageContainerRequestBody,
+  CreatedControlledAzureStorageContainer,
   ErrorReport,
   JobReport
 }
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{workspaceId, workspaceId2}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
+import org.mockito.ArgumentMatchers
 import org.scalatestplus.mockito.MockitoSugar
+
+import java.util.UUID
 
 object AzureTestUtils extends MockitoSugar {
 
@@ -49,6 +55,21 @@ object AzureTestUtils extends MockitoSugar {
           new JobReport().status(diskJobStatus)
         )
         .errorReport(new ErrorReport())
+    }
+
+    // Create storage container
+    when {
+      api.createAzureStorageContainer(any, ArgumentMatchers.eq(workspaceId.value))
+    } thenAnswer { invocation =>
+      val requestBody = invocation.getArgument[CreateControlledAzureStorageContainerRequestBody](0)
+      new CreatedControlledAzureStorageContainer().resourceId(UUID.randomUUID())
+    }
+
+    // Create storage container
+    when {
+      api.createAzureStorageContainer(any, ArgumentMatchers.eq(workspaceId2.value))
+    } thenAnswer { _ =>
+      throw new Exception("test exception")
     }
 
     // Setup api builders
