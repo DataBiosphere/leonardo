@@ -376,7 +376,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           )
         )
-    } yield (stagingContainerName, WsmControlledResourceId(storageContainer.getResourceId))
+      resourceId = WsmControlledResourceId(storageContainer.getResourceId)
+      _ <- controlledResourceQuery
+        .save(params.runtime.id, resourceId, WsmResourceType.AzureStorageContainer)
+        .transaction
+      _ <- clusterQuery
+        .updateStagingBucket(params.runtime.id, Some(StagingBucket.Azure(stagingContainerName)), ctx.now)
+        .transaction
+    } yield (stagingContainerName, resourceId)
   }
 
   private def createDiskForRuntime(params: CreateAzureDiskParams)(implicit
