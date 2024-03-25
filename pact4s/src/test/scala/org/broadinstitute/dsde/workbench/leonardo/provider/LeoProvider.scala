@@ -75,8 +75,9 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       .handler(mockAppService)
       .orElse(DiskStateManager.handler(mockDiskService))
       .orElse(RuntimeStateManager.handler(mockRuntimeService))
+      .orElse(StatusStateManager.handler(mockStatusService))
       .orElse { case _ =>
-        loggerIO.debug("Whoops: other state")
+        loggerIO.debug("State not found")
       }
   }
 
