@@ -8,16 +8,20 @@ import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.model.{
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
+  DeleteControlledAzureResourceRequest,
+  DeleteControlledAzureResourceResult,
   ErrorReport,
   JobReport
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDaoDeleteControlledAzureResourceRequest}
 import org.scalatestplus.mockito.MockitoSugar
 
 object AzureTestUtils extends MockitoSugar {
 
   def setUpMockWsmApiClientProvider(
-    diskJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED
+    diskJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED,
+    vmJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED,
+    storageContainerJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED
   ): (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi) = {
     val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
@@ -47,6 +51,72 @@ object AzureTestUtils extends MockitoSugar {
       new CreateControlledAzureResourceResult()
         .jobReport(
           new JobReport().status(diskJobStatus)
+        )
+        .errorReport(new ErrorReport())
+    }
+
+    // delete disk
+    when {
+      api.deleteAzureDisk(any, any, any)
+    } thenAnswer { _ =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(diskJobStatus)
+        )
+        .errorReport(new ErrorReport())
+    }
+
+    // delete disk result
+    when {
+      api.getDeleteAzureDiskResult(any, any)
+    } thenAnswer { _ =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(diskJobStatus)
+        )
+        .errorReport(new ErrorReport())
+    }
+
+    // delete vm
+    when {
+      api.deleteAzureVm(any, any, any)
+    } thenAnswer { _ =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(vmJobStatus)
+        )
+        .errorReport(new ErrorReport())
+    }
+
+    // delete vm result
+    when {
+      api.getDeleteAzureVmResult(any, any)
+    } thenAnswer { _ =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(vmJobStatus)
+        )
+        .errorReport(new ErrorReport())
+    }
+
+    // delete storage container
+    when {
+      api.deleteAzureStorageContainer(any, any, any)
+    } thenAnswer { _ =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(storageContainerJobStatus)
+        )
+        .errorReport(new ErrorReport())
+    }
+
+    // delete storage container result
+    when {
+      api.getDeleteAzureStorageContainerResult(any, any)
+    } thenAnswer { _ =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(storageContainerJobStatus)
         )
         .errorReport(new ErrorReport())
     }

@@ -48,7 +48,7 @@ class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       .deleteVm(
         DeleteWsmResourceRequest(WorkspaceId(UUID.randomUUID()),
                                  WsmControlledResourceId(UUID.randomUUID()),
-                                 DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId("job")))
+                                 WsmDaoDeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId("job")))
         ),
         Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
       )
