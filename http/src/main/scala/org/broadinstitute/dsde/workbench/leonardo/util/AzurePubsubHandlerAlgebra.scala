@@ -2,8 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName, RelayNamespace}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CreateDiskForRuntimeResult, CreateVmRequest}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureCloudContext,
+  ContainerName,
+  PrimaryKey,
+  RelayHybridConnectionName,
+  RelayNamespace
+}
+import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  CreateDiskForRuntimeResult,
+  CreateVmRequest,
+  StorageContainerResponse
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -85,17 +96,6 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   ): F[Unit]
 }
 
-final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
-                                          runtime: Runtime,
-                                          storageContainerResourceId: WsmControlledResourceId,
-                                          landingZoneResources: LandingZoneResources,
-                                          runtimeConfig: RuntimeConfig.AzureConfig,
-                                          vmImage: AzureImage,
-                                          useExistingDisk: Boolean,
-                                          workspaceName: String,
-                                          storageContainerName: ContainerName
-)
-
 final case class CreateAzureDiskParams(workspaceId: WorkspaceId,
                                        runtime: Runtime,
                                        useExistingDisk: Boolean,
@@ -107,7 +107,12 @@ final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    vmJobId: WsmJobId,
                                    relayNamespace: RelayNamespace,
                                    useExistingDisk: Boolean,
-                                   runtimeResourcesResult: CreateRuntimeResourcesResult
+                                   createDiskResult: CreateDiskForRuntimeResult,
+                                   landingZoneResources: LandingZoneResources,
+                                   runtimeConfig: RuntimeConfig.AzureConfig,
+                                   vmImage: AzureImage,
+                                   workspaceStorageContainer: StorageContainerResponse,
+                                   workspaceName: String
 )
 
 final case class PollDiskParams(workspaceId: WorkspaceId,
@@ -131,7 +136,16 @@ final case class PollStorageContainerParams(workspaceId: WorkspaceId, jobId: Wsm
 /**
  * This case class represents the necessary information to poll all objects associated with the runtime, namely disk and vm
  */
-final case class CreateRuntimeResourcesResult(vmRequest: CreateVmRequest, createDiskResult: CreateDiskForRuntimeResult)
+final case class CreateRuntimeResourcesResult(vmRequest: CreateVmRequest,
+                                              createDiskResult: CreateDiskForRuntimeResult,
+                                              hybridConnectionName: RelayHybridConnectionName,
+                                              primaryKey: PrimaryKey
+)
+
+final case class CreateStorageContainerResourcesResult(containerName: ContainerName,
+                                                       resourceId: WsmControlledResourceId,
+                                                       wsStorageContainerUrl: String
+)
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           wsmUrl: Uri,

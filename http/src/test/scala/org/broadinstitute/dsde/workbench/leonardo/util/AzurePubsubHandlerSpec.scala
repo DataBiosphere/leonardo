@@ -11,7 +11,7 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -631,14 +631,14 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "handle error when storage container fails to create" in isolatedDbTest {
+  it should "handle storage container creation error in async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val exceptionMsg = "storage container failed to create"
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue)
 
     val res =
       for {
-        disk <- makePersistentDisk().copy(status = DiskStatus.Ready, wsmResourceId = Some(resourceId)).save()
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        Some(disk.id),
@@ -650,30 +650,28 @@ class AzurePubsubHandlerSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId2, true, None, "WorkspaceName", billingProfileId)
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
 
-        err <- azureInterp.createAndPollRuntime(msg).attempt
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId2, false, None, "WorkspaceName", billingProfileId)
 
-        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-        getRuntime = getRuntimeOpt.get
-        error <- clusterErrorQuery.get(runtime.id).transaction
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.createAndPollRuntime(msg)
 
-      } yield {
-        err shouldBe Left(
-          AzureRuntimeCreationError(
-            runtime.id,
-            workspaceId2,
-            "Wsm createStorageContainer failed due to test exception",
-            true
-          )
-        )
-        getRuntime.status shouldBe RuntimeStatus.Error
-        error.length shouldBe 1
-      }
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "handle error in create azure vm async task properly" in isolatedDbTest {
+  it should "handle vm creation error in async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {

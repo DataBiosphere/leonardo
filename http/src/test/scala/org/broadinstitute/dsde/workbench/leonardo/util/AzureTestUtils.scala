@@ -74,8 +74,8 @@ object AzureTestUtils extends MockitoSugar {
     when {
       api.createAzureStorageContainer(any, ArgumentMatchers.eq(workspaceId2.value))
     } thenAnswer { _ =>
-      throw new Exception("test exception")
-
+      throw new Exception("storage container failed to create")
+    }
     // delete disk
     when {
       api.deleteAzureDisk(any, any, any)
