@@ -1004,52 +1004,28 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                appType: AppType,
                                                workspaceId: UUID
   ): F[Option[WsmManagedAzureIdentity]] = {
-    val wsmManagedIdentities = F.blocking(
-      resourceApi
-        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_MANAGED_IDENTITY, StewardshipType.CONTROLLED)
-        .getResources
-        .asScala
-        .toList
-    )
     val wsmResourceName = generateWsmNameForIdentity(appType)
-    wsmManagedIdentities.map { identities =>
-      // there should be only 1 Azure managed identity per app
-      identities
-        .find(identity => wsmResourceName == identity.getMetadata.getName)
-        .map(identity =>
-          WsmManagedAzureIdentity(wsmResourceName,
-                                  identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
-          )
-        )
-    }
+    F.blocking(Option(resourceApi.getResourceByName(workspaceId, wsmResourceName)))
+      .map(opt => opt.map(identity => WsmManagedAzureIdentity(wsmResourceName,
+      identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
+    )))
   }
 
   private[util] def retrieveWsmDatabases(resourceApi: ResourceApi,
                                          databaseNames: Set[String],
                                          workspaceId: UUID
   ): F[List[WsmControlledDatabaseResource]] = {
-    val wsmResourceDatabases = F.blocking(
-      resourceApi
-        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
-        .getResources
-        .asScala
-        .toList
-    )
-
     // TODO: this currently matches on the 'name' (actually type) of database so for example
     // it compares for a 'cbas' or 'cromwellmetadata' database. In the future, their maybe
     // multiple of those in a workspace so this approach will have to be re-considered
     // see https://broadworkbench.atlassian.net/browse/IA-4844
-    wsmResourceDatabases.map { dbs =>
-      dbs
-        .filter(r => databaseNames.contains(r.getMetadata().getName()))
-        .map(r =>
-          WsmControlledDatabaseResource(r.getMetadata().getName(),
-                                        r.getResourceAttributes().getAzureDatabase().getDatabaseName(),
-                                        r.getMetadata().getResourceId
-          )
-        )
-    }
+    F.blocking(
+      databaseNames.flatMap(dbName => Option(resourceApi.getResourceByName(workspaceId, dbName)).map(r =>
+        WsmControlledDatabaseResource(r.getMetadata.getName,
+          r.getResourceAttributes.getAzureDatabase.getDatabaseName,
+          r.getMetadata.getResourceId
+      ))
+    ))
   }
 
   private[util] def getWorkspaceDescription(workspaceApi: WorkspaceApi,
@@ -1114,7 +1090,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                          namespacePrefix: String,
                                          workspaceId: UUID
   ): F[List[WsmControlledKubernetesNamespaceResource]] = {
-
+    // TODO: figure out how to switch this to looking up resources by name instead of using enumerateResources
     val wsmNamespaces = F.blocking(
       resourceApi
         .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_KUBERNETES_NAMESPACE, StewardshipType.CONTROLLED)
