@@ -1952,15 +1952,13 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle delete azure vm failure properly" in isolatedDbTest {
-    val wsm = new MockWsmDAO {
-      override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[Option[DeleteWsmResourceResult]] = IO.raiseError(new java.net.SocketException("connection closed"))
-    }
+    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
     val mockAckConsumer = mock[AckReplyConsumer]
     val queue = makeTaskQueue()
     val leoSubscriber =
-      makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm), asyncTaskQueue = queue)
+      makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm),
+                        asyncTaskQueue = queue
+      )
 
     val res =
       for {
@@ -1986,19 +1984,24 @@ class LeoPubsubMessageSubscriberSpec
                                         None
         )
 
-        _ <- leoSubscriber.messageHandler(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
+        assertions = for {
+          errors <- clusterErrorQuery.get(runtime.id).transaction
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        } yield {
+          getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
+          errors.length shouldBe 1
+          val error = errors.head
+          error.errorMessage should include(
+            s"WSM delete VM job failed due to"
+          )
+          error.traceId shouldBe (Some(ctx.traceId))
+        }
 
-        errors <- clusterErrorQuery.get(runtime.id).transaction
-        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-      } yield {
-        getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
-        errors.length shouldBe 1
-        val error = errors.head
-        error.errorMessage should include(
-          s"WSM call to delete runtime failed due to connection closed. Please retry delete again"
-        )
-        error.traceId shouldBe (Some(ctx.traceId))
-      }
+        _ <- leoSubscriber.messageHandler(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+      } yield ()
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

@@ -155,7 +155,7 @@ final case class WsmVm(metadata: WsmVMMetadata, attributes: WsmVMAttributes)
 
 final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
                                           resourceId: WsmControlledResourceId,
-                                          deleteRequest: DeleteControlledAzureResourceRequest
+                                          deleteRequest: WsmDaoDeleteControlledAzureResourceRequest
 )
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 
@@ -210,7 +210,7 @@ final case class WsmJobReport(id: WsmJobId,
 )
 
 final case class WsmJobControl(id: WsmJobId)
-final case class DeleteControlledAzureResourceRequest(jobControl: WsmJobControl)
+final case class WsmDaoDeleteControlledAzureResourceRequest(jobControl: WsmJobControl)
 
 final case class DeleteWsmResourceResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 
@@ -488,7 +488,7 @@ object WsmEncoders {
   implicit val createStorageContainerRequestEncoder: Encoder[CreateStorageContainerRequest] =
     Encoder.forProduct2("common", "azureStorageContainer")(x => (x.commonFields, x.storageContainerReq))
 
-  implicit val deleteControlledAzureResourceRequestEncoder: Encoder[DeleteControlledAzureResourceRequest] =
+  implicit val deleteControlledAzureResourceRequestEncoder: Encoder[WsmDaoDeleteControlledAzureResourceRequest] =
     Encoder.forProduct1("jobControl")(x => x.jobControl)
 }
 
