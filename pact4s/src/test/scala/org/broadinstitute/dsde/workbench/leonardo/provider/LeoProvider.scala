@@ -110,8 +110,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       PactSource
         .PactBrokerWithSelectors(pactBrokerUrl)
         .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
-        // .withPendingPactsEnabled(ProviderTags(providerVer))
-        .withPendingPacts(true)
+        .withPendingPactsEnabled(ProviderTags(providerBranch))
         .withConsumerVersionSelectors(consumerVersionSelectors)
     )
       .withStateManagementFunction(
@@ -155,6 +154,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
 
   it should "Verify pacts" in {
     val publishResults = sys.env.getOrElse("PACT_PUBLISH_RESULTS", "false").toBoolean
+    println("Provider branch: " + providerBranch)
     verifyPacts(
       providerBranch = if (providerBranch.isEmpty) None else Some(Branch(providerBranch)),
       publishVerificationResults =
