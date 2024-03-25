@@ -35,7 +35,6 @@ import java.net.URL
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
-import scala.util.Try
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
@@ -1018,36 +1017,28 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                workspaceId: UUID
   ): F[Option[WsmManagedAzureIdentity]] = {
     val wsmResourceName = generateWsmNameForIdentity(appType)
-    F.blocking(
-      getWorkspaceResourceByName(workspaceId, wsmResourceName, resourceApi).map { identity =>
-        WsmManagedAzureIdentity(
-          wsmResourceName,
-          identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
-        )
-      }
-    )
+    F.blocking(Option(resourceApi.getResourceByName(workspaceId, wsmResourceName)))
+      .map(opt => opt.map(identity => WsmManagedAzureIdentity(wsmResourceName,
+      identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
+    )))
   }
 
   private[util] def retrieveWsmDatabases(resourceApi: ResourceApi,
                                          databaseNames: Set[String],
                                          workspaceId: UUID
-  ): F[List[WsmControlledDatabaseResource]] =
+  ): F[List[WsmControlledDatabaseResource]] = {
     // TODO: this currently matches on the 'name' (actually type) of database so for example
     // it compares for a 'cbas' or 'cromwellmetadata' database. In the future, their maybe
     // multiple of those in a workspace so this approach will have to be re-considered
     // see https://broadworkbench.atlassian.net/browse/IA-4844
     F.blocking(
-      databaseNames
-        .flatMap(dbName =>
-          getWorkspaceResourceByName(workspaceId, dbName, resourceApi).map { r =>
-            WsmControlledDatabaseResource(r.getMetadata.getName,
-                                          r.getResourceAttributes.getAzureDatabase.getDatabaseName,
-                                          r.getMetadata.getResourceId
-            )
-          }
-        )
-        .toList
-    )
+      databaseNames.flatMap(dbName => Option(resourceApi.getResourceByName(workspaceId, dbName)).map(r =>
+        WsmControlledDatabaseResource(r.getMetadata.getName,
+          r.getResourceAttributes.getAzureDatabase.getDatabaseName,
+          r.getMetadata.getResourceId
+      ))
+    ))
+  }
 
   private[util] def getWorkspaceDescription(workspaceApi: WorkspaceApi,
                                             workspaceId: UUID
@@ -1083,14 +1074,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                               wsmManagedIdentityOpt: Option[WsmManagedAzureIdentity]
   )(implicit ev: Ask[F, AppContext]): F[WsmControlledKubernetesNamespaceResource] =
     for {
-      wsmNamespace <- retrieveWsmNamespace(resourceApi, namespacePrefix, workspaceId.value)
-      namespace <- wsmNamespace match {
-        case Some(ns) =>
+      wsmNamespaces <- retrieveWsmNamespace(resourceApi, namespacePrefix, workspaceId.value)
+      namespace <- wsmNamespaces.length match {
+        case 1 =>
           logger.info(
-            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${ns.name}"
+            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${wsmNamespaces.head.name}"
           )
-          F.pure(ns)
-        case None =>
+          F.pure(wsmNamespaces.head)
+        case 0 =>
           createWsmKubernetesNamespaceResource(
             app,
             workspaceId,
@@ -1098,27 +1089,42 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             wsmDatabases.map(_.wsmDatabaseName),
             wsmManagedIdentityOpt.map(_.wsmResourceName)
           )
+        case _ =>
+          F.raiseError(
+            AppCreationException(
+              s"App ${app.appName} has multiple namespaces $wsmNamespaces. Only one namespace per app allowed"
+            )
+          )
       }
     } yield namespace
 
   private[util] def retrieveWsmNamespace(resourceApi: ResourceApi,
                                          namespacePrefix: String,
                                          workspaceId: UUID
-  ): F[Option[WsmControlledKubernetesNamespaceResource]] = {
-    // The full namespace name will be {namespacePrefix}-{workspaceId},
-    // and the resource name is the same as the kubernetes namespace
-    val namespaceName = s"$namespacePrefix-$workspaceId"
-    F.blocking(
-      getWorkspaceResourceByName(workspaceId, namespaceName, resourceApi).map { ns =>
-        WsmControlledKubernetesNamespaceResource(
-          NamespaceName(ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace),
-          WsmControlledResourceId(ns.getMetadata.getResourceId),
-          ServiceAccountName(
-            ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount
+  ): F[List[WsmControlledKubernetesNamespaceResource]] = {
+    // TODO: figure out how to switch this to looking up resources by name instead of using enumerateResources
+    val wsmNamespaces = F.blocking(
+      resourceApi
+        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_KUBERNETES_NAMESPACE, StewardshipType.CONTROLLED)
+        .getResources
+        .asScala
+        .toList
+    )
+    wsmNamespaces.map { namespaces =>
+      namespaces
+        .filter(ns =>
+          ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)
+        )
+        .map(filtered_ns =>
+          WsmControlledKubernetesNamespaceResource(
+            NamespaceName(filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace),
+            WsmControlledResourceId(filtered_ns.getMetadata.getResourceId),
+            ServiceAccountName(
+              filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount
+            )
           )
         )
-      }
-    )
+    }
   }
 
   private[util] def createWsmKubernetesNamespaceResource(app: App,
@@ -1313,19 +1319,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       case e => F.raiseError(e)
     }
   }
-
-  // This should probably be moved to WsmDao, if HttpWsmDao switches to using the WSM api clients
-  private def getWorkspaceResourceByName(
-    workspaceId: UUID,
-    resourceName: String,
-    resourceApi: ResourceApi
-  ): Option[ResourceDescription] =
-    Try(resourceApi.getResourceByName(workspaceId, resourceName))
-      .map(Option.apply)
-      .handleError {
-        case e: ApiException if e.getCode == StatusCodes.NotFound.intValue => None
-      }
-      .get
 
   private[util] def updateListener(authContext: AuthContext,
                                    app: App,
