@@ -101,8 +101,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     case Some(s) if !s.isBlank =>
       consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName).matchingBranch
     case _ =>
-      consumerVersionSelectors =
-        consumerVersionSelectors.deployedOrReleased.mainBranch.branch("eric/RW-11654", Option("aou-rwb-api"))
+      consumerVersionSelectors = consumerVersionSelectors.deployedOrReleased.mainBranch
   }
 
   val provider: ProviderInfoBuilder =
