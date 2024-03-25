@@ -2059,7 +2059,7 @@ class LeoPubsubMessageSubscriberSpec
           error.traceId shouldBe (Some(ctx.traceId))
         }
 
-        _ <- leoSubscriber.messageHandler(Event(msg, Some(ctx.traceId), timestamp, mockAckConsumer))
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, Some(ctx.traceId), instantTimestamp, mockAckConsumer))
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
 
