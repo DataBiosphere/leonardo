@@ -61,7 +61,8 @@ object AzureTestUtils extends MockitoSugar {
     when {
       api.createAzureStorageContainer(any, any)
     } thenAnswer { _ =>
-      if (storageContainerJobStatus == JobReport.StatusEnum.SUCCEEDED) new CreatedControlledAzureStorageContainer().resourceId(UUID.randomUUID())
+      if (storageContainerJobStatus == JobReport.StatusEnum.SUCCEEDED)
+        new CreatedControlledAzureStorageContainer().resourceId(UUID.randomUUID())
       else throw new Exception("storage container failed to create")
     }
 

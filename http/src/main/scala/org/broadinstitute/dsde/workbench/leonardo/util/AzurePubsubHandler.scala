@@ -82,6 +82,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
+      ctx <- ev.ask
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
@@ -92,6 +93,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             new RuntimeException(s"this runtime doesn't have proper azure config $x")
           )
       }
+
+      // verify the cloud context
+      cloudContext = runtime.cloudContext match {
+        case _: CloudContext.Gcp =>
+          throw PubsubHandleMessageError.ClusterError(runtime.id,
+                                                      ctx.traceId,
+                                                      "Azure runtime should not have GCP cloud context"
+          )
+        case cc: CloudContext.Azure => cc
+      }
+
       // Query the Landing Zone service for the landing zone resources
       leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, leoAuth)
@@ -136,7 +148,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           azureConfig,
           config.runtimeDefaults.image,
           workspaceStorageContainer,
-          msg.workspaceName
+          msg.workspaceName,
+          cloudContext
         )
       )
     } yield ()
@@ -682,23 +695,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createVmJobId = WsmJobId(s"create-vm-${params.runtime.id.toString.take(10)}")
       getWsmVmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, createVmJobId), auth)
 
-      cloudContext = params.runtime.cloudContext match {
-        case _: CloudContext.Gcp =>
-          throw PubsubHandleMessageError.ClusterError(params.runtime.id,
-                                                      ctx.traceId,
-                                                      "Azure runtime should not have GCP cloud context"
-          )
-        case x: CloudContext.Azure => x
-      }
-
-      isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
-      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
+      isJupyterUp = jupyterDAO.isProxyAvailable(params.cloudContext, params.runtime.runtimeName)
+      isWelderUp = welderDao.isProxyAvailable(params.cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
         // the result of creating the hybrid connection + storage container are necessary for the createVm request
         primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
                                                              hybridConnectionName,
-                                                             cloudContext.value
+                                                             params.cloudContext.value
         )
         storageContainer <- createStorageContainer(params.runtime, params.landingZoneResources, params.workspaceId)
 

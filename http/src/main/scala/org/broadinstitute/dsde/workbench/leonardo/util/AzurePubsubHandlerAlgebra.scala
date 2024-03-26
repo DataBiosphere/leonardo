@@ -4,11 +4,7 @@ package util
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName}
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  CreateDiskForRuntimeResult,
-  CreateVmRequest,
-  StorageContainerResponse
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CreateDiskForRuntimeResult, StorageContainerResponse}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -108,7 +104,8 @@ final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtimeConfig: RuntimeConfig.AzureConfig,
                                    vmImage: AzureImage,
                                    workspaceStorageContainer: StorageContainerResponse,
-                                   workspaceName: String
+                                   workspaceName: String,
+                                   cloudContext: CloudContext.Azure
 )
 
 final case class PollDiskParams(workspaceId: WorkspaceId,
