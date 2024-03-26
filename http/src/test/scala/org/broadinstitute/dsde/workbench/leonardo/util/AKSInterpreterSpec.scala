@@ -964,6 +964,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       dbsByJob += (jobId -> requestBody)
       new CreatedControlledAzureDatabaseResult().resourceId(uuid)
     }
+
     // Get create database job result
     when {
       api.getCreateAzureDatabaseResult(any, any)
@@ -988,6 +989,23 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
         .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
+
+    // delete database
+    when {
+      api.deleteAzureDatabaseAsync(any, any, any)
+    } thenAnswer { invocation =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
+    }
+
+    // get delete database job result
+    when {
+      api.getDeleteAzureDatabaseResult(any, any)
+    } thenAnswer { invocation =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
+    }
+
     // Create Kubernetes Namespace
     when {
       api.createAzureKubernetesNamespace(any, any)
