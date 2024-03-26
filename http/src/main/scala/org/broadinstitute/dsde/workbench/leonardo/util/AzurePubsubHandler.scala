@@ -317,16 +317,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   )(implicit
     ev: Ask[F, AppContext]
   ): F[CreateStorageContainerResourcesResult] = {
-    val stagingContainerName = ContainerName(s"ls-${runtime.runtimeName.asString}")
+    val storageContainerName = ContainerName(s"ls-${runtime.runtimeName.asString}")
     for {
       ctx <- ev.ask[AppContext]
       wsmApi <- buildWsmControlledResourceApiClient
-      common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(stagingContainerName.value),
+      common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(storageContainerName.value),
                                                     "leonardo staging bucket",
                                                     runtime.auditInfo.creator
       )
       azureStorageContainer = new AzureStorageContainerCreationParameters()
-        .storageContainerName(stagingContainerName.value)
+        .storageContainerName(storageContainerName.value)
 
       wsStorageContainerUrl =
         s"https://${landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainerName.value}"
@@ -341,9 +341,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .save(runtime.id, resourceId, WsmResourceType.AzureStorageContainer)
         .transaction
       _ <- clusterQuery
-        .updateStagingBucket(runtime.id, Some(StagingBucket.Azure(stagingContainerName)), ctx.now)
+        .updateStagingBucket(runtime.id, Some(StagingBucket.Azure(storageContainerName)), ctx.now)
         .transaction
-    } yield CreateStorageContainerResourcesResult(stagingContainerName, resourceId, wsStorageContainerUrl)
+    } yield CreateStorageContainerResourcesResult(storageContainerName, resourceId, wsStorageContainerUrl)
   }
 
   private def createDiskForRuntime(params: CreateAzureDiskParams)(implicit
