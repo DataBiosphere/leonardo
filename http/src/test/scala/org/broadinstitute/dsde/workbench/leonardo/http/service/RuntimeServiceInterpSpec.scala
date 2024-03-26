@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   workspaceSamResourceIdDecoder,
   wsmResourceSamResourceIdDecoder
 }
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{sfkit, CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer, leonardoExceptionEq}
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
@@ -337,6 +337,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -487,6 +488,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -560,6 +562,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -697,12 +700,21 @@ class RuntimeServiceInterpTest
       // Crypto detector not supported on DockerHub
       r1.isRight shouldBe true
       runtime1.runtimeName shouldBe runtimeName1
-      runtime1Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter, Welder, RuntimeImageType.Proxy)
+      runtime1Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter,
+                                                                           Welder,
+                                                                           RuntimeImageType.Proxy,
+                                                                           sfkit
+      )
 
       r2.isRight shouldBe true
       runtime2.runtimeName shouldBe runtimeName2
       runtime2Images
-        .map(_.imageType) should contain theSameElementsAs Set(Jupyter, Welder, RuntimeImageType.Proxy, CryptoDetector)
+        .map(_.imageType) should contain theSameElementsAs Set(Jupyter,
+                                                               sfkit,
+                                                               Welder,
+                                                               RuntimeImageType.Proxy,
+                                                               CryptoDetector
+      )
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -781,6 +793,7 @@ class RuntimeServiceInterpTest
             ),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.sfkit, Config.imageConfig.sfkitImage.imageUrl, None, context.now),
             RuntimeImage(
               RuntimeImageType.CryptoDetector,
               Config.imageConfig.cryptoDetectorImage.imageUrl,
@@ -2624,12 +2637,12 @@ class RuntimeServiceInterpTest
   }
 
   it should "test getToolFromImages - get the Jupyter tool from list of cluster images" in isolatedDbTest {
-    val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage))
+    val tool = getToolFromImages(Set(jupyterImage, welderImage, proxyImage, sfkitImage, cryptoDetectorImage))
     tool shouldBe Some(Tool.Jupyter)
   }
 
   it should "test getToolFromImages - get the RStudio tool from list of cluster images" in isolatedDbTest {
-    val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, cryptoDetectorImage))
+    val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, sfkitImage, cryptoDetectorImage))
     tool shouldBe Some(Tool.RStudio)
   }
 

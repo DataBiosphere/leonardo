@@ -403,7 +403,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       30,
       Some("clientId"),
-      Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
+      Set(jupyterImage, welderImage, proxyImage, sfkitImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
       defaultScopes,
       true,
       true,
@@ -459,6 +459,11 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |      "imageType" : "Jupyter",
         |      "imageUrl" : "init-resources/jupyter-base:latest",
         |      "homeDirectory" : "/home/jupyter",
+        |      "timestamp" : "2020-11-20T17:23:24.650Z"
+        |    },
+        |    {
+        |      "imageType" : "sfkit",
+        |      "imageUrl" : "us-central1-docker.pkg.dev/dsp-artifact-registry/sfkit/sfkit",
         |      "timestamp" : "2020-11-20T17:23:24.650Z"
         |    },
         |    {

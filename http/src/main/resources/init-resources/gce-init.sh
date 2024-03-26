@@ -100,6 +100,8 @@ export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 export RSTUDIO_USER_HOME=/home/rstudio
 export PROXY_SERVER_NAME=$(proxyServerName)
 export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
+export SFKIT_SERVER_NAME=$(sfkitServerName)
+export SFKIT_DOCKER_IMAGE=$(sfkitDockerImage)
 export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
 export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
 export MEM_LIMIT=$(memLimit)
@@ -327,6 +329,8 @@ RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
 RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
 SHOULD_BACKGROUND_SYNC=${SHOULD_BACKGROUND_SYNC}
 RSTUDIO_USER_HOME=${RSTUDIO_USER_HOME}
+SFKIT_SERVER_NAME=${SFKIT_SERVER_NAME}
+SFKIT_DOCKER_IMAGE=${SFKIT_DOCKER_IMAGE}
 END
 
 # Create a network that allows containers to talk to each other via exposed ports
@@ -340,6 +344,20 @@ retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pu
 chmod a+rwx ${WORK_DIRECTORY}
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
+
+# Start local sfkit server component, with access to ${NOTEBOOKS_DIR}.
+# The client running inside the notebook container communicates to the server over a Unix socket.
+# This should be started after other containers.
+# Use `docker run` instead of docker-compose for simplicity and to avoid ${NOTEBOOKS_DIR} collisions.
+# We increase UDP network buffer sizes for performance:
+# https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
+# For more information, see https://github.com/hcholab/sfkit/tree/main
+if [ -n "${SFKIT_DOCKER_IMAGE}" ] ; then
+  docker run "--name=${SFKIT_SERVER_NAME}" --rm -d --restart unless-stopped \
+    --sysctl net.core.rmem_max=2500000 --sysctl net.core.wmem_max=2500000 \
+    -e "SFKIT_SOCK=${NOTEBOOKS_DIR}/.config/sfkit/server.sock" \
+    -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" "${SFKIT_DOCKER_IMAGE}"
+fi
 
 # Start up crypto detector, if enabled.
 # This should be started after other containers.
