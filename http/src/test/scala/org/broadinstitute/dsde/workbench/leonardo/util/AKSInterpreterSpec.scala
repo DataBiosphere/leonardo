@@ -360,7 +360,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "retrieve a WSM namespace if it exists in workspace" in isolatedDbTest {
     val res = for {
       retrievedNamespaces <- aksInterp.retrieveWsmNamespace(mockResourceApi, "ns-name", workspaceId.value)
-    } yield retrievedNamespaces.head.name.value shouldBe "ns-name"
+    } yield retrievedNamespaces.map(ns => ns.name.value) shouldBe Some("ns-name")
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -368,7 +368,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "not retrieve a WSM namespace if doesn't exist in workspace" in isolatedDbTest {
     val res = for {
       retrievedNamespaces <- aksInterp.retrieveWsmNamespace(mockResourceApi, "something-else", workspaceId.value)
-    } yield retrievedNamespaces.length shouldBe 0
+    } yield retrievedNamespaces shouldBe None
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1071,82 +1071,73 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       wsm.getControlledAzureResourceApi(any)(any)
     } thenReturn IO.pure(api)
 
-    // enumerate workspace resources - return empty list when creating app for first time
+    // "ns-name" workspace database resource
+
     when {
-      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForAppCreation.value), any, any, any, any)
-    } thenReturn {
-      val resourceList = new ArrayList[ResourceDescription]
-      new ResourceList().resources(resourceList)
+      resourceApi.getResourceByName(
+        workspaceId.value,
+        "cromwellmetadata"
+      )
+    }.thenReturn(
+      new ResourceDescription()
+        .metadata(new ResourceMetadata().name("cromwellmetadata").resourceId(java.util.UUID.randomUUID()))
+        .resourceAttributes(
+          new ResourceAttributesUnion().azureDatabase(
+            new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
+          )
+        )
+    )
+
+    // workspace database resource for a workspace with cloned db
+    when {
+      resourceApi.getResourceByName(
+        workspaceIdForCloning.value,
+        "cbas"
+      )
+    }.thenReturn {
+      new ResourceDescription()
+        .metadata(new ResourceMetadata().name("cbas").resourceId(java.util.UUID.randomUUID()))
+        .resourceAttributes(
+          new ResourceAttributesUnion().azureDatabase(
+            new AzureDatabaseAttributes().databaseName("cbas_cloned_db_abcxyz")
+          )
+        )
+    }
+    // workspace database resource for an updating app
+    when {
+      resourceApi.getResourceByName(
+        workspaceIdForUpdating.value,
+        "cbas"
+      )
+    }.thenReturn {
+      new ResourceDescription()
+        .metadata(new ResourceMetadata().name("cbas").resourceId(cbasUuidForUpdateApp))
+        .resourceAttributes(
+          new ResourceAttributesUnion().azureDatabase(
+            new AzureDatabaseAttributes().databaseName("cbas_db_abcxyz")
+          )
+        )
+
     }
 
-    // enumerate workspace database resources
     when {
-      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
-                                     any,
-                                     any,
-                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
-                                     any
+      resourceApi.getResourceByName(
+        workspaceIdForUpdating.value,
+        "cromwellmetadata"
       )
-    } thenReturn {
-      val resourceList = new ArrayList[ResourceDescription]
-      val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("cromwellmetadata").resourceId(java.util.UUID.randomUUID()))
-      resourceDesc.resourceAttributes(
-        new ResourceAttributesUnion().azureDatabase(
-          new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
+    }.thenReturn {
+      new ResourceDescription()
+        .metadata(
+          new ResourceMetadata().name("cromwellmetadata").resourceId(cromwellmetadataUuidForUpdateApp)
         )
-      )
-      resourceList.add(resourceDesc)
-      new ResourceList().resources(resourceList)
+        .resourceAttributes(
+          new ResourceAttributesUnion().azureDatabase(
+            new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
+          )
+        )
+
     }
-    // enumerate workspace database resources for a workspace with cloned db
-    when {
-      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForCloning.value),
-                                     any,
-                                     any,
-                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
-                                     any
-      )
-    } thenReturn {
-      val resourceList = new ArrayList[ResourceDescription]
-      val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("cbas").resourceId(java.util.UUID.randomUUID()))
-      resourceDesc.resourceAttributes(
-        new ResourceAttributesUnion().azureDatabase(
-          new AzureDatabaseAttributes().databaseName("cbas_cloned_db_abcxyz")
-        )
-      )
-      resourceList.add(resourceDesc)
-      new ResourceList().resources(resourceList)
-    }
-    // enumerate workspace database resources for an updating app
-    when {
-      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForUpdating.value),
-                                     any,
-                                     any,
-                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
-                                     any
-      )
-    } thenReturn {
-      val resourceList = new ArrayList[ResourceDescription]
-      val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("cbas").resourceId(cbasUuidForUpdateApp))
-      resourceDesc.resourceAttributes(
-        new ResourceAttributesUnion().azureDatabase(
-          new AzureDatabaseAttributes().databaseName("cbas_db_abcxyz")
-        )
-      )
-      resourceDesc.metadata(
-        new ResourceMetadata().name("cromwellmetadata").resourceId(cromwellmetadataUuidForUpdateApp)
-      )
-      resourceDesc.resourceAttributes(
-        new ResourceAttributesUnion().azureDatabase(
-          new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
-        )
-      )
-      resourceList.add(resourceDesc)
-      new ResourceList().resources(resourceList)
-    }
+
     // getAzureDatabase for an updating app
     when {
       api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value), ArgumentMatchers.eq(cbasUuidForUpdateApp))
@@ -1180,27 +1171,32 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
             .databaseName("cromwellmetadata_db_abcxyz")
         )
     }
-    // enumerate workspace managed identity resources
+    // workspace managed identity resource
     when {
-      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
-                                     any,
-                                     any,
-                                     ArgumentMatchers.eq(ResourceType.AZURE_MANAGED_IDENTITY),
-                                     any
-      )
-    } thenReturn {
-      val resourceList = new ArrayList[ResourceDescription]
-      val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app").resourceId(java.util.UUID.randomUUID()))
-      resourceDesc.resourceAttributes(
-        new ResourceAttributesUnion().azureManagedIdentity(
-          new AzureManagedIdentityAttributes().managedIdentityName("abcxyz")
+      resourceApi.getResourceByName(workspaceId.value, s"idworkflows_app")
+    }.thenReturn {
+      new ResourceDescription()
+        .metadata(new ResourceMetadata().name(s"idworkflows_app").resourceId(java.util.UUID.randomUUID()))
+        .resourceAttributes(
+          new ResourceAttributesUnion().azureManagedIdentity(
+            new AzureManagedIdentityAttributes().managedIdentityName("abcxyz")
+          )
         )
-      )
-      resourceList.add(resourceDesc)
-      new ResourceList().resources(resourceList)
     }
-    // enumerate workspace namespace resources
+
+    //  workspace namespace resource
+    when {
+      resourceApi.getResourceByName(workspaceId.value, s"ns-name-${workspaceId.value.toString}")
+    }.thenReturn {
+      new ResourceDescription()
+        .resourceAttributes(
+          new ResourceAttributesUnion().azureKubernetesNamespace(
+            new AzureKubernetesNamespaceAttributes().kubernetesNamespace("ns-name")
+          )
+        )
+        .metadata(new ResourceMetadata().name(s"ns-name-${workspaceId.value.toString}"))
+    }
+    /*
     when {
       resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
                                      any,
@@ -1220,7 +1216,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceList.add(resourceDesc)
       new ResourceList().resources(resourceList)
     }
-
+     */
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId.value), any)
     } thenReturn {
