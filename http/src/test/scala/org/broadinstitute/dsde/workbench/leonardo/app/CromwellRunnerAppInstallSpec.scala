@@ -61,7 +61,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
       s"postgres.dbnames.tes=$tesAzureDbName," +
-      s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName" +
+      s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName," +
       s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org"
   }
 
