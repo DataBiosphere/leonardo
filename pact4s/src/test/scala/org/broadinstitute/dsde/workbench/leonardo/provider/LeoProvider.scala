@@ -71,9 +71,14 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   // This function composes a large switch statement based on partial functions from
   // multiple state mangers (each with their own state that they handle).
   private val providerStatesHandler: StateManagementFunction = StateManagementFunction {
-    RuntimeStateManager.handler(mockRuntimeService).orElse(AppStateManager.handler(mockAppService)).orElse { case _ =>
-      loggerIO.debug("Whoops: other state")
-    }
+    AppStateManager
+      .handler(mockAppService)
+      .orElse(DiskStateManager.handler(mockDiskService))
+      .orElse(RuntimeStateManager.handler(mockRuntimeService))
+      .orElse(StatusStateManager.handler(mockStatusService))
+      .orElse { case _ =>
+        loggerIO.debug("State not found")
+      }
   }
 
   lazy val pactBrokerUrl: String = sys.env.getOrElse("PACT_BROKER_URL", "")
@@ -97,8 +102,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
     case Some(s) if !s.isBlank =>
       consumerVersionSelectors = consumerVersionSelectors.branch(s, consumerName).matchingBranch
     case _ =>
-      consumerVersionSelectors =
-        consumerVersionSelectors.deployedOrReleased.mainBranch.branch("eric/RW-11654", Option("aou-rwb-api"))
+      consumerVersionSelectors = consumerVersionSelectors.deployedOrReleased.mainBranch
   }
 
   val provider: ProviderInfoBuilder =
@@ -107,7 +111,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       PactSource
         .PactBrokerWithSelectors(pactBrokerUrl)
         .withAuth(BasicAuth(pactBrokerUser, pactBrokerPass))
-        .withPendingPactsEnabled(ProviderTags(providerVer))
+        .withPendingPactsEnabled(ProviderTags(providerBranch))
         .withConsumerVersionSelectors(consumerVersionSelectors)
     )
       .withStateManagementFunction(

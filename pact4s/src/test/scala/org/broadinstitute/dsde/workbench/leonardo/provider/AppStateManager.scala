@@ -37,7 +37,7 @@ object AppStateManager {
   object States {
     final val AppExists = "there is an app in a Google project"
     final val AppDoesNotExist = "there is not an app in a Google project"
-    final val GoogleProjectExists = "there is a Google project"
+    final val GoogleProjectWithAppsExists = "there is a Google project with apps"
   }
 
   private val mockedGetAppResponse = GetAppResponse(
@@ -151,7 +151,7 @@ object AppStateManager {
       mockGetApp(mockAppService, IO.raiseError(mockedAppNotFoundException))
       mockDeleteApp(mockAppService, IO.raiseError(mockedAppNotFoundException))
       mockCreateApp(mockAppService, IO.unit)
-    case ProviderState(States.GoogleProjectExists, _) =>
+    case ProviderState(States.GoogleProjectWithAppsExists, _) =>
       mockListApp(mockAppService,
                   IO {
                     Vector(mockedListAppResponse)
