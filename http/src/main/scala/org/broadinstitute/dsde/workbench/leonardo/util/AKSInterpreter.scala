@@ -263,17 +263,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       appOk <- childSpan("pollAppCreation").use { implicit ev =>
         pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
       }
-      _ <-
-        if (appOk)
-          F.unit
-        else {
-          F.raiseError[Unit](
-            AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
-              Some(ctx.traceId)
-            )
-          )
-        }
+      _ <- F.raiseWhen(!appOk)(
+        AppCreationException(
+          s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
+          Some(ctx.traceId)
+        )
+      )
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
@@ -829,7 +824,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   )(implicit ev: Ask[F, AppContext]): F[List[WsmControlledDatabaseResource]] =
     for {
       ctx <- ev.ask
-      _ <- F.raiseWhen(landingZoneResources.postgresServer.isDefined)(
+      _ <- F.raiseWhen(landingZoneResources.postgresServer.isEmpty)(
         AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId))
       )
       wsmApi <- buildWsmControlledResourceApiClient
@@ -876,7 +871,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- F.raiseWhen(landingZoneResources.postgresServer.isDefined)(
+      _ <- F.raiseWhen(landingZoneResources.postgresServer.isEmpty)(
         AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId))
       )
       wsmApi <- buildWsmControlledResourceApiClient
@@ -1259,7 +1254,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Build delete namespace request
       jobId = UUID.randomUUID()
-      deleteNamespaceRequest = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
+      deleteNamespaceRequest = new DeleteControlledAzureResourceRequest().jobControl(
         new JobControl().id(jobId.toString)
       )
 
@@ -1316,7 +1311,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Build delete database request
       jobId = UUID.randomUUID()
-      deleteDatabaseRequest = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
+      deleteDatabaseRequest = new DeleteControlledAzureResourceRequest().jobControl(
         new JobControl().id(jobId.toString)
       )
 
@@ -1339,7 +1334,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .transaction
 
-      // Poll for namespace deletion
+      // Poll for databasee deletion
       op = F.blocking(
         wsmApi.getDeleteAzureDatabaseResult(workspaceId.value, jobId.toString)
       )

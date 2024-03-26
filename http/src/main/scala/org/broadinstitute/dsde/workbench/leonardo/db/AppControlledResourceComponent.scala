@@ -80,6 +80,14 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
       .result
       .map(_.toList)
 
+  def getAllForApp(appId: Long)(implicit
+    ec: ExecutionContext
+  ): DBIO[List[AppControlledResourceRecord]] =
+    appControlledResourceQuery
+      .filter(_.appId === appId)
+      .result
+      .map(_.toList)
+
   def getAllForAppByType(appId: Long, resourceType: WsmResourceType)(implicit
     ec: ExecutionContext
   ): DBIO[List[AppControlledResourceRecord]] =
