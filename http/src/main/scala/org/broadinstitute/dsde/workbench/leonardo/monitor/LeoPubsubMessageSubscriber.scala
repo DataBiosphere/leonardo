@@ -1466,6 +1466,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     e match {
       case e: PubsubKubernetesError =>
         for {
+          _ <- logger.error(ctx.loggingCtx, e)("top level handler for handleKubernetesError")
           _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
           _ <- e.appId.traverse(id => appQuery.markAsErrored(id).transaction)
           _ <- e.clusterId.traverse(clusterId =>
