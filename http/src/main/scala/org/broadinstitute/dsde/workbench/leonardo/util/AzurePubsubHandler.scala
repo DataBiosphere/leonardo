@@ -103,22 +103,21 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // Get the optional storage container for the workspace
       tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-      storageContainerOpt <- tokenOpt.flatTraverse { token =>
+      workspaceStorageContainerOpt <- tokenOpt.flatTraverse { token =>
         wsmDao.getWorkspaceStorageContainer(
           msg.workspaceId,
           org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
         )
       }
       workspaceStorageContainer <- F.fromOption(
-        storageContainerOpt,
+        workspaceStorageContainerOpt,
         AzureRuntimeCreationError(
           runtime.id,
           msg.workspaceId,
-          s"Storage container not found for runtime: ${runtime.id}",
+          s"Storage container not found for workspace: ${msg.workspaceId.value}",
           msg.useExistingDisk
         )
       )
-      createVmJobId = WsmJobId(s"create-vm-${runtime.id.toString.take(10)}")
 
       // send create disk message to WSM
       createDiskResult <- createDiskForRuntime(
@@ -131,8 +130,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         PollRuntimeParams(
           msg.workspaceId,
           runtime,
-          createVmJobId,
-          landingZoneResources.relayNamespace,
           msg.useExistingDisk,
           createDiskResult,
           landingZoneResources,
@@ -144,13 +141,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
     } yield ()
 
-  private def setupRuntimeCreateMessage(params: PollRuntimeParams,
-                                        storageContainer: CreateStorageContainerResourcesResult,
-                                        primaryKey: PrimaryKey,
-                                        createVmJobId: WsmJobId
+  private def setupCreateVmCreateMessage(params: PollRuntimeParams,
+                                         storageContainer: CreateStorageContainerResourcesResult,
+                                         primaryKey: PrimaryKey,
+                                         createVmJobId: WsmJobId
   ): CreateVmRequest = {
     val samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
     val hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
+
+    val wsStorageContainerUrl =
+      s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.workspaceStorageContainer.name.value}"
 
     // Setup create VM message
     val vmCommon = getCommonFields(
@@ -176,7 +176,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       storageContainer.containerName.value,
       storageContainer.resourceId.value.toString,
       params.workspaceName,
-      storageContainer.wsStorageContainerUrl,
+      wsStorageContainerUrl,
       applicationConfig.leoUrlBase,
       params.runtime.runtimeName.asString,
       s"'${refererConfig.validHosts.mkString("','")}'"
@@ -312,8 +312,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def createStorageContainer(runtime: Runtime,
                                      landingZoneResources: LandingZoneResources,
-                                     workspaceId: WorkspaceId,
-                                     storageContainerName: ContainerName
+                                     workspaceId: WorkspaceId
   )(implicit
     ev: Ask[F, AppContext]
   ): F[CreateStorageContainerResourcesResult] = {
@@ -328,9 +327,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       azureStorageContainer = new AzureStorageContainerCreationParameters()
         .storageContainerName(storageContainerName.value)
 
-      wsStorageContainerUrl =
-        s"https://${landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainerName.value}"
-
       request = new CreateControlledAzureStorageContainerRequestBody()
         .common(common)
         .azureStorageContainer(azureStorageContainer)
@@ -343,7 +339,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- clusterQuery
         .updateStagingBucket(runtime.id, Some(StagingBucket.Azure(storageContainerName)), ctx.now)
         .transaction
-    } yield CreateStorageContainerResourcesResult(storageContainerName, resourceId, wsStorageContainerUrl)
+    } yield CreateStorageContainerResourcesResult(storageContainerName, resourceId)
   }
 
   private def createDiskForRuntime(params: CreateAzureDiskParams)(implicit
@@ -704,15 +700,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                              hybridConnectionName,
                                                              cloudContext.value
         )
-        storageContainer <- createStorageContainer(params.runtime,
-                                                   params.landingZoneResources,
-                                                   params.workspaceId,
-                                                   params.workspaceStorageContainer.name
-        )
+        storageContainer <- createStorageContainer(params.runtime, params.landingZoneResources, params.workspaceId)
 
         _ <- params.createDiskResult.pollParams.traverse(params => monitorCreateDisk(params))
 
-        vmRequest = setupRuntimeCreateMessage(
+        vmRequest = setupCreateVmCreateMessage(
           params,
           storageContainer,
           primaryKey,
@@ -752,7 +744,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case WsmJobStatus.Succeeded =>
-            val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
+            val hostIp = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
             for {
               now <- nowInstant
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction

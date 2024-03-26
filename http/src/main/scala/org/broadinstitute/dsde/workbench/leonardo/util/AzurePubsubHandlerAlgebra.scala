@@ -2,13 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.azure.{
-  AzureCloudContext,
-  ContainerName,
-  PrimaryKey,
-  RelayHybridConnectionName,
-  RelayNamespace
-}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName}
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   CreateDiskForRuntimeResult,
@@ -102,10 +96,12 @@ final case class CreateAzureDiskParams(workspaceId: WorkspaceId,
                                        runtimeConfig: RuntimeConfig.AzureConfig
 )
 
+/**
+ * This case class represents the necessary information to poll all objects associated with the runtime,
+ * namely disk, storage container and vm
+ */
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
-                                   vmJobId: WsmJobId,
-                                   relayNamespace: RelayNamespace,
                                    useExistingDisk: Boolean,
                                    createDiskResult: CreateDiskForRuntimeResult,
                                    landingZoneResources: LandingZoneResources,
@@ -133,18 +129,8 @@ final case class PollVmParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime
 
 final case class PollStorageContainerParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
 
-/**
- * This case class represents the necessary information to poll all objects associated with the runtime, namely disk and vm
- */
-final case class CreateRuntimeResourcesResult(vmRequest: CreateVmRequest,
-                                              createDiskResult: CreateDiskForRuntimeResult,
-                                              hybridConnectionName: RelayHybridConnectionName,
-                                              primaryKey: PrimaryKey
-)
-
 final case class CreateStorageContainerResourcesResult(containerName: ContainerName,
-                                                       resourceId: WsmControlledResourceId,
-                                                       wsStorageContainerUrl: String
+                                                       resourceId: WsmControlledResourceId
 )
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
