@@ -27,7 +27,7 @@ jobs:
         id: prepare-outputs
         run: |
           if ${{ contains(github.event.pull_request.title, 'WM-') }}; then
-            echo 'notify-failure-channel=dsp-workflows                 >> $GITHUB_OUTPUT
+            echo 'notify-failure-channel=dsp-workflows'                 >> $GITHUB_OUTPUT
           elif ${{ contains(github.event.pull_request.title, 'WX-') }}; then
             echo 'notify-failure-channel=dsp-workflows'                >> $GITHUB_OUTPUT
           else ${{ contains(github.event.pull_request.title, 'AJ-') }}; then
