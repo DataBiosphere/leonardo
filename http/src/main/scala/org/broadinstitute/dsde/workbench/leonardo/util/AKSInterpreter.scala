@@ -266,13 +266,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <-
         if (appOk)
           F.unit
-        else
+        else {
           F.raiseError[Unit](
             AppCreationException(
               s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
           )
+        }
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
@@ -818,6 +819,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
     } yield createIdentityResponse
 
+  //TODO: fix...
   private[util] def createOrFetchWsmDatabaseResources(app: App,
                                                       appInstall: AppInstall[F],
                                                       workspaceId: WorkspaceId,
@@ -838,7 +840,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                                  workspaceId.value
         )
         wsmControlledDBResources <- controlledDbsForApp
-          .map { controlledDbForApp =>
+          .traverse { controlledDbForApp =>
             // if a database already exists (because of workspace cloning or Leo restarting mid-app creation) use that otherwise create a new one
             if (
               existingControlledDbsInWorkspace
@@ -846,14 +848,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             ) {
               logger.info(
                 s"Database found in WSM for app ${app.appName}, using previously created database: $existingControlledDbsInWorkspace"
-              )
+              ) >>
               F.pure(
                 existingControlledDbsInWorkspace
                   .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
                   .get
               )
             } else {
-              logger.info(s"Creating databases for app ${app.appName}")
+              logger.info(s"Creating databases for app ${app.appName}") >>
               createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                 db =>
                   WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
@@ -862,7 +864,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               }
             }
           }
-          .traverse(identity)
+//          .traverse(identity)
       } yield wsmControlledDBResources
     } else {
       ev.ask.flatMap(ctx =>
