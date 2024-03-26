@@ -26,11 +26,11 @@ jobs:
       - name: Match the PR to the corresponding team's slack notification channel
         id: prepare-outputs
         run: |
-          if ${{ contains(github.event.pull_request.title, 'WM-' }}; then
-            echo 'notify-failure-channel=dsp-workflows                 >> $GITHUB_OUTPUT
-          elif ${{ contains(github.event.pull_request.title, 'WX-' }}; then
+          if ${{ contains(github.event.pull_request.title, 'WM-') }}; then
+            echo 'notify-failure-channel=dsp-workflows'                 >> $GITHUB_OUTPUT
+          elif ${{ contains(github.event.pull_request.title, 'WX-') }}; then
             echo 'notify-failure-channel=dsp-workflows'                >> $GITHUB_OUTPUT
-          else ${{ contains(github.event.pull_request.title, 'AJ-' }}; then
+          else ${{ contains(github.event.pull_request.title, 'AJ-') }}; then
             echo 'notify-failure-channel=dsp-analysis-journeys'        >> $GITHUB_OUTPUT
           fi
 
