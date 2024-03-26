@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, _}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -34,11 +34,11 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
+
 import java.net.URL
 import java.nio.file.Paths
 import java.time.{Instant, ZonedDateTime}
 import java.util.UUID
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AzurePubsubHandlerSpec
@@ -634,7 +634,10 @@ class AzurePubsubHandlerSpec
   it should "handle storage container creation error in async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "storage container failed to create"
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue)
+    val (mockWsm, _, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {

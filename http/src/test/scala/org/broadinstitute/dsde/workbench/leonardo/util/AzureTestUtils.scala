@@ -8,17 +8,12 @@ import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.model.{
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
-  CreateControlledAzureStorageContainerRequestBody,
   CreatedControlledAzureStorageContainer,
-  DeleteControlledAzureResourceRequest,
   DeleteControlledAzureResourceResult,
   ErrorReport,
   JobReport
 }
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{workspaceId, workspaceId2}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
-import org.mockito.ArgumentMatchers
-import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDaoDeleteControlledAzureResourceRequest}
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.util.UUID
@@ -64,18 +59,12 @@ object AzureTestUtils extends MockitoSugar {
 
     // Create storage container
     when {
-      api.createAzureStorageContainer(any, ArgumentMatchers.eq(workspaceId.value))
-    } thenAnswer { invocation =>
-      val requestBody = invocation.getArgument[CreateControlledAzureStorageContainerRequestBody](0)
-      new CreatedControlledAzureStorageContainer().resourceId(UUID.randomUUID())
+      api.createAzureStorageContainer(any, any)
+    } thenAnswer { _ =>
+      if (storageContainerJobStatus == JobReport.StatusEnum.SUCCEEDED) new CreatedControlledAzureStorageContainer().resourceId(UUID.randomUUID())
+      else throw new Exception("storage container failed to create")
     }
 
-    // Create storage container
-    when {
-      api.createAzureStorageContainer(any, ArgumentMatchers.eq(workspaceId2.value))
-    } thenAnswer { _ =>
-      throw new Exception("storage container failed to create")
-    }
     // delete disk
     when {
       api.deleteAzureDisk(any, any, any)
