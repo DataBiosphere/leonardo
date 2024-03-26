@@ -140,8 +140,8 @@ object Dependencies {
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
-
-  val workSpaceManagerV = "0.254.1064-SNAPSHOT"
+  
+  val workSpaceManagerV = "0.254.1062-WOR-1519-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
