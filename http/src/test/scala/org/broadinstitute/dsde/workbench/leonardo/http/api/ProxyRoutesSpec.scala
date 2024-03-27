@@ -551,6 +551,7 @@ class ProxyRoutesSpec
 
     val httpRoutes = new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
@@ -728,6 +729,7 @@ class ProxyRoutesSpec
 
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
