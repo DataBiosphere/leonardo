@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, MockUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -50,19 +51,24 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   val mockUserInfoDirectives: MockUserInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
+  val gcpOnlyServicesRegistry = {
+    val registry = ServicesRegistry()
+    registry.register[ProxyService](mockProxyService)
+    registry.register[RuntimeService[IO]](mockRuntimeService)
+    registry.register[DiskService[IO]](mockDiskService)
+    registry.register[ResourcesService[IO]](mockResourcesService)
+    registry
+  }
 
   val routes =
     new HttpRoutes(
       mockOpenIDConnectConfiguration,
       mockStatusService,
-      mockProxyService,
-      mockRuntimeService,
-      mockDiskService,
+      gcpOnlyServicesRegistry,
       mockDiskV2Service,
       mockAppService,
       mockRuntimeV2Service,
       mockAdminService,
-      mockResourcesService,
       mockUserInfoDirectives,
       mockContentSecurityPolicyConfig,
       refererConfig
