@@ -156,11 +156,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def setupCreateVmCreateMessage(params: PollRuntimeParams,
                                          storageContainer: CreateStorageContainerResourcesResult,
-                                         primaryKey: PrimaryKey,
-                                         createVmJobId: WsmJobId
+                                         hcPrimaryKey: PrimaryKey,
+                                         createVmJobId: WsmJobId,
+                                         hcName: RelayHybridConnectionName
   ): CreateVmRequest = {
     val samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
-    val hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
 
     val wsStorageContainerUrl =
       s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.workspaceStorageContainer.name.value}"
@@ -174,9 +174,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
     val arguments = List(
       params.landingZoneResources.relayNamespace.value,
-      hcName,
+      hcName.value,
       "localhost",
-      primaryKey.value,
+      hcPrimaryKey.value,
       config.runtimeDefaults.listenerImage,
       config.samUrl.renderString,
       samResourceId.value.toString,
@@ -700,9 +700,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       taskToRun = for {
         // the result of creating the hybrid connection + storage container are necessary for the createVm request
-        primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                             hybridConnectionName,
-                                                             params.cloudContext.value
+        hcPrimaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                               hybridConnectionName,
+                                                               params.cloudContext.value
         )
         storageContainer <- createStorageContainer(params.runtime, params.landingZoneResources, params.workspaceId)
 
@@ -711,8 +711,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         vmRequest = setupCreateVmCreateMessage(
           params,
           storageContainer,
-          primaryKey,
-          createVmJobId
+          hcPrimaryKey,
+          createVmJobId,
+          hybridConnectionName
         )
 
         _ <- wsmDao.createVm(vmRequest, auth)
