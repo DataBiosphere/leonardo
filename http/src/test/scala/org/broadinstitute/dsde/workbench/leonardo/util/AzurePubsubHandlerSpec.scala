@@ -11,13 +11,13 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, _}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -34,11 +34,11 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
+
 import java.net.URL
 import java.nio.file.Paths
 import java.time.{Instant, ZonedDateTime}
 import java.util.UUID
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AzurePubsubHandlerSpec
@@ -631,7 +631,50 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "handle error in create azure vm async task properly" in isolatedDbTest {
+  it should "handle storage container creation error in async task properly" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val exceptionMsg = "storage container failed to create"
+    val (mockWsm, _, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId2, false, None, "WorkspaceName", billingProfileId)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.createAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle vm creation error in async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
