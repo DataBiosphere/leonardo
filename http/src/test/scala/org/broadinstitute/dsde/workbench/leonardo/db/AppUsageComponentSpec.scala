@@ -7,7 +7,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import scala.concurrent.duration._
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
