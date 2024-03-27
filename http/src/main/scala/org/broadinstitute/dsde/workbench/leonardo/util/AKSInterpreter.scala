@@ -1334,7 +1334,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
         .transaction
 
-      // Poll for databasee deletion
+      // Poll for database deletion
       op = F.blocking(
         wsmApi.getDeleteAzureDatabaseResult(workspaceId.value, jobId.toString)
       )
@@ -1352,7 +1352,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       )
 
-      // record in APP_CONTROLLED_RESOURCE table s updated by caller
+      // record in APP_CONTROLLED_RESOURCE table is updated by caller
     } yield ()
 
   private[util] def deleteWsmResource(workspaceId: WorkspaceId, app: App, wsmResource: AppControlledResourceRecord)(

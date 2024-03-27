@@ -816,10 +816,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       _ <- aksInterp.deleteApp(params)
 
       deletedControlledResources <- appControlledResourceQuery
-        .getAllForAppByStatus(appId.id, AppControlledResourceStatus.Deleted)
+        .getAllForApp(appId)
         .transaction
     } yield {
       deletedControlledResources.length shouldBe 3
+      deletedControlledResources.map(_.status).distinct shouldBe List(AppControlledResourceStatus.Deleted)
       verify(mockControlledResourceApi, times(1)).deleteAzureDatabaseAsync(any,
                                                                            mockitoEq(workspaceId.value),
                                                                            mockitoEq(databaseId)
