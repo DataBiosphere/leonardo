@@ -1196,27 +1196,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
         .metadata(new ResourceMetadata().name(s"ns-name-${workspaceId.value.toString}"))
     }
-    /*
-    when {
-      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
-                                     any,
-                                     any,
-                                     ArgumentMatchers.eq(ResourceType.AZURE_KUBERNETES_NAMESPACE),
-                                     any
-      )
-    } thenReturn {
-      val resourceList = new ArrayList[ResourceDescription]
-      val resourceDesc = new ResourceDescription()
-      resourceDesc.metadata(new ResourceMetadata().name("idworkflows_app"))
-      resourceDesc.resourceAttributes(
-        new ResourceAttributesUnion().azureKubernetesNamespace(
-          new AzureKubernetesNamespaceAttributes().kubernetesNamespace("ns-name")
-        )
-      )
-      resourceList.add(resourceDesc)
-      new ResourceList().resources(resourceList)
-    }
-     */
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId.value), any)
     } thenReturn {
