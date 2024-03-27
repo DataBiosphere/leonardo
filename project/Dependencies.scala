@@ -17,14 +17,14 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "437e7c3"
-  val serviceTestV = s"4.2-$workbenchLibsHash"
+  private val workbenchLibsHash = "1c0cf92"
+  val serviceTestV = s"4.3-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.30-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.35-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.36-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
   val workbenchOauth2V = s"0.5-$workbenchLibsHash"
-  val workbenchAzureV = s"0.6-$workbenchLibsHash"
+  val workbenchAzureV = s"0.7-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.8.5"
 
@@ -58,7 +58,7 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.3"
+  val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.4"
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.14"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
@@ -217,7 +217,7 @@ object Dependencies {
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito,
-    "com.azure" % "azure-identity" % "1.11.2"
+    "com.azure" % "azure-identity" % "1.10.4"
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)

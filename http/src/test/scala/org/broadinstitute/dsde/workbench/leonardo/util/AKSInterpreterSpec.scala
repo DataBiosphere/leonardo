@@ -11,7 +11,7 @@ import io.kubernetes.client.openapi.apis.CoreV1Api
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.{KubernetesModels, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -29,7 +29,7 @@ import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmExcepti
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{atLeastOnce, never, times, verify, when}
+import org.mockito.Mockito._
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -898,9 +898,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val coreV1Api = mock[CoreV1Api]
     new KubernetesAlgebra[IO] {
       override def createAzureClient(cloudContext: AzureCloudContext, clusterName: AKSClusterName)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[CoreV1Api] = IO.pure(coreV1Api)
-      override def createGcpClient(clusterId: GKEModels.KubernetesClusterId)(implicit
         ev: Ask[IO, AppContext]
       ): IO[CoreV1Api] = IO.pure(coreV1Api)
       override def listPodStatus(clusterId: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit

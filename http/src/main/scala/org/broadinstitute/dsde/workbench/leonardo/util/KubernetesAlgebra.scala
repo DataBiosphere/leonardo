@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import cats.mtl.Ask
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext}
-import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
 
@@ -13,9 +12,6 @@ trait KubernetesAlgebra[F[_]] {
   def createAzureClient(cloudContext: AzureCloudContext, clusterName: AKSClusterName)(implicit
     ev: Ask[F, AppContext]
   ): F[CoreV1Api]
-
-  /** Creates a k8s client given a GKE cluster ID. */
-  def createGcpClient(clusterId: KubernetesClusterId)(implicit ev: Ask[F, AppContext]): F[CoreV1Api]
 
   /** Lists pods in a namespace. */
   def listPodStatus(clusterId: CoreV1Api, namespace: KubernetesNamespace)(implicit

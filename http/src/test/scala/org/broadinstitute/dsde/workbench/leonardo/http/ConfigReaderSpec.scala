@@ -1,7 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureAppRegistrationConfig,
+  AzureServiceBusPublisherConfig,
+  AzureServiceBusSubscriberConfig,
+  ClientId,
+  ClientSecret,
+  ManagedAppTenantId
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -156,7 +163,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.161.0"),
+          ChartVersion("0.167.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -227,7 +234,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureHostingModeConfig(
           false,
           "AZURE",
-          AzureManagedIdentityAuthConfig(".default", 30)
+          AzureManagedIdentityAuthConfig(".default", 30),
+          AzureServiceBusPublisherConfig("replace_me", Some("replace_me"), Some("replace_me")),
+          AzureServiceBusSubscriberConfig("replace_me", "replace_me", Some("replace_me"), Some("replace_me"), 1, 1)
         )
       ),
       OidcAuthConfig(

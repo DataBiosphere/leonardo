@@ -18,7 +18,6 @@ object ConfigReader {
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
 }
-
 final case class AzureConfig(
   pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
