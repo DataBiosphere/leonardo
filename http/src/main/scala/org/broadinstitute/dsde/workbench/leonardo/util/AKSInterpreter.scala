@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.{RegionName, streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.app.{AppInstall, BuildHelmOverrideValuesParams}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
@@ -32,7 +32,6 @@ import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import java.net.URL
-import java.time.OffsetDateTime
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
@@ -182,7 +181,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // get workspaceDescription from WSM
       wsmWorkspaceApi <- buildWsmWorkspaceApiClient
-      //workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, params.workspaceId.value)
+      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, params.workspaceId.value)
 
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
@@ -237,8 +236,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         params.workspaceId,
-        OffsetDateTime.now(), // fixme: temporary
-        //workspaceDescription.getCreatedDate,
+        workspaceDescription.getCreatedDate,
         params.cloudContext,
         landingZoneResources,
         storageContainerOpt,
