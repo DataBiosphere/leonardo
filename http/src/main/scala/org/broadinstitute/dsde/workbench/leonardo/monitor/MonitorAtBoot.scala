@@ -27,7 +27,7 @@ import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
-                          computeService: GoogleComputeService[F],
+                          computeService: Option[GoogleComputeService[F]],
                           samDAO: SamDAO[F],
                           wsmDao: WsmDao[F]
 )(implicit
@@ -179,7 +179,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
             msg <- cluster.cloudContext match {
               case CloudContext.Gcp(googleProject) =>
                 for {
-                  machineType <- computeService
+                  machineType <- computeService.get
                     .getMachineType(
                       googleProject,
                       ZoneName("us-central1-a"),

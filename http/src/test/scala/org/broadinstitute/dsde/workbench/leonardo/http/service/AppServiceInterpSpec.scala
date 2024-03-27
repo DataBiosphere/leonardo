@@ -7,12 +7,9 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
+import fs2.Pipe
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGooglePublisher,
-  FakeGoogleResourceService
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -21,14 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  HttpWsmClientProvider,
-  MockWsmClientProvider,
-  MockWsmDAO,
-  WorkspaceDescription,
-  WsmApiClientProvider,
-  WsmDao
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -45,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
@@ -54,13 +45,13 @@ import org.mockito.Mockito.when
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
-import org.scalatestplus.mockito.MockitoSugar.mock
+import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
-trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
@@ -106,7 +97,13 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
+
+    val mockCloudPublisher = mock[CloudPublisher[IO]]
+    def noOpPipe[A]: Pipe[IO, A, Unit] = _.evalMap(_ => IO.unit)
+    when(mockCloudPublisher.publish[LeoPubsubMessage](any)).thenReturn(noOpPipe)
+    when(mockCloudPublisher.publishOne[LeoPubsubMessage](any, any)(any, any)).thenReturn(IO.unit)
+
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mockCloudPublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }
 
@@ -127,8 +124,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       authProvider,
       serviceAccountProvider,
       queue,
-      FakeGoogleComputeService,
-      googleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(googleResourceService),
       customAppConfig,
       wsmDao,
       wsmClientProvider
@@ -178,8 +175,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      passComputeService,
-      FakeGoogleResourceService,
+      Some(passComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -189,8 +186,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      notEnoughMemoryComputeService,
-      FakeGoogleResourceService,
+      Some(notEnoughMemoryComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -200,8 +197,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      notEnoughCpuComputeService,
-      FakeGoogleResourceService,
+      Some(notEnoughCpuComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -232,8 +229,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noLabelsGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -263,8 +260,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -1365,8 +1362,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(FakeGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1516,8 +1513,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(FakeGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1560,8 +1557,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noSecurityGroupGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1603,8 +1600,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(highSecurityGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1643,8 +1640,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(highSecurityGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1689,8 +1686,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noSecurityGroupGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1735,8 +1732,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noSecurityGroupGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -2971,46 +2968,46 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   }
 
   /** TODO: Once disks are supported on Azure Apps
-  it should "error on delete if disk is in a status that cannot be deleted" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val wsmClientProvider = new MockWsmClientProvider() {
-      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-                                                                                                                 ev: Ask[IO, AppContext]
-      ): IO[WsmState] =
+   it should "error on delete if disk is in a status that cannot be deleted" in isolatedDbTest {
+   val publisherQueue = QueueFactory.makePublisherQueue()
+   val wsmClientProvider = new MockWsmClientProvider() {
+   override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+   ev: Ask[IO, AppContext]
+   ): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
-    }
-    val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
+   }
+   val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
 
-    val appName = AppName("app1")
-    val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
-    val appReq =
+   val appName = AppName("app1")
+   val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
+   val appReq =
       createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = Some(diskConfig))
 
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+   appServiceInterp
+   .createAppV2(userInfo, workspaceId, appName, appReq)
+   .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
+   val appResultPreStatusUpdate = dbFutureValue {
+   KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+   }
 
-    // we can't delete while its creating, so set it to Running
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+   // we can't delete while its creating, so set it to Running
+   dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+   dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
-    val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+   val appResultPreDelete = dbFutureValue {
+   KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+   }
+   appResultPreDelete.get.app.status shouldEqual AppStatus.Running
+   appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    an[DiskCannotBeDeletedWsmException] should be thrownBy {
-      appServiceInterp
-        .deleteAppV2(userInfo, workspaceId, appName, true)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-  */
+   an[DiskCannotBeDeletedWsmException] should be thrownBy {
+   appServiceInterp
+   .deleteAppV2(userInfo, workspaceId, appName, true)
+   .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+   }
+   }
+   */
 
   it should "error on delete if app subresource is in a status that cannot be deleted" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
