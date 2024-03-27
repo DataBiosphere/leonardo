@@ -2237,7 +2237,8 @@ class LeoPubsubMessageSubscriberSpec
     val mockAckConsumer = mock[AckHandler]
 
     val mockAksInterp = new MockAKSInterp {
-      override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =  IO.raiseError(exception)
+      override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+        IO.raiseError(exception)
     }
 
     val leoSubscriber = makeLeoSubscriber(
@@ -2249,7 +2250,14 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
     val msg =
-      DeleteAppV2Message(savedApp1.id, savedApp1.appName, savedApp1.workspaceId.get, savedCluster1.cloudContext, None, billingProfileId, None)
+      DeleteAppV2Message(savedApp1.id,
+                         savedApp1.appName,
+                         savedApp1.workspaceId.get,
+                         savedCluster1.cloudContext,
+                         None,
+                         billingProfileId,
+                         None
+      )
 
     val res =
       for {
@@ -2281,7 +2289,8 @@ class LeoPubsubMessageSubscriberSpec
     val mockAckConsumer = mock[AckHandler]
 
     val mockAksInterp = new MockAKSInterp {
-      override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.raiseError(exception)
+      override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+        IO.raiseError(exception)
     }
 
     val leoSubscriber = makeLeoSubscriber(
@@ -2293,7 +2302,13 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
     val msg =
-      CreateAppV2Message(savedApp1.id, savedApp1.appName, savedApp1.workspaceId.get, savedCluster1.cloudContext, billingProfileId, None)
+      CreateAppV2Message(savedApp1.id,
+                         savedApp1.appName,
+                         savedApp1.workspaceId.get,
+                         savedCluster1.cloudContext,
+                         billingProfileId,
+                         None
+      )
 
     val res =
       for {
