@@ -3,6 +3,7 @@ package util
 
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, _}
+import cats.data.Kleisli
 import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.resourcemanager.containerservice.models.KubernetesCluster
@@ -10,7 +11,7 @@ import io.kubernetes.client.openapi.apis.CoreV1Api
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.{KubernetesModels, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -24,11 +25,11 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.broadinstitute.dsp.{ChartName, ChartVersion, Values}
+import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmException, Release, Values}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{atLeastOnce, never, times, verify, when}
+import org.mockito.Mockito._
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -63,10 +64,13 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     case AppType.WorkflowsApp => setUpMockWorkflowAppInstall
     case _                    => setUpMockAppInstall
   }
-  def newAksInterp(configuration: AKSInterpreterConfig, mockWsm: WsmApiClientProvider[IO] = mockWsm) =
+  def newAksInterp(configuration: AKSInterpreterConfig = config,
+                   mockWsm: WsmApiClientProvider[IO] = mockWsm,
+                   helmClient: MockHelm = new MockHelm
+  ) =
     new AKSInterpreter[IO](
       configuration,
-      MockHelm,
+      helmClient,
       mockAzureContainerService,
       mockAzureRelayService,
       mockSamDAO,
@@ -208,7 +212,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           .transaction
 
         _ <- aksInterp.updateAndPollApp(
-          UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceId), cloudContext)
+          UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceIdForUpdating), cloudContext)
         )
         app <- KubernetesServiceDbQueries
           .getActiveFullAppByName(CloudContext.Azure(cloudContext), appName)
@@ -220,6 +224,64 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       }
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
+
+  // Note that the app will eventually transition to error or running status, but `Running` occurs on success and `Error` occurs in `LeoPubsubMessageSubscriber` (the latter being applicable to this test).
+  // This test ensures that the underlying `AKSInterpreter` correctly transitions app to `Upgrading` and doesn't transition it to `Running` if an error occurs
+  it should s"exit with app in Updating status if error occurs in helm client" in isolatedDbTest {
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.Cromwell,
+        status = AppStatus.Running,
+        chart = Chart(ChartName("myapp"), ChartVersion("0.0.1")),
+        appResources = AppResources(
+          namespace = NamespaceName("ns-1"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+
+      appName = saveApp.appName
+      appId = saveApp.id
+
+      namespaceId = UUID.randomUUID()
+      _ <- appControlledResourceQuery
+        .insert(appId.id,
+                WsmControlledResourceId(namespaceId),
+                WsmResourceType.AzureKubernetesNamespace,
+                AppControlledResourceStatus.Created
+        )
+        .transaction
+
+      mockHelm = new MockHelm {
+        override def upgradeChart(release: Release,
+                                  chartName: ChartName,
+                                  chartVersion: ChartVersion,
+                                  values: Values
+        ): Kleisli[IO, AuthContext, Unit] = Kleisli.liftF(IO.raiseError(HelmException("test exception")))
+      }
+
+      aksInterp = newAksInterp(helmClient = mockHelm)
+
+      // Throw away the error here, we aren't trying to verify that the exception we are mocking above is being thrown
+      _ <- aksInterp
+        .updateAndPollApp(
+          UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceIdForUpdating), cloudContext)
+        )
+        .handleErrorWith(_ => IO.unit)
+
+      app <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(CloudContext.Azure(cloudContext), appName)
+        .transaction
+    } yield {
+      app shouldBe defined
+      app.get.app.status shouldBe AppStatus.Updating
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
 
   // delete each app type
   for (
@@ -838,9 +900,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       override def createAzureClient(cloudContext: AzureCloudContext, clusterName: AKSClusterName)(implicit
         ev: Ask[IO, AppContext]
       ): IO[CoreV1Api] = IO.pure(coreV1Api)
-      override def createGcpClient(clusterId: GKEModels.KubernetesClusterId)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[CoreV1Api] = IO.pure(coreV1Api)
       override def listPodStatus(clusterId: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit
         ev: Ask[IO, AppContext]
       ): IO[List[PodStatus]] = IO.pure(List(PodStatus.Failed))
@@ -1050,6 +1109,67 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       resourceList.add(resourceDesc)
       new ResourceList().resources(resourceList)
     }
+    // enumerate workspace database resources for an updating app
+    when {
+      resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceIdForUpdating.value),
+                                     any,
+                                     any,
+                                     ArgumentMatchers.eq(ResourceType.AZURE_DATABASE),
+                                     any
+      )
+    } thenReturn {
+      val resourceList = new ArrayList[ResourceDescription]
+      val resourceDesc = new ResourceDescription()
+      resourceDesc.metadata(new ResourceMetadata().name("cbas").resourceId(cbasUuidForUpdateApp))
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cbas_db_abcxyz")
+        )
+      )
+      resourceDesc.metadata(
+        new ResourceMetadata().name("cromwellmetadata").resourceId(cromwellmetadataUuidForUpdateApp)
+      )
+      resourceDesc.resourceAttributes(
+        new ResourceAttributesUnion().azureDatabase(
+          new AzureDatabaseAttributes().databaseName("cromwellmetadata_abcxyz")
+        )
+      )
+      resourceList.add(resourceDesc)
+      new ResourceList().resources(resourceList)
+    }
+    // getAzureDatabase for an updating app
+    when {
+      api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value), ArgumentMatchers.eq(cbasUuidForUpdateApp))
+    } thenReturn {
+      new AzureDatabaseResource()
+        .metadata(
+          new ResourceMetadata()
+            .resourceId(cbasUuidForUpdateApp)
+            .name("cbas")
+        )
+        .attributes(
+          new AzureDatabaseAttributes()
+            .allowAccessForAllWorkspaceUsers(true)
+            .databaseName("cbas_db_abcxyz")
+        )
+    }
+    when {
+      api.getAzureDatabase(ArgumentMatchers.eq(workspaceIdForUpdating.value),
+                           ArgumentMatchers.eq(cromwellmetadataUuidForUpdateApp)
+      )
+    } thenReturn {
+      new AzureDatabaseResource()
+        .metadata(
+          new ResourceMetadata()
+            .resourceId(cromwellmetadataUuidForUpdateApp)
+            .name("cromwellmetadata")
+        )
+        .attributes(
+          new AzureDatabaseAttributes()
+            .allowAccessForAllWorkspaceUsers(true)
+            .databaseName("cromwellmetadata_db_abcxyz")
+        )
+    }
     // enumerate workspace managed identity resources
     when {
       resourceApi.enumerateResources(ArgumentMatchers.eq(workspaceId.value),
@@ -1093,6 +1213,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
     when {
       workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId.value), any)
+    } thenReturn {
+      new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
+    }
+
+    when {
+      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceIdForUpdating.value), any)
     } thenReturn {
       new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
     }

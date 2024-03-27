@@ -365,20 +365,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         F.blocking(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
       }
 
-      // Call WSM to get the list of databases for the app.
-      wsmDatabases <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
-        .transaction
-      wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
-        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
-          .map(db =>
-            WsmControlledDatabaseResource(db.getMetadata.getName,
-                                          db.getAttributes.getDatabaseName,
-                                          db.getMetadata.getResourceId
-            )
-          )
-      }
-
       wsmResourceApi <- buildWsmResourceApiClient
 
       // create any missing AppControlledResources
@@ -389,6 +375,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         landingZoneResources,
         wsmResourceApi
       )
+
+      // get list of APP_CONTROLLED_RESOURCES
+      controlledDatabases <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+      // Call WSM to get more info about each database (by resourceId) that exists in APP_CONTROLLED_RESOURCE
+      wsmDatabases <- controlledDatabases.traverse { controlledDatabase =>
+        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, controlledDatabase.resourceId.value))
+          .map(db =>
+            WsmControlledDatabaseResource(db.getMetadata.getName,
+                                          db.getAttributes.getDatabaseName,
+                                          db.getMetadata.getResourceId
+            )
+          )
+      }
 
       // call WSM resource API to get list of ReferenceDatabases
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
@@ -441,6 +442,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         namespaceName
       )
 
+      // The app is blocked in updating now (as in, if leo restarts between here and the app transitioning back to `Running`, it is unusable
+      // See: https://broadworkbench.atlassian.net/browse/IA-4867
+      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
+
       // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
         updateListener(authContext,
@@ -483,6 +488,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Poll until all pods in the app namespace are running
+      // TODO: we should be able to test this method and the subsequent `AppUpdatePollingException` more easily when we start to implement rollbacks
       appOk <- childSpan("pollAppUpdate").use { implicit ev =>
         pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
       }
@@ -491,7 +497,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           F.unit
         else
           F.raiseError[Unit](
-            AppUpdateException(
+            AppUpdatePollingException(
               s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )

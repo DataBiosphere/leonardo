@@ -638,9 +638,7 @@ class GKEInterpreter[F[_]](
               .flatMap(opt =>
                 F.fromOption(
                   opt,
-                  new AppUpdateException(s"Unknown machine type for ${machineTypeName.value}",
-                                         traceId = Some(ctx.traceId)
-                  )
+                  AppUpdateException(s"Unknown machine type for ${machineTypeName.value}", traceId = Some(ctx.traceId))
                 )
               )
 
@@ -772,6 +770,9 @@ class GKEInterpreter[F[_]](
       // Authenticate helm client
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
+      // Change app status to updating
+      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
+
       // Upgrade app chart version and explicitly pass the values
       _ <- helmClient
         .upgradeChart(
@@ -788,7 +789,7 @@ class GKEInterpreter[F[_]](
           F.unit
         else
           F.raiseError[Unit](
-            AppUpdateException(
+            AppUpdatePollingException(
               s"App ${params.appName.value} failed to update in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}",
               Some(ctx.traceId)
             )
@@ -1990,6 +1991,13 @@ final case class AppStartException(message: String) extends AppProcessingExcepti
 }
 
 final case class AppUpdateException(message: String, traceId: Option[TraceId] = None) extends AppProcessingException {
+  override def getMessage: String = message
+}
+
+// This should only be used in exactly one place, when polling after an app update call. Using this will signal to pubsub processing to transition app to error state
+// Any other exception besides a `HelmException` during app upgrades will result in an error being saved to the db, but NOT an `ERROR` state app to preserve usage
+final case class AppUpdatePollingException(message: String, traceId: Option[TraceId] = None)
+    extends AppProcessingException {
   override def getMessage: String = message
 }
 

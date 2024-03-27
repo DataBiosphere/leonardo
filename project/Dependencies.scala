@@ -141,7 +141,7 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val workSpaceManagerV = "0.254.1057-SNAPSHOT"
+  val workSpaceManagerV = "0.254.1064-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
@@ -217,7 +217,7 @@ object Dependencies {
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito,
-    "com.azure" % "azure-identity" % "1.11.2"
+    "com.azure" % "azure-identity" % "1.10.4"
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)

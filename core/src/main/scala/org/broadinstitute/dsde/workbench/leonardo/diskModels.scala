@@ -63,7 +63,7 @@ object DiskStatus extends Enum[DiskStatus] {
     Set(Creating, Restoring, Ready)
 
   val deletableStatuses: Set[DiskStatus] =
-    Set(Failed, Ready)
+    Set(Failed, Ready, Error)
 
   val updatableStatuses: Set[DiskStatus] = Set(Ready)
 

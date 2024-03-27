@@ -5,27 +5,17 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.google2.DeviceName
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  clusterQuery,
-  kubernetesClusterQuery,
-  persistentDiskQuery,
-  DbReference,
-  RuntimeConfigQueries
-}
-import com.google.protobuf.ByteString
-import com.google.pubsub.v1.PubsubMessage
 import fs2.Stream
-import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DeviceName, GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
   CryptoMining,
   CryptoMiningScc,
@@ -37,11 +27,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, Del
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -192,16 +180,8 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
 
             userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, googleProject)
             _ <- userSubjectId.traverse { sid =>
-              val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
-
-              val message = PubsubMessage
-                .newBuilder()
-                .setData(byteString)
-                .putAttributes("traceId", ctx.traceId.asString)
-                .putAttributes("cryptomining", "true")
-                .build()
-              // TODO: Not sure what to do about this missing method
-              publisher.publishNativeOne(message)
+              implicit val traceId: Ask[F, TraceId] = Ask.const[F, TraceId](ctx.traceId)
+              publisher.publishOne(CryptominingUserMessage(sid), Map("cryptomining" -> "true"))
             }
           } yield ()
       }

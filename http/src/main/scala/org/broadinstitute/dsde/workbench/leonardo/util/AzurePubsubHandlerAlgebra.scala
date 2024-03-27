@@ -25,7 +25,7 @@ import java.time.Instant
 trait AzurePubsubHandlerAlgebra[F[_]] {
 
   /** Creates an Azure VM but doesn't wait for its completion.
-   * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created syncronously
+   * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
    * */
   def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
@@ -117,6 +117,17 @@ final case class PollDiskParams(workspaceId: WorkspaceId,
                                 wsmResourceId: WsmControlledResourceId
 )
 
+final case class PollDeleteDiskParams(workspaceId: WorkspaceId,
+                                      jobId: WsmJobId,
+                                      diskId: Option[DiskId],
+                                      runtime: Runtime,
+                                      wsmResourceId: WsmControlledResourceId
+)
+
+final case class PollVmParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
+
+final case class PollStorageContainerParams(workspaceId: WorkspaceId, jobId: WsmJobId, runtime: Runtime)
+
 /**
  * This case class represents the necessary information to poll all objects associated with the runtime, namely disk and vm
  */
@@ -130,7 +141,8 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           deleteVmPollConfig: PollMonitorConfig,
                                           deleteDiskPollConfig: PollMonitorConfig,
                                           runtimeDefaults: AzureRuntimeDefaults,
-                                          createDiskPollConfig: PollMonitorConfig
+                                          createDiskPollConfig: PollMonitorConfig,
+                                          deleteStorageContainerPollConfig: PollMonitorConfig
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"
 }
