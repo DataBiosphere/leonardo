@@ -95,6 +95,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     as: ActorSystem,
     dbReference: DbReference[IO]
   ): Resource[IO, ServicesDependencies] = {
+    val helloService = new HelloService()
     val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
     val diskV2Service = new DiskV2ServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
@@ -125,6 +126,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     Resource.make[IO, ServicesDependencies](
       IO(
         ServicesDependencies(
+          helloService,
           statusService,
           dependenciesRegistry,
           diskV2Service,

@@ -60,6 +60,7 @@ object Boot extends IOApp {
 
       val httpRoutes = new HttpRoutes(
         servicesDependencies.baselineDependencies.openIDConnectConfiguration,
+        servicesDependencies.helloService,
         servicesDependencies.statusService,
         servicesDependencies.cloudSpecificDependenciesRegistry,
         servicesDependencies.diskV2Service,

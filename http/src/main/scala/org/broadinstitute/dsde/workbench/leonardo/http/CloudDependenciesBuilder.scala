@@ -70,6 +70,7 @@ final case class LeoAppDependencies(
  * Contains all dependencies for the creation of the HTTP routes (services).
  */
 final case class ServicesDependencies(
+  helloService: HelloService,
   statusService: StatusService,
   cloudSpecificDependenciesRegistry: ServicesRegistry,
   diskV2Service: DiskV2Service[IO],
