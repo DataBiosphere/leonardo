@@ -8,13 +8,15 @@ import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
 import bio.terra.workspace.model.{
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
-  DeleteControlledAzureResourceRequest,
+  CreatedControlledAzureStorageContainer,
   DeleteControlledAzureResourceResult,
   ErrorReport,
   JobReport
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDaoDeleteControlledAzureResourceRequest}
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
 import org.scalatestplus.mockito.MockitoSugar
+
+import java.util.UUID
 
 object AzureTestUtils extends MockitoSugar {
 
@@ -53,6 +55,15 @@ object AzureTestUtils extends MockitoSugar {
           new JobReport().status(diskJobStatus)
         )
         .errorReport(new ErrorReport())
+    }
+
+    // Create storage container
+    when {
+      api.createAzureStorageContainer(any, any)
+    } thenAnswer { _ =>
+      if (storageContainerJobStatus == JobReport.StatusEnum.SUCCEEDED)
+        new CreatedControlledAzureStorageContainer().resourceId(UUID.randomUUID())
+      else throw new Exception("storage container failed to create")
     }
 
     // delete disk
