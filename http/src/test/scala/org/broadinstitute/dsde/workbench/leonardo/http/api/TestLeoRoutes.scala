@@ -173,6 +173,7 @@ trait TestLeoRoutes {
                                           MockGoogleOAuth2Service
   )
 
+  val helloService = new HelloService()
   val statusService =
     new StatusService(mockSamDAO, testDbRef, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
@@ -208,6 +209,7 @@ trait TestLeoRoutes {
   val httpRoutes =
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
@@ -222,6 +224,7 @@ trait TestLeoRoutes {
   val timedHttpRoutes =
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,

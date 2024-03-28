@@ -60,6 +60,7 @@ class HttpRoutesSpec
   val routes =
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
@@ -73,6 +74,7 @@ class HttpRoutesSpec
 
   val httpRoutesAzureOnly = new HttpRoutes(
     openIdConnectionConfiguration,
+    helloService,
     statusService,
     createGcpOnlyServicesRegistry(),
     MockDiskV2ServiceInterp,
@@ -88,6 +90,7 @@ class HttpRoutesSpec
   val routesWithStrictRefererConfig =
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
@@ -102,6 +105,7 @@ class HttpRoutesSpec
   val routesWithWildcardReferer =
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
@@ -116,6 +120,7 @@ class HttpRoutesSpec
   val routesWithDisabledRefererConfig =
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
@@ -963,6 +968,7 @@ class HttpRoutesSpec
 
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
@@ -984,6 +990,7 @@ class HttpRoutesSpec
 
     new HttpRoutes(
       openIdConnectionConfiguration,
+      helloService,
       statusService,
       gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,

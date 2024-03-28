@@ -29,6 +29,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class HttpRoutes(
   oidcConfig: OpenIDConnectConfiguration,
+  helloService: HelloService,
   statusService: StatusService,
   gcpOnlyServicesRegistry: ServicesRegistry,
   diskV2Service: DiskV2Service[IO],
@@ -41,6 +42,7 @@ class HttpRoutes(
   enableAzureOnlyRoutes: Boolean = false
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
 
+  private val helloRoutes = new HelloRoutes(helloService)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
@@ -123,7 +125,8 @@ class HttpRoutes(
                 "swagger/api-docs.yaml"
               ) ~ oidcConfig.oauth2Routes ~ proxyRoutes.get.route ~ statusRoutes.route ~
               pathPrefix("api") {
-                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
+                helloRoutes.routes ~
+                  runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
                   diskRoutes.get.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes ~
                   resourcesRoutes.get.routes
               }
