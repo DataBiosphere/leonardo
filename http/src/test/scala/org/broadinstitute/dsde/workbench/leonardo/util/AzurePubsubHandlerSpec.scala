@@ -1145,8 +1145,8 @@ class AzurePubsubHandlerSpec
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-        Some(disk.id),
-        None
+                                                     Some(disk.id),
+                                                     None
       )
       runtime = makeCluster(1)
         .copy(
@@ -1313,9 +1313,7 @@ class AzurePubsubHandlerSpec
       assertions = for {
         getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
         getRuntime = getRuntimeOpt.get
-      } yield {
-        getRuntime.status shouldBe RuntimeStatus.Stopped
-      }
+      } yield getRuntime.status shouldBe RuntimeStatus.Stopped
 
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
