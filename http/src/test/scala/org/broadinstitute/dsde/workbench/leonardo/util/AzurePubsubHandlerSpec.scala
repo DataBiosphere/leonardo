@@ -1240,7 +1240,7 @@ class AzurePubsubHandlerSpec
   }
 
   it should "fail on startAzureVm - Azure vm in an unstartable status" in isolatedDbTest {
-    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.DEALLOCATING)
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.UNKNOWN)
 
     val queue = QueueFactory.asyncTaskQueue()
 
@@ -1265,7 +1265,7 @@ class AzurePubsubHandlerSpec
     } yield startResult shouldBe Left(
       AzureRuntimeStartingError(
         runtime.id,
-        s"Runtime ${runtime.runtimeName.asString} cannot be started in a ${PowerState.DEALLOCATING.toString} state, starting runtime request failed",
+        s"Runtime ${runtime.runtimeName.asString} cannot be started in a ${PowerState.UNKNOWN.toString} state, starting runtime request failed",
         ctx.traceId
       )
     )
