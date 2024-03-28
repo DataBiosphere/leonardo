@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.HelmException
 import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{times, verify, when}
+import org.mockito.Mockito.{spy, times, verify, when}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -1100,19 +1100,12 @@ class AzurePubsubHandlerSpec
 
   it should "start azure vm" in isolatedDbTest {
     // Set up virtual machine mock.
-    val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.STOPPED)
-
-    val passAzureVmService = new FakeAzureVmService {
-      override def startAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
-    }
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.DEALLOCATED)
 
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
 
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
@@ -1140,15 +1133,85 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail on startAzureVm - Azure runtime starting error" in isolatedDbTest {
-    val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.STOPPED)
+  it should "start azure vm - in starting status" in isolatedDbTest {
+    // Set up virtual machine mock.
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.STARTING)
 
-    val failAzureVmService = new FakeAzureVmService {
-      override def startAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.none
-    }
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield getRuntime.status shouldBe RuntimeStatus.Running
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "start azure vm - no-op if already running " in isolatedDbTest {
+    val vmName = "RunningRuntime"
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.RUNNING)
+
+    val spyAzureVmService = spy(fakeAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield {
+        verify(spyAzureVmService, times(0)).startAzureVm(InstanceName(vmName), azureCloudContext)
+        getRuntime.status shouldBe RuntimeStatus.Running
+      }
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on startAzureVm - Azure runtime starting error" in isolatedDbTest {
+
+    val failAzureVmService = AzureTestUtils.setupFakeAzureVmService(startVm = false, vmState = PowerState.DEALLOCATED)
 
     val queue = QueueFactory.asyncTaskQueue()
 
@@ -1176,21 +1239,16 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "stop azure vm" in isolatedDbTest {
-    val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+  it should "fail on startAzureVm - Azure vm in an unstartable status" in isolatedDbTest {
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.UNKNOWN)
 
-    val passAzureVmService = new FakeAzureVmService {
-      override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
-    }
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
 
     val res = for {
+      ctx <- appContext.ask[AppContext]
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
@@ -1199,6 +1257,56 @@ class AzurePubsubHandlerSpec
       runtime = makeCluster(1)
         .copy(
           cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      startResult <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext).attempt
+
+    } yield startResult shouldBe Left(
+      AzureRuntimeStartingError(
+        runtime.id,
+        s"Runtime ${runtime.runtimeName.asString} cannot be started in a ${PowerState.UNKNOWN.toString} state, starting runtime request failed",
+        ctx.traceId
+      )
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "stop azure vm" in isolatedDbTest {
+    val vmName = "RunningRuntime"
+    val vmReturn = mock[VirtualMachine]
+    when(vmReturn.powerState())
+      .thenReturn(PowerState.RUNNING)
+      .thenReturn(PowerState.DEALLOCATED)
+
+    val passAzureVmService = new FakeAzureVmService {
+      override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
+
+      override def getAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[VirtualMachine]] = IO.some(vmReturn)
+    }
+
+    val spyAzureVmService = spy(passAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = spyAzureVmService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
@@ -1216,16 +1324,105 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail on stopAzureVm - Azure runtime stopping error" in isolatedDbTest {
-    // Set up virtual machine mock.
+  it should "stop azure vm - in stopping status" in isolatedDbTest {
+    val vmName = "StoppingRuntime"
     val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+    when(vmReturn.powerState())
+      .thenReturn(PowerState.DEALLOCATING)
+      .thenReturn(PowerState.DEALLOCATED)
 
-    val failAzureVmService = new FakeAzureVmService {
+    val passAzureVmService = new FakeAzureVmService {
       override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
         ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.none
+      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
+
+      override def getAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[VirtualMachine]] = IO.some(vmReturn)
     }
+
+    val spyAzureVmService = spy(passAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = spyAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield {
+        verify(spyAzureVmService, times(0)).stopAzureVm(InstanceName(vmName), azureCloudContext)
+        getRuntime.status shouldBe RuntimeStatus.Stopped
+      }
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "stop azure vm - no-op if already stopped" in isolatedDbTest {
+    val vmName = "StoppedRuntime"
+
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.STOPPED)
+
+    val spyAzureVmService = spy(fakeAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = spyAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield {
+        verify(spyAzureVmService, times(0)).stopAzureVm(InstanceName(vmName), azureCloudContext)
+        getRuntime.status shouldBe RuntimeStatus.Stopped
+      }
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on stopAzureVm - Azure runtime stopping error" in isolatedDbTest {
+    val failAzureVmService = AzureTestUtils.setupFakeAzureVmService(stopVm = false)
+
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
@@ -1248,6 +1445,38 @@ class AzurePubsubHandlerSpec
 
     } yield stopResult shouldBe Left(
       AzureRuntimeStoppingError(runtime.id, s"Stopping runtime ${runtime.id} request to Azure failed.", ctx.traceId)
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on stopAzureVm - Azure runtime not in stoppable status" in isolatedDbTest {
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.UNKNOWN)
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      stopResult <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext).attempt
+
+    } yield stopResult shouldBe Left(
+      AzureRuntimeStoppingError(
+        runtime.id,
+        s"Runtime ${runtime.runtimeName.asString} cannot be stopped in a ${PowerState.UNKNOWN.toString} state, stopping runtime request failed",
+        ctx.traceId
+      )
     )
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

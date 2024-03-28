@@ -417,8 +417,13 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           traceId = Some(traceId)
         )
       case RuntimeStatus.Starting =>
-        // TODO: starting is supported now, update accordingly, https://broadworkbench.atlassian.net/browse/IA-4843
-        F.raiseError(MonitorAtBootException("Starting Azure runtime is not supported yet", traceId))
+        for {
+          now <- F.realTimeInstant
+          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
+        } yield LeoPubsubMessage.StartRuntimeMessage(
+          runtimeId = runtime.id,
+          traceId = Some(traceId)
+        )
       case RuntimeStatus.Creating =>
         for {
           now <- F.realTimeInstant

@@ -13,8 +13,16 @@ import bio.terra.workspace.model.{
   ErrorReport,
   JobReport
 }
+import cats.mtl.Ask
+import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine}
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureVmService
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDaoDeleteControlledAzureResourceRequest}
+import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
 import org.scalatestplus.mockito.MockitoSugar
+import reactor.core.publisher.Mono
 
 import java.util.UUID
 
@@ -141,6 +149,28 @@ object AzureTestUtils extends MockitoSugar {
       wsm.getResourceApi(any)(any)
     } thenReturn IO.pure(resourceApi)
     (wsm, api, resourceApi)
+  }
+
+  def setupFakeAzureVmService(startVm: Boolean = true,
+                              stopVm: Boolean = true,
+                              vmState: PowerState = PowerState.RUNNING
+  ): FakeAzureVmService = {
+    val vmReturn = mock[VirtualMachine]
+    when(vmReturn.powerState()).thenReturn(vmState)
+
+    new FakeAzureVmService {
+      override def startAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = if (startVm) IO.some(Mono.empty[Void]()) else IO.none
+
+      override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = if (stopVm) IO.some(Mono.empty[Void]()) else IO.none
+
+      override def getAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[VirtualMachine]] = IO.some(vmReturn)
+    }
   }
 
 }
