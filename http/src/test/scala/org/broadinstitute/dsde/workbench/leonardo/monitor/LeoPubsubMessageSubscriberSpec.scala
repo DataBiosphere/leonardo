@@ -2231,6 +2231,109 @@ class LeoPubsubMessageSubscriberSpec
     verify(mockAckConsumer, times(1)).ack()
   }
 
+  it should "save an error and transition app to error when an error occurs in azure deleteApp" in isolatedDbTest {
+    val exception = new RuntimeException("random test exception")
+    val queue = makeTaskQueue()
+    val mockAckConsumer = mock[AckHandler]
+
+    val mockAksInterp = new MockAKSInterp {
+      override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+        IO.raiseError(exception)
+    }
+
+    val leoSubscriber = makeLeoSubscriber(
+      azureInterp = makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm, mockAksInterp = mockAksInterp),
+      asyncTaskQueue = queue
+    )
+
+    val savedCluster1 = makeAzureCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
+    val msg =
+      DeleteAppV2Message(savedApp1.id,
+                         savedApp1.appName,
+                         savedApp1.workspaceId.get,
+                         savedCluster1.cloudContext,
+                         None,
+                         billingProfileId,
+                         None
+      )
+
+    val res =
+      for {
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
+
+        assertions = for {
+          getAppOpt <- KubernetesServiceDbQueries
+            .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+            .transaction
+          getApp = getAppOpt.get
+        } yield {
+          getApp.app.errors.size shouldBe 1
+          getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteApp)
+          getApp.app.errors.map(_.source) should contain(ErrorSource.App)
+          getApp.app.errors.head.errorMessage should include("test")
+          getApp.app.status shouldBe AppStatus.Error
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    verify(mockAckConsumer, times(1)).ack()
+  }
+
+  it should "save an error and transition app to error when an error occurs in azure createApp" in isolatedDbTest {
+    val exception = new RuntimeException("random test exception")
+    val queue = makeTaskQueue()
+    val mockAckConsumer = mock[AckHandler]
+
+    val mockAksInterp = new MockAKSInterp {
+      override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
+        IO.raiseError(exception)
+    }
+
+    val leoSubscriber = makeLeoSubscriber(
+      azureInterp = makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm, mockAksInterp = mockAksInterp),
+      asyncTaskQueue = queue
+    )
+
+    val savedCluster1 = makeAzureCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
+    val msg =
+      CreateAppV2Message(savedApp1.id,
+                         savedApp1.appName,
+                         savedApp1.workspaceId.get,
+                         savedCluster1.cloudContext,
+                         billingProfileId,
+                         None
+      )
+
+    val res =
+      for {
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
+
+        assertions = for {
+          getAppOpt <- KubernetesServiceDbQueries
+            .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+            .transaction
+          getApp = getAppOpt.get
+        } yield {
+          getApp.app.errors.size shouldBe 1
+          getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
+          getApp.app.errors.map(_.source) should contain(ErrorSource.App)
+          getApp.app.errors.head.errorMessage should include("test")
+          getApp.app.status shouldBe AppStatus.Error
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    verify(mockAckConsumer, times(1)).ack()
+  }
+
   it should "create a metric for a successful and failed condition" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()

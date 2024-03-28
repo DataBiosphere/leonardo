@@ -222,6 +222,8 @@ jobs:
           repo: DataBiosphere/leonardo
           ref: refs/heads/develop
           token: ${{ env.TOKEN }}
+          # this is not actually 85mins, the timeout is not working correctly and is summing from other jobs
+          wait-for-completion-timeout: 85m
           inputs: '{
             "terra-env": "${{ needs.init-github-context.outputs.test-env }}",
             "automation-branch": "${{ needs.init-github-context.outputs.automation-branch }}",

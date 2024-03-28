@@ -1466,6 +1466,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     e match {
       case e: PubsubKubernetesError =>
         for {
+          _ <- logger.error(ctx.loggingCtx, e)("top level handler for handleKubernetesError")
           _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
           _ <- e.appId.traverse(id => appQuery.markAsErrored(id).transaction)
           _ <- e.clusterId.traverse(clusterId =>
@@ -1676,7 +1677,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               AppError(
                 s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: DeleteAppV2 not supported for GCP",
                 ctx.now,
-                ErrorAction.CreateApp,
+                ErrorAction.DeleteApp,
                 ErrorSource.App,
                 None,
                 Some(ctx.traceId)
