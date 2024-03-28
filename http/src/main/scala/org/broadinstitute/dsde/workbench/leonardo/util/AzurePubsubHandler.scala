@@ -290,10 +290,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     ctx <- ev.ask
     vm <- azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
 
+    // if vm is stopping, stopped or deallocated --> send start message and monitor
+    // if vm is starting --> monitor
+    // if vm is running --> update DB
+    // else --> error
     _ <- vm match {
       case Some(vm) =>
         vm.powerState() match {
-          case PowerState.STOPPED | PowerState.DEALLOCATED =>
+          case PowerState.STOPPED | PowerState.DEALLOCATED | PowerState.STOPPING | PowerState.DEALLOCATING =>
             for {
               monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString),
                                                            azureCloudContext
@@ -388,6 +392,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     ctx <- ev.ask
     vm <- azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
 
+    // if vm is starting/running --> send stop message and monitor
+    // if vm is stopping/deallocating --> monitor
+    // if vm is stopped/deallocated --> update DB
+    // else --> error
     _ <- vm match {
       case Some(vm) =>
         vm.powerState() match {
@@ -426,7 +434,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         }
       case None =>
         F.raiseError(
-          new AzureRuntimeStoppingError(
+          AzureRuntimeStoppingError(
             runtime.id,
             s"Runtime ${runtime.runtimeName.asString} cannot be found in Azure, stopping runtime request failed",
             ctx.traceId
