@@ -229,12 +229,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
   }
 
-  private def monitorStartRuntime(runtime: Runtime, monoOpt: Option[Mono[Void]])(implicit
+  private def monitorStartRuntime(runtime: Runtime, startVmOp: Option[Mono[Void]])(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
     task = for {
-      _ <- monoOpt.traverse(mono => F.blocking(mono.block(Duration.ofMinutes(5))))
+      _ <- startVmOp.traverse(startVmOp => F.blocking(startVmOp.block(Duration.ofMinutes(5))))
       isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
       _ <- streamUntilDoneOrTimeout(
         isJupyterUp,
@@ -280,10 +280,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         vm.powerState() match {
           case PowerState.STOPPED | PowerState.DEALLOCATED | PowerState.STOPPING | PowerState.DEALLOCATING =>
             for {
-              monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString),
-                                                           azureCloudContext
+              startVmOpOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString),
+                                                                azureCloudContext
               )
-              _ <- monoOpt match {
+              _ <- startVmOpOpt match {
                 case None =>
                   F.raiseError[Unit](
                     AzureRuntimeStartingError(
@@ -292,8 +292,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                       ctx.traceId
                     )
                   )
-                case Some(mono) =>
-                  monitorStartRuntime(runtime, Some(mono))
+                case Some(startVmOp) =>
+                  monitorStartRuntime(runtime, Some(startVmOp))
               }
             } yield ()
           case PowerState.STARTING => monitorStartRuntime(runtime, None)
