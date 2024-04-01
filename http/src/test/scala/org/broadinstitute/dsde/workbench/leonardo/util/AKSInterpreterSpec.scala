@@ -11,7 +11,7 @@ import io.kubernetes.client.openapi.apis.CoreV1Api
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.{GKEModels, KubernetesModels, NetworkName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.{KubernetesModels, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -28,8 +28,8 @@ import org.broadinstitute.dsp.mocks.MockHelm
 import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmException, Release, Values}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{atLeastOnce, never, times, verify, when}
+import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
@@ -768,8 +768,9 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  // delete wsm resources
   it should "delete app WSM resources" in isolatedDbTest {
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
+    val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
       nodepool <- IO(makeNodepool(1, cluster.id).save())
@@ -811,40 +812,31 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
         .transaction
 
-      _ <- aksInterp.deleteWsmResource(
-        workspaceId,
-        saveApp,
-        AppControlledResourceRecord(appId.id,
-                                    WsmControlledResourceId(databaseId),
-                                    WsmResourceType.AzureDatabase,
-                                    AppControlledResourceStatus.Created
-        )
-      )
+      params = DeleteAKSAppParams(saveApp.appName, workspaceId, cloudContext, billingProfileId)
+      _ <- aksInterp.deleteApp(params)
 
-      _ <- aksInterp.deleteWsmNamespaceResource(
-        workspaceId,
-        saveApp,
-        AppControlledResourceRecord(appId.id,
-                                    WsmControlledResourceId(namespaceId),
-                                    WsmResourceType.AzureKubernetesNamespace,
-                                    AppControlledResourceStatus.Created
-        )
-      )
-
-      _ <- aksInterp.deleteWsmResource(
-        workspaceId,
-        saveApp,
-        AppControlledResourceRecord(appId.id,
-                                    WsmControlledResourceId(identityId),
-                                    WsmResourceType.AzureManagedIdentity,
-                                    AppControlledResourceStatus.Created
-        )
-      )
-
-      controlledResources <- appControlledResourceQuery
-        .getAllForAppByStatus(app.id.id, AppControlledResourceStatus.Created)
+      deletedControlledResources <- appControlledResourceQuery
+        .getAllForApp(appId)
         .transaction
-    } yield controlledResources shouldBe empty
+    } yield {
+      deletedControlledResources.length shouldBe 3
+      deletedControlledResources.map(_.status).distinct shouldBe List(AppControlledResourceStatus.Deleted)
+      verify(mockControlledResourceApi, times(1)).deleteAzureDatabaseAsync(any,
+                                                                           mockitoEq(workspaceId.value),
+                                                                           mockitoEq(databaseId)
+      )
+      verify(mockControlledResourceApi, times(1)).getDeleteAzureDatabaseResult(mockitoEq(workspaceId.value), any)
+      verify(mockControlledResourceApi, times(1)).deleteAzureKubernetesNamespace(any,
+                                                                                 mockitoEq(workspaceId.value),
+                                                                                 mockitoEq(namespaceId)
+      )
+      verify(mockControlledResourceApi, times(1)).getDeleteAzureKubernetesNamespaceResult(mockitoEq(workspaceId.value),
+                                                                                          any
+      )
+      verify(mockControlledResourceApi, times(1)).deleteAzureManagedIdentity(mockitoEq(workspaceId.value),
+                                                                             mockitoEq(identityId)
+      )
+    }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -898,9 +890,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val coreV1Api = mock[CoreV1Api]
     new KubernetesAlgebra[IO] {
       override def createAzureClient(cloudContext: AzureCloudContext, clusterName: AKSClusterName)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[CoreV1Api] = IO.pure(coreV1Api)
-      override def createGcpClient(clusterId: GKEModels.KubernetesClusterId)(implicit
         ev: Ask[IO, AppContext]
       ): IO[CoreV1Api] = IO.pure(coreV1Api)
       override def listPodStatus(clusterId: CoreV1Api, namespace: KubernetesModels.KubernetesNamespace)(implicit
@@ -967,6 +956,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       dbsByJob += (jobId -> requestBody)
       new CreatedControlledAzureDatabaseResult().resourceId(uuid)
     }
+
     // Get create database job result
     when {
       api.getCreateAzureDatabaseResult(any, any)
@@ -991,6 +981,23 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
         .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
+
+    // delete database
+    when {
+      api.deleteAzureDatabaseAsync(any, any, any)
+    } thenAnswer { invocation =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
+    }
+
+    // get delete database job result
+    when {
+      api.getDeleteAzureDatabaseResult(any, any)
+    } thenAnswer { invocation =>
+      new DeleteControlledAzureResourceResult()
+        .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
+    }
+
     // Create Kubernetes Namespace
     when {
       api.createAzureKubernetesNamespace(any, any)

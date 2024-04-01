@@ -1,11 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
 import com.azure.core.management.AzureEnvironment
+import org.broadinstitute.dsde.workbench.azure.{AzureServiceBusPublisherConfig, AzureServiceBusSubscriberConfig}
 
 case class AzureHostingModeConfig(
   enabled: Boolean = false, // if true, the app will use Azure for hosting, default is false (GCP)
   azureEnvironment: String = AzureEnvironmentConverter.Azure,
-  managedIdentityAuthConfig: AzureManagedIdentityAuthConfig
+  managedIdentityAuthConfig: AzureManagedIdentityAuthConfig,
+  publisherConfig: AzureServiceBusPublisherConfig,
+  subscriberConfig: AzureServiceBusSubscriberConfig
 )
 
 case class AzureManagedIdentityAuthConfig(

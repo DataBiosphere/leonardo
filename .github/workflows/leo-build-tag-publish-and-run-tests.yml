@@ -8,6 +8,10 @@ on:
   push:
     branches: [ develop ]
     paths-ignore: [ '**.md' ]
+  workflow_run:
+    workflows: [ automerge ]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       terra-env:
@@ -38,6 +42,7 @@ jobs:
 
   init-github-context:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
     # automation-branch: the git branch automation test application to be used, running on the gha runner
     # build-branch: the git branch to checkout to build a new app-version
@@ -217,6 +222,8 @@ jobs:
           repo: DataBiosphere/leonardo
           ref: refs/heads/develop
           token: ${{ env.TOKEN }}
+          # this is not actually 85mins, the timeout is not working correctly and is summing from other jobs
+          wait-for-completion-timeout: 85m
           inputs: '{
             "terra-env": "${{ needs.init-github-context.outputs.test-env }}",
             "automation-branch": "${{ needs.init-github-context.outputs.automation-branch }}",
