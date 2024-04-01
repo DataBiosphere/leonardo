@@ -48,7 +48,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
@@ -1493,8 +1493,9 @@ class GKEInterpreter[F[_]](
         new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
       )
 
-      // Create the staging bucket to be used by Welder
-      stagingBucketName = generateUniqueBucketName("leostaging-" + appName.value)
+      // staging bucket stores welder's welder-metadata/gcs_metadata.json which keeps generation info for a file,
+      // this file needs to live across app creations and deletions, and it should be unique for each persistent disk
+      stagingBucketName = GcsBucketName(s"leostaging-${disk.name.value}")
 
       _ <- bucketHelper
         .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
