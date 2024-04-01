@@ -1107,6 +1107,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   ): F[Option[WsmControlledKubernetesNamespaceResource]] = {
     // The full namespace name will be {namespacePrefix}-{workspaceId},
     // and the resource name is the same as the kubernetes namespace
+    // The construction of this is done in ControlledAzureResourceApiController.createAzureKubernetesNamespace
     val namespaceName = s"$namespacePrefix-$workspaceId"
     F.blocking(
       getWorkspaceResourceByName(workspaceId, namespaceName, resourceApi).map { ns =>
