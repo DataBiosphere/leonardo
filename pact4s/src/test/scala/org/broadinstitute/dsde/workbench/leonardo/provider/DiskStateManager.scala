@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   DiskStatus,
   DiskType,
   FormattedBy,
-  LabelMap,
   SamResourceId
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
