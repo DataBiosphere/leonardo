@@ -565,7 +565,7 @@ To build jar and leonardo docker image
 and push to repos `broadinstitute/leonardo`
 tagged with git hash
 ```
-./docker/build.sh jar -d -t push
+./docker/build.sh jar -d push
 ```
 
 
