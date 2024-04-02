@@ -355,6 +355,7 @@ ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 if [ -n "${SFKIT_DOCKER_IMAGE}" ] ; then
   docker run "--name=${SFKIT_SERVER_NAME}" --rm -d --restart unless-stopped \
     --sysctl net.core.rmem_max=2500000 --sysctl net.core.wmem_max=2500000 \
+    -e "SAFE_DATA_PATH=${NOTEBOOKS_DIR}/" \
     -e "SFKIT_SOCK=${NOTEBOOKS_DIR}/.config/sfkit/server.sock" \
     -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" "${SFKIT_DOCKER_IMAGE}"
 fi
