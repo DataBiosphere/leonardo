@@ -49,6 +49,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           PollMonitorConfig(1 seconds, 10, 1 seconds),
+          PollMonitorConfig(1 seconds, 10, 1 seconds),
           AzureRuntimeDefaults(
             "Azure Ip",
             "ip",

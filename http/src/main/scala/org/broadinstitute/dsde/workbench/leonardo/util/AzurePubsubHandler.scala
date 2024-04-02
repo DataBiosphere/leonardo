@@ -20,7 +20,7 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
@@ -41,6 +41,7 @@ import org.broadinstitute.dsp.ChartVersion
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
+import reactor.core.publisher.Mono
 
 import java.time.{Duration, Instant}
 import java.util.UUID
@@ -79,6 +80,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     (v: CreateControlledAzureResourceResult) =>
       v.getJobReport.getStatus.equals(JobReport.StatusEnum.SUCCEEDED) || v.getJobReport.getStatus
         .equals(JobReport.StatusEnum.FAILED)
+
+  implicit private def vmStopDoneCheckable: DoneCheckable[Option[VirtualMachine]] = (v: Option[VirtualMachine]) =>
+    v.get.powerState() == PowerState.DEALLOCATED
 
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -225,99 +229,196 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
   }
 
+  private def monitorStartRuntime(runtime: Runtime, startVmOp: Option[Mono[Void]])(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    task = for {
+      _ <- startVmOp.traverse(startVmOp => F.blocking(startVmOp.block(Duration.ofMinutes(5))))
+      isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
+      _ <- streamUntilDoneOrTimeout(
+        isJupyterUp,
+        config.startStopVmPollConfig.maxAttempts,
+        config.startStopVmPollConfig.interval,
+        s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+      )
+      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
+      _ <- logger.info(ctx.loggingCtx)("runtime is ready")
+    } yield ()
+    _ <- asyncTasks.offer(
+      Task(
+        ctx.traceId,
+        task,
+        Some(e =>
+          handleAzureRuntimeStartError(
+            AzureRuntimeStartingError(
+              runtime.id,
+              s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+              ctx.traceId
+            ),
+            ctx.now
+          )
+        ),
+        ctx.now,
+        "startRuntime"
+      )
+    )
+  } yield ()
+
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
-    monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+    vm <- azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
 
-    _ <- monoOpt match {
+    // if vm is stopping, stopped or deallocated --> send start message and monitor
+    // if vm is starting --> monitor
+    // if vm is running --> update DB
+    // else --> error
+    _ <- vm match {
+      case Some(vm) =>
+        vm.powerState() match {
+          case PowerState.STOPPED | PowerState.DEALLOCATED | PowerState.STOPPING | PowerState.DEALLOCATING =>
+            for {
+              startVmOpOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString),
+                                                                azureCloudContext
+              )
+              _ <- startVmOpOpt match {
+                case None =>
+                  F.raiseError[Unit](
+                    AzureRuntimeStartingError(
+                      runtime.id,
+                      s"Starting runtime ${runtime.id} request to Azure failed.",
+                      ctx.traceId
+                    )
+                  )
+                case Some(startVmOp) =>
+                  monitorStartRuntime(runtime, Some(startVmOp))
+              }
+            } yield ()
+          case PowerState.STARTING => monitorStartRuntime(runtime, None)
+          case PowerState.RUNNING =>
+            for {
+              _ <- logger.info(s"Runtime ${runtime.runtimeName.asString} already running, no-op for startRuntime")
+              _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
+            } yield ()
+          case _ =>
+            F.raiseError(
+              AzureRuntimeStartingError(
+                runtime.id,
+                s"Runtime ${runtime.runtimeName.asString} cannot be started in a ${vm.powerState().toString} state, starting runtime request failed",
+                ctx.traceId
+              )
+            )
+        }
       case None =>
-        F.raiseError[Unit](
+        F.raiseError(
           AzureRuntimeStartingError(
             runtime.id,
-            s"Starting runtime ${runtime.id} request to Azure failed.",
+            s"Runtime ${runtime.runtimeName.asString} cannot be found in Azure, starting runtime request failed",
             ctx.traceId
           )
         )
-      case Some(mono) =>
-        val task = for {
-          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
-          isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
-          _ <- streamUntilDoneOrTimeout(
-            isJupyterUp,
-            config.createVmPollConfig.maxAttempts,
-            config.createVmPollConfig.interval,
-            s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
-          )
-          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
-          _ <- logger.info(ctx.loggingCtx)("runtime is ready")
-        } yield ()
-        asyncTasks.offer(
-          Task(
-            ctx.traceId,
-            task,
-            Some(e =>
-              handleAzureRuntimeStartError(
-                AzureRuntimeStartingError(
-                  runtime.id,
-                  s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
-                  ctx.traceId
-                ),
-                ctx.now
-              )
-            ),
-            ctx.now,
-            "startRuntime"
+    }
+
+  } yield ()
+
+  private def monitorStopRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext, monoOpt: Option[Mono[Void]])(
+    implicit ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    task = for {
+      _ <- monoOpt.traverse(mono => F.blocking(mono.block(Duration.ofMinutes(5))))
+      vmStopped = azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+      _ <- streamUntilDoneOrTimeout(
+        vmStopped,
+        config.startStopVmPollConfig.maxAttempts,
+        config.startStopVmPollConfig.interval,
+        s"The VM was not stopped within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+      )
+      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
+      _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
+      _ <- welderDao
+        .flushCache(runtime.cloudContext, runtime.runtimeName)
+        .handleErrorWith(e =>
+          logger.error(ctx.loggingCtx, e)(
+            s"Failed to flush welder cache for ${runtime.projectNameString}"
           )
         )
-    }
+        .whenA(runtime.welderEnabled)
+    } yield ()
+    _ <- asyncTasks.offer(
+      Task(
+        ctx.traceId,
+        task,
+        Some(e =>
+          handleAzureRuntimeStopError(
+            AzureRuntimeStoppingError(
+              runtime.id,
+              s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+              ctx.traceId
+            ),
+            ctx.now
+          )
+        ),
+        ctx.now,
+        "startRuntime"
+      )
+    )
   } yield ()
 
   override def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
-    monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
-    _ <- monoOpt match {
-      case None =>
-        F.raiseError[Unit](
-          AzureRuntimeStoppingError(
-            runtime.id,
-            s"Stopping runtime ${runtime.id} request to Azure failed.",
-            ctx.traceId
-          )
-        )
-      case Some(mono) =>
-        val task = for {
-          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
-          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
-          _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
-          _ <- welderDao
-            .flushCache(runtime.cloudContext, runtime.runtimeName)
-            .handleErrorWith(e =>
-              logger.error(ctx.loggingCtx, e)(
-                s"Failed to flush welder cache for ${runtime.projectNameString}"
+    vm <- azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+
+    // if vm is starting/running --> send stop message and monitor
+    // if vm is stopping/deallocating --> monitor
+    // if vm is stopped/deallocated --> update DB
+    // else --> error
+    _ <- vm match {
+      case Some(vm) =>
+        vm.powerState() match {
+          case PowerState.STARTING | PowerState.RUNNING =>
+            for {
+
+              monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+              _ <- monoOpt match {
+                case None =>
+                  F.raiseError[Unit](
+                    AzureRuntimeStoppingError(
+                      runtime.id,
+                      s"Stopping runtime ${runtime.id} request to Azure failed.",
+                      ctx.traceId
+                    )
+                  )
+                case Some(mono) =>
+                  monitorStopRuntime(runtime, azureCloudContext, Some(mono))
+              }
+            } yield ()
+          case PowerState.DEALLOCATING | PowerState.STOPPING => monitorStopRuntime(runtime, azureCloudContext, None)
+
+          case PowerState.DEALLOCATED | PowerState.STOPPED =>
+            for {
+              _ <- logger.info(s"Runtime ${runtime.runtimeName.asString} already stopped, no-op for stopRuntime")
+              _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
+            } yield ()
+          case _ =>
+            F.raiseError(
+              AzureRuntimeStoppingError(
+                runtime.id,
+                s"Runtime ${runtime.runtimeName.asString} cannot be stopped in a ${vm.powerState().toString} state, stopping runtime request failed",
+                ctx.traceId
               )
             )
-            .whenA(runtime.welderEnabled)
-        } yield ()
-        asyncTasks.offer(
-          Task(
-            ctx.traceId,
-            task,
-            Some(e =>
-              handleAzureRuntimeStopError(
-                AzureRuntimeStoppingError(
-                  runtime.id,
-                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
-                  ctx.traceId
-                ),
-                ctx.now
-              )
-            ),
-            ctx.now,
-            "startRuntime"
+        }
+      case None =>
+        F.raiseError(
+          AzureRuntimeStoppingError(
+            runtime.id,
+            s"Runtime ${runtime.runtimeName.asString} cannot be found in Azure, stopping runtime request failed",
+            ctx.traceId
           )
         )
     }
