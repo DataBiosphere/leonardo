@@ -229,12 +229,12 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
   }
 
-  private def monitorStartRuntime(runtime: Runtime, startVmOp: Option[Mono[Void]])(implicit
+  private def monitorStartRuntime(runtime: Runtime, startVmOpOpt: Option[Mono[Void]])(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
     task = for {
-      _ <- startVmOp.traverse(startVmOp => F.blocking(startVmOp.block(Duration.ofMinutes(5))))
+      _ <- startVmOpOpt.traverse(startVmOp => F.blocking(startVmOp.block(Duration.ofMinutes(5))))
       isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
       _ <- streamUntilDoneOrTimeout(
         isJupyterUp,
@@ -323,12 +323,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   } yield ()
 
-  private def monitorStopRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext, monoOpt: Option[Mono[Void]])(
-    implicit ev: Ask[F, AppContext]
+  private def monitorStopRuntime(runtime: Runtime,
+                                 azureCloudContext: AzureCloudContext,
+                                 stopVmOpOpt: Option[Mono[Void]]
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
     task = for {
-      _ <- monoOpt.traverse(mono => F.blocking(mono.block(Duration.ofMinutes(5))))
+      _ <- stopVmOpOpt.traverse(stopVmOp => F.blocking(stopVmOp.block(Duration.ofMinutes(5))))
       vmStopped = azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
       _ <- streamUntilDoneOrTimeout(
         vmStopped,
@@ -383,8 +386,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           case PowerState.STARTING | PowerState.RUNNING =>
             for {
 
-              monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
-              _ <- monoOpt match {
+              stopVmOpOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString),
+                                                              azureCloudContext
+              )
+              _ <- stopVmOpOpt match {
                 case None =>
                   F.raiseError[Unit](
                     AzureRuntimeStoppingError(
@@ -393,8 +398,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                       ctx.traceId
                     )
                   )
-                case Some(mono) =>
-                  monitorStopRuntime(runtime, azureCloudContext, Some(mono))
+                case Some(startVmOp) =>
+                  monitorStopRuntime(runtime, azureCloudContext, Some(startVmOp))
               }
             } yield ()
           case PowerState.DEALLOCATING | PowerState.STOPPING => monitorStopRuntime(runtime, azureCloudContext, None)
