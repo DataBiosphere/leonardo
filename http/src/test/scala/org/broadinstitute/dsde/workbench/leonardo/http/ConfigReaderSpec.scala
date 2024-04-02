@@ -160,7 +160,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          chartVersionsToExcludeFromUpdates = List.empty
+          chartVersionsToExcludeFromUpdates = List.empty,
+          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
