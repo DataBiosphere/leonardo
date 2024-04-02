@@ -123,7 +123,10 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"postgres.user=${params.ksaName.value}",
         raw"postgres.dbnames.cromwell=${dbNames.cromwell}",
         raw"postgres.dbnames.tes=${dbNames.tes}",
-        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}"
+        raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}",
+
+        // ECM configs
+        raw"ecm.baseUri=${config.ecmBaseUri}"
       )
     } yield Values(values.mkString(","))
 
