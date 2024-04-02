@@ -55,8 +55,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
                                                 serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
-                                                computeService: GoogleComputeService[F],
-                                                googleResourceService: GoogleResourceService[F],
+                                                computeService: Option[GoogleComputeService[F]],
+                                                googleResourceService: Option[GoogleResourceService[F]],
                                                 customAppConfig: CustomAppConfig,
                                                 wsmDao: WsmDao[F],
                                                 wsmClientProvider: WsmApiClientProvider[F]
@@ -1050,7 +1050,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
         allowedOrError <-
           for {
-            projectLabels <- googleResourceService.getLabels(googleProject)
+            projectLabels <- googleResourceService.get.getLabels(googleProject)
             isAppAllowed <- projectLabels match {
               case Some(labels) =>
                 labels.get(SECURITY_GROUP) match {
@@ -1094,7 +1094,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- ev.ask
 
-      projectLabels <- googleResourceService.getLabels(googleProject)
+      projectLabels <- googleResourceService.get.getLabels(googleProject)
 
       allowedOrError = projectLabels match {
         case Some(labels) =>
@@ -1279,7 +1279,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             )
           } else F.unit
         }
-      machineType <- computeService
+      machineType <- computeService.get
         .getMachineType(googleProject,
                         ZoneName("us-central1-a"),
                         machineTypeName
@@ -1744,7 +1744,6 @@ case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
-
 case class AppWithoutWorkspaceIdException(appName: AppName, traceId: TraceId)
     extends LeoException(
       s"App ${appName.value} is missing a workspaceId. Trace ID: ${traceId.asString}",
