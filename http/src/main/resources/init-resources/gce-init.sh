@@ -349,15 +349,24 @@ ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 # The client running inside the notebook container communicates to the server over a Unix socket.
 # This should be started after other containers.
 # Use `docker run` instead of docker-compose for simplicity and to avoid ${NOTEBOOKS_DIR} collisions.
-# We increase UDP network buffer sizes for performance:
-# https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
 # For more information, see https://github.com/hcholab/sfkit/tree/main
 if [ -n "${SFKIT_DOCKER_IMAGE}" ] ; then
-  docker run "--name=${SFKIT_SERVER_NAME}" --rm -d --restart unless-stopped \
-    --sysctl net.core.rmem_max=2500000 --sysctl net.core.wmem_max=2500000 \
+  # Increase UDP network buffer sizes for performance:
+  # https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
+  sysctl -w net.core.rmem_max=2500000
+  sysctl -w net.core.wmem_max=2500000
+
+  # Note that to be able to communicate over the Unix socket,
+  # we have to start the server with the same GID as the client.
+  GID=$(docker exec "${JUPYTER_SERVER_NAME}" id -g)
+  docker rm -f "${SFKIT_SERVER_NAME}"
+  docker run --name "${SFKIT_SERVER_NAME}" \
+    -d --restart unless-stopped --pull always \
     -e "SAFE_DATA_PATH=${NOTEBOOKS_DIR}/" \
     -e "SFKIT_SOCK=${NOTEBOOKS_DIR}/.config/sfkit/server.sock" \
-    -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" "${SFKIT_DOCKER_IMAGE}"
+    -v "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}" \
+    -u "nonroot:${GID}" \
+    "${SFKIT_DOCKER_IMAGE}" server
 fi
 
 # Start up crypto detector, if enabled.
