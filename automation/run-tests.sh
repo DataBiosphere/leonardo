@@ -24,7 +24,7 @@ curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/go
 # Installing the package
 mkdir -p /usr/local/gcloud \
   && tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz \
-  && /usr/local/gcloud/google-cloud-sdk/install.sh
+  && /usr/local/gcloud/google-cloud-sdk/install.sh > /dev/null
 
 # Adding the package path to local
 export PATH=$PATH:/usr/local/gcloud/google-cloud-sdk/bin
