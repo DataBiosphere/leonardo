@@ -70,6 +70,12 @@ env:
   DEL_BP_V2_RUN_NAME: 'delete-billing-project-v2-from-bee-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   E2E_ENV: 'azure_e2e.env'
 
+concurrency:
+  # Don't run this workflow concurrently on the same branch
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # For PRs, don't wait for completion of existing runs, cancel them instead
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
 
   #
