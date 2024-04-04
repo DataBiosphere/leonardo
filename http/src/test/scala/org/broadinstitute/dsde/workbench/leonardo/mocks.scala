@@ -17,15 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodName
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
-import org.broadinstitute.dsde.workbench.google2.{
-  Event,
-  GKEModels,
-  GcsBlobName,
-  GetMetadataResponse,
-  GoogleSubscriber,
-  KubernetesModels,
-  PvName
-}
+import org.broadinstitute.dsde.workbench.google2.{GKEModels, GcsBlobName, GetMetadataResponse, KubernetesModels, PvName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
@@ -36,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.Release
 
 object FakeGoogleStorageService extends BaseFakeGoogleStorage {
@@ -200,8 +193,8 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
 
 object MockAuthProvider extends BaseMockAuthProvider
 
-class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
-  def messages: Stream[IO, Event[A]] = Stream.empty
+class FakeGoogleSubcriber[A] extends CloudSubscriber[IO, A] {
+  def messages: Stream[IO, ReceivedMessage[A]] = Stream.empty
   // If you use `start`, make sure to hook up `messages` somewhere as well on the same instance for consuming the messages; Otherwise, messages will be left nacked
   def start: IO[Unit] = IO.unit
   def stop: IO[Unit] = IO.unit

@@ -111,8 +111,8 @@ trait TestLeoRoutes {
     allowListAuthProvider,
     serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
-    FakeGoogleComputeService,
-    FakeGoogleResourceService,
+    Some(FakeGoogleComputeService),
+    Some(FakeGoogleResourceService),
     Config.gkeCustomAppConfig,
     wsmDao,
     wsmClientProvider
@@ -196,18 +196,24 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
+  val gcpOnlyServicesRegistry = {
+    val registry = ServicesRegistry()
+    registry.register[ProxyService](proxyService)
+    registry.register[RuntimeService[IO]](runtimeService)
+    registry.register[DiskService[IO]](MockDiskServiceInterp)
+    registry.register[ResourcesService[IO]](MockResourcesService)
+    registry
+  }
+
   val httpRoutes =
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -217,19 +223,15 @@ trait TestLeoRoutes {
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       leoKubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
     )
-
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r
 

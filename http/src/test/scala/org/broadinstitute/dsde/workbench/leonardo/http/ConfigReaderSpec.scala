@@ -1,7 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureAppRegistrationConfig,
+  AzureServiceBusPublisherConfig,
+  AzureServiceBusSubscriberConfig,
+  ClientId,
+  ClientSecret,
+  ManagedAppTenantId
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -42,6 +49,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           PollMonitorConfig(1 seconds, 10, 1 seconds),
+          PollMonitorConfig(1 seconds, 10, 1 seconds),
           AzureRuntimeDefaults(
             "Azure Ip",
             "ip",
@@ -78,7 +86,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("cromwell-helm/cromwell-on-azure"),
-          ChartVersion("0.2.466"),
+          ChartVersion("0.2.471"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -140,7 +148,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.109.0"),
+          ChartVersion("0.113.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -152,11 +160,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          chartVersionsToExcludeFromUpdates = List.empty
+          chartVersionsToExcludeFromUpdates = List.empty,
+          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.166.0"),
+          ChartVersion("0.175.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -227,7 +236,9 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureHostingModeConfig(
           false,
           "AZURE",
-          AzureManagedIdentityAuthConfig(".default", 30)
+          AzureManagedIdentityAuthConfig(".default", 30),
+          AzureServiceBusPublisherConfig("replace_me", Some("replace_me"), Some("replace_me")),
+          AzureServiceBusSubscriberConfig("replace_me", "replace_me", Some("replace_me"), Some("replace_me"), 1, 1)
         )
       ),
       OidcAuthConfig(

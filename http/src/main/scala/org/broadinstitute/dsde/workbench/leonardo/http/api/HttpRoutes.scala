@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyC
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -29,29 +30,28 @@ import scala.concurrent.{ExecutionContext, Future}
 class HttpRoutes(
   oidcConfig: OpenIDConnectConfiguration,
   statusService: StatusService,
-  proxyService: ProxyService,
-  runtimeService: RuntimeService[IO],
-  diskService: DiskService[IO],
+  gcpOnlyServicesRegistry: ServicesRegistry,
   diskV2Service: DiskV2Service[IO],
   kubernetesService: AppService[IO],
   azureService: RuntimeV2Service[IO],
   adminService: AdminService[IO],
-  resourcesService: ResourcesService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
-  refererConfig: RefererConfig
+  refererConfig: RefererConfig,
+  enableAzureOnlyRoutes: Boolean = false
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
+
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
-  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
-  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
-  private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
   private val appV2Routes = new AppV2Routes(kubernetesService, userInfoDirectives)
   private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
   private val diskV2Routes = new DiskV2Routes(diskV2Service, userInfoDirectives)
   private val adminRoutes = new AdminRoutes(adminService, userInfoDirectives)
-  private val resourcesRoutes = new ResourcesRoutes(resourcesService, userInfoDirectives)
+  private val diskRoutes = createDiskRoutesUsingServicesRegistry
+  private val runtimeRoutes = createRuntimeRoutesUsingServicesRegistry
+  private val resourcesRoutes = createResourcesRoutesUsingServicesRegistry
+  private val proxyRoutes = createProxyRoutesUsingServicesRegistry
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private val logRequestResult: Directive0 = {
@@ -115,14 +115,49 @@ class HttpRoutes(
 
   val route: Route =
     logRequestResult {
-      Route.seal(
-        oidcConfig
-          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ proxyRoutes.route ~ statusRoutes.route ~
-          pathPrefix("api") {
-            runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes ~ resourcesRoutes.routes
-          }
-      )
+      enableAzureOnlyRoutes match {
+        case false =>
+          Route.seal(
+            oidcConfig
+              .swaggerRoutes(
+                "swagger/api-docs.yaml"
+              ) ~ oidcConfig.oauth2Routes ~ proxyRoutes.get.route ~ statusRoutes.route ~
+              pathPrefix("api") {
+                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
+                  diskRoutes.get.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes ~
+                  resourcesRoutes.get.routes
+              }
+          )
+        case true =>
+          Route.seal(
+            oidcConfig
+              .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
+              pathPrefix("api") {
+                runtimeV2Routes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes
+              }
+          )
+      }
     }
+  private def createResourcesRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[ResourcesService[IO]]
+      .map(resourcesService => new ResourcesRoutes(resourcesService, userInfoDirectives))
+
+  private def createDiskRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[DiskService[IO]]
+      .map(diskService => new DiskRoutes(diskService, userInfoDirectives))
+
+  private def createRuntimeRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[RuntimeService[IO]]
+      .map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives))
+
+  private def createProxyRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[ProxyService]
+      .map(proxyService => new ProxyRoutes(proxyService, corsSupport, refererConfig))
+
 }
 
 object HttpRoutes {
