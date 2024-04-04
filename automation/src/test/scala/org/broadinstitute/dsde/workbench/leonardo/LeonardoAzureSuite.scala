@@ -77,15 +77,14 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
     try
       testCode(response)
     finally
-      println("skip finally")
-//      try
-//        Rawls.workspaces.delete(projectName.value, workspaceName)
-//      catch {
-//        case e: Throwable =>
-//          println(
-//            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: $e"
-//          )
-//      }
+      try
+        Rawls.workspaces.delete(projectName.value, workspaceName)
+      catch {
+        case e: Throwable =>
+          println(
+            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: $e"
+          )
+      }
   }
 
   private def workspaceResponse(projectName: String, workspaceName: String)(implicit
@@ -160,9 +159,9 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
 final class LeonardoAzureSuite
     extends Suites(
-//      new AzureRuntimeSpec,
-      new AzureDiskSpec
-//      new AzureAutopauseSpec
+      new AzureRuntimeSpec,
+      new AzureDiskSpec,
+      new AzureAutopauseSpec
     )
     with TestSuite
     with AzureBilling
