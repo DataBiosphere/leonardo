@@ -8,10 +8,11 @@
 # Outputs: a file with the name tunnel_$PORT.pid with the system pid of the tunnel process
 
 
-nohup az network bastion tunnel --name "$BASTION_NAME" --resource-group "$RESOURCE_GROUP" --target-resource-id "${RESOURCE_ID}" --resource-port 22 --port $PORT > /tmp/nohup.out 2>&1 &
+nohup az network bastion tunnel --name "$BASTION_NAME" --resource-group "$RESOURCE_GROUP" --target-resource-id "${RESOURCE_ID}" --resource-port 22 --port $PORT > /tmp/nohup.out &
 
 echo "displaying nohup output"
 cat /tmp/nohup.out
+echo "done displaying nohup output"
 
 NUM_LOOPS=0
 until lsof -i tcp:3000
