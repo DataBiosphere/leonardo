@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
+//@DoNotDiscover
 class AzureDiskSpec
     extends AzureBilling
     with LeonardoTestUtils
@@ -123,6 +123,7 @@ class AzureDiskSpec
                 )
               } yield (output1, output2)
           }
+          _ = throw new RuntimeException("fail")
 
           _ <- loggerIO.info(s"command result 1 and 2: \n\t1: ${output1}, \n\t2: ${output2}")
           _ = output2.outputLines.mkString shouldBe "{}"

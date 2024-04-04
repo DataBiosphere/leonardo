@@ -46,6 +46,7 @@ object SSH {
         "RESOURCE_ID" -> targetResourceId,
         "PORT" -> port.toString
       )
+      _ <- loggerIO.info(s"executing bastion process: ${process}")
       output <- IO(process !!)
       _ <- loggerIO.info(s"Bastion tunnel start command full output:\n\t${output}")
       tunnel = Tunnel(output.split('\n').last, port)
