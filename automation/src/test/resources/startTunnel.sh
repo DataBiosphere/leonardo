@@ -7,6 +7,7 @@
 
 # Outputs: a file with the name tunnel_$PORT.pid with the system pid of the tunnel process
 
+echo "starting tunnel bastion ${BASTION_NAME} with resource id ${RESOURCE_ID} in resource group ${RESOURCE_GROUP} on port ${PORT}"
 
 nohup az network bastion tunnel --name "$BASTION_NAME" --resource-group "$RESOURCE_GROUP" --target-resource-id "${RESOURCE_ID}" --resource-port 22 --port $PORT > /tmp/nohup.out &
 
