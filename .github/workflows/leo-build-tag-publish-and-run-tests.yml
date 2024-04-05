@@ -34,7 +34,6 @@ env:
   BEE_DESTROY_RUN_NAME: 'bee-destroy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   AZURE_SWAT_TESTS_RUN_NAME: 'azure-swat-tests-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
-
 concurrency:
   # Don't run this workflow concurrently on the same branch
   group: ${{ github.workflow }}-${{ github.ref }}
