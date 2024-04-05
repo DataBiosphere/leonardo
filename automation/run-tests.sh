@@ -35,7 +35,7 @@ gcloud auth activate-service-account --key-file=$LEONARDO_ACCOUNT_JSON_PATH
 export GOOGLE_APPLICATION_CREDENTIALS=$LEONARDO_ACCOUNT_JSON_PATH
 
 # Install azure CLI
-curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+curl -sL https://aka.ms/InstallAzureCLIDeb | bash > /dev/null
 
 # Log into service principal and set subscription
 az login --service-principal -u "$LEO_AZURE_CLIENT_ID" -p "$LEO_AZURE_CLIENT_SECRET" -t "$LEO_AZURE_TENANT_ID"
@@ -49,8 +49,8 @@ yes | az network bastion list
 echo "Bastion installed"
 
 echo "Installing lsof"
-yes | apt update
-yes | apt install lsof
+yes | apt update > /dev/null
+yes | apt install lsof > /dev/null
 
 echo "Done installing lsof, running tests"
 
