@@ -9,7 +9,8 @@ import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Ron, Hermione}
+import org.broadinstitute.dsde.workbench.leonardo.apps.AppLifecycleSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
@@ -253,7 +254,8 @@ final class LeonardoSuite
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
       new RuntimeDataprocSpec,
-      new RuntimeGceSpec
+      new RuntimeGceSpec,
+      new AppLifecycleSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
