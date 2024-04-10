@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.tagobjects.Retryable
 
@@ -21,7 +21,7 @@ import scala.concurrent.duration._
  * and welder localization/delocalization.
  */
 @DoNotDiscover
-class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils {
+class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils with ParallelTestExecution {
   override def enableWelder: Boolean = true
 
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()

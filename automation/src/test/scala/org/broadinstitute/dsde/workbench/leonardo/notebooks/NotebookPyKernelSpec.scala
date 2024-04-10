@@ -4,13 +4,13 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec, SSH}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec.runtimeFixtureZone
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
  * This spec verifies notebook functionality specifically around the Python 3 kernel.
  */
 @DoNotDiscover
-class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
+class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)

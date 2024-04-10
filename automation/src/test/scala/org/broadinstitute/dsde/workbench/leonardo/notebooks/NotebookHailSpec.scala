@@ -4,13 +4,13 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, RuntimeFixtureSpec}
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
  * This spec verifies Hail and Spark functionality.
  */
 @DoNotDiscover
-class NotebookHailSpec extends RuntimeFixtureSpec {
+class NotebookHailSpec extends RuntimeFixtureSpec with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
