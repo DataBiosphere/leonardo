@@ -4,13 +4,13 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
  * This spec verifies notebook functionality specifically around the R kernel.
  */
 @DoNotDiscover
-class NotebookRKernelSpec extends RuntimeFixtureSpec {
+class NotebookRKernelSpec extends RuntimeFixtureSpec with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   val dependencies = for {
