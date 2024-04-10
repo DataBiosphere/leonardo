@@ -255,14 +255,7 @@ final class LeonardoSuite
       new NotebookGCEDataSyncingSpec,
       new RuntimeDataprocSpec,
       new RuntimeGceSpec,
-      new AppLifecycleSpec
-    )
-    with TestSuite
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
-    with ParallelTestExecution
-
-final class LeonardoTerraDockerSuite
-    extends Suites(
+      new AppLifecycleSpec,
       new NotebookHailSpec,
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
@@ -271,3 +264,11 @@ final class LeonardoTerraDockerSuite
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
+
+//final class LeonardoTerraDockerSuite
+//    extends Suites(
+//
+//    )
+//    with TestSuite
+//    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+//    with ParallelTestExecution

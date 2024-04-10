@@ -68,12 +68,13 @@ abstract class RuntimeFixtureSpec
     }
   }
 
+  // TODO: rename from ron to runtime fixture
   /**
    * Create new runtime by Ron with all default settings
    */
-  def createRonRuntime(billingProject: GoogleProject): Unit = {
+  def createRuntimeFixtureRuntime(billingProject: GoogleProject, specName: String): Unit = {
 
-    val runtimeName = randomClusterName
+    val runtimeName = RuntimeName(s"automation-${specName.toLowerCase}")
     logger.info(
       s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime to be created: ${billingProject.value}/${runtimeName.asString}"
     )
@@ -111,20 +112,19 @@ abstract class RuntimeFixtureSpec
    * Delete cluster without monitoring that's owned by Ron
    */
   def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
-    logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    // TODO: Remove unsafeRunSync() when deleteRuntime() accepts an IO[AuthToken]
+    logger.info(s"Deleting cluster for cluster fixture test: ${getClass.getSimpleName}")
     deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken.unsafeRunSync())
   }
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    logger.info("beforeAll")
+    logger.info(s"beforeAll for fixture tests: ${getClass.getSimpleName}")
 
     sys.props.get(googleProjectKey) match {
       case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) =>
         clusterCreationFailureMsg = msg
       case Some(googleProjectId) =>
-        createRonRuntime(GoogleProject(googleProjectId))
+        createRuntimeFixtureRuntime(GoogleProject(googleProjectId), getClass.getSimpleName)
       case None =>
         clusterCreationFailureMsg = "leonardo.googleProject system property is not set"
     }
@@ -132,7 +132,7 @@ abstract class RuntimeFixtureSpec
   }
 
   override def afterAll(): Unit = {
-    logger.info("afterAll")
+    logger.info(s"afterAll for fixture tests: ${getClass.getSimpleName}")
 
     sys.props.get(googleProjectKey) match {
       case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject))

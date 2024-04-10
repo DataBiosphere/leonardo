@@ -445,6 +445,9 @@ trait LeonardoTestUtils
     stopRuntime(googleProject, runtimeName, monitor = true)(token)
 
   def randomClusterName: RuntimeName = RuntimeName(s"automation-test-a${makeRandomId().toLowerCase}z")
+  def randomClusterNameForSpec(spec: String): RuntimeName = RuntimeName(
+    s"automation-${spec.toLowerCase}-a${makeRandomId(8).toLowerCase}z"
+  )
 
   def defaultClusterRequest: ClusterRequest =
     ClusterRequest(Map("foo" -> makeRandomId()),

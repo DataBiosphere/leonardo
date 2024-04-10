@@ -22,43 +22,12 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class AppLifecycleSpec
-    extends FixtureAnyFreeSpecLike
+    extends RuntimeFixtureSpec
     with Retries
     with LeonardoTestUtils
     with BillingProjectUtils
     with TableDrivenPropertyChecks
     with ParallelTestExecution {
-  implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
-
-//  override def withFixture(test: NoArgTest) = {
-//
-//    if (isRetryable(test))
-//      withRetry(super.withFixture(test))
-//    else
-//      super.withFixture(test)
-//  }
-  override type FixtureParam = GoogleProject
-
-  override def withFixture(test: OneArgTest): Outcome = {
-    def runTestAndCheckOutcome(project: GoogleProject) = {
-      val outcome = super.withFixture(test.toNoArgTest(project))
-      if (!outcome.isSucceeded) {
-        System.setProperty(shouldUnclaimProjectsKey, "false")
-      }
-      outcome
-    }
-    val billingProjectAndWorkspace =
-      createBillingProjectAndWorkspace.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    billingProjectAndWorkspace match {
-      case Left(e) => throw new RuntimeException(s"google project could not be claimed for test, ${e}")
-      case Right(projectAndWorkspace) =>
-        if (isRetryable(test))
-          withRetry(runTestAndCheckOutcome(projectAndWorkspace.googleProject))
-        else
-          runTestAndCheckOutcome(projectAndWorkspace.googleProject)
-    }
-  }
 
   def createAppRequest(appType: AppType,
                        workspaceName: String,
@@ -85,34 +54,42 @@ class AppLifecycleSpec
   //  }
 
   "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
-    googleProject =>
-      test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
+    withNewProject { googleProject =>
+      IO(test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true))
+    }
   }
 
   "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
-    googleProject =>
-      test(googleProject,
-           createAppRequest(AppType.Allowed, "rstudio-test-workspace", None, Some(AllowedChartName.RStudio)),
-           false,
-           true
+    withNewProject { googleProject =>
+      IO(
+        test(googleProject,
+             createAppRequest(AppType.Allowed, "rstudio-test-workspace", None, Some(AllowedChartName.RStudio)),
+             false,
+             true
+        )
       )
+    }
   }
 
-  "create CUSTOM app then delete it" taggedAs Retryable ignore { googleProject =>
-    test(
-      googleProject,
-      createAppRequest(
-        AppType.Custom,
-        "custom-test-workspace",
-        Some(
-          org.http4s.Uri.unsafeFromString(
-            "https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml"
-          )
+  "create CUSTOM app then delete it" taggedAs Retryable ignore { _ =>
+    withNewProject { googleProject =>
+      IO(
+        test(
+          googleProject,
+          createAppRequest(
+            AppType.Custom,
+            "custom-test-workspace",
+            Some(
+              org.http4s.Uri.unsafeFromString(
+                "https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml"
+              )
+            )
+          ),
+          false,
+          false
         )
-      ),
-      false,
-      false
-    )
+      )
+    }
   }
 
   def test(googleProject: GoogleProject,
