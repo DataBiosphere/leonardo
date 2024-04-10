@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDiskService,
   GoogleResourceService,
+  GoogleStorageService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
@@ -74,7 +75,8 @@ class GKEInterpreter[F[_]](
   appDescriptorDAO: AppDescriptorDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   googleResourceService: GoogleResourceService[F],
-  computeService: GoogleComputeService[F]
+  computeService: GoogleComputeService[F],
+  storageService: GoogleStorageService[F]
 )(implicit
   val executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -996,6 +998,35 @@ class GKEInterpreter[F[_]](
           _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
         } yield ()
       }
+
+      _ <- dbApp.app.appType match {
+        case AppType.Allowed =>
+          // Cleans up staging bucket. Right now, only ALLOWED app uses staging bucket
+          dbCluster.cloudContext match {
+            case CloudContext.Gcp(project) =>
+              storageService
+                .deleteBucket(project, buildAppStagingBucketName(app.appName), true)
+                .compile
+                .lastOrError
+                .void
+                .handleErrorWith {
+                  case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
+                    logger.warn(ctx.loggingCtx, e)(
+                      "Fail to clean up staging bucket because it doesn't exist"
+                    )
+                  case e =>
+                    logger.error(ctx.loggingCtx, e)(
+                      "Fail to clean up staging bucket"
+                    )
+                }
+            case CloudContext.Azure(_) =>
+              logger.error(ctx.loggingCtx)(
+                "This should never happen because Azure app doesn't go through this code path. But not failing app deletion because deleting staging bucket isn't in critical path"
+              )
+          }
+        case _ => F.unit
+      }
+
       _ <-
         if (!params.errorAfterDelete) {
           F.unit
@@ -1494,7 +1525,7 @@ class GKEInterpreter[F[_]](
       )
 
       // Create the staging bucket to be used by Welder
-      stagingBucketName = generateUniqueBucketName("leostaging-" + appName.value)
+      stagingBucketName = buildAppStagingBucketName(appName)
 
       _ <- bucketHelper
         .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)

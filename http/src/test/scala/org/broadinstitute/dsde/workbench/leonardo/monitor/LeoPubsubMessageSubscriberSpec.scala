@@ -1287,7 +1287,8 @@ class LeoPubsubMessageSubscriberSpec
       MockAppDescriptorDAO,
       nodepoolLock,
       resourceService,
-      FakeGoogleComputeService
+      FakeGoogleComputeService,
+      FakeGoogleStorageService
     )
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeInter)
 
@@ -1458,7 +1459,8 @@ class LeoPubsubMessageSubscriberSpec
       MockAppDescriptorDAO,
       nodepoolLock,
       resourceService,
-      FakeGoogleComputeService
+      FakeGoogleComputeService,
+      FakeGoogleStorageService
     )
 
     implicit val googleDiskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
@@ -1612,7 +1614,8 @@ class LeoPubsubMessageSubscriberSpec
       MockAppDescriptorDAO,
       nodepoolLock,
       resourceService,
-      FakeGoogleComputeService
+      FakeGoogleComputeService,
+      FakeGoogleStorageService
     )
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
@@ -1727,7 +1730,8 @@ class LeoPubsubMessageSubscriberSpec
       MockAppDescriptorDAO,
       nodepoolLock,
       resourceService,
-      FakeGoogleComputeService
+      FakeGoogleComputeService,
+      FakeGoogleStorageService
     )
 
     val leoSubscriber =
@@ -2400,7 +2404,8 @@ class LeoPubsubMessageSubscriberSpec
       MockAppDescriptorDAO,
       lock,
       resourceService,
-      FakeGoogleComputeService
+      FakeGoogleComputeService,
+      FakeGoogleStorageService
     )
 
   def makeLeoSubscriber(
