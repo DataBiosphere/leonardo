@@ -1435,7 +1435,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           case e =>
             for {
               _ <- appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
-              errorContext = s"Error updating Azure app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"
+              errorContext =
+                s"Error updating Azure app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"
               _ <- logger.warn(ctx.loggingCtx, e)(errorContext)
               error = AppError(
                 s"${errorContext}: ${e.getMessage}",
