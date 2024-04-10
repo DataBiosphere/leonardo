@@ -29,7 +29,6 @@ class AppLifecycleSpec
     with TableDrivenPropertyChecks
     with ParallelTestExecution {
 
-
   def createAppRequest(appType: AppType,
                        workspaceName: String,
                        descriptorPath: Option[org.http4s.Uri],
