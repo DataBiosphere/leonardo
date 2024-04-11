@@ -595,5 +595,3 @@ class TestException(message: String = "Test error", statusCode: StatusCode = Sta
     extends ApiException {
   override def getCode: Int = statusCode.intValue
 }
-
-class TestSuccess(statusCode: StatusCode = StatusCodes.OK)
