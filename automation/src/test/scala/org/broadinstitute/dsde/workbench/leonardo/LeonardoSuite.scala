@@ -60,14 +60,11 @@ trait BillingProjectFixtureSpec
             new RuntimeException(s"Unable to claim billing project for spec ${getClass.getSimpleName}, error: ${e}")
           )
         case Right(googleProjectAndWorkspaceName) =>
+          fixtureProject = googleProjectAndWorkspaceName.googleProject
+          workspaceName = googleProjectAndWorkspaceName.workspaceName
           createInitialRuntime(
             googleProjectAndWorkspaceName.googleProject
-          ) >> IO(
-            fixtureProject = googleProjectAndWorkspaceName.googleProject
-          ) >>
-            IO(
-              workspaceName = googleProjectAndWorkspaceName.workspaceName
-            )
+          )
       }
 
       port <- ProxyRedirectClient.startServer()
