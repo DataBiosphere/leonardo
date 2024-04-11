@@ -73,6 +73,13 @@ env:
   COURSIER_CACHE: $HOME/.cache
   SBT_CACHE: $HOME/.sbt
 
+
+concurrency:
+  # Don't run this workflow concurrently on the same branch
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # For PRs, don't wait for completion of existing runs, cancel them instead
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # We only need a new version tag when this workflow is triggered by opening, updating a PR or PR merge.
   # When triggered by a Pact Broker webhook, the provider version (GIT hash or release tag)
