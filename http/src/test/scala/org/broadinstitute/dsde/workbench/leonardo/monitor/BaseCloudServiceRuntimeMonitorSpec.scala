@@ -262,7 +262,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
   }
 
   it should "not move to ERROR status when an error happens during runtime deletion" in isolatedDbTest {
-    val runtimeMonitor = baseRuntimeMonitor(false)
+    val runtimeMonitor = baseRuntimeMonitor(false, timeouts = Map(RuntimeStatus.Deleting -> 1.minutes))
     val start = Instant.EPOCH
     val res = for {
       tid <- traceId.ask[TraceId]
@@ -280,7 +280,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
       _ <- runtimeMonitor.checkAgain(monitorContext, runtimeAndRuntimeConfig, None, None, None)
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
-    } yield status shouldBe RuntimeStatus.Deleting
+    } yield status shouldBe Some(RuntimeStatus.Deleting)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
