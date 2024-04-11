@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.azure.{
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 
+import java.time.OffsetDateTime
 import java.util.UUID
 
 final case class WsmControlledResourceId(value: UUID) extends AnyVal
@@ -40,7 +41,8 @@ final case class WsmControlledDatabaseResource(wsmDatabaseName: String,
 
 final case class WsmControlledKubernetesNamespaceResource(name: NamespaceName,
                                                           wsmResourceId: WsmControlledResourceId,
-                                                          serviceAccountName: ServiceAccountName
+                                                          serviceAccountName: ServiceAccountName,
+                                                          craetedDate: OffsetDateTime
 )
 
 final case class LandingZoneResources(landingZoneId: UUID,

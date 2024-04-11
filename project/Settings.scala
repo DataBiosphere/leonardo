@@ -22,9 +22,9 @@ object Settings {
   val commonBuildSettings = Defaults.coreDefaultSettings ++ Defaults.defaultConfigs ++ Seq(
     javaOptions += "-Xmx2G",
     javacOptions ++= Seq("--release", "17"),
-    Compile / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt console`
-    Test / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
-    Test / scalacOptions --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
+    Compile / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings", "-Werror"), //disable unused fatal warning in `sbt console`
+    Test / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings", "-Werror"), //disable unused fatal warning in `sbt test:console`
+    Test / scalacOptions --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings", "-Werror"),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     semanticdbEnabled := true,
     semanticdbVersion := scalafixSemanticdb.revision

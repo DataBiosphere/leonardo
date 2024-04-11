@@ -181,7 +181,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // get workspaceDescription from WSM
       wsmWorkspaceApi <- buildWsmWorkspaceApiClient
-      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, params.workspaceId.value)
+      // workspaceDescription <- name //getWorkspaceDescription(wsmWorkspaceApi, params.workspaceId.value)
 
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
@@ -236,7 +236,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         params.workspaceId,
-        workspaceDescription.getCreatedDate,
+        namespace.craetedDate,
         params.cloudContext,
         landingZoneResources,
         storageContainerOpt,
@@ -408,7 +408,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // get workspaceDescription from WSM
       wsmWorkspaceApi <- buildWsmWorkspaceApiClient
-      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, workspaceId.value)
+      // workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, workspaceId.value)
 
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAttributes.getKubernetesNamespace)
@@ -460,7 +460,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         workspaceId,
-        workspaceDescription.getCreatedDate,
+        // workspaceDescription.getCreatedDate,
+        wsmNamespace.getMetadata.getCreatedDate,
         params.cloudContext,
         landingZoneResources,
         storageContainerOpt,
@@ -1037,13 +1038,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .toList
     )
 
-  private[util] def getWorkspaceDescription(workspaceApi: WorkspaceApi,
-                                            workspaceId: UUID
-  ): F[bio.terra.workspace.model.WorkspaceDescription] =
-    F.blocking(
-      workspaceApi
-        .getWorkspace(workspaceId, IamRole.READER)
-    )
+//  private[util] def getWorkspaceDescription(workspaceApi: WorkspaceApi,
+//                                            workspaceId: UUID
+//  ): F[bio.terra.workspace.model.WorkspaceDescription] =
+//    F.blocking(
+//      workspaceApi
+//        .getWorkspace(workspaceId, IamRole.READER)
+//    )
 
   private[util] def createOrFetchWsmManagedIdentity(app: App,
                                                     resourceApi: ResourceApi,
@@ -1104,7 +1105,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           WsmControlledResourceId(ns.getMetadata.getResourceId),
           ServiceAccountName(
             ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount
-          )
+          ),
+          ns.getMetadata.getCreatedDate
         )
       }
     )
@@ -1208,7 +1210,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     } yield WsmControlledKubernetesNamespaceResource(
       NamespaceName(namespaceAttributes.getKubernetesNamespace),
       resourceId,
-      ServiceAccountName(namespaceAttributes.getKubernetesServiceAccount)
+      ServiceAccountName(namespaceAttributes.getKubernetesServiceAccount),
+      createNamespaceResponse.getAzureKubernetesNamespace.getMetadata.getCreatedDate
     )
 
   private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
