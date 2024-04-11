@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
+import cats.effect.kernel.Ref
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
@@ -24,7 +25,7 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
   def toolDockerImage: Option[String] = None
   def welderRegistry: Option[ContainerRegistry] = None
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
-  var ronCluster: ClusterCopy = _
+  var ronCluster: Ref[IO, ClusterCopy] = _
   var clusterCreationFailureMsg: String = ""
 
   /**
@@ -44,7 +45,9 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
 
     def runTestAndCheckOutcome() = {
       logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName},  ronCluster: ${ronCluster}")
-      val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
+      val outcome = super.withFixture(
+        test.toNoArgTest(ClusterFixture(ronCluster.get.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)))
+      )
       if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")
       }
@@ -78,20 +81,23 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
                             welderRegistry
           )
         )
-      } yield ronCluster = ClusterCopy(
-        runtimeName,
-        billingProject,
-        getRuntimeResponse.serviceAccount,
-        null,
-        null,
-        getRuntimeResponse.auditInfo.creator,
-        null,
-        null,
-        null,
-        null,
-        15,
-        false
-      )
+        _ <- ronCluster.getAndSet(
+          ClusterCopy(
+            runtimeName,
+            billingProject,
+            getRuntimeResponse.serviceAccount,
+            null,
+            null,
+            getRuntimeResponse.auditInfo.creator,
+            null,
+            null,
+            null,
+            null,
+            15,
+            false
+          )
+        )
+      } yield ()
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -106,7 +112,10 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
   def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
     logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
     // TODO: Remove unsafeRunSync() when deleteRuntime() accepts an IO[AuthToken]
-    deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken.unsafeRunSync())
+    deleteRuntime(billingProject,
+                  ronCluster.get.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).clusterName,
+                  monitoringDelete
+    )(ronAuthToken.unsafeRunSync())
   }
 
   override def beforeAll(): Unit = {
@@ -121,7 +130,7 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
       case None =>
         clusterCreationFailureMsg = "leonardo.googleProject system property is not set"
     }
-
+    logger.info(s"end fo beforeall in runtimeFixture for ${getClass.getSimpleName}")
   }
 
   override def afterAll(): Unit = {
