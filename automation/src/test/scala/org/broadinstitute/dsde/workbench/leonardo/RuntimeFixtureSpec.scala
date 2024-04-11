@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
@@ -25,7 +26,24 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
   def toolDockerImage: Option[String] = None
   def welderRegistry: Option[ContainerRegistry] = None
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
-  var ronCluster: Ref[IO, ClusterCopy] = _
+  def ronCluster: Ref[IO, ClusterCopy] = Ref[IO]
+    .of(
+      ClusterCopy(
+        RuntimeName("INITIALVALUE_SHOULDNOTBEUSED"),
+        GoogleProject("INITIALVALUE_SHOULDNOTBEUSED"),
+        WorkbenchEmail("INITIALVALUE_SHOULDNOTBEUSED"),
+        null,
+        null,
+        WorkbenchEmail("INITIALVALUE_SHOULDNOTBEUSED"),
+        null,
+        null,
+        null,
+        null,
+        15,
+        false
+      )
+    )
+    .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   var clusterCreationFailureMsg: String = ""
 
   /**
@@ -81,7 +99,7 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
                             welderRegistry
           )
         )
-        _ <- ronCluster.getAndSet(
+        _ <- ronCluster.update(_ =>
           ClusterCopy(
             runtimeName,
             billingProject,
