@@ -49,7 +49,6 @@ abstract class RuntimeFixtureSpec
       super.withFixture(test)
 
   override def withFixture(test: OneArgTest): Outcome = {
-
     if (clusterCreationFailureMsg.nonEmpty)
       throw new Exception(clusterCreationFailureMsg)
 
@@ -118,7 +117,7 @@ abstract class RuntimeFixtureSpec
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    logger.info("beforeAll")
+    logger.info(s"beforeAll in runtimeFixture for ${getClass.getSimpleName}")
 
     sys.props.get(googleProjectKey) match {
       case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) =>
@@ -132,7 +131,7 @@ abstract class RuntimeFixtureSpec
   }
 
   override def afterAll(): Unit = {
-    logger.info("afterAll")
+    logger.info(s"afterAll in runtimeFixture for ${getClass.getSimpleName}")
 
     sys.props.get(googleProjectKey) match {
       case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject))
