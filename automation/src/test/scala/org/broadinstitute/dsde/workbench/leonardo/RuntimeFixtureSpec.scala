@@ -113,7 +113,8 @@ abstract class RuntimeFixtureSpec
    */
   def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
     logger.info(s"Deleting cluster for cluster fixture test: ${getClass.getSimpleName}")
-    deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken.unsafeRunSync())
+    val runtimeName = RuntimeName(s"automation-${getClass.getSimpleName.toLowerCase}")
+    deleteRuntime(ronCluster.googleProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken.unsafeRunSync())
   }
 
   override def beforeAll(): Unit = {

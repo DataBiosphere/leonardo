@@ -21,36 +21,90 @@ import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
-trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
+trait BillingProjectFixtureSpec
+    extends FixtureAnyFreeSpecLike
+    with Retries
+    with LazyLogging
+    with BillingProjectUtils
+    with BeforeAndAfterAll {
   override type FixtureParam = GoogleProject
+
+  var fixtureProject: GoogleProject = _
+  var workspaceName: WorkspaceName = _
+  var shouldUnclaimProjects: Boolean = true
+
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
       val outcome = super.withFixture(test.toNoArgTest(project))
       if (!outcome.isSucceeded) {
-        System.setProperty(shouldUnclaimProjectsKey, "false")
+        shouldUnclaimProjects = false
       }
       outcome
     }
 
-    sys.props.get(googleProjectKey) match {
-      case None => throw new RuntimeException("leonardo.googleProject system property is not set")
-      case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) => throw new RuntimeException(msg)
-      case Some(googleProjectId) =>
-        if (isRetryable(test))
-          withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
-        else
-          runTestAndCheckOutcome(GoogleProject(googleProjectId))
-    }
+    if (isRetryable(test))
+      withRetry(runTestAndCheckOutcome(fixtureProject))
+    else
+      runTestAndCheckOutcome(fixtureProject)
   }
+
+  override def beforeAll(): Unit = {
+    implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
+    val res = for {
+      _ <- IO(super.beforeAll())
+      _ <- loggerIO.info("Running BillingFixtureSpec.beforeAll()")
+      claimAttempt <- createBillingProjectAndWorkspace.attempt
+      _ <- claimAttempt match {
+        case Left(e) =>
+          IO.raiseError(
+            new RuntimeException(s"Unable to claim billing project for spec ${getClass.getSimpleName}, error: ${e}")
+          )
+        case Right(googleProjectAndWorkspaceName) =>
+          createInitialRuntime(
+            googleProjectAndWorkspaceName.googleProject
+          ) >> IO(
+            fixtureProject = googleProjectAndWorkspaceName.googleProject
+          ) >>
+            IO(
+              workspaceName = googleProjectAndWorkspaceName.workspaceName
+            )
+      }
+
+      port <- ProxyRedirectClient.startServer()
+      _ <- IO(sys.props.put(proxyRedirectServerPortKey, port.toString))
+      _ <- loggerIO.info(s"Serving proxy redirect page at ${ProxyRedirectClient.baseUri.renderString}")
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  override def afterAll(): Unit = {
+    implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
+    val res = for {
+      _ <- loggerIO.info(
+        s"Running NewBillingProjectAndWorkspaceBeforeAndAfterAll.afterAll() shouldUnclaimProjects: $shouldUnclaimProjects"
+      )
+      _ <-
+        if (shouldUnclaimProjects && fixtureProject != null) {
+          deleteInitialRuntime(fixtureProject) >> deleteWorkspaceAndBillingProject(workspaceName)
+        } else loggerIO.info(s"Not going to release project: ${workspaceName} due to error happened")
+      _ <- ProxyRedirectClient.stopServer(sys.props.get(proxyRedirectServerPortKey).get.toInt)
+      _ <- loggerIO.info(s"Stopped proxy redirect server")
+      _ <- IO(super.afterAll())
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
 }
 object BillingProjectFixtureSpec {
+  val initalRuntimeName = RuntimeName("initial-runtime")
+  val proxyRedirectServerPortKey = "proxyRedirectServerPort"
   val googleProjectKey = "leonardo.googleProject"
   val workspaceNamespaceKey = "leonardo.workspaceNamespace"
   val workspaceNameKey = "leonardo.workspaceName"
   val shouldUnclaimProjectsKey = "leonardo.shouldUnclaimProjects"
   val createBillingProjectErrorPrefix = "Failed to create new billing project and workspace: "
-  val initalRuntimeName = RuntimeName("initial-runtime")
-  val proxyRedirectServerPortKey = "proxyRedirectServerPort"
 }
 
 case class GoogleProjectAndWorkspaceName(
@@ -121,11 +175,12 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       }
     } yield ()
 
+  // Do not use this for tests that interact with runtimes, only for apps. Use `BillingProjectFixtureSpec` for most use cases
   def withNewProject[T](testCode: GoogleProject => IO[T]): T = {
     val test = for {
-      _ <- loggerIO.info("Allocating a new single-test project")
+      _ <- loggerIO.info("Allocating a new project")
       googleProjectAndWorkspaceName <- createBillingProjectAndWorkspace
-      _ <- loggerIO.info(s"Single test project ${googleProjectAndWorkspaceName.workspaceName.namespace} claimed")
+      _ <- loggerIO.info(s"Allocated a project ${googleProjectAndWorkspaceName.workspaceName.namespace}")
       t <- testCode(googleProjectAndWorkspaceName.googleProject)
       _ <- loggerIO.info(s"Releasing single-test project: ${googleProjectAndWorkspaceName.workspaceName.namespace}")
       _ <- deleteWorkspaceAndBillingProject(googleProjectAndWorkspaceName.workspaceName)
@@ -133,6 +188,57 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
+
+  // NOTE: createInitialRuntime / deleteInitialRuntime exists so we can ensure that project-level
+  // resources like networks, subnets, etc are set up prior to the concurrent test execution.
+  // We can remove this once https://broadworkbench.atlassian.net/browse/IA-2121 is done.
+
+  protected def createInitialRuntime(project: GoogleProject)(implicit auth: IO[Authorization]): IO[Unit] =
+    if (isHeadless) {
+      LeonardoApiClient.client.use { implicit c =>
+        for {
+          res <- LeonardoApiClient
+            .createRuntimeWithWait(
+              project,
+              initalRuntimeName,
+              LeonardoApiClient.defaultCreateRuntime2Request
+            )
+            .attempt
+          _ <- res match {
+            case Right(_) =>
+              loggerIO.info(s"Created initial runtime ${project.value} / ${initalRuntimeName.asString}")
+            case Left(err) =>
+              loggerIO
+                .warn(err)(
+                  s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
+                )
+          }
+        } yield ()
+      }
+    } else IO.unit
+
+  protected def deleteInitialRuntime(project: GoogleProject)(implicit auth: IO[Authorization]): IO[Unit] =
+    if (isHeadless) {
+      LeonardoApiClient.client.use { implicit c =>
+        for {
+          res <- LeonardoApiClient
+            .deleteRuntime(
+              project,
+              initalRuntimeName
+            )
+            .attempt
+          _ <- res match {
+            case Right(_) =>
+              loggerIO.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}")
+            case Left(err) =>
+              loggerIO.warn(err)(
+                s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
+              )
+          }
+        } yield ()
+      }
+    } else IO.unit
+
 }
 
 trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
@@ -193,69 +299,28 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  // NOTE: createInitialRuntime / deleteInitialRuntime exists so we can ensure that project-level
-  // resources like networks, subnets, etc are set up prior to the concurrent test execution.
-  // We can remove this once https://broadworkbench.atlassian.net/browse/IA-2121 is done.
-
-  private def createInitialRuntime(project: GoogleProject): IO[Unit] =
-    if (isHeadless) {
-      LeonardoApiClient.client.use { implicit c =>
-        for {
-          res <- LeonardoApiClient
-            .createRuntimeWithWait(
-              project,
-              initalRuntimeName,
-              LeonardoApiClient.defaultCreateRuntime2Request
-            )
-            .attempt
-          _ <- res match {
-            case Right(_) =>
-              loggerIO.info(s"Created initial runtime ${project.value} / ${initalRuntimeName.asString}")
-            case Left(err) =>
-              loggerIO
-                .warn(err)(
-                  s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-                )
-          }
-        } yield ()
-      }
-    } else IO.unit
-
-  private def deleteInitialRuntime(project: GoogleProject): IO[Unit] =
-    if (isHeadless) {
-      LeonardoApiClient.client.use { implicit c =>
-        for {
-          res <- LeonardoApiClient
-            .deleteRuntime(
-              project,
-              initalRuntimeName
-            )
-            .attempt
-          _ <- res match {
-            case Right(_) =>
-              loggerIO.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}")
-            case Left(err) =>
-              loggerIO.warn(err)(
-                s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-              )
-          }
-        } yield ()
-      }
-    } else IO.unit
 }
 
+//Each spec in this suite gets a new google project and creates its own runtimes/apps
 final class LeonardoSuite
     extends Suites(
       new RuntimeCreationDiskSpec,
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
-      new RuntimeSystemSpec,
       new RuntimeStatusTransitionsSpec,
       new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec,
       new RuntimeDataprocSpec,
       new RuntimeGceSpec,
-      new AppLifecycleSpec,
+      new AppLifecycleSpec
+    )
+    with TestSuite
+    with ParallelTestExecution
+
+// This suite uses a single google project for all runtimes, and each implements `RuntimeFixtureSpec` to share a runtime between tests
+final class LeonardoRuntimeFixtureSuite
+    extends Suites(
+      new RuntimeSystemSpec,
+      new NotebookGCEDataSyncingSpec,
       new NotebookHailSpec,
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
@@ -264,11 +329,3 @@ final class LeonardoSuite
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
-
-//final class LeonardoTerraDockerSuite
-//    extends Suites(
-//
-//    )
-//    with TestSuite
-//    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
-//    with ParallelTestExecution

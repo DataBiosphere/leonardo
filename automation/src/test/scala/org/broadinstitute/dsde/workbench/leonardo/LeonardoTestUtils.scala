@@ -81,6 +81,8 @@ trait LeonardoTestUtils
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
   val googleDiskService =
     GoogleDiskService.resource[IO](LeonardoConfig.GCS.pathToQAJson, Semaphore[IO](10).unsafeRunSync())
+
+  // TODO: remove this semaphore!!!
   val concurrentClusterCreationPermits: Semaphore[IO] = Semaphore[IO](5).unsafeRunSync()(
     cats.effect.unsafe.IORuntime.global
   ) // Since we're using the same google project, we can reach bucket creation quota limit

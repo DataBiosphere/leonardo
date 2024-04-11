@@ -15,7 +15,6 @@ import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{Assertion, DoNotDiscover, Outcome, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.shouldUnclaimProjectsKey
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
 import scala.concurrent.duration._
