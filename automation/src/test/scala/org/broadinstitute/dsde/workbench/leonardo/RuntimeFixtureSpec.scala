@@ -11,17 +11,13 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, Ru
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.scalatest.freespec.FixtureAnyFreeSpec
+import org.scalatest.freespec.{FixtureAnyFreeSpec, FixtureAnyFreeSpecLike}
 import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class RuntimeFixtureSpec
-    extends FixtureAnyFreeSpec
-    with BeforeAndAfterAll
-    with LeonardoTestUtils
-    with Retries {
+trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll with LeonardoTestUtils with Retries {
 
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
@@ -42,17 +38,12 @@ abstract class RuntimeFixtureSpec
 
   override type FixtureParam = ClusterFixture
 
-  override def withFixture(test: NoArgTest) =
-    if (isRetryable(test))
-      withRetry(super.withFixture(test))
-    else
-      super.withFixture(test)
-
   override def withFixture(test: OneArgTest): Outcome = {
     if (clusterCreationFailureMsg.nonEmpty)
       throw new Exception(clusterCreationFailureMsg)
 
     def runTestAndCheckOutcome() = {
+      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName}")
       val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
       if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")
@@ -104,6 +95,9 @@ abstract class RuntimeFixtureSpec
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    logger.info(
+      s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${ronCluster}"
+    )
   }
 
   /**
