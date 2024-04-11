@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.effect.IO
+import cats.effect.{Deferred, IO}
 import cats.effect.kernel.Ref
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -102,7 +102,7 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
                             welderRegistry
           )
         )
-        _ <- ronCluster.update(_ =>
+        x <- ronCluster.update(_ =>
           ClusterCopy(
             runtimeName,
             billingProject,
@@ -173,24 +173,10 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   def toolDockerImage: Option[String] = None
   def welderRegistry: Option[ContainerRegistry] = None
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
-  def ronCluster: Ref[IO, ClusterCopy] = Ref[IO]
-    .of(
-      ClusterCopy(
-        RuntimeName("INITIALVALUE_SHOULDNOTBEUSED"),
-        GoogleProject("INITIALVALUE_SHOULDNOTBEUSED"),
-        WorkbenchEmail("INITIALVALUE_SHOULDNOTBEUSED"),
-        null,
-        null,
-        WorkbenchEmail("INITIALVALUE_SHOULDNOTBEUSED"),
-        null,
-        null,
-        null,
-        null,
-        15,
-        false
-      )
-    )
-    .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+  // TODO: try to make it IO[Deferred[IO, clusterCopy]]
+  def ronCluster: Deferred[IO, ClusterCopy] =
+    Deferred[IO, ClusterCopy].unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   var clusterCreationFailureMsg: String = ""
 
   // TODO: remove hopefully
@@ -203,7 +189,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
    *
    * Claim a billing project for project owner
    */
-  case class ClusterFixture(runtime: Ref[IO, ClusterCopy])
+  case class ClusterFixture(runtime: Deferred[IO, ClusterCopy])
 
   override type FixtureParam = ClusterFixture
 
@@ -250,7 +236,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
                             welderRegistry
           )
         )
-        _ <- ronCluster.update(_ =>
+        _ <- ronCluster.complete(
           ClusterCopy(
             runtimeName,
             billingProject,
