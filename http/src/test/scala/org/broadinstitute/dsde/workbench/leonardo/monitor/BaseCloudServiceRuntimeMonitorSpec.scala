@@ -261,6 +261,30 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "not move to ERROR status when an error happens during runtime deletion" in isolatedDbTest {
+    val runtimeMonitor = baseRuntimeMonitor(false)
+    val start = Instant.EPOCH
+    val res = for {
+      tid <- traceId.ask[TraceId]
+      implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
+      disk <- makePersistentDisk().save()
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Deleting)
+          .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+      )
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, runtimeConfig)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+
+      _ <- runtimeMonitor.checkAgain(monitorContext, runtimeAndRuntimeConfig, None, None, None)
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+    } yield status shouldBe RuntimeStatus.Deleting
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "delete creating disk on failed runtime start" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(false)
 

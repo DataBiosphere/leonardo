@@ -193,7 +193,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         )
         _ <- clusterQuery.detachPersistentDisk(runtimeAndRuntimeConfig.runtime.id, ctx.now).transaction
         _ <- curStatus match {
-          case RuntimeStatus.Deleted =>
+          case RuntimeStatus.Deleted | RuntimeStatus.Deleting =>
             logger.info(ctx.loggingCtx)(
               s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in ${curStatus} status."
             )
