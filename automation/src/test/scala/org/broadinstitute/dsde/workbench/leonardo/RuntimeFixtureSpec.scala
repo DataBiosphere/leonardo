@@ -43,7 +43,7 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
       throw new Exception(clusterCreationFailureMsg)
 
     def runTestAndCheckOutcome() = {
-      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName}")
+      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName},  ronCluster: ${ronCluster}")
       val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
       if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")

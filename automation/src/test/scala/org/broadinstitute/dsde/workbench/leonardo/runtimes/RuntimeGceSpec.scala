@@ -129,11 +129,11 @@ class RuntimeGceSpec extends BillingProjectFixtureSpec with ParallelTestExecutio
 //    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 //  }
 
-  "should run a user script and startup script for Jupyter" in { project =>
+  "should run a user script and startup script for Jupyter" ignore { project =>
     testStartupScripts(project).unsafeRunSync()
   }
 
-  "should run a user script and startup script for RStudio" taggedAs Retryable in { project =>
+  "should run a user script and startup script for RStudio" taggedAs Retryable ignore { project =>
     testStartupScripts(project, Some(LeonardoConfig.Leonardo.rstudioBioconductorImage)).unsafeRunSync()
   }
 

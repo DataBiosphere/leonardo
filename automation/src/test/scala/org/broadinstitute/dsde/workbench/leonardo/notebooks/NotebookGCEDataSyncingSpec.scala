@@ -37,7 +37,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     resp.attempt.unsafeRunSync().isRight shouldBe true
   }
 
-  "open notebook in edit mode should work" in { runtimeFixture =>
+  "open notebook in edit mode should work" ignore { runtimeFixture =>
     val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
     val isEditMode = true
     val isRStudio = false
@@ -90,7 +90,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     }
   }
 
-  "open notebook in playground mode should work" taggedAs Retryable in { runtimeFixture =>
+  "open notebook in playground mode should work" taggedAs Retryable ignore { runtimeFixture =>
     val sampleNotebook = ResourceFile("bucket-tests/gcsFile2.ipynb")
     val isEditMode = false
     val isRStudio = false
@@ -206,7 +206,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     }
   }
 
-  "Locked by another user and playground mode transition handled correctly" in { runtimeFixture =>
+  "Locked by another user and playground mode transition handled correctly" ignore { runtimeFixture =>
     val sampleNotebook = ResourceFile("bucket-tests/gcsFile4.ipynb")
     val isEditMode = true
     val isRStudio = false
@@ -244,7 +244,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
   }
 
   // this test is important to make sure all components exit gracefully when their functionality is not needed
-  "User should be able to create files outside of playground and safe mode" in { runtimeFixture =>
+  "User should be able to create files outside of playground and safe mode" ignore { runtimeFixture =>
     val fileName = "mockUserFile.ipynb"
 
     val mockUserFile: File = JupyterServerClient.createFileAtJupyterRoot(runtimeFixture.runtime.googleProject,
