@@ -1213,42 +1213,22 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def deleteAndPollWsmNamespaceResource(workspaceId: WorkspaceId,
                                                       app: App,
-                                                      wsmResource: AppControlledResourceRecord
+                                                      wsmResource: AppControlledResourceRecord,
+                                                      jobId: UUID,
+                                                      deleteResourceRequest: DeleteControlledAzureResourceRequest,
+                                                      wsmApi: ControlledAzureResourceApi
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
 
-      // Build WSM client
-      wsmApi <- buildWsmControlledResourceApiClient
-
-      // Build delete namespace request
-      jobId = UUID.randomUUID()
-      deleteResourceRequest = new DeleteControlledAzureResourceRequest().jobControl(
-        new JobControl().id(jobId.toString)
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete resource request: ${deleteResourceRequest}")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteResourceRequest}")
 
       // Execute WSM call
-      result <- wsmResource.resourceType match {
-        case WsmResourceType.AzureKubernetesNamespace =>
-          F.blocking(
-            wsmApi.deleteAzureKubernetesNamespace(deleteResourceRequest,
-                                                  workspaceId.value,
-                                                  wsmResource.resourceId.value
-            )
-          )
-        case WsmResourceType.AzureDatabase =>
-          F.blocking(
-            wsmApi.deleteAzureDatabaseAsync(deleteResourceRequest, workspaceId.value, wsmResource.resourceId.value)
-          )
-        case _ =>
-          F.raiseError(
-            AppDeletionException(s"Unexpected WSM resource type for deletion polling ${wsmResource.resourceType}")
-          )
-      }
+      result <- F.blocking(
+        wsmApi.deleteAzureKubernetesNamespace(deleteResourceRequest, workspaceId.value, wsmResource.resourceId.value)
+      )
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace response: ${result}")
 
@@ -1261,20 +1241,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
 
       // Poll for namespace deletion
-      op = wsmResource.resourceType match {
-        case WsmResourceType.AzureKubernetesNamespace =>
-          F.blocking(
-            wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, jobId.toString)
-          )
-        case WsmResourceType.AzureDatabase =>
-          F.blocking(
-            wsmApi.getDeleteAzureDatabaseResult(workspaceId.value, jobId.toString)
-          )
-        case _ =>
-          F.raiseError[DeleteControlledAzureResourceResult](
-            AppDeletionException(s"Unexpected WSM resource type for deletion polling ${wsmResource.resourceType}")
-          )
-      }
+      op = F.blocking(
+        wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, jobId.toString)
+      )
 
       result <- streamFUntilDone(
         op,
@@ -1282,15 +1251,66 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         config.appMonitorConfig.deleteApp.interval
       ).compile.lastOrError
 
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete resource job result: $result")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace job result: $result")
 
       _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
         AppDeletionException(
-          s"WSM resource deletion failed for app ${app.appName.value}. WSM response: $result"
+          s"WSM namespace deletion failed for app ${app.appName.value}. WSM response: $result"
         )
       )
 
-      // record in APP_CONTROLLED_RESOURCE table is deleted by caller
+      // record in APP_CONTROLLED_RESOURCE table is set to deleted by caller
+    } yield ()
+
+  private[util] def deleteAndPollWsmDatabaseResource(workspaceId: WorkspaceId,
+                                                     app: App,
+                                                     wsmResource: AppControlledResourceRecord,
+                                                     jobId: UUID,
+                                                     deleteResourceRequest: DeleteControlledAzureResourceRequest,
+                                                     wsmApi: ControlledAzureResourceApi
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database request: ${deleteResourceRequest}")
+
+      // Execute WSM call
+      result <- F.blocking(
+        wsmApi.deleteAzureDatabaseAsync(deleteResourceRequest, workspaceId.value, wsmResource.resourceId.value)
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database response: ${result}")
+
+      // Update record in APP_CONTROLLED_RESOURCE table
+      _ <- appControlledResourceQuery
+        .updateStatus(
+          wsmResource.resourceId,
+          AppControlledResourceStatus.Deleting
+        )
+        .transaction
+
+      // Poll for database deletion
+      op = F.blocking(
+        wsmApi.getDeleteAzureDatabaseResult(workspaceId.value, jobId.toString)
+      )
+
+      result <- streamFUntilDone(
+        op,
+        config.appMonitorConfig.deleteApp.maxAttempts,
+        config.appMonitorConfig.deleteApp.interval
+      ).compile.lastOrError
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database job result: $result")
+
+      _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
+        AppDeletionException(
+          s"WSM database deletion failed for app ${app.appName.value}. WSM response: $result"
+        )
+      )
+
+      // record in APP_CONTROLLED_RESOURCE table is set to deleted by caller
     } yield ()
 
   private[util] def deleteWsmResource(workspaceId: WorkspaceId, app: App, wsmResource: AppControlledResourceRecord)(
@@ -1306,7 +1326,13 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         case WsmResourceType.AzureManagedIdentity =>
           F.blocking(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
         case WsmResourceType.AzureDatabase | WsmResourceType.AzureKubernetesNamespace =>
-          deleteAndPollWsmNamespaceResource(workspaceId, app, wsmResource)
+          val jobId = UUID.randomUUID()
+          val deleteResourceRequest = new DeleteControlledAzureResourceRequest().jobControl(
+            new JobControl().id(jobId.toString)
+          )
+          if (wsmResource.resourceType == WsmResourceType.AzureDatabase)
+            deleteAndPollWsmDatabaseResource(workspaceId, app, wsmResource, jobId, deleteResourceRequest, wsmApi)
+          else deleteAndPollWsmNamespaceResource(workspaceId, app, wsmResource, jobId, deleteResourceRequest, wsmApi)
         case _ =>
           F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
