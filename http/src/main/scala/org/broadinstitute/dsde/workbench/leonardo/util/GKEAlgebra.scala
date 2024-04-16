@@ -98,8 +98,8 @@ object GKEAlgebra {
 
   // Utility for building staging bucket name for apps.
   // Staging bucket is used for storing state files for welder.
-  private[util] def buildAppStagingBucketName(appName: AppName): GcsBucketName = GcsBucketName(
-    s"leostaging-${appName.value}"
+  def buildAppStagingBucketName(diskName: DiskName): GcsBucketName = GcsBucketName(
+    s"leostaging-${diskName.value}"
   )
 }
 

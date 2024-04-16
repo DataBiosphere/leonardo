@@ -91,8 +91,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.appDescriptorDAO,
       baselineDependencies.nodepoolLock,
       gcpDependencies.googleResourceService,
-      gcpDependencies.googleComputeService,
-      gcpDependencies.googleStorageService
+      gcpDependencies.googleComputeService
     )
     val monitorAtBoot =
       new MonitorAtBoot[IO](
@@ -357,8 +356,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.appDescriptorDAO,
       baselineDependencies.nodepoolLock,
       gcpDependencies.googleResourceService,
-      gcpDependencies.googleComputeService,
-      gcpDependencies.googleStorageService
+      gcpDependencies.googleComputeService
     )
 
     implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(baselineDependencies.jupyterDAO,
