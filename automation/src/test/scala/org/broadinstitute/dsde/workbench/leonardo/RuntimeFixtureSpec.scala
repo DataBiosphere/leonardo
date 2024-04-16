@@ -175,7 +175,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
 
   // TODO: try to make it IO[Deferred[IO, clusterCopy]]
-  def ronCluster: IO[Deferred[IO, ClusterCopy]] =
+  val ronCluster: IO[Deferred[IO, ClusterCopy]] =
     Deferred[IO, ClusterCopy]
   var clusterCreationFailureMsg: String = ""
 
@@ -247,8 +247,9 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
           )
         )
         deferredCluster <- ronCluster
+//        c <- Deferred[IO,ClusterCopy]
         _ = logger.info("before complete")
-        _ <- deferredCluster.complete(
+        bool <- deferredCluster.complete(
           ClusterCopy(
             runtimeName,
             billingProject,
@@ -264,17 +265,23 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
             false
           )
         )
-        _ = logger.info("after complete")
+        _ = logger.info("after complete", bool)
+        result <- deferredCluster.get
+        _ = logger.info("result in beforeAll", result)
       } yield ()
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    logger.info(
-      s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${ronCluster
-          .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-          .get
-          .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}"
-    )
+
+    // TODO: cats.effect.unsafe.IORuntime.global)
+    ronCluster
+      .flatMap { c =>
+        IO(logger.info(s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${c.get
+            .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}"))
+      }
+      .attempt
+      .void
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   /**
@@ -306,7 +313,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
       case None =>
         clusterCreationFailureMsg = "leonardo.googleProject system property is not set"
     }
-    logger.info(s"end fo beforeall in runtimeFixture for ${getClass.getSimpleName}")
+    logger.info(s"end of beforeall in runtimeFixture for ${getClass.getSimpleName}")
   }
 
   override def afterAll(): Unit = {
