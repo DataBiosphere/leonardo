@@ -996,6 +996,7 @@ class GKEInterpreter[F[_]](
           _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
         } yield ()
       }
+
       _ <-
         if (!params.errorAfterDelete) {
           F.unit
@@ -1494,7 +1495,7 @@ class GKEInterpreter[F[_]](
       )
 
       // Create the staging bucket to be used by Welder
-      stagingBucketName = generateUniqueBucketName("leostaging-" + appName.value)
+      stagingBucketName = buildAppStagingBucketName(disk.name)
 
       _ <- bucketHelper
         .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
