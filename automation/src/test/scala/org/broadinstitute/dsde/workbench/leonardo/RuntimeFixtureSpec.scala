@@ -198,17 +198,37 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
       throw new Exception(clusterCreationFailureMsg)
 
     def runTestAndCheckOutcome() = {
-      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName},  ronCluster: ${ronCluster
-          .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-          .get
-          .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}")
+      val project = GoogleProject(sys.props.get(googleProjectKey).get)
+      val runtimeName = RuntimeName(
+        sys.props.get(runtimeSystemKey.getOrElse(throw new RuntimeException("must override runtimeSystemKey"))).get
+      )
+      val runtime = LeonardoApiClient.client
+        .use { c =>
+          implicit val client: Client[IO] = c
+          LeonardoApiClient.getRuntime(project, runtimeName)
+        }
+        .map { getRuntimeResponse =>
+          ClusterCopy(
+            runtimeName,
+            project,
+            getRuntimeResponse.serviceAccount,
+            null,
+            null,
+            getRuntimeResponse.auditInfo.creator,
+            null,
+            null,
+            null,
+            null,
+            15,
+            false
+          )
+        }
+      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName}, runtime: ${runtimeName}")
+
       val outcome = super.withFixture(
         test.toNoArgTest(
           ClusterFixture(
-            ronCluster
-              .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-              .get
-              .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+            runtime.unsafeRunSync()
           )
         )
       )
@@ -246,42 +266,45 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
                             welderRegistry
           )
         )
-        deferredCluster <- ronCluster
+//        deferredCluster <- ronCluster
 //        c <- Deferred[IO,ClusterCopy]
-        _ = logger.info("before complete")
-        bool <- deferredCluster.complete(
-          ClusterCopy(
-            runtimeName,
-            billingProject,
-            getRuntimeResponse.serviceAccount,
-            null,
-            null,
-            getRuntimeResponse.auditInfo.creator,
-            null,
-            null,
-            null,
-            null,
-            15,
-            false
-          )
-        )
-        _ = logger.info("after complete", bool)
-        result <- deferredCluster.get
-        _ = logger.info("result in beforeAll", result)
-      } yield ()
+        _ = logger.info(s"before set, runtimeSystemKey: ${runtimeSystemKey}")
+        _ <- IO(sys.props.put(runtimeSystemKey.get, runtimeName.asString))
+//        bool <- deferredCluster.complete(
+//          ClusterCopy(
+//            runtimeName,
+//            billingProject,
+//            getRuntimeResponse.serviceAccount,
+//            null,
+//            null,
+//            getRuntimeResponse.auditInfo.creator,
+//            null,
+//            null,
+//            null,
+//            null,
+//            15,
+//            false
+//          )
+//        )
+//        _ = logger.info("after complete", bool)
+//        result <- deferredCluster.get
+//        _ = logger.info("result in beforeAll", result)
+      } yield getRuntimeResponse
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val resp = res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // TODO: cats.effect.unsafe.IORuntime.global)
-    ronCluster
-      .flatMap { c =>
-        IO(logger.info(s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${c.get
-            .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}"))
-      }
-      .attempt
-      .void
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//    ronCluster
+//      .flatMap { c =>
+//        IO(logger.info(s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${c.get
+//            .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}"))
+//      }
+//      .attempt
+//      .void
+//      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    logger.info(s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${resp}")
+    //            .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}"))
   }
 
   /**
