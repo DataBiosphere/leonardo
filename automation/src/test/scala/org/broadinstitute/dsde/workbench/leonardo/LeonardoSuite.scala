@@ -244,18 +244,19 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
     } else IO.unit
 }
 
+//TODO: reorganize
 final class LeonardoSuite
     extends Suites(
-//      new RuntimeCreationDiskSpec,
-//      new RuntimeAutopauseSpec,
-//      new RuntimePatchSpec,
+      new RuntimeCreationDiskSpec,
+      new RuntimeAutopauseSpec,
+      new RuntimePatchSpec,
       new RuntimeSystemSpec,
-//      new RuntimeStatusTransitionsSpec,
-//      new NotebookGCECustomizationSpec,
+      new RuntimeStatusTransitionsSpec,
+      new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
-//      new RuntimeDataprocSpec,
-      new RuntimeGceSpec
-//      new AppLifecycleSpec
+      new RuntimeDataprocSpec,
+      new RuntimeGceSpec,
+      new AppLifecycleSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
@@ -263,10 +264,10 @@ final class LeonardoSuite
 
 final class LeonardoTerraDockerSuite
     extends Suites(
-//      new NotebookHailSpec,
-//      new NotebookPyKernelSpec,
-//      new NotebookRKernelSpec,
-//      new RStudioSpec
+      new NotebookHailSpec,
+      new NotebookPyKernelSpec,
+      new NotebookRKernelSpec,
+      new RStudioSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll

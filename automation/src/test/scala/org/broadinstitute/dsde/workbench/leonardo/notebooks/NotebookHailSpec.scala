@@ -12,6 +12,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 @DoNotDiscover
 class NotebookHailSpec extends RuntimeFixtureSpec with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
+  override def runtimeSystemKey: Option[String] = Some(getClass.getSimpleName)
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")

@@ -12,6 +12,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 @DoNotDiscover
 class NotebookRKernelSpec extends RuntimeFixtureSpec with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
+  override def runtimeSystemKey: Option[String] = Some(getClass.getSimpleName)
 
   val dependencies = for {
     storage <- google2StorageResource

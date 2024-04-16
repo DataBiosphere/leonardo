@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.workspaceNameKey
 
 @DoNotDiscover
-class RuntimeSystemSpec extends RuntimeFixtureSpec2 with ParallelTestExecution {
+class RuntimeSystemSpec extends RuntimeFixtureSpec with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)

@@ -30,13 +30,6 @@ class AppLifecycleSpec
     with ParallelTestExecution {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
-//  override def withFixture(test: NoArgTest) = {
-//
-//    if (isRetryable(test))
-//      withRetry(super.withFixture(test))
-//    else
-//      super.withFixture(test)
-//  }
   override type FixtureParam = GoogleProject
 
   override def withFixture(test: OneArgTest): Outcome = {

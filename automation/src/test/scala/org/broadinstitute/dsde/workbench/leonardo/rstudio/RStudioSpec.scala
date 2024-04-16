@@ -15,6 +15,7 @@ import cats.syntax.all._
 @DoNotDiscover
 class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils with NotebookTestUtils with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
+  override def runtimeSystemKey: Option[String] = Some(getClass.getSimpleName)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl)
 

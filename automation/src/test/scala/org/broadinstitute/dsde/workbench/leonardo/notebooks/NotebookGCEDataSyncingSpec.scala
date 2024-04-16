@@ -21,7 +21,7 @@ import scala.concurrent.duration._
  * and welder localization/delocalization.
  */
 @DoNotDiscover
-class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec2 with NotebookTestUtils with ParallelTestExecution {
+class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils with ParallelTestExecution {
   override def enableWelder: Boolean = true
 
 //  def myCluster: ClusterCopy = _
