@@ -18,6 +18,7 @@ class RuntimeSystemSpec extends RuntimeFixtureSpec2 with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
+  override def runtimeSystemKey: Option[String] = Some(getClass.getSimpleName)
 
   val dependencies = for {
     storage <- google2StorageResource
