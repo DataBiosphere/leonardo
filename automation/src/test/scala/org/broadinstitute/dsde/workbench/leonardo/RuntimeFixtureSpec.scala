@@ -175,8 +175,6 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
 
   // TODO: try to make it IO[Deferred[IO, clusterCopy]]
-  val ronCluster: IO[Deferred[IO, ClusterCopy]] =
-    Deferred[IO, ClusterCopy]
   var clusterCreationFailureMsg: String = ""
 
   // TODO: remove hopefully
@@ -199,9 +197,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
 
     def runTestAndCheckOutcome() = {
       val project = GoogleProject(sys.props.get(googleProjectKey).get)
-      val runtimeName = RuntimeName(
-        sys.props.get(runtimeSystemKey.getOrElse(throw new RuntimeException("must override runtimeSystemKey"))).get
-      )
+      val runtimeName = getRuntimeName
       val runtime = LeonardoApiClient.client
         .use { c =>
           implicit val client: Client[IO] = c
@@ -269,7 +265,14 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
 //        deferredCluster <- ronCluster
 //        c <- Deferred[IO,ClusterCopy]
         _ = logger.info(s"before set, runtimeSystemKey: ${runtimeSystemKey}")
-        _ <- IO(sys.props.put(runtimeSystemKey.get, runtimeName.asString))
+        _ <- IO(
+          sys.props.put(
+            runtimeSystemKey.getOrElse(
+              throw new RuntimeException(s"must override runtimeSystemKey in class ${getClass.getSimpleName}")
+            ),
+            runtimeName.asString
+          )
+        )
 //        bool <- deferredCluster.complete(
 //          ClusterCopy(
 //            runtimeName,
@@ -310,16 +313,15 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   /**
    * Delete cluster without monitoring that's owned by Ron
    */
-  def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
+  def deleteRonRuntime(billingProject: GoogleProject,
+                       runtimeName: RuntimeName,
+                       monitoringDelete: Boolean = false
+  ): Unit = {
     logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
     // TODO: Remove unsafeRunSync() when deleteRuntime() accepts an IO[AuthToken]
     deleteRuntime(
       billingProject,
-      ronCluster
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-        .get
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-        .clusterName,
+      runtimeName,
       monitoringDelete
     )(ronAuthToken.unsafeRunSync())
   }
@@ -339,11 +341,20 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
     logger.info(s"end of beforeall in runtimeFixture for ${getClass.getSimpleName}")
   }
 
+  def getRuntimeName(): RuntimeName =
+    RuntimeName(
+      sys.props
+        .get(
+          runtimeSystemKey
+            .getOrElse(throw new RuntimeException(s"must override runtimeSystemKey in class ${getClass.getSimpleName}"))
+        )
+        .getOrElse(throw new RuntimeException(s"runtime name not defined for spec ${getClass.getSimpleName}"))
+    )
   override def afterAll(): Unit = {
     logger.info(s"afterAll in runtimeFixture for ${getClass.getSimpleName}")
 
     sys.props.get(googleProjectKey) match {
-      case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject))
+      case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject), getRuntimeName)
       case None                 => throw new RuntimeException("leonardo.googleProject system property is not set")
     }
 
