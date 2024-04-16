@@ -175,8 +175,8 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
 
   // TODO: try to make it IO[Deferred[IO, clusterCopy]]
-  def ronCluster: Deferred[IO, ClusterCopy] =
-    Deferred[IO, ClusterCopy].unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  def ronCluster: IO[Deferred[IO, ClusterCopy]] =
+    Deferred[IO, ClusterCopy]
   var clusterCreationFailureMsg: String = ""
 
   // TODO: remove hopefully
@@ -189,7 +189,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
    *
    * Claim a billing project for project owner
    */
-  case class ClusterFixture(runtime: Deferred[IO, ClusterCopy])
+  case class ClusterFixture(runtime: ClusterCopy)
 
   override type FixtureParam = ClusterFixture
 
@@ -198,10 +198,19 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
       throw new Exception(clusterCreationFailureMsg)
 
     def runTestAndCheckOutcome() = {
-      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName},  ronCluster: ${ronCluster.get
+      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName},  ronCluster: ${ronCluster
+          .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+          .get
           .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}")
       val outcome = super.withFixture(
-        test.toNoArgTest(ClusterFixture(ronCluster))
+        test.toNoArgTest(
+          ClusterFixture(
+            ronCluster
+              .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+              .get
+              .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+          )
+        )
       )
       if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")
@@ -219,6 +228,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   /**
    * Create new runtime by Ron with all default settings
    */
+  // TODO: rename this function and the cluster name
   def createRonRuntime(billingProject: GoogleProject): Unit = {
 
     val runtimeName = randomClusterName
@@ -236,7 +246,9 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
                             welderRegistry
           )
         )
-        _ <- ronCluster.complete(
+        deferredCluster <- ronCluster
+        _ = logger.info("before complete")
+        _ <- deferredCluster.complete(
           ClusterCopy(
             runtimeName,
             billingProject,
@@ -252,12 +264,15 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
             false
           )
         )
+        _ = logger.info("after complete")
       } yield ()
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     logger.info(
-      s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${ronCluster.get
+      s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${ronCluster
+          .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+          .get
           .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)}"
     )
   }
@@ -268,9 +283,14 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
     logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
     // TODO: Remove unsafeRunSync() when deleteRuntime() accepts an IO[AuthToken]
-    deleteRuntime(billingProject,
-                  ronCluster.get.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).clusterName,
-                  monitoringDelete
+    deleteRuntime(
+      billingProject,
+      ronCluster
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+        .get
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+        .clusterName,
+      monitoringDelete
     )(ronAuthToken.unsafeRunSync())
   }
 

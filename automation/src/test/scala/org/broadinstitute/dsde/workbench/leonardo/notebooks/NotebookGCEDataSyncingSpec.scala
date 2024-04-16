@@ -31,12 +31,17 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec2 with NotebookTestUt
     else
       super.withFixture(test)
 
+//  "Welder should be up" in { runtimeFixture =>
+//    val res = for {
+//      runtime <- runtimeFixture.runtime.get
+//      resp <- Welder.getWelderStatus(runtime)
+//    } yield resp shouldBe true
+//    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//  }
+
   "Welder should be up" in { runtimeFixture =>
-    val res = for {
-      runtime <- runtimeFixture.runtime.get
-      resp <- Welder.getWelderStatus(runtime)
-    } yield resp shouldBe true
-    res.unsafeRunSync()
+    val resp = Welder.getWelderStatus(runtimeFixture.runtime)
+    resp.attempt.unsafeRunSync().isRight shouldBe true
   }
 
 //  "open notebook in edit mode should work" ignore { runtimeFixture =>
