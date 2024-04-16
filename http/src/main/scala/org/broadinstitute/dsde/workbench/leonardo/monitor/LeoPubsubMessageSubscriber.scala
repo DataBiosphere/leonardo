@@ -1262,39 +1262,35 @@ class LeoPubsubMessageSubscriber[F[_]](
                   }
               else F.unit
 
-            deleteStagingBucket = dbApp.app.appType match {
-              case AppType.Allowed =>
-                // Cleans up staging bucket. Right now, only ALLOWED app uses staging bucket
-                dbApp.cluster.cloudContext match {
-                  case CloudContext.Gcp(project) =>
-                    for {
-                      disk <- persistentDiskQuery.getById(diskId).transaction
-                      _ <- getGoogleStorageServiceFromRegistry()
-                        .deleteBucket(project,
-                                      GKEAlgebra.buildAppStagingBucketName(disk.get.name),
-                                      true,
-                                      traceId = Some(ctx.traceId)
-                        ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
-                        .compile
-                        .lastOrError
-                        .void
-                        .handleErrorWith {
-                          case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
-                            logger.warn(ctx.loggingCtx, e)(
-                              "Fail to clean up staging bucket because it doesn't exist"
-                            )
-                          case e =>
-                            logger.error(ctx.loggingCtx, e)(
-                              "Fail to clean up staging bucket"
-                            )
-                        }
-                    } yield ()
-                  case CloudContext.Azure(_) =>
-                    logger.error(ctx.loggingCtx)(
-                      "This should never happen because Azure app doesn't go through this code path. But not failing app deletion because deleting staging bucket isn't in critical path"
-                    )
-                }
-              case _ => F.unit
+            // Cleans up staging bucket. Right now, only ALLOWED app uses staging bucket
+            deleteStagingBucket = dbApp.cluster.cloudContext match {
+              case CloudContext.Gcp(project) =>
+                for {
+                  disk <- persistentDiskQuery.getById(diskId).transaction
+                  _ <- getGoogleStorageServiceFromRegistry()
+                    .deleteBucket(project,
+                                  GKEAlgebra.buildAppStagingBucketName(disk.get.name),
+                                  true,
+                                  traceId = Some(ctx.traceId)
+                    ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
+                    .compile
+                    .lastOrError
+                    .void
+                    .handleErrorWith {
+                      case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
+                        logger.info(ctx.loggingCtx, e)(
+                          "Fail to clean up staging bucket because it doesn't exist"
+                        )
+                      case e =>
+                        logger.error(ctx.loggingCtx, e)(
+                          "Fail to clean up staging bucket"
+                        )
+                    }
+                } yield ()
+              case CloudContext.Azure(_) =>
+                logger.error(ctx.loggingCtx)(
+                  "This should never happen because Azure app doesn't go through this code path. But not failing app deletion because deleting staging bucket isn't in critical path"
+                )
             }
             _ <- List(deleteDataDisk, deletePostgresDisk, deleteStagingBucket).parSequence_
           } yield ()

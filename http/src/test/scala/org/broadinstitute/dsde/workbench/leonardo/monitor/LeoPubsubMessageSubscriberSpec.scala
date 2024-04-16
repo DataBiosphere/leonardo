@@ -1176,11 +1176,13 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp())
-
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
+    val googleStorageService: GoogleStorageService[IO] = mock[GoogleStorageService[IO]]
+    when(googleStorageService.deleteBucket(any, any, anyBoolean(), any, any, any))
+      .thenReturn(fs2.Stream.emit(true).covary[IO])
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                          storageService = googleStorageService,
+                                          diskService = makeDetachingDiskInterp()
+    )
 
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -1193,7 +1195,7 @@ class LeoPubsubMessageSubscriberSpec
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
+    } yield verify(googleStorageService, never()).deleteBucket(any, any, anyBoolean(), any, any, any)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1206,7 +1208,7 @@ class LeoPubsubMessageSubscriberSpec
       .copy(status = DiskStatus.Deleting)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val makeApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Allowed)
+    val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
         makeApp1.appResources.copy(
