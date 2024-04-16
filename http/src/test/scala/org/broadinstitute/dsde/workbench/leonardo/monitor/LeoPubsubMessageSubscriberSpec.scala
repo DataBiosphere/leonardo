@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GKEModels,
   GoogleDiskService,
+  GoogleStorageService,
   KubernetesModels,
   MachineTypeName,
   RegionName,
@@ -58,7 +59,7 @@ import org.broadinstitute.dsde.workbench.util2.messaging.{AckHandler, CloudSubsc
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers.{any, startsWith}
+import org.mockito.ArgumentMatchers.{any, anyBoolean, startsWith}
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent._
@@ -1147,7 +1148,7 @@ class LeoPubsubMessageSubscriberSpec
 
   // delete app and not delete disk when specified
   // update app status and disk id
-  it should "delete app and not delete disk when specified" in isolatedDbTest {
+  it should "delete app and not delete disk when diskId not specified" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1197,7 +1198,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "delete app and delete disk when specified" in isolatedDbTest {
+  it should "delete app and delete disk when diskId specified" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
@@ -1205,7 +1206,7 @@ class LeoPubsubMessageSubscriberSpec
       .copy(status = DiskStatus.Deleting)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val makeApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Allowed)
     val savedApp1 = makeApp1
       .copy(appResources =
         makeApp1.appResources.copy(
@@ -1230,9 +1231,16 @@ class LeoPubsubMessageSubscriberSpec
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     implicit val googleDiskService: GoogleDiskService[IO] = makeDetachingDiskInterp()
+    val googleStorageService: GoogleStorageService[IO] = mock[GoogleStorageService[IO]]
+    when(googleStorageService.deleteBucket(any, any, anyBoolean(), any, any, any))
+      .thenReturn(fs2.Stream.emit(true).covary[IO])
     implicit val gkeAlg: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService
 
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskService = googleDiskService, gkeAlgebra = gkeAlg)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                          diskService = googleDiskService,
+                                          storageService = googleStorageService,
+                                          gkeAlgebra = gkeAlg
+    )
 
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -1245,7 +1253,7 @@ class LeoPubsubMessageSubscriberSpec
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
+    } yield verify(googleStorageService, times(1)).deleteBucket(any, any, anyBoolean(), any, any, any)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -2409,6 +2417,7 @@ class LeoPubsubMessageSubscriberSpec
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global),
     gkeAlgebra: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService,
     diskService: GoogleDiskService[IO] = MockGoogleDiskService,
+    storageService: GoogleStorageService[IO] = FakeGoogleStorageService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
     azureInterp: AzurePubsubHandlerAlgebra[IO] = makeAzureInterp()
@@ -2423,6 +2432,7 @@ class LeoPubsubMessageSubscriberSpec
     subscriberServicesRegistry.register[RuntimeMonitor[IO, CloudService]](monitor)
     val gcpDependencies = mock[GcpDependencies[IO]]
     when(gcpDependencies.googleDiskService).thenReturn(diskService)
+    when(gcpDependencies.googleStorageService).thenReturn(storageService)
     subscriberServicesRegistry.register[GcpDependencies[IO]](gcpDependencies)
     subscriberServicesRegistry.register[GKEAlgebra[IO]](gkeAlgebra)
     val cloudSubscriber = mock[CloudSubscriber[IO, LeoPubsubMessage]]

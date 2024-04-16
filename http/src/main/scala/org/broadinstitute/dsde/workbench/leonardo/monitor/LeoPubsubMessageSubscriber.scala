@@ -1272,7 +1272,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                       _ <- getGoogleStorageServiceFromRegistry()
                         .deleteBucket(project,
                                       GKEAlgebra.buildAppStagingBucketName(disk.get.name),
-                                      true
+                                      true,
+                                      traceId = Some(ctx.traceId)
                         ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
                         .compile
                         .lastOrError
