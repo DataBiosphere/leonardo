@@ -247,6 +247,7 @@ trait RuntimeFixtureSpec2 extends FixtureAnyFreeSpecLike with BeforeAndAfterAll 
   // TODO: rename this function and the cluster name
   def createRonRuntime(billingProject: GoogleProject): Unit = {
 
+    // TODO: use spec-based name
     val runtimeName = randomClusterName
     logger.info(
       s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime to be created: ${billingProject.value}/${runtimeName.asString}"

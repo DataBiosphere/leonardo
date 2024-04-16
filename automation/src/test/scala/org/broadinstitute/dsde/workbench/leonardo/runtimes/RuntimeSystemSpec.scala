@@ -1,14 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, LeonardoConfig, RuntimeFixtureSpec, SSH}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  LeonardoApiClient,
+  LeonardoConfig,
+  RuntimeFixtureSpec,
+  RuntimeFixtureSpec2,
+  SSH
+}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.workspaceNameKey
 
 @DoNotDiscover
-class RuntimeSystemSpec extends RuntimeFixtureSpec with ParallelTestExecution {
+class RuntimeSystemSpec extends RuntimeFixtureSpec2 with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)

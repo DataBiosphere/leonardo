@@ -249,7 +249,7 @@ final class LeonardoSuite
 //      new RuntimeCreationDiskSpec,
 //      new RuntimeAutopauseSpec,
 //      new RuntimePatchSpec,
-//      new RuntimeSystemSpec,
+      new RuntimeSystemSpec,
 //      new RuntimeStatusTransitionsSpec,
 //      new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
