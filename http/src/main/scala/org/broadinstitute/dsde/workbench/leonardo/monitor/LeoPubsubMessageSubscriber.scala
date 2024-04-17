@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   DiskName,
   GoogleDiskService,
+  GoogleStorageService,
   MachineTypeName,
   ZoneName
 }
@@ -1261,7 +1262,37 @@ class LeoPubsubMessageSubscriber[F[_]](
                   }
               else F.unit
 
-            _ <- List(deleteDataDisk, deletePostgresDisk).parSequence_
+            // Cleans up staging bucket. Right now, only ALLOWED app uses staging bucket
+            deleteStagingBucket = dbApp.cluster.cloudContext match {
+              case CloudContext.Gcp(project) =>
+                for {
+                  disk <- persistentDiskQuery.getById(diskId).transaction
+                  _ <- getGoogleStorageServiceFromRegistry()
+                    .deleteBucket(project,
+                                  GKEAlgebra.buildAppStagingBucketName(disk.get.name),
+                                  true,
+                                  traceId = Some(ctx.traceId)
+                    ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
+                    .compile
+                    .lastOrError
+                    .void
+                    .handleErrorWith {
+                      case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
+                        logger.info(ctx.loggingCtx, e)(
+                          "Fail to clean up staging bucket because it doesn't exist"
+                        )
+                      case e =>
+                        logger.error(ctx.loggingCtx, e)(
+                          "Fail to clean up staging bucket"
+                        )
+                    }
+                } yield ()
+              case CloudContext.Azure(_) =>
+                logger.error(ctx.loggingCtx)(
+                  "This should never happen because Azure app doesn't go through this code path. But not failing app deletion because deleting staging bucket isn't in critical path"
+                )
+            }
+            _ <- List(deleteDataDisk, deletePostgresDisk, deleteStagingBucket).parSequence_
           } yield ()
         }
         _ <-
@@ -1716,6 +1747,8 @@ class LeoPubsubMessageSubscriber[F[_]](
     logger.info(s"Getting googleDiskService from registry")
     cloudSpecificDependenciesRegistry.lookup[GcpDependencies[F]].get.googleDiskService
   }
+  private def getGoogleStorageServiceFromRegistry(): GoogleStorageService[F] =
+    cloudSpecificDependenciesRegistry.lookup[GcpDependencies[F]].get.googleStorageService
   private def getGkeAlgFromRegistry(): GKEAlgebra[F] = {
     logger.info(s"Getting gkeAlg from registry")
     cloudSpecificDependenciesRegistry.lookup[GKEAlgebra[F]].get
