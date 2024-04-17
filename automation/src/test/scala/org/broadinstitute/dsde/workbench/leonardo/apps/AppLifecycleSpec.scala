@@ -13,7 +13,15 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
-import org.scalatest.{Assertion, DoNotDiscover, Outcome, ParallelTestExecution, Retries}
+import org.scalatest.{
+  Assertion,
+  BeforeAndAfterEachTestData,
+  DoNotDiscover,
+  Outcome,
+  ParallelTestExecution,
+  Retries,
+  TestData
+}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.shouldUnclaimProjectsKey
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
@@ -27,8 +35,23 @@ class AppLifecycleSpec
     with LeonardoTestUtils
     with BillingProjectUtils
     with TableDrivenPropertyChecks
-    with ParallelTestExecution {
+    with ParallelTestExecution
+    with BeforeAndAfterEachTestData {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
+
+  import java.time.LocalDateTime
+
+  override def beforeEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(
+      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}"
+    )
+  }
+
+  override def afterEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
+  }
 
   override type FixtureParam = GoogleProject
 

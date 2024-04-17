@@ -167,14 +167,18 @@ trait RuntimeFixtureSpec
     }
     logger.info(s"end of beforeall in runtimeFixture for ${getClass.getSimpleName}")
   }
-  import java.time.Instant
-  override def beforeEach(testData: TestData): Unit =
+  import java.time.LocalDateTime
+  override def beforeEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
     logger.info(
-      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${Instant.now().toEpochMilli}"
+      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}"
     )
+  }
 
-  override def afterEach(testData: TestData): Unit =
-    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${Instant.now().toEpochMilli}")
+  override def afterEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
+  }
 
   def getRuntimeName(): RuntimeName =
     RuntimeName(

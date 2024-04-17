@@ -21,7 +21,11 @@ import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
-trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
+trait BillingProjectFixtureSpec
+    extends FixtureAnyFreeSpecLike
+    with Retries
+    with LazyLogging
+    with BeforeAndAfterEachTestData {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -41,6 +45,20 @@ trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with
         else
           runTestAndCheckOutcome(GoogleProject(googleProjectId))
     }
+  }
+
+  import java.time.LocalDateTime
+
+  override def beforeEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(
+      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}"
+    )
+  }
+
+  override def afterEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
   }
 }
 object BillingProjectFixtureSpec {
