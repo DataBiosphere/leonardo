@@ -31,12 +31,13 @@ import org.http4s.{AuthScheme, Credentials}
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
+import org.scalatest.Succeeded
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.net.URL
 import java.nio.file.Files
-import java.util.{ArrayList, Base64, UUID}
+import java.util.{Base64, UUID}
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
@@ -57,7 +58,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockAzureContainerService = setUpMockAzureContainerService
   val mockAzureRelayService = setUpMockAzureRelayService
   val mockKube = setUpMockKube
-  val (mockWsm, mockControlledResourceApi, mockResourceApi, mockWorkspaceApi) = setUpMockWsmApiClientProvider
+  val (mockWsm, mockControlledResourceApi, mockResourceApi, mockWorkspaceApi) = setUpMockWsmApiClientProvider()
   val mockSamAuthProvider = setUpMockSamAuthProvider
 
   implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
@@ -650,7 +651,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "not create a WSM managed identity for a private app" in isolatedDbTest {
-    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider()
     val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -684,7 +685,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "not create a WSM controlled namespace if one already exists" in isolatedDbTest {
-    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider()
     val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -731,7 +732,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "not create a WSM managed identity if one already exists" in isolatedDbTest {
-    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider()
     val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -769,7 +770,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   }
 
   it should "delete app WSM resources" in isolatedDbTest {
-    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider()
     val aksInterp = newAksInterp(config, mockWsm = mockWsm)
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -831,6 +832,79 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                                                                  mockitoEq(namespaceId)
       )
       verify(mockControlledResourceApi, times(1)).getDeleteAzureKubernetesNamespaceResult(mockitoEq(workspaceId.value),
+                                                                                          any
+      )
+      verify(mockControlledResourceApi, times(1)).deleteAzureManagedIdentity(mockitoEq(workspaceId.value),
+                                                                             mockitoEq(identityId)
+      )
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle deleting WSM resources that don't exist" in isolatedDbTest {
+    val (mockWsm, mockControlledResourceApi, _, _) = setUpMockWsmApiClientProvider(false, false, false)
+    val aksInterp = newAksInterp(config, mockWsm = mockWsm)
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.Cromwell,
+        status = AppStatus.Running,
+        appResources = AppResources(
+          namespace = NamespaceName("ns-1"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+
+      appId = saveApp.id
+      databaseId = UUID.randomUUID()
+      _ <- appControlledResourceQuery
+        .insert(appId.id,
+                WsmControlledResourceId(databaseId),
+                WsmResourceType.AzureDatabase,
+                AppControlledResourceStatus.Created
+        )
+        .transaction
+      namespaceId = UUID.randomUUID()
+      _ <- appControlledResourceQuery
+        .insert(appId.id,
+                WsmControlledResourceId(namespaceId),
+                WsmResourceType.AzureKubernetesNamespace,
+                AppControlledResourceStatus.Created
+        )
+        .transaction
+      identityId = UUID.randomUUID()
+      _ <- appControlledResourceQuery
+        .insert(appId.id,
+                WsmControlledResourceId(identityId),
+                WsmResourceType.AzureManagedIdentity,
+                AppControlledResourceStatus.Created
+        )
+        .transaction
+
+      params = DeleteAKSAppParams(saveApp.appName, workspaceId, cloudContext, billingProfileId)
+      _ <- aksInterp.deleteApp(params)
+
+      deletedControlledResources <- appControlledResourceQuery
+        .getAllForApp(appId)
+        .transaction
+    } yield {
+      deletedControlledResources.length shouldBe 3
+      deletedControlledResources.map(_.status).distinct shouldBe List(AppControlledResourceStatus.Deleted)
+      verify(mockControlledResourceApi, times(1)).deleteAzureDatabaseAsync(any,
+                                                                           mockitoEq(workspaceId.value),
+                                                                           mockitoEq(databaseId)
+      )
+      verify(mockControlledResourceApi, times(0)).getDeleteAzureDatabaseResult(mockitoEq(workspaceId.value), any)
+      verify(mockControlledResourceApi, times(1)).deleteAzureKubernetesNamespace(any,
+                                                                                 mockitoEq(workspaceId.value),
+                                                                                 mockitoEq(namespaceId)
+      )
+      verify(mockControlledResourceApi, times(0)).getDeleteAzureKubernetesNamespaceResult(mockitoEq(workspaceId.value),
                                                                                           any
       )
       verify(mockControlledResourceApi, times(1)).deleteAzureManagedIdentity(mockitoEq(workspaceId.value),
@@ -921,8 +995,10 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     sam
   }
 
-  private def setUpMockWsmApiClientProvider
-    : (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
+  private def setUpMockWsmApiClientProvider(databaseExists: Boolean = true,
+                                            namespaceExists: Boolean = true,
+                                            identityExists: Boolean = true
+  ): (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
     val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
@@ -946,6 +1022,16 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
             .attributes(new AzureManagedIdentityAttributes().managedIdentityName(requestBody.getCommon.getName))
         )
     }
+
+    // delete managed identity
+    when {
+      api.deleteAzureManagedIdentity(any, any)
+    } thenAnswer { _ =>
+      if (identityExists)
+        Succeeded
+      else throw new TestException()
+    }
+
     // Create database
     when {
       api.createAzureDatabase(any, any)
@@ -985,15 +1071,17 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     // delete database
     when {
       api.deleteAzureDatabaseAsync(any, any, any)
-    } thenAnswer { invocation =>
-      new DeleteControlledAzureResourceResult()
-        .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
+    } thenAnswer { _ =>
+      if (databaseExists)
+        new DeleteControlledAzureResourceResult()
+          .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
+      else throw new TestException()
     }
 
     // get delete database job result
     when {
       api.getDeleteAzureDatabaseResult(any, any)
-    } thenAnswer { invocation =>
+    } thenAnswer { _ =>
       new DeleteControlledAzureResourceResult()
         .jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
@@ -1057,9 +1145,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       api.deleteAzureKubernetesNamespace(any, any, any)
     } thenAnswer { invocation =>
       val request = invocation.getArgument[DeleteControlledAzureResourceRequest](0)
-      new DeleteControlledAzureResourceResult().jobReport(
-        new JobReport().status(JobReport.StatusEnum.SUCCEEDED).id(request.getJobControl.getId)
-      )
+      if (namespaceExists)
+        new DeleteControlledAzureResourceResult().jobReport(
+          new JobReport().status(JobReport.StatusEnum.SUCCEEDED).id(request.getJobControl.getId)
+        )
+      else throw new TestException()
     }
     // Get delete Kubernetes Namespace job
     when {
