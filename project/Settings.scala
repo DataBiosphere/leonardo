@@ -152,7 +152,7 @@ object Settings {
       *  setting the limit on Tags.ForkedTestGroup tag, 1 is default.
       *  Warning: can't set too high (set at 10 would crashes OS)
       */
-    Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 2)),
+    Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 4)),
 
     /**
       * Forked JVM options

@@ -24,7 +24,6 @@ import scala.concurrent.duration._
 class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils with ParallelTestExecution {
   override def enableWelder: Boolean = true
 
-//  def myCluster: ClusterCopy = _
   override def runtimeSystemKey: Option[String] = Some(getClass.getSimpleName)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
   override def withFixture(test: NoArgTest) =
