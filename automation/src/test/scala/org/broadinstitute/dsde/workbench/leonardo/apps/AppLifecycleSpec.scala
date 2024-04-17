@@ -35,8 +35,8 @@ class AppLifecycleSpec
     with LeonardoTestUtils
     with BillingProjectUtils
     with TableDrivenPropertyChecks
-    with ParallelTestExecution
-    with BeforeAndAfterEachTestData {
+    with BeforeAndAfterEachTestData
+    with ParallelTestExecution {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   import java.time.LocalDateTime
@@ -49,7 +49,7 @@ class AppLifecycleSpec
   }
 
   override def afterEach(testData: TestData): Unit = {
-    super.beforeEach(testData)
+    super.afterEach(testData)
     logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
   }
 

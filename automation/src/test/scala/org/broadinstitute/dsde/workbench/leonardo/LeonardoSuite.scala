@@ -57,7 +57,7 @@ trait BillingProjectFixtureSpec
   }
 
   override def afterEach(testData: TestData): Unit = {
-    super.beforeEach(testData)
+    super.afterEach(testData)
     logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
   }
 }
