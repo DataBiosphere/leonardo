@@ -14,13 +14,18 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.freespec.{FixtureAnyFreeSpec, FixtureAnyFreeSpecLike}
-import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEachTestData, Outcome, Retries, TestData}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
 
-trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll with LeonardoTestUtils with Retries {
+trait RuntimeFixtureSpec
+    extends FixtureAnyFreeSpecLike
+    with BeforeAndAfterAll
+    with LeonardoTestUtils
+    with Retries
+    with BeforeAndAfterEachTestData {
 
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
@@ -162,6 +167,14 @@ trait RuntimeFixtureSpec extends FixtureAnyFreeSpecLike with BeforeAndAfterAll w
     }
     logger.info(s"end of beforeall in runtimeFixture for ${getClass.getSimpleName}")
   }
+  import java.time.Instant
+  override def beforeEach(testData: TestData): Unit =
+    logger.info(
+      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${Instant.now().toEpochMilli}"
+    )
+
+  override def afterEach(testData: TestData): Unit =
+    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${Instant.now().toEpochMilli}")
 
   def getRuntimeName(): RuntimeName =
     RuntimeName(
