@@ -18,14 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AzureBilling,
-  CloudProvider,
-  LeonardoConfig,
-  LeonardoTestUtils,
-  RuntimeName,
-  SSH
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, CloudProvider, LeonardoConfig, LeonardoTestUtils, SSH}
 
 import scala.concurrent.duration._
 
