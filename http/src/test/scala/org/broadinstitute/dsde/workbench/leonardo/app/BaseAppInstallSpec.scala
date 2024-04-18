@@ -88,7 +88,6 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
     BuildHelmOverrideValuesParams(
       app,
       workspaceId,
-      workspaceCreatedDate,
       cloudContext,
       lzResources,
       Some(storageContainer),

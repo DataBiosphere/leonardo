@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
-import java.time.OffsetDateTime
 
 /**
  * Defines how to install a Kubernetes App.
@@ -75,7 +74,6 @@ object Database {
 
 final case class BuildHelmOverrideValuesParams(app: App,
                                                workspaceId: WorkspaceId,
-                                               workspaceCreatedDate: OffsetDateTime,
                                                cloudContext: AzureCloudContext,
                                                landingZoneResources: LandingZoneResources,
                                                storageContainer: Option[StorageContainerResponse],
