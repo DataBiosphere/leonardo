@@ -25,7 +25,8 @@ trait BillingProjectFixtureSpec
     extends FixtureAnyFreeSpecLike
     with Retries
     with LazyLogging
-    with BeforeAndAfterEachTestData {
+    with BeforeAndAfterEachTestData
+    with ParallelTestExecution {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -153,7 +154,10 @@ trait BillingProjectUtils extends LeonardoTestUtils {
   }
 }
 
-trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
+trait NewBillingProjectAndWorkspaceBeforeAndAfterAll
+    extends BillingProjectUtils
+    with BeforeAndAfterAll
+    with ParallelTestExecution {
   this: TestSuite =>
 
   implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
