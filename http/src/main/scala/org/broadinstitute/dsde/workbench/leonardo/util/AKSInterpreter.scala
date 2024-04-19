@@ -179,10 +179,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
-      // get workspaceDescription from WSM
-      wsmWorkspaceApi <- buildWsmWorkspaceApiClient
-      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, params.workspaceId.value)
-
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
@@ -404,10 +400,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmNamespace <- F.fromOption(wsmNamespaceOpt,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
       )
-
-      // get workspaceDescription from WSM
-      wsmWorkspaceApi <- buildWsmWorkspaceApiClient
-      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, workspaceId.value)
 
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAttributes.getKubernetesNamespace)
