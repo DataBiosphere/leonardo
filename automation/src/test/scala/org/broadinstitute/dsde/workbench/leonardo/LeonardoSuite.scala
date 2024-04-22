@@ -26,7 +26,7 @@ trait BillingProjectFixtureSpec
     with Retries
     with LazyLogging
     with BeforeAndAfterEachTestData
-    with FixedThreadPoolParallelExecution {
+    with ParallelTestExecution {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -157,7 +157,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 trait NewBillingProjectAndWorkspaceBeforeAndAfterAll
     extends BillingProjectUtils
     with BeforeAndAfterAll
-    with FixedThreadPoolParallelExecution {
+    with ParallelTestExecution {
   this: TestSuite =>
 
   implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
@@ -282,7 +282,7 @@ final class LeonardoSuite
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
-    with FixedThreadPoolParallelExecution
+    with ParallelTestExecution
 
 final class LeonardoTerraDockerSuite
     extends Suites(
@@ -293,4 +293,4 @@ final class LeonardoTerraDockerSuite
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
-    with FixedThreadPoolParallelExecution
+    with ParallelTestExecution

@@ -147,12 +147,17 @@ object Settings {
       */
     Test / logBuffered := false,
 
+
+    //See executing suites in parallel sectioon here: https://www.scalatest.org/user_guide/using_the_runner
+    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P16"),
+
     /**
       * Control the number of forked JVMs allowed to run at the same time by
       *  setting the limit on Tags.ForkedTestGroup tag, 1 is default.
       *  Warning: can't set too high (set at 10 would crashes OS)
       */
-    Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 8), Tags.limit(Tags.Test, 16), Tags.limit(Tags.All, 16)),
+//    Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 8), Tags.limit(Tags.Test, 16), Tags.limit(Tags.All, 16)),
+    Global / concurrentRestrictions := Seq(Tags.limitAll(16)),
 
     /**
       * Forked JVM options
