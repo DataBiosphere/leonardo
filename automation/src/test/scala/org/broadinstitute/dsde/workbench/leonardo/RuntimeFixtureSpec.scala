@@ -14,7 +14,15 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.freespec.{FixtureAnyFreeSpec, FixtureAnyFreeSpecLike}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEachTestData, Outcome, ParallelTestExecution, Retries, TestData}
+import org.scalatest.{
+  BeforeAndAfterAll,
+  BeforeAndAfterEachTestData,
+  FixedThreadPoolParallelExecution,
+  Outcome,
+  ParallelTestExecution,
+  Retries,
+  TestData
+}
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -26,7 +34,7 @@ trait RuntimeFixtureSpec
     with LeonardoTestUtils
     with Retries
     with BeforeAndAfterEachTestData
-    with ParallelTestExecution {
+    with FixedThreadPoolParallelExecution {
 
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
