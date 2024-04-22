@@ -123,7 +123,7 @@ object Settings {
       * Specify that all tests will be executed in a single external JVM.
       * By default, tests executed in a forked JVM are executed sequentially.
       */
-    Test / fork := false,
+    Test / fork := true,
 
     /**
       * forked tests can optionally be run in parallel.
@@ -157,7 +157,7 @@ object Settings {
     /**
       * Forked JVM options
       */
-    Test / javaOptions ++= Seq("-Xmx6G"),
+    Test / javaOptions ++= Seq("-Xmx2G"),
 
     /**
       * copy system properties to forked JVM
