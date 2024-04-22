@@ -11,7 +11,7 @@ export DEBIAN_FRONTEND=noninteractive
 #create user to run jupyter
 VM_JUP_USER=jupyter
 
-sudo useradd -m -c "Jupyter User" $VM_JUP_USER
+sudo useradd -m -c "Jupyter User" -u 2000 $VM_JUP_USER
 sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
 
 ## Change ownership for the new user
