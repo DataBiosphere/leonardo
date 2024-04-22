@@ -225,9 +225,9 @@ docker run -d --restart always --network host --name jupyter \
 --env STORAGE_CONTAINER_RESOURCE_ID=$WORKSPACE_STORAGE_CONTAINER_ID \
 $JUPYTER_DOCKER_IMAGE
 
-log 'Starting Jupyter Notebook...'
+echo 'Starting Jupyter Notebook...'
 echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
-docker exec -d jupyter /bin/bash -c "sudo /bin/bash /usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
+docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
 
 echo "------ Jupyter done ------"
 
