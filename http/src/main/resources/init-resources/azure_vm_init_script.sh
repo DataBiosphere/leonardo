@@ -8,10 +8,11 @@ set -e
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
 
-#create user to run jupyter in the docker container
-JUP_USER=jupyter
+#create the jupyter user that will have ownership of the persistent disk
+JUPYTER_USER=jupyter-user
+JUPYTER_USER_UID=1002
 
-#sudo useradd -m -c "Jupyter User" $VM_JUP_USER
+sudo useradd -m -u $JUPYTER_USER_UID -c "Jupyter User" $JUPYTER_USER
 #sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
 #
 ### Change ownership for the new user
@@ -28,7 +29,7 @@ JUP_USER=jupyter
 
 
 # Formatting and mounting persistent disk
-WORK_DIRECTORY="/home/$JUP_USER/persistent_disk"
+WORK_DIRECTORY="/home/$JUPYTER_USER/persistent_disk"
 ## Create the PD working directory
 mkdir -p ${WORK_DIRECTORY}
 
@@ -88,7 +89,7 @@ echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo 
 echo "successful write of PD UUID to fstab"
 
 ## Change ownership of the mounted drive to the user
-sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
+sudo chown -R $JUPYTER_USER:$JUPYTER_USER ${WORK_DIRECTORY}
 
 
 # Read script arguments
@@ -208,7 +209,7 @@ echo "docker run -d --restart always --network host --name jupyter \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 -e SERVER_APP_BASE_URL=$SERVER_APP_BASE_URL \
 -e SERVER_APP_WEBSOCKET_URL=$SERVER_APP_WEBSOCKET_URL \
--e NOTEBOOKS_DIR=/home/$JUP_USER \
+-e NOTEBOOKS_DIR=/home/$JUPYTER_USER \
 -e WORKSPACE_ID=$WORKSPACE_ID \
 -e WORKSPACE_NAME=$WORKSPACE_NAME \
 -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -220,7 +221,7 @@ docker run -d --restart always --network host --name jupyter \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --env SERVER_APP_BASE_URL=$SERVER_APP_BASE_URL \
 --env SERVER_APP_WEBSOCKET_URL=$SERVER_APP_WEBSOCKET_URL \
---env NOTEBOOKS_DIR=/home/$JUP_USER \
+--env NOTEBOOKS_DIR=/home/$JUPYTER_USER\
 --env WORKSPACE_ID=$WORKSPACE_ID \
 --env WORKSPACE_NAME=$WORKSPACE_NAME \
 --env WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -283,7 +284,7 @@ echo "------ Welder version: ${WELDER_WELDER_DOCKER_IMAGE} ------"
 echo "    Starting Welder with command...."
 
 echo "docker run -d --restart always --network host --name welder \
-     --volume \"/home/${VM_JUP_USER}\":\"/work\" \
+     --volume \"/home/${JUPYTER_USER}\":\"/work\" \
      -e WSM_URL=$WELDER_WSM_URL \
      -e PORT=8081 \
      -e WORKSPACE_ID=$WORKSPACE_ID \
@@ -297,7 +298,7 @@ echo "docker run -d --restart always --network host --name welder \
      $WELDER_WELDER_DOCKER_IMAGE"
 
 docker run -d --restart always --network host --name welder \
---volume "/home/${VM_JUP_USER}":"/work" \
+--volume "/home/${JUPYTER_USER}":"/work" \
 --env WSM_URL=$WELDER_WSM_URL \
 --env PORT=8081 \
 --env WORKSPACE_ID=$WORKSPACE_ID \
