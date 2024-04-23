@@ -156,13 +156,14 @@ object Settings {
       *  setting the limit on Tags.ForkedTestGroup tag, 1 is default.
       *  Warning: can't set too high (set at 10 would crashes OS)
       */
-    Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 8)),
+//    Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 8)),
 //    Global / concurrentRestrictions := Seq(Tags.limitAll(16)),
+    Global / concurrentRestrictions := Seq(Tags.limitAll(16)),
 
     /**
       * Forked JVM options
       */
-    Test / javaOptions ++= Seq("-Xmx4G"),
+    Test / javaOptions ++= Seq("-Xmx2G"),
 
     /**
       * copy system properties to forked JVM
