@@ -108,7 +108,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/e8b828d148a4f6c7747196b8547036bb9873dd06/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/dea3833b2ca6a2d411239f453a88299340f9fa6c/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
