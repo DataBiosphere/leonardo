@@ -149,7 +149,7 @@ object Settings {
 
 
     //See executing suites in parallel sectioon here: https://www.scalatest.org/user_guide/using_the_runner
-    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P16"),
+    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P8"),
 
     /**
       * Control the number of forked JVMs allowed to run at the same time by
