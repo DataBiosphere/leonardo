@@ -4,6 +4,10 @@ set -e
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
+# In order to avoid user id conflicts, change azureuser uid before jupyter or welder users are created
+# (context in https://broadworkbench.atlassian.net/browse/IA-4808)
+sudo usermod -u 2000 azureuser
+
 # This is to avoid the error Ref BioC
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
