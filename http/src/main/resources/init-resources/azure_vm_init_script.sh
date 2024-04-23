@@ -31,7 +31,7 @@ sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev
 # Formatting and mounting persistent disk
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 ## Create the PD working directory
-sudo mkdir -p ${WORK_DIRECTORY}
+mkdir -p ${WORK_DIRECTORY}
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
