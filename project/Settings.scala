@@ -123,7 +123,7 @@ object Settings {
       * Specify that all tests will be executed in a single external JVM.
       * By default, tests executed in a forked JVM are executed sequentially.
       */
-    Test / fork := true,
+    Test / fork := false,
 
     /**
       * forked tests can optionally be run in parallel.
@@ -148,7 +148,7 @@ object Settings {
     Test / logBuffered := false,
 
 
-    //See executing suites in parallel sectioon here: https://www.scalatest.org/user_guide/using_the_runner
+    //See executing suites in parallel section here: https://www.scalatest.org/user_guide/using_the_runner
     Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P8"),
 
     /**
@@ -162,7 +162,7 @@ object Settings {
     /**
       * Forked JVM options
       */
-    Test / javaOptions ++= Seq("-Xmx2G"),
+    Test / javaOptions ++= Seq("-Xmx4G"),
 
     /**
       * copy system properties to forked JVM
