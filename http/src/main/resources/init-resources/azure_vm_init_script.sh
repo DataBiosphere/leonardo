@@ -28,7 +28,7 @@ JUP_USER=jupyter
 
 
 # Formatting and mounting persistent disk
-WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
+WORK_DIRECTORY="/home/$JUP_USER/persistent_disk"
 ## Create the PD working directory
 mkdir -p ${WORK_DIRECTORY}
 
@@ -205,6 +205,7 @@ echo "Starting Jupyter with command..."
 #sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log' >/dev/null 2>&1&") | crontab -
 
 echo "docker run -d --restart always --network host --name jupyter \
+--volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 -e SERVER_APP_BASE_URL=$SERVER_APP_BASE_URL \
 -e SERVER_APP_WEBSOCKET_URL=$SERVER_APP_WEBSOCKET_URL \
 -e NOTEBOOKS_DIR=/home/$JUP_USER \
@@ -215,7 +216,8 @@ echo "docker run -d --restart always --network host --name jupyter \
 $JUPYTER_DOCKER_IMAGE"
 
 #Run docker container with Jupyter Server
-docker run -d --restart always --network host --name jupyter \
+docker run -u jupyter -d --restart always --network host --name jupyter \
+--volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --env SERVER_APP_BASE_URL=$SERVER_APP_BASE_URL \
 --env SERVER_APP_WEBSOCKET_URL=$SERVER_APP_WEBSOCKET_URL \
 --env NOTEBOOKS_DIR=/home/$JUP_USER \
@@ -226,8 +228,8 @@ docker run -d --restart always --network host --name jupyter \
 $JUPYTER_DOCKER_IMAGE
 
 echo 'Starting Jupyter Notebook...'
-echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
-docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
+echo "docker exec -d jupyter /bin/bash -c "/bin/bash /usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
+docker exec -d jupyter /bin/bash -c "/bin/bash /usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
 
 echo "------ Jupyter done ------"
 
