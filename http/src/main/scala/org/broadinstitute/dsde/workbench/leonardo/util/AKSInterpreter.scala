@@ -564,7 +564,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       deletedNamespace <- childSpan("deleteWsmNamespace").use { implicit ev =>
         wsmNamespaces
           .traverse { namespace =>
-            deleteWsmNamespaceResource(workspaceId, app, namespace)
+            deleteWsmResource(workspaceId, app, namespace)
           }
           .map(_.nonEmpty)
       }
@@ -1211,29 +1211,23 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ServiceAccountName(namespaceAttributes.getKubernetesServiceAccount)
     )
 
-  private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
-                                               app: App,
-                                               wsmResource: AppControlledResourceRecord
+  private[util] def deleteAndPollWsmNamespaceResource(workspaceId: WorkspaceId,
+                                                      app: App,
+                                                      wsmResource: AppControlledResourceRecord,
+                                                      jobId: UUID,
+                                                      deleteResourceRequest: DeleteControlledAzureResourceRequest,
+                                                      wsmApi: ControlledAzureResourceApi
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
 
-      // Build WSM client
-      wsmApi <- buildWsmControlledResourceApiClient
-
-      // Build delete namespace request
-      jobId = UUID.randomUUID()
-      deleteNamespaceRequest = new DeleteControlledAzureResourceRequest().jobControl(
-        new JobControl().id(jobId.toString)
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteNamespaceRequest}")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteResourceRequest}")
 
       // Execute WSM call
       result <- F.blocking(
-        wsmApi.deleteAzureKubernetesNamespace(deleteNamespaceRequest, workspaceId.value, wsmResource.resourceId.value)
+        wsmApi.deleteAzureKubernetesNamespace(deleteResourceRequest, workspaceId.value, wsmResource.resourceId.value)
       )
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace response: ${result}")
@@ -1250,13 +1244,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       op = F.blocking(
         wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, jobId.toString)
       )
+
       result <- streamFUntilDone(
         op,
         config.appMonitorConfig.deleteApp.maxAttempts,
         config.appMonitorConfig.deleteApp.interval
       ).compile.lastOrError
 
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace job result: ${result}")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace job result: $result")
 
       _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
         AppDeletionException(
@@ -1264,38 +1259,29 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       )
 
-      // Update record in APP_CONTROLLED_RESOURCE table
-      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+      // record in APP_CONTROLLED_RESOURCE table is set to deleted by caller
     } yield ()
 
-  private[util] def deleteAzureDatabaseResource(workspaceId: WorkspaceId,
-                                                app: App,
-                                                wsmResource: AppControlledResourceRecord
+  private[util] def deleteAndPollWsmDatabaseResource(workspaceId: WorkspaceId,
+                                                     app: App,
+                                                     wsmResource: AppControlledResourceRecord,
+                                                     jobId: UUID,
+                                                     deleteResourceRequest: DeleteControlledAzureResourceRequest,
+                                                     wsmApi: ControlledAzureResourceApi
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
 
-      // Build WSM client
-      wsmApi <- buildWsmControlledResourceApiClient
-
-      // Build delete database request
-      jobId = UUID.randomUUID()
-      deleteDatabaseRequest = new DeleteControlledAzureResourceRequest().jobControl(
-        new JobControl().id(jobId.toString)
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"WSM delete database request for app ${app.appName.value}: $deleteDatabaseRequest"
-      )
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database request: ${deleteResourceRequest}")
 
       // Execute WSM call
       result <- F.blocking(
-        wsmApi.deleteAzureDatabaseAsync(deleteDatabaseRequest, workspaceId.value, wsmResource.resourceId.value)
+        wsmApi.deleteAzureDatabaseAsync(deleteResourceRequest, workspaceId.value, wsmResource.resourceId.value)
       )
 
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database response for app ${app.appName.value}: $result")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database response: ${result}")
 
       // Update record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
@@ -1309,13 +1295,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       op = F.blocking(
         wsmApi.getDeleteAzureDatabaseResult(workspaceId.value, jobId.toString)
       )
+
       result <- streamFUntilDone(
         op,
         config.appMonitorConfig.deleteApp.maxAttempts,
         config.appMonitorConfig.deleteApp.interval
       ).compile.lastOrError
 
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database job result for app ${app.appName.value}: $result")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database job result: $result")
 
       _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
         AppDeletionException(
@@ -1323,7 +1310,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       )
 
-      // record in APP_CONTROLLED_RESOURCE table is updated by caller
+      // record in APP_CONTROLLED_RESOURCE table is set to deleted by caller
     } yield ()
 
   private[util] def deleteWsmResource(workspaceId: WorkspaceId, app: App, wsmResource: AppControlledResourceRecord)(
@@ -1335,11 +1322,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(
         s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
       )
+
+      jobId = UUID.randomUUID()
+      deleteResourceRequest = new DeleteControlledAzureResourceRequest().jobControl(
+        new JobControl().id(jobId.toString)
+      )
       _ <- wsmResource.resourceType match {
         case WsmResourceType.AzureManagedIdentity =>
           F.blocking(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
         case WsmResourceType.AzureDatabase =>
-          deleteAzureDatabaseResource(workspaceId, app, wsmResource)
+          deleteAndPollWsmDatabaseResource(workspaceId, app, wsmResource, jobId, deleteResourceRequest, wsmApi)
+        case WsmResourceType.AzureKubernetesNamespace =>
+          deleteAndPollWsmNamespaceResource(workspaceId, app, wsmResource, jobId, deleteResourceRequest, wsmApi)
         case _ =>
           F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
@@ -1350,7 +1344,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     delete.handleErrorWith {
       case e: ApiException if e.getCode == StatusCodes.NotFound.intValue =>
         // If the resource doesn't exist, that's fine. We're deleting it anyway.
-        F.unit
+        for {
+          _ <- logger.info(s"No-op for delete WSM app resource ${wsmResource.resourceId.value}")
+          _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+        } yield ()
       case e => F.raiseError(e)
     }
   }

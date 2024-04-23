@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
+import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model.WorkspaceDescription
 import cats.effect.IO
 import cats.effect.Ref
@@ -588,4 +590,8 @@ object CommonTestData {
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath =
     parseGcsPath(str).right.get
+}
+class TestException(message: String = "Test error", statusCode: StatusCode = StatusCodes.NotFound)
+    extends ApiException {
+  override def getCode: Int = statusCode.intValue
 }
