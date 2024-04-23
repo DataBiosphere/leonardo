@@ -183,8 +183,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
         ),
         WdsAppConfig(
-          ChartName("terra-helm/wds"),
-          ChartVersion("0.74.0"),
+          ChartName("leonardo/wds"),
+          ChartVersion("0.74.1"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
