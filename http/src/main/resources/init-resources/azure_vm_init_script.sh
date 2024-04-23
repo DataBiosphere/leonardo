@@ -216,7 +216,7 @@ echo "docker run -d --restart always --network host --name jupyter \
 $JUPYTER_DOCKER_IMAGE"
 
 #Run docker container with Jupyter Server
-docker run -u jupyter -d --restart always --network host --name jupyter \
+docker run -d --restart always --network host --name jupyter \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --env SERVER_APP_BASE_URL=$SERVER_APP_BASE_URL \
 --env SERVER_APP_WEBSOCKET_URL=$SERVER_APP_WEBSOCKET_URL \
