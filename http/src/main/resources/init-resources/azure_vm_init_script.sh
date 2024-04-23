@@ -14,7 +14,7 @@ JUPYTER_USER_UID=1002
 JUPYTER_USER_HOME="/home/$JUPYTER_USER"
 
 sudo useradd -m -d $JUPYTER_USER_HOME -N -u $JUPYTER_USER_UID $JUPYTER_USER
-sudo usermod -a -G $JUPYTER_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $JUPYTER_USER
+#sudo usermod -a -G $JUPYTER_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $JUPYTER_USER
 #
 ### Change ownership for the new user
 #
