@@ -4,9 +4,14 @@ set -e
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
-# In order to avoid user id conflicts, change azureuser uid before jupyter or welder users are created
+# In order to avoid user id conflicts, change azureuser uid and gid before jupyter or welder users are created
 # (context in https://broadworkbench.atlassian.net/browse/IA-4808)
-sudo usermod -u 2000 azureuser
+sudo groupmod -g 2000 azureuser
+sudo usermod -u 2000 -g 2000 azureuser
+
+# leoAdmin is already created at this point, move it to id 1000
+sudo groupmod -g 1000 leoAdmin
+sudo usermod -u 1000 -g 1000 leoAdmin
 
 # This is to avoid the error Ref BioC
 # 'debconf: unable to initialize frontend: Dialog'
@@ -15,7 +20,7 @@ export DEBIAN_FRONTEND=noninteractive
 #create user to run jupyter
 VM_JUP_USER=jupyter
 
-sudo useradd -m -c "Jupyter User" $VM_JUP_USER
+sudo useradd -m -c "Jupyter User" -u 1001 $VM_JUP_USER
 sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
 
 ## Change ownership for the new user
