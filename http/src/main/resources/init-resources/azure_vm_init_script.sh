@@ -118,6 +118,7 @@ WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID="${15:-dummy}"
 
 # Envs for Jupyter
 JUPYTER_DOCKER_IMAGE="terradevacrpublic.azurecr.io/jupyter-server:test"
+NOTEBOOKS_DIR="/home/$VM_JUP_USER"
 WORKSPACE_NAME="${16:-dummy}"
 WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
 
@@ -207,9 +208,6 @@ echo "Starting Jupyter with command..."
 
 echo "docker run -d --restart always --network host --name jupyter \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
--e SERVER_APP_BASE_URL=$SERVER_APP_BASE_URL \
--e SERVER_APP_WEBSOCKET_URL=$SERVER_APP_WEBSOCKET_URL \
--e NOTEBOOKS_DIR=/home/$VM_JUP_USER \
 -e WORKSPACE_ID=$WORKSPACE_ID \
 -e WORKSPACE_NAME=$WORKSPACE_NAME \
 -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -219,9 +217,6 @@ $JUPYTER_DOCKER_IMAGE"
 #Run docker container with Jupyter Server
 docker run -d --restart always --network host --name jupyter \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
---env SERVER_APP_BASE_URL=$SERVER_APP_BASE_URL \
---env SERVER_APP_WEBSOCKET_URL=$SERVER_APP_WEBSOCKET_URL \
---env NOTEBOOKS_DIR=/home/$VM_JUP_USER \
 --env WORKSPACE_ID=$WORKSPACE_ID \
 --env WORKSPACE_NAME=$WORKSPACE_NAME \
 --env WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -229,8 +224,8 @@ docker run -d --restart always --network host --name jupyter \
 $JUPYTER_DOCKER_IMAGE
 
 echo 'Starting Jupyter Notebook...'
-echo "docker exec -d jupyter /bin/bash -c "/bin/bash /usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
-docker exec -d jupyter /bin/bash -c "/bin/bash /usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
+echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
+docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
 
 echo "------ Jupyter done ------"
 
