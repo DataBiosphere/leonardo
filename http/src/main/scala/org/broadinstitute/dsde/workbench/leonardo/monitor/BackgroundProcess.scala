@@ -59,11 +59,14 @@ trait BackgroundProcess[F[_], A] {
       for {
         uuid <- F.delay(UUID.randomUUID())
         traceId = TraceId(s"${name}_${uuid.toString}")
+        loggingContext = Map("traceId" -> traceId.asString)
         _ <- metrics.incrementCounter(
           s"${name}/pauseRuntimeCounter"
         ) // TODO: update metrics once we add more monitors
-        _ <- logger.info(Map("traceId" -> traceId.asString))(s"${name} | runtime ${a.show}")
-        _ <- action(a, traceId, now)
+        _ <- logger.info(loggingContext)(s"${name} | runtime ${a.show}")
+        _ <- action(a, traceId, now).handleErrorWith { case e =>
+          logger.error(loggingContext, e)(s"Failed to ${name} for ${a.show}")
+        }
       } yield ()
     }
   } yield ()
