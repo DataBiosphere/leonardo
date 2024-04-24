@@ -6,7 +6,7 @@ import cats.effect.Deferred
 import fs2.Stream
 import cats.effect.std.Queue
 import cats.effect.unsafe.implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Config, Task}
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Config, Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.duration._
@@ -40,7 +40,7 @@ class AsyncTaskProcessorSpec extends AnyFlatSpec with Matchers with LeonardoTest
       val tasks = Stream
         .emits(1 to 10)
         .covary[IO]
-        .map(x => Task(traceId, io(x), None, Instant.now(), "test"))
+        .map(x => Task(traceId, io(x), None, Instant.now(), TaskMetricsTags("test", None, None, CloudProvider.Gcp)))
 
       val stream = tasks.through(in => in.evalMap(queue.offer(_))) ++ asyncTaskProcessor.process
       stream.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ())))

@@ -23,7 +23,7 @@ import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -260,7 +260,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         ),
         ctx.now,
-        "startRuntime"
+        TaskMetricsTags("startRuntimeV2", None, Some(false), CloudProvider.Azure)
       )
     )
   } yield ()
@@ -362,7 +362,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         ),
         ctx.now,
-        "startRuntime"
+        TaskMetricsTags("startRuntimeV2", None, Some(false), CloudProvider.Azure)
       )
     )
   } yield ()
@@ -888,7 +888,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           ),
           ctx.now,
-          "createAzureRuntime"
+          TaskMetricsTags("createRuntimeV2", None, Some(false), CloudProvider.Azure)
         )
       )
     } yield ()
@@ -1062,7 +1062,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           },
           ctx.now,
-          "deleteAzureRuntime"
+          TaskMetricsTags("deleteRuntimeV2", None, Some(false), CloudProvider.Azure)
         )
       )
     } yield ()
@@ -1305,7 +1305,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           },
           ctx.now,
-          "deleteDiskV2"
+          TaskMetricsTags("deleteDiskV2", None, Some(false), CloudProvider.Azure)
         )
       )
     } yield ()
