@@ -105,8 +105,7 @@ trait RuntimeFixtureSpec
   // TODO: rename this function and the cluster name
   def createRonRuntime(billingProject: GoogleProject): Unit = {
 
-    // TODO: use spec-based name
-    val runtimeName = randomClusterName
+    val runtimeName = RuntimeName(s"automation-${getClass.getSimpleName}")
     logger.info(
       s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime to be created: ${billingProject.value}/${runtimeName.asString}"
     )
