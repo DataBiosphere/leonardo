@@ -266,31 +266,38 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll
     } else IO.unit
 }
 
-//TODO: reorganize
+// Each spec in this suite uses the same billing project for creating new runtimes specific to the test
 final class LeonardoSuite
     extends Suites(
       new RuntimeCreationDiskSpec,
       new RuntimeAutopauseSpec,
-      new RuntimePatchSpec,
-      new RuntimeSystemSpec,
+//      new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
       new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec,
       new RuntimeDataprocSpec,
       new RuntimeGceSpec,
-      new AppLifecycleSpec
+      new AppLifecycleSpec,
+      new NotebookHailSpec,
+      new NotebookPyKernelSpec,
+      new NotebookRKernelSpec,
+      new RStudioSpec,
+      //      new RuntimeSystemSpec,
+      new NotebookGCEDataSyncingSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
 
-final class LeonardoTerraDockerSuite
-    extends Suites(
-      new NotebookHailSpec,
-      new NotebookPyKernelSpec,
-      new NotebookRKernelSpec,
-      new RStudioSpec
-    )
-    with TestSuite
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
-    with ParallelTestExecution
+// Each spec in this suite mixes in `RuntimeFixtureSpec`, and re-uses the same runtime between all tests into this
+//final class LeonardoRuntimeFixtureSuite
+//    extends Suites(
+//      new NotebookHailSpec,
+//      new NotebookPyKernelSpec,
+//      new NotebookRKernelSpec,
+//      new RStudioSpec,
+//      new NotebookGCEDataSyncingSpec,
+//      //      new RuntimeSystemSpec
+//    )
+//    with TestSuite
+//    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+//    with ParallelTestExecution
