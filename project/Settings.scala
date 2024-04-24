@@ -153,9 +153,8 @@ object Settings {
     Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P8"),
 
     /**
-      * Control the number of forked JVMs allowed to run at the same time by
-      *  setting the limit on Tags.ForkedTestGroup tag, 1 is default.
-      *  Warning: can't set too high (set at 10 would crashes OS)
+      * Removes any other concurrent restrictions by setting it to a high number, relying on the above line (also included below) to restrict settings
+      * `Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P8")`
       */
     Global / concurrentRestrictions := Seq(Tags.limitAll(16)),
 

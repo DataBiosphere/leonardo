@@ -92,7 +92,7 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
+  "should create a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
     val res = dependencies.use { dep =>
@@ -183,45 +183,6 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
 
         _ = startScriptOutputs.size shouldBe 1
         _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
-
-//        // stop the cluster
-//        _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
-//
-//        // preemptibles should be removed in Dataproc
-//        _ <- verifyDataproc(project,
-//                            runtime.clusterName,
-//                            dep.dataproc,
-//                            2,
-//                            0,
-//                            RegionName("us-central1"),
-//                            DataprocClusterStatus.Stopped
-//        )
-//
-//        // start the cluster
-//        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
-//
-//        // preemptibles should be added in Dataproc
-//        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
-//
-//        // startup script should have run again
-//        startScriptOutputs <- dep.storage
-//          .listBlobsWithPrefix(
-//            runtime.stagingBucket.get,
-//            "startscript_output",
-//            true
-//          )
-//          .evalMap(blob =>
-//            dep.storage
-//              .getBlobBody(runtime.stagingBucket.get, GcsBlobName(blob.getName))
-//              .compile
-//              .toList
-//              .map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
-//          )
-//          .compile
-//          .toList
-//
-//        _ = startScriptOutputs.size shouldBe 2
-//        _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()

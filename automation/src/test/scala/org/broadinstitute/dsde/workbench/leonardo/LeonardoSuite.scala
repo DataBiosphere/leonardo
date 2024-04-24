@@ -275,7 +275,7 @@ final class LeonardoSuite
       new RuntimeGceSpec,
       new AppLifecycleSpec,
       new NotebookHailSpec,
-      new NotebookPyKernelSpec,
+      new StandardRuntimeSpec,
       new NotebookRKernelSpec,
       new RStudioSpec,
       new NotebookGCEDataSyncingSpec
