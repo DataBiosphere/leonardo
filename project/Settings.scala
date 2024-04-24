@@ -149,6 +149,7 @@ object Settings {
 
 
     //See executing suites in parallel section here: https://www.scalatest.org/user_guide/using_the_runner
+    // This specifies the size of the threadpool used to run tests, P8 meaning 8 threads
     Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P8"),
 
     /**
@@ -160,6 +161,10 @@ object Settings {
 
     /**
       * Forked JVM options
+      * It is important that this number times `Tests.Argument(TestFrameworks.ScalaTest, "-P8")` equals the amount of RAM on the GHA node
+      * At the time of writing, this is 16GB (P8 * 2GB = 16GB)
+      * To check GHA node specs, look here: https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
+      * You can determine the source of truth in terms of node RAM based on the `runs-on` keyword (i.e. `runs-on: ubuntu-latest`)
       */
     Test / javaOptions ++= Seq("-Xmx2G"),
 
