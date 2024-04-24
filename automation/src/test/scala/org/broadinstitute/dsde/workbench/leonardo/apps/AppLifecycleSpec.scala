@@ -25,6 +25,7 @@ import org.scalatest.{
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.shouldUnclaimProjectsKey
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import java.time.LocalDateTime
 
 import scala.concurrent.duration._
 
@@ -38,8 +39,6 @@ class AppLifecycleSpec
     with BeforeAndAfterEachTestData
     with ParallelTestExecution {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
-
-  import java.time.LocalDateTime
 
   override def beforeEach(testData: TestData): Unit = {
     super.beforeEach(testData)

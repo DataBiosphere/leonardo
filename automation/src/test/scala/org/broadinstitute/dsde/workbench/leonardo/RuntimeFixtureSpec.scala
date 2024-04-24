@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.effect.{Deferred, IO}
-import cats.effect.kernel.Ref
+import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
@@ -9,12 +8,12 @@ import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.scalatest.freespec.{FixtureAnyFreeSpec, FixtureAnyFreeSpecLike}
+import org.scalatest.freespec.FixtureAnyFreeSpecLike
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEachTestData, Outcome, ParallelTestExecution, Retries, TestData}
+import java.time.LocalDateTime
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
@@ -167,7 +166,7 @@ trait RuntimeFixtureSpec
     }
     logger.info(s"end of beforeall in runtimeFixture for ${getClass.getSimpleName}")
   }
-  import java.time.LocalDateTime
+
   override def beforeEach(testData: TestData): Unit = {
     super.beforeEach(testData)
     logger.info(

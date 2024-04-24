@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import java.time.LocalDateTime
 
 trait BillingProjectFixtureSpec
     extends FixtureAnyFreeSpecLike
@@ -47,8 +48,6 @@ trait BillingProjectFixtureSpec
           runTestAndCheckOutcome(GoogleProject(googleProjectId))
     }
   }
-
-  import java.time.LocalDateTime
 
   override def beforeEach(testData: TestData): Unit = {
     super.beforeEach(testData)
