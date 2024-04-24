@@ -8,7 +8,7 @@ set -e
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
 
-#create the jupyter user that will have ownership of the persistent disk
+# Create the jupyter user that corresponds to the jupyter user in the jupyter container
 VM_JUP_USER=jupyter-user
 VM_JUP_USER_UID=1002
 
@@ -29,7 +29,8 @@ sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev
 
 
 # Formatting and mounting persistent disk
-WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
+#WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
+WORK_DIRECTORY='/mnt/disks/work'
 ## Create the PD working directory
 mkdir -p ${WORK_DIRECTORY}
 
@@ -89,7 +90,10 @@ echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo 
 echo "successful write of PD UUID to fstab"
 
 ## Change ownership of the mounted drive to the user
-sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
+#sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
+## Make sure that both the jupyter and welder users have access to the mounted drive
+## This needs to happen before we start up containers
+sudo chmod a+rwx ${WORK_DIRECTORY}
 
 
 # Read script arguments
@@ -207,21 +211,27 @@ echo "Starting Jupyter with command..."
 #sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log' >/dev/null 2>&1&") | crontab -
 
 echo "docker run -d --restart always --network host --name jupyter \
+--entrypoint tail \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 -e WORKSPACE_ID=$WORKSPACE_ID \
 -e WORKSPACE_NAME=$WORKSPACE_NAME \
 -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
 -e STORAGE_CONTAINER_RESOURCE_ID=$WORKSPACE_STORAGE_CONTAINER_ID \
-$JUPYTER_DOCKER_IMAGE"
+$JUPYTER_DOCKER_IMAGE \
+-f /dev/null"
 
 #Run docker container with Jupyter Server
+#Override entrypoint with a placeholder (tail -f /dev/null) to keep the container running indefinitely.
+#The jupyter server itself will be started via docker exec after.
 docker run -d --restart always --network host --name jupyter \
+--entrypoint tail \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --env WORKSPACE_ID=$WORKSPACE_ID \
 --env WORKSPACE_NAME=$WORKSPACE_NAME \
 --env WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
 --env STORAGE_CONTAINER_RESOURCE_ID=$WORKSPACE_STORAGE_CONTAINER_ID \
-$JUPYTER_DOCKER_IMAGE
+$JUPYTER_DOCKER_IMAGE \
+-f /dev/null
 
 echo 'Starting Jupyter Notebook...'
 echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
@@ -279,7 +289,7 @@ echo "------ Welder version: ${WELDER_WELDER_DOCKER_IMAGE} ------"
 echo "    Starting Welder with command...."
 
 echo "docker run -d --restart always --network host --name welder \
-     --volume \"/home/${VM_JUP_USER}\":\"/work\" \
+     --volume "${WORK_DIRECTORY}:/work" \
      -e WSM_URL=$WELDER_WSM_URL \
      -e PORT=8081 \
      -e WORKSPACE_ID=$WORKSPACE_ID \
@@ -293,7 +303,7 @@ echo "docker run -d --restart always --network host --name welder \
      $WELDER_WELDER_DOCKER_IMAGE"
 
 docker run -d --restart always --network host --name welder \
---volume "/home/${VM_JUP_USER}":"/work" \
+--volume "${WORK_DIRECTORY}:/work" \
 --env WSM_URL=$WELDER_WSM_URL \
 --env PORT=8081 \
 --env WORKSPACE_ID=$WORKSPACE_ID \
