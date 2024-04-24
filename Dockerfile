@@ -58,7 +58,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart. As a result we need to pull all GKE
 # charts locally as well so they can acess the local cert files during the helm install step, see https://helm.sh/docs/chart_template_guide/accessing_files/
 # Helm does not seem to support the direct installation of a chart located in OCI so let's pull it to a local directory for now.
-COPY ./wds-0.74.1.tgz /leonardo
+COPY ./wds-0.74.2.tgz /leonardo
 RUN tar -xzf /leonardo/wds-0.74.2.tgz -C /leonardo
 
 RUN cd /leonardo && \
