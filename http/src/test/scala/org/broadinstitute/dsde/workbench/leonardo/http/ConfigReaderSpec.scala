@@ -184,7 +184,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("leonardo/wds"),
-          ChartVersion("0.74.1"),
+          ChartVersion("0.74.2"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
