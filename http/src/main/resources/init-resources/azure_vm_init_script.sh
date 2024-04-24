@@ -29,8 +29,8 @@ sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev
 
 
 # Formatting and mounting persistent disk
-#WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
-WORK_DIRECTORY='/mnt/disks/work'
+# Note that we cannot mount in /mnt/disks/work as it is a temporary disk on the DSVM!
+WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 ## Create the PD working directory
 mkdir -p ${WORK_DIRECTORY}
 
