@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
 # Logs into an azure service principal and runs the SBT tests. Requires 5 env vars
 
 # The below three are the leo service principal's credentials, and can be found at secret/dsde/terra/azure/qa/leonardo/managed-app-publisher
