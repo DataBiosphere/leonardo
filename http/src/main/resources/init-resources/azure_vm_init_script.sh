@@ -223,6 +223,8 @@ $JUPYTER_DOCKER_IMAGE \
 #Run docker container with Jupyter Server
 #Override entrypoint with a placeholder (tail -f /dev/null) to keep the container running indefinitely.
 #The jupyter server itself will be started via docker exec after.
+#Mount the work directory to a new persistent_disk directory to maintain parity with the legacy DSVM experience
+#and avoid overwriting the docker NOTEBOOKS_DIR that contains python/conda
 docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
