@@ -413,6 +413,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def getAppStatus(id: AppId): DBIO[Option[AppStatus]] =
     getByIdQuery(id).map(_.status).result.headOption
 
+  def getAppChart(id: AppId): DBIO[Option[Chart]] =
+    getByIdQuery(id).map(_.chart).result.headOption
+
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)
 
