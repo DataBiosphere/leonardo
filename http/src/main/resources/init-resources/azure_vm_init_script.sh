@@ -8,26 +8,16 @@ set -e
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
 
+##### JUPYTER USER SETUP #####
 # Create the jupyter user that corresponds to the jupyter user in the jupyter container
 VM_JUP_USER=jupyter-user
 VM_JUP_USER_UID=1002
 
 sudo useradd -m -c "Jupyter User" -u $VM_JUP_USER_UID $VM_JUP_USER
 sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
-#
-### Change ownership for the new user
-#
-#sudo chgrp $VM_JUP_USER /anaconda/bin/*
-#
-#sudo chown $VM_JUP_USER /anaconda/bin/*
-#
-#sudo chgrp $VM_JUP_USER /anaconda/envs/py38_default/bin/*
-#
-#sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
-#
-#sudo systemctl disable --now jupyterhub.service
 
 
+##### PD MOUNTING #####
 # Formatting and mounting persistent disk
 # Note that we cannot mount in /mnt/disks/work as it is a temporary disk on the DSVM!
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
@@ -89,14 +79,13 @@ OUTPUT="$(lsblk -no UUID --paths "${DISK_DEVICE_PATH}1")"
 echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
 echo "successful write of PD UUID to fstab"
 
-## Change ownership of the mounted drive to the user
-#sudo chown -R $VM_JUP_USER:$VM_JUP_USER ${WORK_DIRECTORY}
 ## Make sure that both the jupyter and welder users have access to the mounted drive
 ## This needs to happen before we start up containers
 sudo chmod a+rwx ${WORK_DIRECTORY}
 
 
-# Read script arguments
+##### READ SCRIPT ARGUMENT #####
+# These are passed in setupCreateVmCreateMessage in the AzurePubsub Handler
 echo $# arguments
 if [ $# -ne 13 ];
     then echo "illegal number of parameters"
@@ -170,50 +159,13 @@ echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
 
-# Wait for lock to resolve before any installs, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
-
-#while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
-#  do
-#    echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
-#    sleep 5
-#  done
-
-#Update kernel list
-
-#echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
-
-#echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkrkernel
-#
-#echo "Y"| /anaconda/bin/jupyter kernelspec remove pysparkkernel
-#
-#echo "Y"| /anaconda/bin/jupyter kernelspec remove spark-3-python
-#
-##echo "Y"| /anaconda/bin/jupyter kernelspec remove julia-1.6
-#
-#echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel pydevd
-#
-#echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
-
-# Start Jupyter server with custom parameters
-#sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
-#sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/ea519ef899de28e27e2a37ba368433da9fd03b7f/http/src/main/resources/init-resources/jupyter_server_config.py"
-## We pull the jupyter_delocalize.py file from the base terra-docker python image, but it was designed for notebooks and we need to make a couple of changes to make it work with server instead
-#sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.10/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/0ea6d2ebd7fcae7072e01e1c2f2d178390a276b0/terra-jupyter-base/custom/jupyter_delocalize.py"
-#sudo runuser -l $VM_JUP_USER -c "sed -i 's/notebook.services/jupyter_server.services/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
-#sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
-
+##### DOCKER NETWORK #####
 # Create a network that allows containers to talk to each other via exposed ports
 docker network create -d bridge app_network
 
+##### JUPYTER SERVER  #####
 echo "------ Jupyter version: ${JUPYTER_DOCKER_IMAGE} ------"
 echo "Starting Jupyter with command..."
-
-#echo "sudo runuser -l $VM_JUP_USER -c \"/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log\"" >/dev/null 2>&1&
-#
-#sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log" >/dev/null 2>&1&
-#
-## Store Jupyter Server parameters for reboot processes
-#sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log' >/dev/null 2>&1&") | crontab -
 
 echo "docker run -d --restart always --network app_network --name jupyter \
 --entrypoint tail \
@@ -248,6 +200,7 @@ docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_AP
 
 echo "------ Jupyter done ------"
 
+##### LISTENER #####
 echo "------ Listener version: ${LISTENER_DOCKER_IMAGE} ------"
 echo "    Starting listener with command..."
 
@@ -294,6 +247,7 @@ $LISTENER_DOCKER_IMAGE
 
 echo "------ Listener done ------"
 
+##### WELDER #####
 echo "------ Welder version: ${WELDER_WELDER_DOCKER_IMAGE} ------"
 echo "    Starting Welder with command...."
 
@@ -328,18 +282,3 @@ docker run -d --restart always --network app_network --name welder \
 $WELDER_WELDER_DOCKER_IMAGE
 
 echo "------ Welder done ------"
-
-## This next command creates a json file which contains the "env" variables to be added to the kernel.json files.
-#jq --null-input \
-#--arg workspace_id "${WORKSPACE_ID}" \
-#--arg workspace_storage_container_id "${WORKSPACE_STORAGE_CONTAINER_ID}" \
-#--arg workspace_name "${WORKSPACE_NAME}" \
-#--arg workspace_storage_container_url "${WORKSPACE_STORAGE_CONTAINER_URL}" \
-#'{ "env": { "WORKSPACE_ID": $workspace_id, "WORKSPACE_STORAGE_CONTAINER_ID": $workspace_storage_container_id, "WORKSPACE_NAME": $workspace_name, "WORKSPACE_STORAGE_CONTAINER_URL": $workspace_storage_container_url }}' \
-#> wsenv.json
-#
-## This next commands iterate through the available kernels, and uses jq to include the env variables from the previous step
-#/anaconda/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
-#/anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
-#/anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
-#/anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
