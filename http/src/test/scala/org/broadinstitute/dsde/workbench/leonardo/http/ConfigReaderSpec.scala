@@ -184,7 +184,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("terra-helm/wds"),
-          ChartVersion("0.74.0"),
+          ChartVersion("0.75.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
