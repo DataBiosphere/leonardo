@@ -129,7 +129,9 @@ WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
 # Jupyter variables for listener
 SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
 SERVER_APP_ALLOW_ORIGIN="*"
-HCVAR='\$hc'
+# Fun fact, we need to escape this damn $ twice, once for the docker exec arg, and another time for passing it to run-jupyter.sh
+# This is ugly and will need to be cleaned up
+HCVAR='\\\$hc'
 SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${HCVAR}/${RELAY_CONNECTION_NAME}"
 SERVER_APP_WEBSOCKET_HOST="${RELAY_NAME}.servicebus.windows.net"
 
@@ -241,7 +243,7 @@ $JUPYTER_DOCKER_IMAGE \
 -f /dev/null
 
 echo 'Starting Jupyter Notebook...'
-echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
+echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh '${SERVER_APP_BASE_URL}' '${SERVER_APP_WEBSOCKET_URL}' '${NOTEBOOKS_DIR}'""
 docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
 
 echo "------ Jupyter done ------"
