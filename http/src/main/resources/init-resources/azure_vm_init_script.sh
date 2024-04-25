@@ -80,9 +80,9 @@ OUTPUT="$(lsblk -no UUID --paths "${DISK_DEVICE_PATH}1")"
 echo "UUID="$OUTPUT"    ${PD_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
 echo "successful write of PD UUID to fstab"
 
-## Make sure that both the jupyter and welder users have access to the mounted drive
+## Make sure that both the jupyter and welder users have access to the work directory
 ## This needs to happen before we start up containers
-sudo chmod a+rwx ${PD_DIRECTORY}
+sudo chmod a+rwx ${WORK_DIRECTORY}
 
 
 ##### READ SCRIPT ARGUMENT #####
