@@ -213,6 +213,7 @@ echo "Starting Jupyter with command..."
 echo "docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
+--publish 8888:8888 \
 -e WORKSPACE_ID=$WORKSPACE_ID \
 -e WORKSPACE_NAME=$WORKSPACE_NAME \
 -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -228,6 +229,7 @@ $JUPYTER_DOCKER_IMAGE \
 docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
+--publish 8888:8888 \
 --env WORKSPACE_ID=$WORKSPACE_ID \
 --env WORKSPACE_NAME=$WORKSPACE_NAME \
 --env WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
