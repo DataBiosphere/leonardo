@@ -200,6 +200,9 @@ echo "VALID_HOSTS = ${VALID_HOSTS}"
 #sudo runuser -l $VM_JUP_USER -c "sed -i 's/notebook.services/jupyter_server.services/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
 #sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
 
+# Create a network that allows containers to talk to each other via exposed ports
+docker network create -d bridge app_network
+
 echo "------ Jupyter version: ${JUPYTER_DOCKER_IMAGE} ------"
 echo "Starting Jupyter with command..."
 
@@ -210,7 +213,7 @@ echo "Starting Jupyter with command..."
 ## Store Jupyter Server parameters for reboot processes
 #sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.contents_manager_class=jupyter_delocalize.WelderContentsManager --autoreload &> /home/$VM_JUP_USER/jupyter.log' >/dev/null 2>&1&") | crontab -
 
-echo "docker run -d --restart always --network host --name jupyter \
+echo "docker run -d --restart always --network app_network --name jupyter \
 --entrypoint tail \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --publish 8888:8888 \
@@ -226,7 +229,7 @@ $JUPYTER_DOCKER_IMAGE \
 #The jupyter server itself will be started via docker exec after.
 #Mount the work directory to a new persistent_disk directory to maintain parity with the legacy DSVM experience
 #and avoid overwriting the docker NOTEBOOKS_DIR that contains python/conda
-docker run -d --restart always --network host --name jupyter \
+docker run -d --restart always --network app_network --name jupyter \
 --entrypoint tail \
 --volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --publish 8888:8888 \
@@ -246,7 +249,7 @@ echo "------ Jupyter done ------"
 echo "------ Listener version: ${LISTENER_DOCKER_IMAGE} ------"
 echo "    Starting listener with command..."
 
-echo "docker run -d --restart always --network host --name listener \
+echo "docker run -d --restart always --network app_network --name listener \
 -e LISTENER_RELAYCONNECTIONSTRING=\"$RELAY_CONNECTIONSTRING\" \
 -e LISTENER_RELAYCONNECTIONNAME=\"$RELAY_CONNECTION_NAME\" \
 -e LISTENER_REQUESTINSPECTORS_0=\"samChecker\" \
@@ -267,7 +270,7 @@ echo "docker run -d --restart always --network host --name listener \
 $LISTENER_DOCKER_IMAGE"
 
 #Run docker container with Relay Listener
-docker run -d --restart always --network host --name listener \
+docker run -d --restart always --network app_network --name listener \
 --env LISTENER_RELAYCONNECTIONSTRING=$RELAY_CONNECTIONSTRING \
 --env LISTENER_RELAYCONNECTIONNAME=$RELAY_CONNECTION_NAME \
 --env LISTENER_REQUESTINSPECTORS_0=samChecker \
@@ -292,8 +295,9 @@ echo "------ Listener done ------"
 echo "------ Welder version: ${WELDER_WELDER_DOCKER_IMAGE} ------"
 echo "    Starting Welder with command...."
 
-echo "docker run -d --restart always --network host --name welder \
+echo "docker run -d --restart always --network app_network --name welder \
      --volume "${WORK_DIRECTORY}:/work" \
+     --publish 8081:8081 \
      -e WSM_URL=$WELDER_WSM_URL \
      -e PORT=8081 \
      -e WORKSPACE_ID=$WORKSPACE_ID \
@@ -306,8 +310,9 @@ echo "docker run -d --restart always --network host --name welder \
      -e SHOULD_BACKGROUND_SYNC=\"false\" \
      $WELDER_WELDER_DOCKER_IMAGE"
 
-docker run -d --restart always --network host --name welder \
+docker run -d --restart always --network app_network --name welder \
 --volume "${WORK_DIRECTORY}:/work" \
+--publish 8081:8081 \
 --env WSM_URL=$WELDER_WSM_URL \
 --env PORT=8081 \
 --env WORKSPACE_ID=$WORKSPACE_ID \
