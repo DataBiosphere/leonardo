@@ -780,7 +780,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         getSavableApp(
           cloudContext,
           appName,
-          userInfo.userEmail,
+          originatingUserEmail,
           samResourceId,
           req,
           diskResultOpt.map(_.disk),
