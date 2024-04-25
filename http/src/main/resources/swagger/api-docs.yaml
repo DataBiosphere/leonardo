@@ -29,8 +29,6 @@ tags:
 security:
   - oidc:
       - openid
-      - email
-      - profile
 
 ##########################################################################################
 ## PATHS
@@ -2928,15 +2926,9 @@ components:
 
   securitySchemes:
     oidc:
-      type: oauth2
-      flows:
-        authorizationCode:
-          authorizationUrl: /oauth2/authorize
-          tokenUrl: /oauth2/token
-          scopes:
-            openid: open id authorization
-            email: email authorization
-            profile: profile authorization
+      type: openIdConnect
+      openIdConnectUrl: OPEN_ID_CONNECT_URL
+      x-tokenName: id_token
   schemas:
     AppType:
       type: string
