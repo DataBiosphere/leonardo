@@ -4,18 +4,22 @@ set -e
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
 
-# In order to avoid user id conflicts, change azureuser uid and gid before jupyter or welder users are created
+# This is to avoid the error Ref BioC
+# 'debconf: unable to initialize frontend: Dialog'
+export DEBIAN_FRONTEND=noninteractive
+
+# For welder to work correctly, the welder work directory must be owned by user 1001,
+# the DSVM WORKING_DIR owned by jupyter-user 1001 gets mounted as the Welder container work directory owned by user 1001
+# (which luckily is welder-user within the welder container)
+# TODO: make this logic less brittle --> utilize a shared user group for welder & jupyter
+
+# The azureuser and leoAdmin ids must be shifted so that the jupyter user can be 1001
 # (context in https://broadworkbench.atlassian.net/browse/IA-4808)
 sudo groupmod -g 2000 azureuser
 sudo usermod -u 2000 -g 2000 azureuser
 
-# leoAdmin is already created at this point, move it to id 1000
 sudo groupmod -g 1000 leoAdmin
 sudo usermod -u 1000 -g 1000 leoAdmin
-
-# This is to avoid the error Ref BioC
-# 'debconf: unable to initialize frontend: Dialog'
-export DEBIAN_FRONTEND=noninteractive
 
 #create user to run jupyter
 VM_JUP_USER=jupyter
