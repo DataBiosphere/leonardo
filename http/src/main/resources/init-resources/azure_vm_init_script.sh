@@ -20,9 +20,10 @@ sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev
 ##### PD MOUNTING #####
 # Formatting and mounting persistent disk
 # Note that we cannot mount in /mnt/disks/work as it is a temporary disk on the DSVM!
-WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
-## Create the PD working directory
-mkdir -p ${WORK_DIRECTORY}
+WORK_DIRECTORY="/home/$VM_JUP_USER"
+PD_DIRECTORY="$WORK_DIRECTORY/persistent_disk"
+## Create the working and persistent disk directories
+mkdir -p ${PD_DIRECTORY}
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
@@ -48,7 +49,7 @@ if [ $EXIT_CODE -eq 0 ]; then
   ## Failure to use partprobe can cause the blkid or lslbk commands to not return the UUID for the new filesystem immediately.
   sudo partprobe "${DISK_DEVICE_PATH}1"
   # There is a pre-existing partition that we should try to directly mount
-  sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
+  sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${PD_DIRECTORY}
   echo "Existing PD successfully remounted"
 else
   ## Create one partition on the PD
@@ -70,18 +71,18 @@ else
   ## Failure to use partprobe can cause the blkid or lslbk commands to not return the UUID for the new filesystem immediately.
   sudo partprobe "${DISK_DEVICE_PATH}1"
   ## Mount the PD partition to the working directory
-  sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${WORK_DIRECTORY}
+  sudo mount -t ext4 "${DISK_DEVICE_PATH}1" ${PD_DIRECTORY}
   echo "successful mount"
 fi
 
 ## Add the PD UUID to fstab to ensure that the drive is remounted automatically after a reboot
 OUTPUT="$(lsblk -no UUID --paths "${DISK_DEVICE_PATH}1")"
-echo "UUID="$OUTPUT"    ${WORK_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
+echo "UUID="$OUTPUT"    ${PD_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
 echo "successful write of PD UUID to fstab"
 
 ## Make sure that both the jupyter and welder users have access to the mounted drive
 ## This needs to happen before we start up containers
-sudo chmod a+rwx ${WORK_DIRECTORY}
+sudo chmod a+rwx ${PD_DIRECTORY}
 
 
 ##### READ SCRIPT ARGUMENT #####
@@ -159,17 +160,13 @@ echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
 
-##### DOCKER NETWORK #####
-# Create a network that allows containers to talk to each other via exposed ports
-#docker network create -d bridge app_network
-
 ##### JUPYTER SERVER  #####
 echo "------ Jupyter version: ${JUPYTER_DOCKER_IMAGE} ------"
 echo "Starting Jupyter with command..."
 
 echo "docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
---volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
+--volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --publish 8888:8888 \
 -e WORKSPACE_ID=$WORKSPACE_ID \
 -e WORKSPACE_NAME=$WORKSPACE_NAME \
@@ -185,7 +182,7 @@ $JUPYTER_DOCKER_IMAGE \
 #and avoid overwriting the docker NOTEBOOKS_DIR that contains python/conda
 docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
---volume ${WORK_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
+--volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
 --publish 8888:8888 \
 --env WORKSPACE_ID=$WORKSPACE_ID \
 --env WORKSPACE_NAME=$WORKSPACE_NAME \
