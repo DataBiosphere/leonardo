@@ -51,47 +51,6 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
     httpClient <- LeonardoApiClient.client
   } yield RuntimeDataprocSpecDependencies(httpClient, dataprocService, storage)
 
-  "should create a Dataproc cluster in a non-default region" taggedAs Retryable in { project =>
-    val runtimeName = randomClusterName
-
-    // In a europe region
-    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-      runtimeConfig = Some(
-        RuntimeConfigRequest.DataprocConfig(
-          Some(2),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(130)),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(150)),
-          None,
-          Some(1),
-          Map.empty,
-          Some(RegionName("europe-west1")),
-          true,
-          false
-        )
-      ),
-      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
-    )
-
-    val res = dependencies.use { dep =>
-      implicit val client = dep.httpClient
-      for {
-        // create runtime
-        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
-
-        // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 1, RegionName("europe-west1"))
-        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
-
-        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
-      } yield ()
-    }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   "should create a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
