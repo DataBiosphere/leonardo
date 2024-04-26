@@ -187,7 +187,9 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                         failedRuntime(
                           monitorContext,
                           runtimeAndRuntimeConfig,
-                          RuntimeErrorDetails(s"Can't find master instance for this cluster"),
+                          RuntimeErrorDetails(s"Can't find master instance for this cluster",
+                                              shortMessage = Some("dataproc_no_master_instance")
+                          ),
                           instances.find(_.dataprocRole == DataprocRole.Master)
                         )
                     }
@@ -342,14 +344,16 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails(s"Cluster failed to start"),
+              RuntimeErrorDetails(s"Cluster failed to start", shortMessage = Some("dataproc_cluster_fail_to_start")),
               instances.find(_.dataprocRole == DataprocRole.Master)
             )
           case ss =>
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start it"),
+              RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start it",
+                                  shortMessage = Some("dataproc_unexpected_status")
+              ),
               instances.find(_.dataprocRole == DataprocRole.Master)
             )
         }
@@ -368,7 +372,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       failedRuntime(
         monitorContext,
         runtimeAndRuntimeConfig,
-        RuntimeErrorDetails(e.getMessage),
+        RuntimeErrorDetails(e.getMessage, shortMessage = Some("dataproc_invalid_stopping")),
         None
       ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
@@ -414,7 +418,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       failedRuntime(
         monitorContext,
         runtimeAndRuntimeConfig,
-        RuntimeErrorDetails(e.getMessage),
+        RuntimeErrorDetails(e.getMessage, shortMessage = Some("dataproc_invalid_update")),
         None
       ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
@@ -458,14 +462,16 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails(s"Cluster failed to Update"),
+              RuntimeErrorDetails(s"Cluster failed to Update", shortMessage = Some("dataproc_fail_to_update")),
               instances.find(_.dataprocRole == DataprocRole.Master)
             )
           case ss =>
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start an instance"),
+              RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start an instance",
+                                  shortMessage = Some("dataproc_unexpected_status")
+              ),
               instances.find(_.dataprocRole == DataprocRole.Master)
             )
         }

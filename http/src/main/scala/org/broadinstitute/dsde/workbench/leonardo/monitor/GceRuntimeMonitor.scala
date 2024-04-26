@@ -76,7 +76,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
         monitorContext,
         runtimeAndRuntimeConfig,
         RuntimeErrorDetails(
-          s"${monitorContext.action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner"
+          s"${monitorContext.action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner",
+          shortMessage = Some("gce_timeout")
         ),
         None
       )
@@ -241,7 +242,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
             ) >> failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance"),
+              RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance",
+                                  shortMessage = Some("gce_unexpected_status")
+              ),
               None
             )
         }
@@ -334,7 +337,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to start an instance"),
+              RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to start an instance",
+                                  shortMessage = Some("gce_unexpected_status")
+              ),
               None,
               false
             )
