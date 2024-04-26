@@ -269,16 +269,24 @@ final class LeonardoSuite
     extends Suites(
       new RuntimeCreationDiskSpec,
       new RuntimeAutopauseSpec,
+      new RuntimePatchSpec,
+      new StandardRuntimeSpec,
       new RuntimeStatusTransitionsSpec,
-      new NotebookGCECustomizationSpec,
       new RuntimeDataprocSpec,
       new RuntimeGceSpec,
-      new AppLifecycleSpec,
+      new AppLifecycleSpec
+    )
+    with TestSuite
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+    with ParallelTestExecution
+
+final class LeonardoTerraDockerSuite
+    extends Suites(
       new NotebookHailSpec,
-      new StandardRuntimeSpec,
       new NotebookRKernelSpec,
-      new RStudioSpec,
-      new NotebookGCEDataSyncingSpec
+      new NotebookGCECustomizationSpec,
+      new NotebookGCEDataSyncingSpec,
+      new RStudioSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
