@@ -567,6 +567,13 @@ final case class RuntimeError(errorMessage: String,
                               timestamp: Instant,
                               traceId: Option[TraceId] = None
 )
+
+/**
+ * @param longMessage: error message we use in logs to provide details for debugging purpose
+ * @param code: error code that comes from GCP
+ * @param shortMessage: short message we can potentially use for displaying to users. Today, this is mainly used for labels in runtime creation failure metrics
+ * @param labels: leonardo labels for a runtime
+ */
 final case class RuntimeErrorDetails(longMessage: String,
                                      code: Option[Int] = None,
                                      shortMessage: Option[String] = None,
