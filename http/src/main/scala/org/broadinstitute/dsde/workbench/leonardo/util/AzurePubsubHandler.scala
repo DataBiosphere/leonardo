@@ -9,7 +9,6 @@ import bio.terra.workspace.model.{
   AzureVmCreationParameters,
   AzureVmCustomScriptExtension,
   AzureVmCustomScriptExtensionSetting,
-  AzureVmImage,
   AzureVmUser,
   CloningInstructionsEnum,
   ControlledResourceCommonFields,
