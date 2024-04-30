@@ -243,9 +243,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
-        org.broadinstitute.dsde.workbench.oauth2.ClientId("fakeClientId"),
-        Some(org.broadinstitute.dsde.workbench.oauth2.ClientSecret("fakeClientSecret")),
-        org.broadinstitute.dsde.workbench.oauth2.ClientId("legacyClientSecret")
+        org.broadinstitute.dsde.workbench.oauth2.ClientId("fakeClientId")
       ),
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"

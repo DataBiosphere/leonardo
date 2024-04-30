@@ -41,8 +41,6 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.map(s => ClientSecret(s))
   implicit val oauth2ClientIdConfigReader: ConfigReader[org.broadinstitute.dsde.workbench.oauth2.ClientId] =
     ConfigReader.stringConfigReader.map(s => org.broadinstitute.dsde.workbench.oauth2.ClientId(s))
-  implicit val oauth2ClientSecretConfigReader: ConfigReader[org.broadinstitute.dsde.workbench.oauth2.ClientSecret] =
-    ConfigReader.stringConfigReader.map(s => org.broadinstitute.dsde.workbench.oauth2.ClientSecret(s))
   implicit val tentantIdConfigReader: ConfigReader[ManagedAppTenantId] =
     ConfigReader.stringConfigReader.map(s => ManagedAppTenantId(s))
   implicit val uriConfigReader: ConfigReader[Uri] =
