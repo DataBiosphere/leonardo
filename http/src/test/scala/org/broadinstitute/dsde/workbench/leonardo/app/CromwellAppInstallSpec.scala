@@ -77,6 +77,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
     val params = BuildHelmOverrideValuesParams(
       app,
       workspaceId,
+      workspaceCreatedDate,
       cloudContext,
       lzResources.copy(postgresServer = Some(PostgresServer("postgres", false))),
       Some(storageContainer),

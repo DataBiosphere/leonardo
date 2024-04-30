@@ -90,6 +90,9 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
           raw"persistence.workspaceManager.workspaceId=${params.workspaceId.value}",
 
+          // CBAS context
+          raw"cbas.context.workspaceCreatedDate=${params.workspaceCreatedDate.toString}",
+
           // identity configs
           raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
 

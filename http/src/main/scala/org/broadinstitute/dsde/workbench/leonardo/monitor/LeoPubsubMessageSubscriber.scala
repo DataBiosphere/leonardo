@@ -43,7 +43,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchE
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.{ChartVersion, HelmException}
-import org.broadinstitute.dsde.workbench.leonardo.db.LabelResourceType
+
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
@@ -227,12 +227,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                                 4.5 minutes
       )
       messageType = event.msg.messageType.asString
-      (metricsName, tags) = e match {
+      metricsName = e match {
         case Some(e) =>
-          (s"pubsub/fail", Map("messageType" -> messageType, "exception" -> e.getClass.toString.split('.').last))
-        case None => (s"pubsub/success/${messageType}", Map("messageType" -> messageType))
+          s"pubsub/fail/${messageType}/${e.getClass.toString.split('.').last}"
+        case None => s"pubsub/ack/${messageType}"
       }
-      _ <- metrics.recordDuration(metricsName, duration, distributionBucket, tags)
+      _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
     } yield ()
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(implicit
@@ -277,7 +277,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           taskToRun,
           Some(createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)),
           ctx.now,
-          TaskMetricsTags("createRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(msg.runtimeConfig.cloudService))
+          TaskMetricsTags("createRuntime", None, Some(isAoU), CloudProvider.Gcp)
         )
       )
     } yield ()
@@ -1127,15 +1127,13 @@ class LeoPubsubMessageSubscriber[F[_]](
       } yield ()
 
       appChart <- appQuery.getAppChart(msg.appId).transaction
-      labels <- labelQuery.getAllForResource(msg.appId.id, LabelResourceType.app).transaction
-      isAoU = labels.get(AOU_UI_LABEL).contains("true")
       _ <- asyncTasks.offer(
         Task(
           ctx.traceId,
           task,
           Some(handleKubernetesError),
           ctx.now,
-          TaskMetricsTags("createApp", Some(resolveAppType(msg.appType, appChart)), Some(isAoU), CloudProvider.Gcp)
+          TaskMetricsTags("createApp", Some(resolveAppType(msg.appType, appChart)), None, CloudProvider.Gcp)
         )
       )
     } yield ()
@@ -1334,8 +1332,6 @@ class LeoPubsubMessageSubscriber[F[_]](
           else F.unit
       } yield ()
 
-      labels <- labelQuery.getAllForResource(msg.appId.id, LabelResourceType.app).transaction
-      isAoU = labels.get(AOU_UI_LABEL).contains("true")
       _ <-
         if (sync) task
         else {
@@ -1346,7 +1342,11 @@ class LeoPubsubMessageSubscriber[F[_]](
               task,
               Some(handleKubernetesError),
               ctx.now,
-              TaskMetricsTags("deleteApp", Some(toolType), Some(isAoU), CloudProvider.Gcp)
+              TaskMetricsTags("deleteApp",
+                              Some(resolveAppType(dbApp.app.appType, Some(dbApp.app.chart))),
+                              None,
+                              CloudProvider.Gcp
+              )
             )
           )
         }

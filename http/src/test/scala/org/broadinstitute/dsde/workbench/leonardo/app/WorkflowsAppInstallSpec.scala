@@ -40,6 +40,7 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
       "persistence.leoAppInstanceName=app1," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
+      s"cbas.context.workspaceCreatedDate=${workspaceCreatedDate.toString}," +
       "workloadIdentity.serviceAccountName=ksa-1," +
       "sam.url=https://sam.dsde-dev.broadinstitute.org/," +
       "leonardo.url=https://leo-dummy-url.org," +

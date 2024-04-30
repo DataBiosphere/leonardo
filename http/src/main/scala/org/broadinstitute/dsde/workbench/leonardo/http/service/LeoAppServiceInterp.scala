@@ -732,7 +732,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
+        getSavableCluster(userInfo.userEmail, cloudContext, ctx.now)
       )
       saveClusterResult <- KubernetesServiceDbQueries
         .saveOrGetClusterForApp(saveCluster)
@@ -780,7 +780,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         getSavableApp(
           cloudContext,
           appName,
-          originatingUserEmail,
+          userInfo.userEmail,
           samResourceId,
           req,
           diskResultOpt.map(_.disk),

@@ -179,6 +179,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
+      // get workspaceDescription from WSM
+      wsmWorkspaceApi <- buildWsmWorkspaceApiClient
+      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, params.workspaceId.value)
+
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
@@ -232,6 +236,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         params.workspaceId,
+        workspaceDescription.getCreatedDate,
         params.cloudContext,
         landingZoneResources,
         storageContainerOpt,
@@ -401,6 +406,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
       )
 
+      // get workspaceDescription from WSM
+      wsmWorkspaceApi <- buildWsmWorkspaceApiClient
+      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, workspaceId.value)
+
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAttributes.getKubernetesNamespace)
       ksaName = ServiceAccountName(wsmNamespace.getAttributes.getKubernetesServiceAccount)
@@ -451,6 +460,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         workspaceId,
+        workspaceDescription.getCreatedDate,
         params.cloudContext,
         landingZoneResources,
         storageContainerOpt,
