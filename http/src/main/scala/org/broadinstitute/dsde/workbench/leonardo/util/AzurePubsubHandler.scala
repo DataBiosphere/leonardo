@@ -214,7 +214,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     val protectedSettings: List[AzureVmCustomScriptExtensionSetting] = List(
       new AzureVmCustomScriptExtensionSetting()
         .key("fileUris")
-        .value(config.runtimeDefaults.customScriptExtension.fileUris),
+        .value(config.runtimeDefaults.customScriptExtension.fileUris.asJava),
       new AzureVmCustomScriptExtensionSetting()
         .key("commandToExecute")
         .value(cmdToExecute)
