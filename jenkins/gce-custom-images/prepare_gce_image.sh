@@ -26,7 +26,7 @@ openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.18.0"
 
 # Note that this is the version used currently by AOU in production, the one above can be staged for testing
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.8"
+terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.7"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.1.9"
 google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20230714"
