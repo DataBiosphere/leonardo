@@ -8,23 +8,10 @@ set -e
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
 
-# For welder to work correctly, the welder work directory must be owned by user 1001,
-# the DSVM WORKING_DIR owned by jupyter-user 1001 gets mounted as the Welder container work directory owned by user 1001
-# (which luckily is welder-user within the welder container)
-# TODO: make this logic less brittle --> utilize a shared user group for welder & jupyter
-
-# The azureuser and leoAdmin ids must be shifted so that the jupyter user can be 1001
-# (context in https://broadworkbench.atlassian.net/browse/IA-4808)
-sudo groupmod -g 2000 azureuser
-sudo usermod -u 2000 -g 2000 azureuser
-
-sudo groupmod -g 1000 leoAdmin
-sudo usermod -u 1000 -g 1000 leoAdmin
-
 #create user to run jupyter
 VM_JUP_USER=jupyter
 
-sudo useradd -m -c "Jupyter User" -u 1001 $VM_JUP_USER
+sudo useradd -m -c "Jupyter User" $VM_JUP_USER
 sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
 
 ## Change ownership for the new user
@@ -202,9 +189,9 @@ echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
 sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/ea519ef899de28e27e2a37ba368433da9fd03b7f/http/src/main/resources/init-resources/jupyter_server_config.py"
 # We pull the jupyter_delocalize.py file from the base terra-docker python image, but it was designed for notebooks and we need to make a couple of changes to make it work with server instead
-sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.11/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/0ea6d2ebd7fcae7072e01e1c2f2d178390a276b0/terra-jupyter-base/custom/jupyter_delocalize.py"
-sudo runuser -l $VM_JUP_USER -c "sed -i 's/notebook.services/jupyter_server.services/g' /anaconda/lib/python3.11/site-packages/jupyter_delocalize.py"
-sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.11/site-packages/jupyter_delocalize.py"
+sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.10/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/0ea6d2ebd7fcae7072e01e1c2f2d178390a276b0/terra-jupyter-base/custom/jupyter_delocalize.py"
+sudo runuser -l $VM_JUP_USER -c "sed -i 's/notebook.services/jupyter_server.services/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
+sudo runuser -l $VM_JUP_USER -c "sed -i 's/http:\/\/welder:8080/http:\/\/127.0.0.1:8081/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
 
 echo "------ Jupyter ------"
 echo "Starting Jupyter with command..."
