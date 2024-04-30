@@ -364,7 +364,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           fa,
           Some(handleRuntimeMessageError(runtime.id, ctx.now, s"deleting runtime ${runtime.projectNameString} failed")),
           ctx.now,
-          TaskMetricsTags("deleteRuntime", None, Some(isAoU), CloudProvider.Gcp)
+          TaskMetricsTags("deleteRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
         )
       )
     } yield ()
@@ -441,7 +441,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                TaskMetricsTags("stopRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                TaskMetricsTags("stopRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
               )
             )
           } yield ()
@@ -501,7 +501,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                TaskMetricsTags("startRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                TaskMetricsTags("startRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
               )
             )
           } yield ()
@@ -648,7 +648,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                TaskMetricsTags("stopAndUpdateRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                TaskMetricsTags("stopAndUpdateRuntime",
+                                None,
+                                Some(isAoU),
+                                CloudProvider.Gcp,
+                                Some(runtimeConfig.cloudService)
+                )
               )
             )
           } yield ()
@@ -666,7 +671,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                     runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating, None).compile.drain,
                     Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
                     ctx.now,
-                    TaskMetricsTags("updateRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                    TaskMetricsTags("updateRuntime",
+                                    None,
+                                    Some(isAoU),
+                                    CloudProvider.Gcp,
+                                    Some(runtimeConfig.cloudService)
+                    )
                   )
                 )
               } else F.unit
