@@ -191,7 +191,7 @@ echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SER
 docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
 
 # Store Jupyter Server Docker exec command for reboot processes
-sudo crontab -l 2>/dev/null| cat - <(echo "@reboot docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}" >/dev/null 2>&1&") | crontab -
+sudo crontab -l 2>/dev/null| cat - <(echo "@reboot docker exec -d jupyter /bin/bash -c '/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}'") | crontab -
 
 echo "------ Jupyter done ------"
 
