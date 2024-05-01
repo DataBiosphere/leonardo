@@ -16,8 +16,83 @@ VM_JUP_USER_UID=1002
 sudo useradd -m -c "Jupyter User" -u $VM_JUP_USER_UID $VM_JUP_USER
 sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev,lxd,netdev $VM_JUP_USER
 
+##### READ SCRIPT ARGUMENT #####
+# These are passed in setupCreateVmCreateMessage in the AzurePubsub Handler
+echo $# arguments
+if [ $# -ne 13 ];
+    then echo "illegal number of parameters"
+fi
 
-##### PD MOUNTING #####
+RELAY_NAME=$1
+RELAY_CONNECTION_NAME=$2
+RELAY_TARGET_HOST=$3
+RELAY_CONNECTION_POLICY_KEY=$4
+LISTENER_DOCKER_IMAGE=$5
+SAMURL=$6
+SAMRESOURCEID=$7
+CONTENTSECURITYPOLICY_FILE=$8
+
+# Envs for welder
+WELDER_WSM_URL=${9:-localhost}
+WORKSPACE_ID="${10:-dummy}" # Additionally used for welder
+WORKSPACE_STORAGE_CONTAINER_ID="${11:-dummy}" # Additionally used for welder
+WELDER_WELDER_DOCKER_IMAGE="${12:-dummy}"
+WELDER_OWNER_EMAIL="${13:-dummy}"
+WELDER_STAGING_BUCKET="${14:-dummy}"
+WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID="${15:-dummy}"
+
+# Envs for Jupyter
+JUPYTER_DOCKER_IMAGE="terradevacrpublic.azurecr.io/jupyter-server:test"
+# NOTEBOOKS_DIR corresponds to the location INSIDE the jupyter docker container,
+# and is not to be used withing the context of the DSVM itself
+NOTEBOOKS_DIR="/home/$VM_JUP_USER/persistent_disk"
+WORKSPACE_NAME="${16:-dummy}"
+WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
+
+# Jupyter variables for listener
+SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
+SERVER_APP_ALLOW_ORIGIN="*"
+# We need to escape this $ character twice, once for the docker exec arg, and another time for passing it to run-jupyter.sh
+HCVAR='\\\$hc'
+SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${HCVAR}/${RELAY_CONNECTION_NAME}"
+SERVER_APP_WEBSOCKET_HOST="${RELAY_NAME}.servicebus.windows.net"
+
+# Relay listener configuration
+RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${RELAY_CONNECTION_POLICY_KEY};EntityPath=${RELAY_CONNECTION_NAME}"
+
+# Relay listener configuration - setDateAccessed listener
+LEONARDO_URL="${18:-dummy}"
+RUNTIME_NAME="${19:-dummy}"
+VALID_HOSTS="${20:-dummy}"
+DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
+
+# Log in script output for debugging purposes.
+echo "RELAY_NAME = ${RELAY_NAME}"
+echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}"
+echo "RELAY_TARGET_HOST = ${RELAY_TARGET_HOST}"
+echo "RELAY_CONNECTION_POLICY_KEY = ${RELAY_CONNECTION_POLICY_KEY}"
+echo "LISTENER_DOCKER_IMAGE = ${LISTENER_DOCKER_IMAGE}"
+echo "SAMURL = ${SAMURL}"
+echo "SAMRESOURCEID = ${SAMRESOURCEID}"
+echo "CONTENTSECURITYPOLICY_FILE = ${CONTENTSECURITYPOLICY_FILE}"
+echo "WELDER_WSM_URL = ${WELDER_WSM_URL}"
+echo "WORKSPACE_ID = ${WORKSPACE_ID}"
+echo "WORKSPACE_STORAGE_CONTAINER_ID = ${WORKSPACE_STORAGE_CONTAINER_ID}"
+echo "WELDER_WELDER_DOCKER_IMAGE = ${WELDER_WELDER_DOCKER_IMAGE}"
+echo "WELDER_OWNER_EMAIL = ${WELDER_OWNER_EMAIL}"
+echo "WELDER_STAGING_BUCKET = ${WELDER_STAGING_BUCKET}"
+echo "WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID = ${WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID}"
+echo "WORKSPACE_NAME = ${WORKSPACE_NAME}"
+echo "WORKSPACE_STORAGE_CONTAINER_URL = ${WORKSPACE_STORAGE_CONTAINER_URL}"
+echo "SERVER_APP_BASE_URL = ${SERVER_APP_BASE_URL}"
+echo "SERVER_APP_ALLOW_ORIGIN = ${SERVER_APP_ALLOW_ORIGIN}"
+echo "SERVER_APP_WEBSOCKET_URL = ${SERVER_APP_WEBSOCKET_URL}"
+echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}"
+echo "LEONARDO_URL = ${LEONARDO_URL}"
+echo "RUNTIME_NAME = ${RUNTIME_NAME}"
+echo "VALID_HOSTS = ${VALID_HOSTS}"
+
+##### Persistent Disk (PD) MOUNTING #####
 # Formatting and mounting persistent disk
 # Note that we cannot mount in /mnt/disks/work as it is a temporary disk on the DSVM!
 PD_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
@@ -83,91 +158,13 @@ echo "successful write of PD UUID to fstab"
 ## This needs to happen before we start up containers
 sudo chmod a+rwx ${PD_DIRECTORY}
 
-
-##### READ SCRIPT ARGUMENT #####
-# These are passed in setupCreateVmCreateMessage in the AzurePubsub Handler
-echo $# arguments
-if [ $# -ne 13 ];
-    then echo "illegal number of parameters"
-fi
-
-RELAY_NAME=$1
-RELAY_CONNECTION_NAME=$2
-RELAY_TARGET_HOST=$3
-RELAY_CONNECTION_POLICY_KEY=$4
-LISTENER_DOCKER_IMAGE=$5
-SAMURL=$6
-SAMRESOURCEID=$7
-CONTENTSECURITYPOLICY_FILE=$8
-
-# Envs for welder
-WELDER_WSM_URL=${9:-localhost}
-WORKSPACE_ID="${10:-dummy}" # Additionally used for welder
-WORKSPACE_STORAGE_CONTAINER_ID="${11:-dummy}" # Additionally used for welder
-WELDER_WELDER_DOCKER_IMAGE="${12:-dummy}"
-WELDER_OWNER_EMAIL="${13:-dummy}"
-WELDER_STAGING_BUCKET="${14:-dummy}"
-WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID="${15:-dummy}"
-
-# Envs for Jupyter
-JUPYTER_DOCKER_IMAGE="terradevacrpublic.azurecr.io/jupyter-server:test"
-# NOTEBOOKS_DIR corresponds to the location INSIDE the jupyter docker container,
-# and is not to be used withing the context of the DSVM itself
-NOTEBOOKS_DIR="/home/$VM_JUP_USER"
-WORKSPACE_NAME="${16:-dummy}"
-WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
-
-# Jupyter variables for listener
-SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
-SERVER_APP_ALLOW_ORIGIN="*"
-# We need to escape this $ character twice, once for the docker exec arg, and another time for passing it to run-jupyter.sh
-HCVAR='\\\$hc'
-SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${HCVAR}/${RELAY_CONNECTION_NAME}"
-SERVER_APP_WEBSOCKET_HOST="${RELAY_NAME}.servicebus.windows.net"
-
-# Relay listener configuration
-RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${RELAY_CONNECTION_POLICY_KEY};EntityPath=${RELAY_CONNECTION_NAME}"
-
-# Relay listener configuration - setDateAccessed listener
-LEONARDO_URL="${18:-dummy}"
-RUNTIME_NAME="${19:-dummy}"
-VALID_HOSTS="${20:-dummy}"
-DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
-
-# Log in script output for debugging purposes.
-echo "RELAY_NAME = ${RELAY_NAME}"
-echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}"
-echo "RELAY_TARGET_HOST = ${RELAY_TARGET_HOST}"
-echo "RELAY_CONNECTION_POLICY_KEY = ${RELAY_CONNECTION_POLICY_KEY}"
-echo "LISTENER_DOCKER_IMAGE = ${LISTENER_DOCKER_IMAGE}"
-echo "SAMURL = ${SAMURL}"
-echo "SAMRESOURCEID = ${SAMRESOURCEID}"
-echo "CONTENTSECURITYPOLICY_FILE = ${CONTENTSECURITYPOLICY_FILE}"
-echo "WELDER_WSM_URL = ${WELDER_WSM_URL}"
-echo "WORKSPACE_ID = ${WORKSPACE_ID}"
-echo "WORKSPACE_STORAGE_CONTAINER_ID = ${WORKSPACE_STORAGE_CONTAINER_ID}"
-echo "WELDER_WELDER_DOCKER_IMAGE = ${WELDER_WELDER_DOCKER_IMAGE}"
-echo "WELDER_OWNER_EMAIL = ${WELDER_OWNER_EMAIL}"
-echo "WELDER_STAGING_BUCKET = ${WELDER_STAGING_BUCKET}"
-echo "WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID = ${WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID}"
-echo "WORKSPACE_NAME = ${WORKSPACE_NAME}"
-echo "WORKSPACE_STORAGE_CONTAINER_URL = ${WORKSPACE_STORAGE_CONTAINER_URL}"
-echo "SERVER_APP_BASE_URL = ${SERVER_APP_BASE_URL}"
-echo "SERVER_APP_ALLOW_ORIGIN = ${SERVER_APP_ALLOW_ORIGIN}"
-echo "SERVER_APP_WEBSOCKET_URL = ${SERVER_APP_WEBSOCKET_URL}"
-echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}"
-echo "LEONARDO_URL = ${LEONARDO_URL}"
-echo "RUNTIME_NAME = ${RUNTIME_NAME}"
-echo "VALID_HOSTS = ${VALID_HOSTS}"
-
 ##### JUPYTER SERVER  #####
 echo "------ Jupyter version: ${JUPYTER_DOCKER_IMAGE} ------"
 echo "Starting Jupyter with command..."
 
 echo "docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
---volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
---publish 8888:8888 \
+--volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR} \
 -e WORKSPACE_ID=$WORKSPACE_ID \
 -e WORKSPACE_NAME=$WORKSPACE_NAME \
 -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -178,12 +175,10 @@ $JUPYTER_DOCKER_IMAGE \
 #Run docker container with Jupyter Server
 #Override entrypoint with a placeholder (tail -f /dev/null) to keep the container running indefinitely.
 #The jupyter server itself will be started via docker exec after.
-#Mount the work directory to a new persistent_disk directory to maintain parity with the legacy DSVM experience
-#and avoid overwriting the docker NOTEBOOKS_DIR that contains python/conda
+#Mount the persistent disk directory to the jupyter notebook home directory
 docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
---volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR}/persistent_disk \
---publish 8888:8888 \
+--volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR} \
 --env WORKSPACE_ID=$WORKSPACE_ID \
 --env WORKSPACE_NAME=$WORKSPACE_NAME \
 --env WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -253,7 +248,6 @@ echo "    Starting Welder with command...."
 
 echo "docker run -d --restart always --network host --name welder \
      --volume "${PD_DIRECTORY}:/work" \
-     --publish 8081:8081 \
      -e WSM_URL=$WELDER_WSM_URL \
      -e PORT=8081 \
      -e WORKSPACE_ID=$WORKSPACE_ID \
@@ -268,7 +262,6 @@ echo "docker run -d --restart always --network host --name welder \
 
 docker run -d --restart always --network host --name welder \
 --volume "${PD_DIRECTORY}:/work" \
---publish 8081:8081 \
 --env WSM_URL=$WELDER_WSM_URL \
 --env PORT=8081 \
 --env WORKSPACE_ID=$WORKSPACE_ID \
