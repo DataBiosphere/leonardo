@@ -20,8 +20,7 @@ sudo usermod -a -G $VM_JUP_USER,adm,dialout,cdrom,floppy,audio,dip,video,plugdev
 ##### PD MOUNTING #####
 # Formatting and mounting persistent disk
 # Note that we cannot mount in /mnt/disks/work as it is a temporary disk on the DSVM!
-WORK_DIRECTORY="/home/$VM_JUP_USER"
-PD_DIRECTORY="$WORK_DIRECTORY/persistent_disk"
+PD_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 ## Create the working and persistent disk directories
 mkdir -p ${PD_DIRECTORY}
 
@@ -80,9 +79,9 @@ OUTPUT="$(lsblk -no UUID --paths "${DISK_DEVICE_PATH}1")"
 echo "UUID="$OUTPUT"    ${PD_DIRECTORY}    ext4    defaults    0    1" | sudo tee -a /etc/fstab
 echo "successful write of PD UUID to fstab"
 
-## Make sure that both the jupyter and welder users have access to the work directory
+## Make sure that both the jupyter and welder users have access to the persistent disk on the VM
 ## This needs to happen before we start up containers
-sudo chmod a+rwx ${WORK_DIRECTORY}
+sudo chmod a+rwx ${PD_DIRECTORY}
 
 
 ##### READ SCRIPT ARGUMENT #####
@@ -112,6 +111,8 @@ WELDER_STAGING_STORAGE_CONTAINER_RESOURCE_ID="${15:-dummy}"
 
 # Envs for Jupyter
 JUPYTER_DOCKER_IMAGE="terradevacrpublic.azurecr.io/jupyter-server:test"
+# NOTEBOOKS_DIR corresponds to the location INSIDE the jupyter docker container,
+# and is not to be used withing the context of the DSVM itself
 NOTEBOOKS_DIR="/home/$VM_JUP_USER"
 WORKSPACE_NAME="${16:-dummy}"
 WORKSPACE_STORAGE_CONTAINER_URL="${17:-dummy}"
@@ -194,6 +195,9 @@ echo 'Starting Jupyter Notebook...'
 echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
 docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
 
+# Store Jupyter Server Docker exec command for reboot processes
+sudo crontab -l 2>/dev/null| cat - <(echo "@reboot docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}" >/dev/null 2>&1&") | crontab -
+
 echo "------ Jupyter done ------"
 
 ##### LISTENER #####
@@ -248,7 +252,7 @@ echo "------ Welder version: ${WELDER_WELDER_DOCKER_IMAGE} ------"
 echo "    Starting Welder with command...."
 
 echo "docker run -d --restart always --network host --name welder \
-     --volume "${WORK_DIRECTORY}:/work" \
+     --volume "${PD_DIRECTORY}:/work" \
      --publish 8081:8081 \
      -e WSM_URL=$WELDER_WSM_URL \
      -e PORT=8081 \
@@ -263,7 +267,7 @@ echo "docker run -d --restart always --network host --name welder \
      $WELDER_WELDER_DOCKER_IMAGE"
 
 docker run -d --restart always --network host --name welder \
---volume "${WORK_DIRECTORY}:/work" \
+--volume "${PD_DIRECTORY}:/work" \
 --publish 8081:8081 \
 --env WSM_URL=$WELDER_WSM_URL \
 --env PORT=8081 \
