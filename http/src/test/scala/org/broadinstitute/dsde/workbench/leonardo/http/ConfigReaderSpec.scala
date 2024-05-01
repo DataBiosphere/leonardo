@@ -64,7 +64,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "microsoft-dsvm",
               "ubuntu-2004",
               "2004-gen2",
-              "23.04.24"
+              "24.03.14"
             ),
             CustomScriptExtensionConfig(
               "vm-custom-script-extension",
@@ -73,7 +73,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/52aab3b7f252667f73b23682062ab3e0d9d533b9/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/6aaa15eb5d58818525c96c1fef0eea3e982a2ab1/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:ad57bda",
