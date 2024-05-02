@@ -55,6 +55,10 @@ SERVER_APP_ALLOW_ORIGIN="*"
 # We need to escape this $ character twice, once for the docker exec arg, and another time for passing it to run-jupyter.sh
 HCVAR='\\\$hc'
 SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${HCVAR}/${RELAY_CONNECTION_NAME}"
+# We need to escape this $ character one extra time to pass it to the crontab for rebooting. The use of $hc in the websocket URL is
+# something that we should rethink as it creates a lot of complexity downstream
+REBOOT_HCVAR='\\\\\\\$hc'
+REBOOT_SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/${REBOOT_HCVAR}/${RELAY_CONNECTION_NAME}"
 SERVER_APP_WEBSOCKET_HOST="${RELAY_NAME}.servicebus.windows.net"
 
 # Relay listener configuration
@@ -187,11 +191,14 @@ $JUPYTER_DOCKER_IMAGE \
 -f /dev/null
 
 echo 'Starting Jupyter Notebook...'
-echo "docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}""
+echo "docker exec -d jupyter /bin/bash -c '/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}'"
 docker exec -d jupyter /bin/bash -c "/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}"
 
 # Store Jupyter Server Docker exec command for reboot processes
-sudo crontab -l 2>/dev/null| cat - <(echo "@reboot docker exec -d jupyter /bin/bash -c '/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}'") | crontab -
+# Cron does not play well with escaping backlashes so it is safer to run a script instead of the docker command directly
+echo "docker exec -d jupyter /bin/bash -c '/usr/jupytervenv/run-jupyter.sh ${SERVER_APP_BASE_URL} ${REBOOT_SERVER_APP_WEBSOCKET_URL} ${NOTEBOOKS_DIR}'" | sudo tee /home/reboot_script.sh
+sudo chmod +x /home/reboot_script.sh
+sudo crontab -l 2>/dev/null| cat - <(echo "@reboot /home/reboot_script.sh") | crontab -
 
 echo "------ Jupyter done ------"
 
