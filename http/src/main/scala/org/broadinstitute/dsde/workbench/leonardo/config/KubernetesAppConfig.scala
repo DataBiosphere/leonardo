@@ -173,6 +173,7 @@ final case class WdsAppConfig(chartName: ChartName,
                               databaseEnabled: Boolean,
                               environment: String,
                               environmentBase: String,
+                              image: String,
                               chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))

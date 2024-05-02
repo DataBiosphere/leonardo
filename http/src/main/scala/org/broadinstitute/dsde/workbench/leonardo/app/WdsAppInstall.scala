@@ -68,6 +68,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           // pass enviiroment information to wds so it can properly pick its config
           raw"wds.environment=${config.environment}",
           raw"wds.environmentBase=${config.environmentBase}",
+          raw"wds.image=${config.image}",
 
           // azure resources configs
           raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
