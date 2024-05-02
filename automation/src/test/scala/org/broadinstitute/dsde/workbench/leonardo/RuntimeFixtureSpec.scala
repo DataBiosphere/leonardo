@@ -11,25 +11,31 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, Ru
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.scalatest.freespec.FixtureAnyFreeSpec
-import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
+import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEachTestData, Outcome, ParallelTestExecution, Retries, TestData}
+import java.time.LocalDateTime
 
 /**
  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
  */
-abstract class RuntimeFixtureSpec
-    extends FixtureAnyFreeSpec
+
+trait RuntimeFixtureSpec
+    extends FixtureAnyFreeSpecLike
     with BeforeAndAfterAll
     with LeonardoTestUtils
-    with Retries {
+    with Retries
+    with BeforeAndAfterEachTestData
+    with ParallelTestExecution {
 
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
   def toolDockerImage: Option[String] = None
   def welderRegistry: Option[ContainerRegistry] = None
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
-  var ronCluster: ClusterCopy = _
+
   var clusterCreationFailureMsg: String = ""
+
+  def runtimeSystemKey: Option[String] = None
 
   /**
    * See
@@ -42,19 +48,43 @@ abstract class RuntimeFixtureSpec
 
   override type FixtureParam = ClusterFixture
 
-  override def withFixture(test: NoArgTest) =
-    if (isRetryable(test))
-      withRetry(super.withFixture(test))
-    else
-      super.withFixture(test)
-
   override def withFixture(test: OneArgTest): Outcome = {
-
     if (clusterCreationFailureMsg.nonEmpty)
       throw new Exception(clusterCreationFailureMsg)
 
     def runTestAndCheckOutcome() = {
-      val outcome = super.withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
+      val project = GoogleProject(sys.props.get(googleProjectKey).get)
+      val runtimeName = getRuntimeName
+      val runtime = LeonardoApiClient.client
+        .use { c =>
+          implicit val client: Client[IO] = c
+          LeonardoApiClient.getRuntime(project, runtimeName)
+        }
+        .map { getRuntimeResponse =>
+          ClusterCopy(
+            runtimeName,
+            project,
+            getRuntimeResponse.serviceAccount,
+            null,
+            null,
+            getRuntimeResponse.auditInfo.creator,
+            null,
+            null,
+            null,
+            null,
+            15,
+            false
+          )
+        }
+      logger.info(s"in run test and check outcome for spec: ${getClass.getSimpleName}, runtime: ${runtimeName}")
+
+      val outcome = super.withFixture(
+        test.toNoArgTest(
+          ClusterFixture(
+            runtime.unsafeRunSync()
+          )
+        )
+      )
       if (!outcome.isSucceeded) {
         System.setProperty(shouldUnclaimProjectsKey, "false")
       }
@@ -71,9 +101,10 @@ abstract class RuntimeFixtureSpec
   /**
    * Create new runtime by Ron with all default settings
    */
+  // TODO: rename this function and the cluster name
   def createRonRuntime(billingProject: GoogleProject): Unit = {
 
-    val runtimeName = randomClusterName
+    val runtimeName = RuntimeName(s"automation-${getClass.getSimpleName}")
     logger.info(
       s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime to be created: ${billingProject.value}/${runtimeName.asString}"
     )
@@ -88,37 +119,42 @@ abstract class RuntimeFixtureSpec
                             welderRegistry
           )
         )
-      } yield ronCluster = ClusterCopy(
-        runtimeName,
-        billingProject,
-        getRuntimeResponse.serviceAccount,
-        null,
-        null,
-        getRuntimeResponse.auditInfo.creator,
-        null,
-        null,
-        null,
-        null,
-        15,
-        false
-      )
+        _ = logger.info(s"before set, runtimeSystemKey: ${runtimeSystemKey}")
+        _ <- IO(
+          sys.props.put(
+            runtimeSystemKey.getOrElse(
+              throw new RuntimeException(s"must override runtimeSystemKey in class ${getClass.getSimpleName}")
+            ),
+            runtimeName.asString
+          )
+        )
+      } yield getRuntimeResponse
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val resp = res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    logger.info(s"Created cluster for cluster fixture tests: ${getClass.getSimpleName}, runtime ${resp}")
   }
 
   /**
    * Delete cluster without monitoring that's owned by Ron
    */
-  def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
+  def deleteRonRuntime(billingProject: GoogleProject,
+                       runtimeName: RuntimeName,
+                       monitoringDelete: Boolean = false
+  ): Unit = {
     logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
     // TODO: Remove unsafeRunSync() when deleteRuntime() accepts an IO[AuthToken]
-    deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken.unsafeRunSync())
+    deleteRuntime(
+      billingProject,
+      runtimeName,
+      monitoringDelete
+    )(ronAuthToken.unsafeRunSync())
   }
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    logger.info("beforeAll")
+    logger.info(s"beforeAll in runtimeFixture for ${getClass.getSimpleName}")
 
     sys.props.get(googleProjectKey) match {
       case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) =>
@@ -128,14 +164,35 @@ abstract class RuntimeFixtureSpec
       case None =>
         clusterCreationFailureMsg = "leonardo.googleProject system property is not set"
     }
-
+    logger.info(s"end of beforeall in runtimeFixture for ${getClass.getSimpleName}")
   }
 
+  override def beforeEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(
+      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}"
+    )
+  }
+
+  override def afterEach(testData: TestData): Unit = {
+    super.afterEach(testData)
+    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
+  }
+
+  def getRuntimeName(): RuntimeName =
+    RuntimeName(
+      sys.props
+        .get(
+          runtimeSystemKey
+            .getOrElse(throw new RuntimeException(s"must override runtimeSystemKey in class ${getClass.getSimpleName}"))
+        )
+        .getOrElse(throw new RuntimeException(s"runtime name not defined for spec ${getClass.getSimpleName}"))
+    )
   override def afterAll(): Unit = {
-    logger.info("afterAll")
+    logger.info(s"afterAll in runtimeFixture for ${getClass.getSimpleName}")
 
     sys.props.get(googleProjectKey) match {
-      case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject))
+      case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject), getRuntimeName)
       case None                 => throw new RuntimeException("leonardo.googleProject system property is not set")
     }
 

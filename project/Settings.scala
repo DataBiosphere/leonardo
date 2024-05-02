@@ -123,7 +123,7 @@ object Settings {
       * Specify that all tests will be executed in a single external JVM.
       * By default, tests executed in a forked JVM are executed sequentially.
       */
-    Test / fork := false,
+    Test / fork := true,
 
     /**
       * forked tests can optionally be run in parallel.
@@ -147,17 +147,25 @@ object Settings {
       */
     Test / logBuffered := false,
 
+
+    //See executing suites in parallel section here: https://www.scalatest.org/user_guide/using_the_runner
+    // This specifies the size of the threadpool used to run tests, P8 meaning 8 threads
+    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P8"),
+
     /**
-      * Control the number of forked JVMs allowed to run at the same time by
-      *  setting the limit on Tags.ForkedTestGroup tag, 1 is default.
-      *  Warning: can't set too high (set at 10 would crashes OS)
+      * Removes any other concurrent restrictions by setting it to a high number, relying on the above line (also included below) to restrict settings
+      * `Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-P8")`
       */
-    Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 2)),
+    Global / concurrentRestrictions := Seq(Tags.limitAll(16)),
 
     /**
       * Forked JVM options
+      * It is important that this number times `Tests.Argument(TestFrameworks.ScalaTest, "-P8")` equals the amount of RAM on the GHA node
+      * At the time of writing, this is 16GB (P8 * 2GB = 16GB)
+      * To check GHA node specs, look here: https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
+      * You can determine the source of truth in terms of node RAM based on the `runs-on` keyword (i.e. `runs-on: ubuntu-latest`)
       */
-    Test / javaOptions ++= Seq("-Xmx6G"),
+    Test / javaOptions ++= Seq("-Xmx2G"),
 
     /**
       * copy system properties to forked JVM
