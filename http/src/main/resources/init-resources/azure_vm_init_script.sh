@@ -169,6 +169,18 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
     sleep 5
   done
 
+# Install updated R version
+
+## Switch to use Debian unstable - neccessary to install R 4.4.0 since it was just released 4/24/24
+echo "deb http://http.debian.net/debian sid main" > /etc/apt/sources.list.d/debian-unstable.list \
+    && echo 'APT::Default-Release "testing";' > /etc/apt/apt.conf.d/default \
+    && echo 'APT::Install-Recommends "false";' > /etc/apt/apt.conf.d/90local-no-recommends
+
+# Install R
+apt-get update && apt-get install -y -t unstable --no-install-recommends \
+  r-base=4.4.0-* \
+  r-base-dev=4.4.0-*
+
 #Update kernel list
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
