@@ -401,7 +401,14 @@ object RuntimeServiceDbQueries {
     val runtimeInOwnedProjects: Option[ClusterTable => Rep[Option[Boolean]]] =
       if (ownedProjects.isEmpty)
         None
-      else
+      else if (cloudContext.isDefined) {
+        // If cloudContext is defined, we're already applying the filter elsewhere.
+        // No need to filter by the list of user owned projects anymore as long as the specified
+        // project is owned by the user.
+        if (ownedProjects.exists(x => x.value == cloudContext.get.asString))
+          Some(_ => Some(true))
+        else None
+      } else
         Some(runtime =>
           (runtime.cloudProvider.? === (CloudProvider.Gcp: CloudProvider)) &&
             (runtime.cloudContextDb inSetBind ownedProjects)
