@@ -2480,6 +2480,7 @@ class LeoPubsubMessageSubscriberSpec
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
                             new URL("https://leonardo.foo.org"),
+                            "dev",
                             0L
       ),
       contentSecurityPolicy,

@@ -1651,6 +1651,7 @@ class AzurePubsubHandlerSpec
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
                             new URL("https://leonardo.foo.broadinstitute.org"),
+                            "dev",
                             0L
       ),
       contentSecurityPolicy,
