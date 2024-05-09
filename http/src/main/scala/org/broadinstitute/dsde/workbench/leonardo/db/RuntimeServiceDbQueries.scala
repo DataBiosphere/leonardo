@@ -402,7 +402,7 @@ object RuntimeServiceDbQueries {
       if (ownedProjects.isEmpty)
         None
       else if (cloudContext.isDefined) {
-        // If cloudContext is defined, we're already applying the filter elsewhere.
+        // If cloudContext is defined, we're already applying the filter in runtimesFiltered below.
         // No need to filter by the list of user owned projects anymore as long as the specified
         // project is owned by the user.
         if (ownedProjects.exists(x => x.value == cloudContext.get.asString))
