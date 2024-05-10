@@ -21,7 +21,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsp.ChartVersion
 import org.http4s.Uri
 
+import java.security.SecureRandom
 import java.time.Instant
+import scala.util.Random
 
 trait AzurePubsubHandlerAlgebra[F[_]] {
 
@@ -85,7 +87,6 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Unit]
 
-  private[util] def generateAzureVMSecurePassword(): String
 }
 
 final case class CreateAzureDiskParams(workspaceId: WorkspaceId,
@@ -145,4 +146,34 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           deleteStorageContainerPollConfig: PollMonitorConfig
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"
+}
+object AzurePubsubHandler {
+  private[util] def generateAzureVMSecurePassword(): String = {
+    // Azure is enforcing the following constraints for password generation
+    // Passwords must not include reserved words or unsupported characters.
+    // Password must have 3 of the following: 1 lower case character, 1 upper case character, 1 number, and 1 special character that is not '\'or '-'.
+    // The value must be between 12 and 123 characters long.
+
+    val lowerLetters = 'a' to 'z'
+    val upperLetters = 'A' to 'Z'
+    val numbers = '0' to '9'
+    val specialChars = IndexedSeq('!', '@', '#', '$', '&', '*', '?', '^', '(', ')')
+    val fullCharset = lowerLetters ++ upperLetters ++ numbers ++ specialChars
+
+    val random = new SecureRandom()
+
+    def pickRandomChars(charSet: IndexedSeq[Char], size: Int): List[Char] =
+      Iterator
+        .continually(charSet(random.nextInt(charSet.length)))
+        .take(size)
+        .toList
+
+    val passwordChars: List[Char] = pickRandomChars(lowerLetters, 1) ++
+      pickRandomChars(upperLetters, 1) ++
+      pickRandomChars(numbers, 1) ++
+      pickRandomChars(specialChars, 1) ++
+      pickRandomChars(fullCharset, 12)
+
+    Random.shuffle(passwordChars).mkString
+  }
 }

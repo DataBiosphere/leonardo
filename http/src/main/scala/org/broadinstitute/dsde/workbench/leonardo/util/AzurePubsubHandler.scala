@@ -166,35 +166,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
     } yield ()
 
-  override private[util] def generateAzureVMSecurePassword(): String = {
-    // Azure is enforcing the following constraints for password generation
-    // Passwords must not include reserved words or unsupported characters.
-    // Password must have 3 of the following: 1 lower case character, 1 upper case character, 1 number, and 1 special character that is not '\'or '-'.
-    // The value must be between 12 and 123 characters long.
-
-    val lowerLetters = 'a' to 'z'
-    val upperLetters = 'A' to 'Z'
-    val numbers = '0' to '9'
-    val specialChars = IndexedSeq('!', '@', '#', '$', '&', '*', '?', '^', '(', ')')
-    val fullCharset = lowerLetters ++ upperLetters ++ numbers ++ specialChars
-
-    val random = new SecureRandom()
-
-    def pickRandomChars(charSet: IndexedSeq[Char], size: Int): List[Char] =
-      Iterator
-        .continually(charSet(random.nextInt(charSet.length)))
-        .take(size)
-        .toList
-
-    val passwordChars: List[Char] = pickRandomChars(lowerLetters, 1) ++
-      pickRandomChars(upperLetters, 1) ++
-      pickRandomChars(numbers, 1) ++
-      pickRandomChars(specialChars, 1) ++
-      pickRandomChars(fullCharset, 12)
-
-    Random.shuffle(passwordChars).mkString
-  }
-
   private def setupCreateVmCreateMessage(params: PollRuntimeParams,
                                          storageContainer: CreateStorageContainerResourcesResult,
                                          hcPrimaryKey: PrimaryKey,
@@ -261,7 +232,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
     // Generate random password for Azure VM in production, for the other lower level envs we can used the shared password
     val vmPassword = applicationConfig.environment match {
-      case "prod" => generateAzureVMSecurePassword()
+      case "prod" => AzurePubsubHandler.generateAzureVMSecurePassword()
       case _      => config.runtimeDefaults.vmCredential.password
     }
 
