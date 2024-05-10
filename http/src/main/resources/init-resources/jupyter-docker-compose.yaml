@@ -36,6 +36,10 @@ services:
       - /hadoop:/hadoop
       - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
       - /usr/local/share/google/dataproc:/usr/local/share/google/dataproc
+    devices:
+      - /dev/fuse:/dev/fuse
+    cap_add:
+      - SYS_ADMIN
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
