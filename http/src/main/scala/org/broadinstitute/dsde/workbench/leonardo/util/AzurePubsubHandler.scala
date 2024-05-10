@@ -166,7 +166,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
     } yield ()
 
-  private def generateAzureVMSecurePassword(): String = {
+  override private[util] def generateAzureVMSecurePassword(): String = {
     // Azure is enforcing the following constraints for password generation
     // Passwords must not include reserved words or unsupported characters.
     // Password must have 3 of the following: 1 lower case character, 1 upper case character, 1 number, and 1 special character that is not '\'or '-'.

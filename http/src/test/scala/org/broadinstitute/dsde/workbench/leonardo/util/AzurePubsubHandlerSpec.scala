@@ -53,6 +53,17 @@ class AzurePubsubHandlerSpec
 
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
 
+  it should "generate an Azure VM password properly" in isolatedDbTest {
+    val azurePubsubHandler =
+      makeAzurePubsubHandler()
+    val password = azurePubsubHandler.generateAzureVMSecurePassword
+    password.length shouldBe 16
+    password.exists(_.isLower) shouldBe true
+    password.exists(_.isUpper) shouldBe true
+    password.exists(_.isDigit) shouldBe true
+    password.exists(IndexedSeq('!', '@', '#', '$', '&', '*', '?', '^', '(', ')').contains) shouldBe true
+  }
+
   it should "create azure vm properly" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
     val ipReturn: PublicIpAddress = mock[PublicIpAddress]

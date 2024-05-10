@@ -84,6 +84,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def handleAzureRuntimeDeletionError(e: AzureRuntimeDeletionError)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
+
+  private[util] def generateAzureVMSecurePassword(): String
 }
 
 final case class CreateAzureDiskParams(workspaceId: WorkspaceId,
