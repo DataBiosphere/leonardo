@@ -408,7 +408,7 @@ object RuntimeServiceDbQueries {
         )
 
     val runtimesAuthorized = cloudContext match {
-      case Some(value) =>
+      case Some(_) =>
         // When cloudContext is defined, we don't need to further check authorization because we're already checking whether user
         // has reader permission to the project
         clusterQuery
