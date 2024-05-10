@@ -282,7 +282,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
-
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Start getting authorized IDs")))
       authorizedIds <- getAuthorizedIds(userInfo, creatorOnly)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Start DB query for listRuntimes")))
       runtimes <- RuntimeServiceDbQueries
