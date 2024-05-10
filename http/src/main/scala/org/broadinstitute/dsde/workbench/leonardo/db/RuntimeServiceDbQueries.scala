@@ -401,32 +401,31 @@ object RuntimeServiceDbQueries {
     val runtimeInOwnedProjects: Option[ClusterTable => Rep[Option[Boolean]]] =
       if (ownedProjects.isEmpty)
         None
-      else if (cloudContext.isDefined) {
-        // If cloudContext is defined, we're already applying the filter in runtimesFiltered below.
-        // No need to filter by the list of user owned projects anymore as long as the specified
-        // project is owned by the user.
-        if (ownedProjects.exists(x => x.value == cloudContext.get.asString))
-          Some(_ => Some(true))
-        else None
-      } else
+      else
         Some(runtime =>
           (runtime.cloudProvider.? === (CloudProvider.Gcp: CloudProvider)) &&
             (runtime.cloudContextDb inSetBind ownedProjects)
         )
 
-    val runtimesAuthorized =
-      clusterQuery.filter[Rep[Option[Boolean]]] { runtime: ClusterTable =>
-        Seq(
-          runtimeInReadWorkspaces,
-          runtimeInOwnedWorkspaces,
-          runtimeInReadProjects,
-          runtimeInOwnedProjects
-        )
-          .mapFilter(opt => opt)
-          .map(_(runtime))
-          .reduceLeftOption(_ || _)
-          .getOrElse(Some(false): Rep[Option[Boolean]])
-      }
+    val runtimesAuthorized = cloudContext match {
+      case Some(_) =>
+        // When cloudContext is defined, we don't need to further check authorization because we're already checking whether user
+        // has reader permission to the project
+        clusterQuery
+      case None =>
+        clusterQuery.filter[Rep[Option[Boolean]]] { runtime: ClusterTable =>
+          Seq(
+            runtimeInReadWorkspaces,
+            runtimeInOwnedWorkspaces,
+            runtimeInReadProjects,
+            runtimeInOwnedProjects
+          )
+            .mapFilter(opt => opt)
+            .map(_(runtime))
+            .reduceLeftOption(_ || _)
+            .getOrElse(Some(false): Rep[Option[Boolean]])
+        }
+    }
 
     val runtimesFiltered = runtimesAuthorized
       // Filter by params
