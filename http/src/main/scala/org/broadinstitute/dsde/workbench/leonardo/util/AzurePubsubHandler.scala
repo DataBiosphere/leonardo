@@ -52,8 +52,6 @@ import scala.jdk.CollectionConverters._
 import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
-import java.security.SecureRandom
-import scala.util.Random
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
