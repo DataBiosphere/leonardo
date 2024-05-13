@@ -268,16 +268,24 @@ class RuntimeServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      // throw 403 if user doesn't have project permission
-      hasProjectPermission <- cloudContext.traverse(cc =>
-        authProvider.isUserProjectReader(
-          cc,
-          userInfo
-        )
-      )
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking project permission with Sam")))
-
-      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+      _ <- cloudContext match {
+        case Some(cc) =>
+          // throw 403 if user doesn't have project permission
+          for {
+            hasProjectPermission <- authProvider.isUserProjectReader(
+              cc,
+              userInfo
+            )
+            _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking project permission with Sam")))
+            _ <- F.raiseWhen(!hasProjectPermission)(
+              ForbiddenError(userInfo.userEmail, Some(ctx.traceId))
+            )
+          } yield ()
+        case None =>
+          authProvider.checkUserEnabled(
+            userInfo
+          ) // when request doesn't have cloudContext defined, we check if user is enabled
+      }
 
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
@@ -1019,9 +1027,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
     userInfo: UserInfo,
     creatorEmail: Option[WorkbenchEmail] = None
   )(implicit ev: Ask[F, AppContext]): F[AuthorizedIds] = for {
-    // Authorize: user has an active account and has accepted terms of service
-    _ <- authProvider.checkUserEnabled(userInfo)
-
     // Authorize: get resource IDs the user can see
     // HACK: leonardo is modeling access control here, handling inheritance
     // of workspace and project-level permissions. Sam and WSM already do this,
