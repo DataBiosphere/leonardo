@@ -778,12 +778,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
 }
 
-final case class AuthorizedIds(
-  val ownerGoogleProjectIds: Set[ProjectSamResourceId],
-  val ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
-  val readerGoogleProjectIds: Set[ProjectSamResourceId],
-  val readerRuntimeIds: Set[SamResourceId],
-  val readerWorkspaceIds: Set[WorkspaceResourceSamResourceId]
+final case class AuthorizedIds(ownerGoogleProjectIds: Set[ProjectSamResourceId],
+                               ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
+                               readerGoogleProjectIds: Set[ProjectSamResourceId],
+                               readerRuntimeIds: Set[SamResourceId],
+                               readerWorkspaceIds: Set[WorkspaceResourceSamResourceId]
 )
 
 final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
