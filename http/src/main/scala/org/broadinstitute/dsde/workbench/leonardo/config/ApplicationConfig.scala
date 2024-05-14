@@ -12,5 +12,6 @@ case class ApplicationConfig(applicationName: String,
                              leoServiceAccountJsonFile: Path,
                              leoServiceAccountEmail: WorkbenchEmail,
                              leoUrlBase: URL,
+                             environment: String,
                              concurrency: Long
 )
