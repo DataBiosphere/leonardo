@@ -407,19 +407,25 @@ object RuntimeServiceDbQueries {
             (runtime.cloudContextDb inSetBind ownedProjects)
         )
 
-    val runtimesAuthorized =
-      clusterQuery.filter[Rep[Option[Boolean]]] { runtime: ClusterTable =>
-        Seq(
-          runtimeInReadWorkspaces,
-          runtimeInOwnedWorkspaces,
-          runtimeInReadProjects,
-          runtimeInOwnedProjects
-        )
-          .mapFilter(opt => opt)
-          .map(_(runtime))
-          .reduceLeftOption(_ || _)
-          .getOrElse(Some(false): Rep[Option[Boolean]])
-      }
+    val runtimesAuthorized = cloudContext match {
+      case Some(_) =>
+        // When cloudContext is defined, we don't need to further check authorization because we're already checking whether user
+        // has reader permission to the project
+        clusterQuery
+      case None =>
+        clusterQuery.filter[Rep[Option[Boolean]]] { runtime: ClusterTable =>
+          Seq(
+            runtimeInReadWorkspaces,
+            runtimeInOwnedWorkspaces,
+            runtimeInReadProjects,
+            runtimeInOwnedProjects
+          )
+            .mapFilter(opt => opt)
+            .map(_(runtime))
+            .reduceLeftOption(_ || _)
+            .getOrElse(Some(false): Rep[Option[Boolean]])
+        }
+    }
 
     val runtimesFiltered = runtimesAuthorized
       // Filter by params
