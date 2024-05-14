@@ -1023,6 +1023,7 @@ object PubsubHandleMessageError {
                                          diskId: Option[DiskId],
                                          clusterId: Option[KubernetesClusterLeoId]
   ) extends PubsubHandleMessageError {
+    // You cannot update this log wording without updating the corresponding alert here https://console.cloud.google.com/monitoring/alerting/policies/8184448493858086363?project=broad-dsde-prod
     override def getMessage: String =
       s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
   }
