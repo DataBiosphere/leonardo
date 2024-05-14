@@ -179,7 +179,7 @@ sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys  0E98404D386FA1D9 
 # lsb_release -cs gets the ubuntu version ('focal' or 'groovy' etc)
 sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
 
-sudo apt install -y -t unstable --no-install-recommends \
+sudo apt install --no-install-recommends \
   r-base=4.4.0-* \
   r-base-dev=4.4.0-*
 
