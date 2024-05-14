@@ -64,7 +64,7 @@ class AzurePubsubHandlerSpec
 
   it should "not use the shared Azure VM credentials in prod" in {
     val password = AzurePubsubHandler.getAzureVMSecurePassword("prod", "sharedPassword")
-    password shouldNot "sharedPassword"
+    assert(password != "sharedPassword")
     password.length shouldBe 16
   }
 
