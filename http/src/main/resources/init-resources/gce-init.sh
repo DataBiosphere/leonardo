@@ -241,7 +241,14 @@ STEP_TIMINGS+=($(date +%s))
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
-  cos-extensions install gpu -- --version 535.154.05
+  version="535.154.05"
+  isAvaliable=$(cos-extensions list|grep $version)
+  if [[ -z "$isAvaliable" ]]; then
+      # Install default version on the COS image
+      cos-extensions install gpu
+  else
+      cos-extensions install gpu -- --version 535.154.05
+  fi
   mount --bind /var/lib/nvidia /var/lib/nvidia
   mount -o remount,exec /var/lib/nvidia
 
