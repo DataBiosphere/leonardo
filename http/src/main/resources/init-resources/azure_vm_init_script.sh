@@ -170,16 +170,20 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
   done
 
 # Install updated R version
+echo "Installing R 4.4.0..."
 
-## Switch to use Debian unstable - neccessary to install R 4.4.0 since it was just released 4/24/24
-echo "deb http://http.debian.net/debian sid main" > /etc/apt/sources.list.d/debian-unstable.list \
-    && echo 'APT::Default-Release "testing";' > /etc/apt/apt.conf.d/default \
-    && echo 'APT::Install-Recommends "false";' > /etc/apt/apt.conf.d/90local-no-recommends
+# Get signing keys necessary to allow the following repository to be added
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys  0E98404D386FA1D9 6ED0E7B82643E131
 
-# Install R
-apt-get update && apt-get install -y -t unstable --no-install-recommends \
+# Add the R 4.4.0 repo from CRAN
+# lsb_release -cs gets the ubuntu version ('focal' or 'groovy' etc)
+sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+
+sudo apt install -y -t unstable --no-install-recommends \
   r-base=4.4.0-* \
   r-base-dev=4.4.0-*
+
+echo "Finished installing R 4.4.0"
 
 #Update kernel list
 
