@@ -23,7 +23,6 @@ import org.http4s.Uri
 
 import java.security.SecureRandom
 import java.time.Instant
-import scala.util.Random
 
 trait AzurePubsubHandlerAlgebra[F[_]] {
 
@@ -148,7 +147,7 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
   def welderImage: String = s"$welderAcrUri:$welderImageHash"
 }
 object AzurePubsubHandler {
-  private[util] def generateAzureVMSecurePassword(): String = {
+  private[util] def generateAzureVMSecurePassword(passwordLength: Int): String = {
     // Azure is enforcing the following constraints for password generation
     // Passwords must not include reserved words or unsupported characters.
     // Password must have 3 of the following: 1 lower case character, 1 upper case character, 1 number, and 1 special character that is not '\'or '-'.
@@ -168,19 +167,31 @@ object AzurePubsubHandler {
         .take(size)
         .toList
 
-    val passwordChars: List[Char] = pickRandomChars(lowerLetters, 1) ++
-      pickRandomChars(upperLetters, 1) ++
-      pickRandomChars(numbers, 1) ++
-      pickRandomChars(specialChars, 1) ++
-      pickRandomChars(fullCharset, 12)
+    var password: String = pickRandomChars(fullCharset, passwordLength).mkString
+    // Keep generating passwords until we find one that has all of the required characters
+    // This is safer than picking from each subset and then shuffling
 
-    Random.shuffle(passwordChars).mkString
+    var isPasswordValid: Boolean =
+      password.exists(_.isLower) && password.exists(_.isUpper) && password.exists(_.isDigit) && password.exists(
+        specialChars.contains
+      )
+
+    while (isPasswordValid == false) {
+      password = pickRandomChars(fullCharset, passwordLength).mkString
+      isPasswordValid =
+        password.exists(_.isLower) && password.exists(_.isUpper) && password.exists(_.isDigit) && password.exists(
+          specialChars.contains
+        )
+
+    }
+    password
   }
 
   private[util] def getAzureVMSecurePassword(environment: String, sharedPassword: String): String =
     // Generate random password for Azure VM in production, for the other lower level envs we can used the shared password
+    // The password must be between 12 and 123 characters long. We are choosing 25 here
     environment match {
-      case "prod" => generateAzureVMSecurePassword()
+      case "prod" => generateAzureVMSecurePassword(25)
       case _      => sharedPassword
     }
 }
