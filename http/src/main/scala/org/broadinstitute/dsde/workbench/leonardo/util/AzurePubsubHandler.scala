@@ -228,6 +228,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       .minorVersionAutoUpgrade(config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade)
       .protectedSettings(protectedSettings.asJava)
 
+    val vmPassword = AzurePubsubHandler.getAzureVMSecurePassword(applicationConfig.environment,
+                                                                 config.runtimeDefaults.vmCredential.password
+    )
+
     val creationParams = new AzureVmCreationParameters()
       .customScriptExtension(customScriptExtension)
       .diskId(params.createDiskResult.resourceId.value)
@@ -237,7 +241,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       .vmUser(
         new AzureVmUser()
           .name(config.runtimeDefaults.vmCredential.username)
-          .password(config.runtimeDefaults.vmCredential.password)
+          .password(vmPassword)
       )
 
     new CreateControlledAzureVmRequestBody()

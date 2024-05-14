@@ -53,6 +53,21 @@ class AzurePubsubHandlerSpec
 
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
 
+  it should "generate an Azure VM password properly" in {
+    val password = AzurePubsubHandler.generateAzureVMSecurePassword
+    password.length shouldBe 16
+    password.exists(_.isLower) shouldBe true
+    password.exists(_.isUpper) shouldBe true
+    password.exists(_.isDigit) shouldBe true
+    password.exists(IndexedSeq('!', '@', '#', '$', '&', '*', '?', '^', '(', ')').contains) shouldBe true
+  }
+
+  it should "not use the shared Azure VM credentials in prod" in {
+    val password = AzurePubsubHandler.getAzureVMSecurePassword("prod", "sharedPassword")
+    assert(password != "sharedPassword")
+    password.length shouldBe 16
+  }
+
   it should "create azure vm properly" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
     val ipReturn: PublicIpAddress = mock[PublicIpAddress]
@@ -1651,6 +1666,7 @@ class AzurePubsubHandlerSpec
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
                             new URL("https://leonardo.foo.broadinstitute.org"),
+                            "dev",
                             0L
       ),
       contentSecurityPolicy,
