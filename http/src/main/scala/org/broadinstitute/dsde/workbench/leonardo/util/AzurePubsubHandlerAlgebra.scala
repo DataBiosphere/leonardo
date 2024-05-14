@@ -176,4 +176,11 @@ object AzurePubsubHandler {
 
     Random.shuffle(passwordChars).mkString
   }
+
+  private[util] def getAzureVMSecurePassword(environment: String, sharedPassword: String): String =
+    // Generate random password for Azure VM in production, for the other lower level envs we can used the shared password
+    environment match {
+      case "prod" => generateAzureVMSecurePassword()
+      case _      => sharedPassword
+    }
 }

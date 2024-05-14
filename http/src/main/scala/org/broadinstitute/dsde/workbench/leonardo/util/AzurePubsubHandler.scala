@@ -228,11 +228,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       .minorVersionAutoUpgrade(config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade)
       .protectedSettings(protectedSettings.asJava)
 
-    // Generate random password for Azure VM in production, for the other lower level envs we can used the shared password
-    val vmPassword = applicationConfig.environment match {
-      case "prod" => AzurePubsubHandler.generateAzureVMSecurePassword()
-      case _      => config.runtimeDefaults.vmCredential.password
-    }
+    val vmPassword = AzurePubsubHandler.getAzureVMSecurePassword(applicationConfig.environment,
+                                                                 config.runtimeDefaults.vmCredential.password
+    )
 
     val creationParams = new AzureVmCreationParameters()
       .customScriptExtension(customScriptExtension)

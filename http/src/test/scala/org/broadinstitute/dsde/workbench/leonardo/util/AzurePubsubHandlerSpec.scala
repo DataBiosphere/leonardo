@@ -62,6 +62,12 @@ class AzurePubsubHandlerSpec
     password.exists(IndexedSeq('!', '@', '#', '$', '&', '*', '?', '^', '(', ')').contains) shouldBe true
   }
 
+  it should "not use the shared Azure VM credentials in prod" in {
+    val password = AzurePubsubHandler.getAzureVMSecurePassword("prod", "sharedPassword")
+    password shouldNot "sharedPassword"
+    password.length shouldBe 16
+  }
+
   it should "create azure vm properly" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
     val ipReturn: PublicIpAddress = mock[PublicIpAddress]
