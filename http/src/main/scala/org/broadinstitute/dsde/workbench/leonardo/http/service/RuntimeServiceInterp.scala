@@ -268,19 +268,24 @@ class RuntimeServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      // Authorize: user has an active account and has accepted terms of service
-      _ <- authProvider.checkUserEnabled(userInfo)
-
-      // throw 403 if user doesn't have project permission
-      hasProjectPermission <- cloudContext.traverse(cc =>
-        authProvider.isUserProjectReader(
-          cc,
-          userInfo
-        )
-      )
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking project permission with Sam")))
-
-      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+      _ <- cloudContext match {
+        case Some(cc) =>
+          // throw 403 if user doesn't have project permission
+          for {
+            hasProjectPermission <- authProvider.isUserProjectReader(
+              cc,
+              userInfo
+            )
+            _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking project permission with Sam")))
+            _ <- F.raiseWhen(!hasProjectPermission)(
+              ForbiddenError(userInfo.userEmail, Some(ctx.traceId))
+            )
+          } yield ()
+        case None =>
+          authProvider.checkUserEnabled(
+            userInfo
+          ) // when request doesn't have cloudContext defined, we check if user is enabled
+      }
 
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)

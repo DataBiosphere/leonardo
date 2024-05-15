@@ -202,13 +202,22 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       ctx <- as.ask
 
       // throw 403 if user doesn't have project permission
-      hasProjectPermission <- cloudContext.traverse(cc =>
-        authProvider.isUserProjectReader(
-          cc,
-          userInfo
-        )
-      )
-      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+      _ <- cloudContext match {
+        case Some(cc) =>
+          for {
+            hasProjectPermission <- authProvider.isUserProjectReader(
+              cc,
+              userInfo
+            )
+            _ <- F.raiseWhen(!hasProjectPermission)(
+              ForbiddenError(userInfo.userEmail, Some(ctx.traceId))
+            )
+          } yield ()
+        case None =>
+          authProvider.checkUserEnabled(
+            userInfo
+          ) // when request doesn't have cloudContext defined, we check if user is enabled
+      }
 
       paramMap <- F.fromEither(processListParameters(params))
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
@@ -262,9 +271,6 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
             )
             .toVector
       }
-      // We authenticate actions on resources. If there are no visible disks,
-      // we need to check if user should be able to see the empty list.
-      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
     } yield res
 
   override def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit
