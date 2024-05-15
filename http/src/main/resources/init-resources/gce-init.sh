@@ -247,7 +247,7 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
       # Install default version on the COS image
       cos-extensions install gpu
   else
-      cos-extensions install gpu -- --version 535.154.05
+      cos-extensions install gpu -- --version $version
   fi
   mount --bind /var/lib/nvidia /var/lib/nvidia
   mount -o remount,exec /var/lib/nvidia
