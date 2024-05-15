@@ -242,8 +242,8 @@ STEP_TIMINGS+=($(date +%s))
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
   version="535.154.05"
-  isAvaliable=$(cos-extensions list|grep $version)
-  if [[ -z "$isAvaliable" ]]; then
+  isAvailable=$(cos-extensions list|grep $version)
+  if [[ -z "$isAvailable" ]]; then
       # Install default version on the COS image
       cos-extensions install gpu
   else
