@@ -169,11 +169,6 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
     sleep 5
   done
 
-# Install updated R version
-echo "Installing R 4.4.0..."
-
-sudo apt install --no-install-recommends -y r-base=4.4.0-*
-
 #Update kernel list
 
 echo "Y"| /anaconda/bin/jupyter kernelspec remove sparkkernel
@@ -301,3 +296,7 @@ jq --null-input \
 /anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
+
+# Install updated R version
+echo "Installing R 4.4.0..."
+sudo apt install --no-install-recommends -y r-base=4.4.0-1.2004.0
