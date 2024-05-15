@@ -27,7 +27,7 @@ sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 sudo systemctl disable --now jupyterhub.service
 
 # Add a sleep of 5 minutes to debug the state of the data disk before we try mounting it
-sleep 300
+sleep 30
 
 # Formatting and mounting persistent disk
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
@@ -73,7 +73,7 @@ else
   ) | sudo fdisk ${DISK_DEVICE_PATH}
   echo "successful partitioning"
   ## Format the partition
-  echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1"
+  echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1" -F -F
   echo "successful formatting"
   ## From https://learn.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal?tabs=ubuntu
   ## Use the partprobe utility to make sure the kernel is aware of the new partition and filesystem.
