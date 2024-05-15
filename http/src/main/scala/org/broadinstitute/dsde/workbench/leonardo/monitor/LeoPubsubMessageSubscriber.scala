@@ -1541,7 +1541,9 @@ class LeoPubsubMessageSubscriber[F[_]](
           case e =>
             for {
               _ <- appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
-              // You cannot update this log wording without updating the corresponding alert here https://console.cloud.google.com/monitoring/alerting/policies/8184448493858086363?project=broad-dsde-prod
+              // You cannot update this log wording without updating the corresponding prod and staging alerts here
+              //     https://console.cloud.google.com/monitoring/alerting/policies/8184448493858086363?project=broad-dsde-prod
+              //     https://console.cloud.google.com/monitoring/alerting/policies/16136890211426349187?project=broad-dsde-staging
               errorContext =
                 s"Error updating Azure app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"
               _ <- logger.warn(ctx.loggingCtx, e)(errorContext)
