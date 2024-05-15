@@ -86,7 +86,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("cromwell-helm/cromwell-on-azure"),
-          ChartVersion("0.2.490"),
+          ChartVersion("0.2.471"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -165,7 +165,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.202.0"),
+          ChartVersion("0.209.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
