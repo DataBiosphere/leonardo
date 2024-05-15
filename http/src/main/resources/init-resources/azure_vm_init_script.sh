@@ -185,6 +185,10 @@ echo "Y"| /anaconda/envs/py38_default/bin/pip3 install ipykernel pydevd
 
 echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
+# Install updated R version
+echo "Installing R 4.4.0..."
+sudo apt install --no-install-recommends -y r-base=4.4.0-1.2004.0
+
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
 sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/ea519ef899de28e27e2a37ba368433da9fd03b7f/http/src/main/resources/init-resources/jupyter_server_config.py"
@@ -296,7 +300,3 @@ jq --null-input \
 /anaconda/envs/py38_default/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
 /anaconda/envs/azureml_py38_PT_and_TF/bin/jupyter kernelspec list | awk 'NR>1 {print $2}' | while read line; do jq -s add $line"/kernel.json" wsenv.json > tmpkernel.json && mv tmpkernel.json $line"/kernel.json"; done
-
-# Install updated R version
-echo "Installing R 4.4.0..."
-sudo apt install --no-install-recommends -y r-base=4.4.0-1.2004.0
