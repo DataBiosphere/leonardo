@@ -73,7 +73,13 @@ else
   ) | sudo fdisk ${DISK_DEVICE_PATH}
   echo "successful partitioning"
   ## Format the partition
-  echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1" -F -F
+    # It's likely that the persistent disk was previously mounted on another VM and wasn't properly unmounted
+    # either because the VM was terminated or there is no unmount in the shutdown sequence and occasionally
+    # fs is getting marked as not clean.
+    # Passing -F -F to mkfs ext4 should force the tool to ignore the state of the partition.
+    # Note that there should be two instances command-line switch (-F -F) to override this check
+    # mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID} -F -F
+  echo y | sudo mkfs.ext4 "${DISK_DEVICE_PATH}1" -F -F
   echo "successful formatting"
   ## From https://learn.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal?tabs=ubuntu
   ## Use the partprobe utility to make sure the kernel is aware of the new partition and filesystem.
