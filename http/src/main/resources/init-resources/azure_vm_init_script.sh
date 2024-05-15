@@ -172,18 +172,7 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
 # Install updated R version
 echo "Installing R 4.4.0..."
 
-# Get signing keys necessary to allow the following repository to be added
-sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys  0E98404D386FA1D9 6ED0E7B82643E131
-
-# Add the R 4.4.0 repo from CRAN
-# lsb_release -cs gets the ubuntu version ('focal' or 'groovy' etc)
-sudo add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
-
-sudo apt install --no-install-recommends \
-  r-base=4.4.0-* \
-  r-base-dev=4.4.0-*
-
-echo "Finished installing R 4.4.0"
+sudo apt install --no-install-recommends -y r-base=4.4.0-*
 
 #Update kernel list
 
