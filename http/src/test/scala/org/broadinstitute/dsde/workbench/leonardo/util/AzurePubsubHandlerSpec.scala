@@ -54,8 +54,9 @@ class AzurePubsubHandlerSpec
   val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
 
   it should "generate an Azure VM password properly" in {
-    val password = AzurePubsubHandler.generateAzureVMSecurePassword
-    password.length shouldBe 16
+    // Test this with a short password to make sure that the while loop works properly
+    val password = AzurePubsubHandler.generateAzureVMSecurePassword(4)
+    password.length shouldBe 4
     password.exists(_.isLower) shouldBe true
     password.exists(_.isUpper) shouldBe true
     password.exists(_.isDigit) shouldBe true
@@ -65,7 +66,7 @@ class AzurePubsubHandlerSpec
   it should "not use the shared Azure VM credentials in prod" in {
     val password = AzurePubsubHandler.getAzureVMSecurePassword("prod", "sharedPassword")
     assert(password != "sharedPassword")
-    password.length shouldBe 16
+    password.length shouldBe 25
   }
 
   it should "create azure vm properly" in isolatedDbTest {
