@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import bio.terra.workspace.model.{IamRole, WorkspaceDescription}
 import cats.Parallel
 import cats.data.NonEmptyList
-import cats.effect.Async
+import cats.effect.{Async, Resource}
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -155,132 +155,130 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
-      _ <- authProvider
-        .notifyResourceCreated(samResourceId, originatingUserEmail, googleProject)
-        .handleErrorWith { t =>
-          log.error(ctx.loggingCtx, t)(
-            s"Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
-          ) >> F.raiseError[Unit](t)
-        }
 
-      saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
-      )
+      _ <- createSamResourceWithRollback(samResourceId, originatingUserEmail, googleProject).use { _ =>
+        for {
+          saveCluster <- F.fromEither(
+            getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
+          )
 
-      saveClusterResult <- KubernetesServiceDbQueries
-        .saveOrGetClusterForApp(saveCluster)
-        .transaction(isolationLevel = TransactionIsolation.Serializable)
-      // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
-      _ <-
-        if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
-          F.raiseError[Unit](
-            KubernetesAppCreationException(
-              s"You cannot create an app while a cluster${saveClusterResult.minimalCluster.clusterName.value} is in status ${saveClusterResult.minimalCluster.status}",
-              Some(ctx.traceId)
+          saveClusterResult <- KubernetesServiceDbQueries
+            .saveOrGetClusterForApp(saveCluster)
+            .transaction(isolationLevel = TransactionIsolation.Serializable)
+          // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
+          _ <-
+            if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
+              F.raiseError[Unit](
+                KubernetesAppCreationException(
+                  s"You cannot create an app while a cluster${saveClusterResult.minimalCluster.clusterName.value} is in status ${saveClusterResult.minimalCluster.status}",
+                  Some(ctx.traceId)
+                )
+              )
+            else F.unit
+
+          clusterId = saveClusterResult.minimalCluster.id
+
+          machineConfigFromReqAndConfig = req.kubernetesRuntimeConfig.getOrElse(
+            KubernetesRuntimeConfig(
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
+              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
             )
           )
-        else F.unit
 
-      clusterId = saveClusterResult.minimalCluster.id
+          // Always allow autoScaling for ALLOWED appType
+          machineConfig =
+            if (AppType.Allowed == req.appType) machineConfigFromReqAndConfig.copy(autoscalingEnabled = true)
+            else machineConfigFromReqAndConfig
+          // We want to know if the user already has a nodepool with the requested config that can be re-used
+          userNodepoolOpt <- nodepoolQuery
+            .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
+            .transaction
 
-      machineConfigFromReqAndConfig = req.kubernetesRuntimeConfig.getOrElse(
-        KubernetesRuntimeConfig(
-          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
-          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
-        )
-      )
+          nodepool <- userNodepoolOpt match {
+            case Some(n) =>
+              log.info(ctx.loggingCtx)(
+                s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
+              ) >> F.pure(n)
+            case None =>
+              for {
+                _ <- log.info(ctx.loggingCtx)(
+                  s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
+                )
+                saveNodepool <- F.fromEither(
+                  getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
+                )
+                savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+              } yield savedNodepool
+          }
 
-      // Always allow autoScaling for ALLOWED appType
-      machineConfig =
-        if (AppType.Allowed == req.appType) machineConfigFromReqAndConfig.copy(autoscalingEnabled = true)
-        else machineConfigFromReqAndConfig
-      // We want to know if the user already has a nodepool with the requested config that can be re-used
-      userNodepoolOpt <- nodepoolQuery
-        .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
-        .transaction
+          runtimeServiceAccountOpt <- serviceAccountProvider
+            .getClusterServiceAccount(userInfo, cloudContext)
+          _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
+          petSA <- F.fromEither(
+            runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
+          )
 
-      nodepool <- userNodepoolOpt match {
-        case Some(n) =>
-          log.info(ctx.loggingCtx)(
-            s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
-          ) >> F.pure(n)
-        case None =>
-          for {
-            _ <- log.info(ctx.loggingCtx)(
-              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
+          // Fail fast if the Galaxy disk, memory, number of CPUs is too small
+          appMachineType <-
+            if (req.appType == AppType.Galaxy) {
+              validateGalaxy(googleProject, req.diskConfig.flatMap(_.size), machineConfig.machineType).map(_.some)
+            } else F.pure(None)
+
+          // if request was created by pet SA, processPersistentDiskRequest will look up it's corresponding user email
+          // as needed
+          diskResultOpt <- req.diskConfig.traverse(diskReq =>
+            RuntimeServiceInterp.processPersistentDiskRequest(
+              diskReq,
+              config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
+              googleProject,
+              userInfo,
+              petSA,
+              appTypeToFormattedByType(req.appType),
+              authProvider,
+              config.leoKubernetesConfig.diskConfig
             )
-            saveNodepool <- F.fromEither(
-              getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
+          )
+          lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
+          saveApp <- F.fromEither(
+            getSavableApp(cloudContext,
+                          appName,
+                          originatingUserEmail,
+                          samResourceId,
+                          req,
+                          diskResultOpt.map(_.disk),
+                          lastUsedApp,
+                          petSA,
+                          nodepool.id,
+                          req.workspaceId,
+                          ctx
             )
-            savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
-          } yield savedNodepool
+          )
+          app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
+
+          clusterNodepoolAction = saveClusterResult match {
+            case ClusterExists(_, _) =>
+              // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
+              if (userNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
+            case ClusterDoesNotExist(c, n) =>
+              Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
+          }
+          createAppMessage = CreateAppMessage(
+            googleProject,
+            clusterNodepoolAction,
+            app.id,
+            app.appName,
+            diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
+            req.customEnvironmentVariables,
+            req.appType,
+            app.appResources.namespace,
+            appMachineType,
+            Some(ctx.traceId),
+            enableIntraNodeVisibility
+          )
+          _ <- publisherQueue.offer(createAppMessage)
+        } yield ()
       }
-
-      runtimeServiceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, cloudContext)
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-      petSA <- F.fromEither(
-        runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
-
-      // Fail fast if the Galaxy disk, memory, number of CPUs is too small
-      appMachineType <-
-        if (req.appType == AppType.Galaxy) {
-          validateGalaxy(googleProject, req.diskConfig.flatMap(_.size), machineConfig.machineType).map(_.some)
-        } else F.pure(None)
-
-      // if request was created by pet SA, processPersistentDiskRequest will look up it's corresponding user email
-      // as needed
-      diskResultOpt <- req.diskConfig.traverse(diskReq =>
-        RuntimeServiceInterp.processPersistentDiskRequest(
-          diskReq,
-          config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
-          googleProject,
-          userInfo,
-          petSA,
-          appTypeToFormattedByType(req.appType),
-          authProvider,
-          config.leoKubernetesConfig.diskConfig
-        )
-      )
-      lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
-      saveApp <- F.fromEither(
-        getSavableApp(cloudContext,
-                      appName,
-                      originatingUserEmail,
-                      samResourceId,
-                      req,
-                      diskResultOpt.map(_.disk),
-                      lastUsedApp,
-                      petSA,
-                      nodepool.id,
-                      req.workspaceId,
-                      ctx
-        )
-      )
-      app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
-
-      clusterNodepoolAction = saveClusterResult match {
-        case ClusterExists(_, _) =>
-          // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
-          if (userNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
-        case ClusterDoesNotExist(c, n) => Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
-      }
-      createAppMessage = CreateAppMessage(
-        googleProject,
-        clusterNodepoolAction,
-        app.id,
-        app.appName,
-        diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
-        req.customEnvironmentVariables,
-        req.appType,
-        app.appResources.namespace,
-        appMachineType,
-        Some(ctx.traceId),
-        enableIntraNodeVisibility
-      )
-      _ <- publisherQueue.offer(createAppMessage)
     } yield ()
 
   override def getApp(
@@ -1516,6 +1514,37 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       case (None, None)       => None
     }
   } yield samVisibleAppsOpt
+
+  private def createSamResourceWithRollback(samResourceId: AppSamResourceId,
+                                            user: WorkbenchEmail,
+                                            googleProject: GoogleProject
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): Resource[F, Unit] = {
+    val createSamResource = for {
+      ctx <- ev.ask
+      _ <- authProvider
+        .notifyResourceCreated(samResourceId, user, googleProject)
+        .handleErrorWith { t =>
+          log.error(ctx.loggingCtx, t)(
+            s"Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${samResourceId.asString}"
+          ) >> F.raiseError[Unit](t)
+        }
+    } yield ()
+    val deleteSamResource = for {
+      ctx <- ev.ask
+      _ <- authProvider
+        .notifyResourceDeleted(samResourceId, user, googleProject)
+        .handleErrorWith { t =>
+          log.error(ctx.loggingCtx, t)(
+            s"Failed to notify the AuthProvider for deletion of kubernetes app ${googleProject.value} / ${samResourceId.asString}"
+          ) >> F.raiseError[Unit](t)
+        }
+    } yield ()
+    Resource.make(
+      createSamResource
+    )(_ => deleteSamResource)
+  }
 
   private def filterAppsBySamPermission(allClusters: List[KubernetesCluster],
                                         userInfo: UserInfo,

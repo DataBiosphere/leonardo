@@ -14,12 +14,14 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceServic
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
@@ -39,9 +41,9 @@ import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers
+import org.mockito.{ArgumentMatchers, Mock}
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
@@ -314,6 +316,37 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       persistentDiskQuery.getById(app.appResources.disk.get.id)
     }
     savedDisk.map(_.name) shouldEqual Some(diskName)
+  }
+
+  it should "rollback Sam resource creation if app creation fails" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+
+    // Fake an error in getLastUsedAppForDisk
+    val disk = makePersistentDisk(None)
+      .copy(cloudContext = cloudContextGcp)
+      .save()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    val mockAuthProvider = mock[LeoAuthProvider[IO]]
+    when(mockAuthProvider.hasPermission(any, any, any)(any, any)).thenReturn(IO.pure(true))
+    when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
+    when(mockAuthProvider.notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)).thenReturn(IO.unit)
+    when(mockAuthProvider.notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)).thenReturn(IO.unit)
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
+    val res = appService
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app"
+
+    verify(mockAuthProvider).notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)
+    verify(mockAuthProvider).notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)
   }
 
   it should "create an app in a user's existing nodepool" in isolatedDbTest {
