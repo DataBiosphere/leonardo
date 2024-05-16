@@ -17,14 +17,14 @@ set -e -x
 #
 
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.5"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.4"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.4"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.5"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.5"
 terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.1.10"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.6"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.9"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.7"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.8"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
-anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.18.0"
+anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.19.0"
 
 # Note that this is the version used currently by AOU in production, the one above can be staged for testing
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.7"
