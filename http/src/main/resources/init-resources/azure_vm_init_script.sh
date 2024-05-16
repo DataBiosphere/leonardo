@@ -187,6 +187,11 @@ echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
 # Install updated R version
 echo "Installing R 4.4.0..."
+# Add the CRAN repository to the sources list
+echo "deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/" | sudo tee /etc/apt/sources.list -a
+# Update package list
+sudo apt-get update
+# Install new R version
 sudo apt install --no-install-recommends -y r-base=4.4.0-1.2004.0
 
 # Start Jupyter server with custom parameters
