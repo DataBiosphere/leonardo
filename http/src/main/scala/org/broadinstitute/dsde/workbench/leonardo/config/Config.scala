@@ -88,6 +88,7 @@ object Config {
       config.as[Path]("leoServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail"),
       config.as[URL]("leoUrlBase"),
+      config.getString("environment"),
       config.as[Long]("concurrency")
     )
   }
