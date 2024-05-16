@@ -275,6 +275,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
           userInfo
         )
       )
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking project permission with Sam")))
+
       _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
 
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
@@ -282,6 +284,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
 
       authorizedIds <- getAuthorizedIds(userInfo, creatorOnly)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Start DB query for listRuntimes")))
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(
           // Authorization scopes
@@ -298,7 +301,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
         )
         .transaction
 
-    } yield runtimes.toVector
+    } yield runtimes
 
   override def deleteRuntime(req: DeleteRuntimeRequest)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {

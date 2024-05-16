@@ -20,7 +20,7 @@ name: Azure E2E Release Promotion Tests
         description: 'Azure Managed Resource Group name. This is a shared identifier used by all Apps deployed for Azure End-to-End (E2E) tests. By default, it is set to the current Azure MRG name.'
         required: false
         type: string
-        default: 'e2e-n6bgy8'
+        default: 'e2e-xmx74y'
 env:
   BEE_NAME: >-
     ${{ github.event.repository.name }}-${{ github.run_id }}-${{github.run_attempt }}-dev
