@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsp.ChartVersion
 import org.http4s.Uri
 
+import java.security.SecureRandom
 import java.time.Instant
 
 trait AzurePubsubHandlerAlgebra[F[_]] {
@@ -84,6 +85,7 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   def handleAzureRuntimeDeletionError(e: AzureRuntimeDeletionError)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
+
 }
 
 final case class CreateAzureDiskParams(workspaceId: WorkspaceId,
@@ -143,4 +145,53 @@ final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           deleteStorageContainerPollConfig: PollMonitorConfig
 ) {
   def welderImage: String = s"$welderAcrUri:$welderImageHash"
+}
+object AzurePubsubHandler {
+  private[util] def generateAzureVMSecurePassword(passwordLength: Int): String = {
+    // Azure is enforcing the following constraints for password generation
+    // Passwords must not include reserved words or unsupported characters.
+    // Password must have 3 of the following: 1 lower case character, 1 upper case character, 1 number, and 1 special character that is not '\'or '-'.
+    // The value must be between 12 and 123 characters long.
+
+    val lowerLetters = 'a' to 'z'
+    val upperLetters = 'A' to 'Z'
+    val numbers = '0' to '9'
+    val specialChars = IndexedSeq('!', '@', '#', '$', '&', '*', '?', '^', '(', ')')
+    val fullCharset = lowerLetters ++ upperLetters ++ numbers ++ specialChars
+
+    val random = new SecureRandom()
+
+    def pickRandomChars(charSet: IndexedSeq[Char], size: Int): List[Char] =
+      Iterator
+        .continually(charSet(random.nextInt(charSet.length)))
+        .take(size)
+        .toList
+
+    var password: String = pickRandomChars(fullCharset, passwordLength).mkString
+    // Keep generating passwords until we find one that has all of the required characters
+    // This is safer than picking from each subset and then shuffling
+
+    var isPasswordValid: Boolean =
+      password.exists(_.isLower) && password.exists(_.isUpper) && password.exists(_.isDigit) && password.exists(
+        specialChars.contains
+      )
+
+    while (isPasswordValid == false) {
+      password = pickRandomChars(fullCharset, passwordLength).mkString
+      isPasswordValid =
+        password.exists(_.isLower) && password.exists(_.isUpper) && password.exists(_.isDigit) && password.exists(
+          specialChars.contains
+        )
+
+    }
+    password
+  }
+
+  private[util] def getAzureVMSecurePassword(environment: String, sharedPassword: String): String =
+    // Generate random password for Azure VM in production, for the other lower level envs we can used the shared password
+    // The password must be between 12 and 123 characters long. We are choosing 25 here
+    environment match {
+      case "prod" => generateAzureVMSecurePassword(25)
+      case _      => sharedPassword
+    }
 }
