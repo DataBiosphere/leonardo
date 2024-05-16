@@ -26,9 +26,6 @@ sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
 sudo systemctl disable --now jupyterhub.service
 
-# Add a sleep of 5 minutes to debug the state of the data disk before we try mounting it
-sleep 30
-
 # Formatting and mounting persistent disk
 WORK_DIRECTORY="/home/$VM_JUP_USER/persistent_disk"
 ## Create the PD working directory
