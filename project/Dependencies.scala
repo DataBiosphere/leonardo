@@ -148,7 +148,9 @@ object Dependencies {
   def excludeBroadWorkbench = ExclusionRule("org.broadinstitute.dsde.workbench")
   def excludePostgresql = ExclusionRule("org.postgresql", "postgresql")
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j)
+  // [IA-4939] commons-text:1.9 is unsafe
+  def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText)
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
 
