@@ -48,10 +48,6 @@ object Dependencies {
   val excludeHttpComponent = ExclusionRule(organization = "org.apache.httpcomponents", name = "httpclient")
   val excludeReactiveStream = ExclusionRule(organization = "org.reactivestreams", name = "reactive-streams")
   val excludeFirestore = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-firestore")
-  val excludeBouncyCastle = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-jdk15on")
-  val excludeBouncyCastleExt = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-ext-jdk15on")
-  val excludeBouncyCastleUtil = ExclusionRule(organization = "org.bouncycastle", name = s"bcutil-jdk15on")
-  val excludeBouncyCastlePkix = ExclusionRule(organization = "org.bouncycastle", name = s"bcpkix-jdk15on")
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
@@ -112,11 +108,7 @@ object Dependencies {
   val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
-    excludeGuava,
-    excludeBouncyCastle,
-    excludeBouncyCastleExt,
-    excludeBouncyCastleUtil,
-    excludeBouncyCastlePkix)
+    excludeGuava)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
