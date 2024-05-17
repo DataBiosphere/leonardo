@@ -44,7 +44,7 @@ DAISY_IMAGE_TAG="release"
 #    2. select the image of interest, say, `cos-89-16108-403-22`
 #    3. run `gcloud compute images describe cos-89-16108-403-22 --project cos-cloud | grep selfLink`
 #    4. extract the segments starting with 'projects'
-BASE_IMAGE="projects/cos-cloud/global/images/cos-113-18244-85-5"
+BASE_IMAGE="projects/cos-cloud/global/images/cos-101-17162-463-16"
 
 if [[ "$VALIDATE_WORKFLOW" == "true" ]]; then
   DAISY_CONTAINER="gcr.io/compute-image-tools/daisy:${DAISY_IMAGE_TAG} -validate"
