@@ -18,7 +18,6 @@ object Dependencies {
   val pact4sV = "0.10.0"
 
   private val workbenchLibsHash = "3b2d0f4"
-  // private val workbenchAzureHash = "5762674"
   val serviceTestV = s"4.3-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.30-$workbenchLibsHash"
