@@ -212,17 +212,6 @@ object AppV2Routes {
       )
     }
 
-  implicit val updateAppRequestDecoder: Decoder[UpdateAppRequest] =
-    Decoder.instance { x =>
-      for {
-        adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
-        adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
-      } yield UpdateAppRequest(
-        adtm,
-        adte
-      )
-    }
-
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
     Encoder.forProduct16(

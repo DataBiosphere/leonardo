@@ -5,17 +5,17 @@ package api
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
-import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, _}
+import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppConfigRequestDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   createAppDecoder,
   getAppResponseEncoder,
-  listAppResponseEncoder,
-  updateAppRequestDecoder
+  listAppResponseEncoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -73,9 +73,9 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                             )
                           } ~
                           patch {
-                            entity(as[UpdateAppRequest]) { req =>
+                            entity(as[UpdateAppConfigRequest]) { req =>
                               complete(
-                                updateAppHandler(userInfo, googleProject, appName, req)
+                                updateAppConfigHandler(userInfo, googleProject, appName, req)
                               )
                             }
                           } ~
@@ -175,12 +175,28 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
-  private[api] def updateAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName, req: UpdateAppRequest)(implicit
-                                                                                                      ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  private[api] def updateAppConfigHandler(userInfo: UserInfo,
+                                          googleProject: GoogleProject,
+                                          appName: AppName,
+                                          req: UpdateAppConfigRequest
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
+    for {
+      _ <- foldSpan(kubernetesService.updateAppConfig(userInfo, CloudContext.Gcp(googleProject), appName, req),
+                    "updateAppConfig"
+      )
+    } yield StatusCodes.Accepted
+
+  // TODO: this pattern is repeated over 20x
+  //  ctx <- ev.ask[AppContext]
+  //  apiCall = whatever
+  //  _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "methodName").use(_ => apiCall))
+  //
+  // My intuition is that it's not necessary for all developers to have a deep understanding of what this is doing,
+  // so I want to abstract this implementation detail away for better ergonomics/approachability.  Thoughts?
+  private def foldSpan(apiCall: IO[Unit], apiName: String)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.updateApp(userInfo, CloudContext.Gcp(googleProject), appName, req)
+      apiCall = kubernetesService.updateAppConfig(userInfo, CloudContext.Gcp(googleProject), appName, req)
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -231,4 +247,12 @@ object AppRoutes {
       case _            => Right(NumNodepools.apply(n))
     }
   )
+
+  implicit val updateAppConfigRequestDecoder: Decoder[UpdateAppConfigRequest] =
+    Decoder.instance { x =>
+      for {
+        enabled <- x.downField("autodeleteEnabled").as[Option[Boolean]]
+        threshold <- x.downField("autodeleteThreshold").as[Option[Int]]
+      } yield UpdateAppConfigRequest(enabled, threshold)
+    }
 }

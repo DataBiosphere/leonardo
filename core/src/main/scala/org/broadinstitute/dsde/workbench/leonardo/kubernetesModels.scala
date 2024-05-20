@@ -536,8 +536,6 @@ object AppStatus {
   val monitoredStatuses: Set[AppStatus] =
     Set(Deleting, Provisioning)
 
-  val updatableStatuses: Set[AppStatus] = Set(Running, Stopped)
-
   implicit class EnrichedDiskStatus(status: AppStatus) {
     def isDeletable: Boolean = deletableStatuses contains status
 

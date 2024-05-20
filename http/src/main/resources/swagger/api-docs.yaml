@@ -1596,8 +1596,8 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
     patch:
         summary: Updates the configuration of an app
-        description: In order to update the configuration of an app, it must first be ready
-        operationId: updateApp
+        description: Updates the configuration of an app.  Currently limited to autodeletion config.
+        operationId: updateAppConfig
         tags:
             - apps
         parameters:
@@ -1614,10 +1614,10 @@ paths:
             schema:
                 type: string
         requestBody:
-            $ref: "#/components/requestBodies/UpdateAppRequest"
+            $ref: "#/components/requestBodies/UpdateAppConfigRequest"
         responses:
           "202":
-            description: App update request accepted
+            description: App configuration update request accepted
           "400":
             description: Bad Request
             content:
@@ -2950,14 +2950,14 @@ components:
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
             autopauseThreshold: 15
-    UpdateAppRequest:
+    UpdateAppConfigRequest:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/UpdateAppRequest"
+            $ref: "#/components/schemas/UpdateAppConfigRequest"
           example:
-            authdeleteThrehold: 15
-            authdeleteThreholdEnabled: true
+            autodeleteEnabled: true
+            autodeleteThreshold: 60
     UpdateAppsRequest:
       content:
         application/json:
@@ -4154,17 +4154,17 @@ components:
           type: boolean
           description: Whether to turn on autodelete
 
-    UpdateAppRequest:
-      description: a request to update an app
+    UpdateAppConfigRequest:
+      description: a request to update the configuration of an app
       type: object
       properties:
+        autodeleteEnabled:
+          type: boolean
+          description: Whether to turn on autodelete
         autodeleteThreshold:
           type: integer
           description: The number of minutes of idle time to elapse before the app is
             deleted in minute. When autodeleteEnabled is true, a positive integer is required
-        autodeleteEnabled:
-          type: boolean
-          description: Whether to turn on autodelete
 
     UpdateAppsRequest:
       description: a request to update a specific set of apps (v1 or v2)
