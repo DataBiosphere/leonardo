@@ -669,11 +669,54 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
-  override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] =
+  // Autodeletion config logic requires a positive integer for threshold if enabled is true.
+  // For simplicity we can enforce this by rejecting the following scenarios:
+  // 1. The request includes a threshold which is invalid
+  // 2. The request includes enabled=true but no threshold is provided, and the existing DB threshold is invalid
+  private def validateUpdateAppConfigRequest(req: UpdateAppConfigRequest, dbApp: App)(implicit
+    as: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- as.ask
+
+    invalidThresholdRequest = req.autodeleteThreshold.exists(_ <= 0)
+    _ <- F.raiseWhen(invalidThresholdRequest)(
+      BadRequestException("invalid value for autodeleteThreshold", Some(ctx.traceId))
+    )
+
+    wantEnableButDbInvalid = req.autodeleteEnabled.getOrElse(false) && dbApp.autodeleteThreshold.exists(_ <= 0)
+    _ <- F.raiseWhen(wantEnableButDbInvalid)(
+      BadRequestException(
+        "when enabling autodelete without passing an explicit autodeleteThreshold, the existing config must be valid",
+        Some(ctx.traceId)
+      )
+    )
+  } yield ()
+
+  private def updateAppConfigInternal(appId: AppId, validatedChanges: UpdateAppConfigRequest): F[Unit] = for {
+    _ <- validatedChanges.autodeleteEnabled.fold(F.unit)(enabled =>
+      appQuery
+        .updateAutodeleteEnabled(appId, enabled)
+        .transaction
+        .void
+    )
+
+    // note: does not clear the threshold if None.  This only sets defined thresholds.
+    _ <- validatedChanges.autodeleteThreshold.fold(F.unit)(threshold =>
+      appQuery
+        .updateAutodeleteThreshold(appId, Some(threshold))
+        .transaction
+        .void
+    )
+  } yield ()
+
+  override def updateAppConfig(userInfo: UserInfo,
+                               cloudContext: CloudContext.Gcp,
+                               appName: AppName,
+                               req: UpdateAppConfigRequest
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
+
       // throw 403 if no project-level permission
       hasProjectPermission <- authProvider.isUserProjectReader(
         cloudContext,
@@ -688,40 +731,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         appOpt,
         AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
+
       tags = Map("appType" -> appResult.app.appType.toString)
-      _ <- metrics.incrementCounter("updateApp", 1, tags)
+      _ <- metrics.incrementCounter("updateAppConfig", 1, tags)
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
-      // throw 404 if no GetAppStatus permission
+      // throw 404 if no UpdateApp permission
       hasPermission = listOfPermissions.toSet.contains(AppAction.UpdateApp)
-      _ <-
-        if (hasPermission) F.unit
-        else
-          F.raiseError[Unit](
-            AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied")
-          )
+      _ <- F.raiseWhen(!hasPermission)(AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied"))
 
-
-      canUpdate = AppStatus.updatableStatuses.contains(appResult.app.status)
-      _ <-
-        if (canUpdate) F.unit
-        else
-          F.raiseError[Unit](
-            AppCannotBeStoppedException(cloudContext, appName, appResult.app.status, ctx.traceId)
-          )
-
-      // auto delete
-      autodeleteEnabled = req.autodeleteEnabled.getOrElse(false)
-      autodeleteThreshold = req.autodeleteThreshold.getOrElse(0)
-      _ <- Either.cond(!(autodeleteEnabled && autodeleteThreshold <= 0),
-        (),
-        BadRequestException("autodeleteThreshold should be a positive value", Some(ctx.traceId))
-      )
-      _ <-
-        if (appResult.app.autodeleteEnabled != autodeleteEnabled || appResult.app.autodeleteThreshold != req.autodeleteThreshold)
-          appQuery.updateAutodelete(appResult.app.id, autodeleteEnabled, req.autodeleteThreshold).transaction.void
-        else Async[F].unit
-
+      // confirm that the combination of the request and the existing DB values result in a valid configuration
+      _ <- validateUpdateAppConfigRequest(req, appResult.app)
+      _ <- updateAppConfigInternal(appResult.app.id, req)
     } yield ()
 
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
@@ -1703,19 +1724,6 @@ case class AppAlreadyExistsException(cloudContext: CloudContext, appName: AppNam
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
-
-case class AppCannotBeUpdatedException(cloudContext: CloudContext,
-                                       appName: AppName,
-                                       status: AppStatus,
-                                       traceId: TraceId,
-                                       extraMsg: String = ""
-                                      ) extends LeoException(
-  s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be updated in ${status} status." +
-    (if (status == AppStatus.Stopped) " Please start the app first." else ""),
-  StatusCodes.Conflict,
-  traceId = Some(traceId),
-  extraMessageInLogging = extraMsg
-)
 
 case class AppCannotBeDeletedException(cloudContext: CloudContext,
                                        appName: AppName,
