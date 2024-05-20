@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import bio.terra.workspace.model.{IamRole, WorkspaceDescription}
 import cats.Parallel
 import cats.data.NonEmptyList
-import cats.effect.{Async, Resource}
+import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -169,7 +169,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
 
         saveClusterResult <- KubernetesServiceDbQueries
-          .saveOrGetClusterForApp(saveCluster)
+          .saveOrGetClusterForApp(saveCluster, ctx.traceId)
           .transaction(isolationLevel = TransactionIsolation.Serializable)
         // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
         _ <-
@@ -286,7 +286,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       } yield ()
       _ <- notifySamAndCreate.handleErrorWith { t =>
         authProvider
-          .notifyResourceDeleted(samResourceId, originatingUserEmail, googleProject) >> F.raiseError[Unit](t)
+          .notifyResourceDeleted(samResourceId, originatingUserEmail, googleProject) >> metrics.incrementCounter(
+          "frontLeoCreateAppFailure",
+          1,
+          Map("isAoU" -> enableIntraNodeVisibility.toString)
+        ) >> F.raiseError[Unit](t)
       }
     } yield ()
 
@@ -742,7 +746,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
       )
       saveClusterResult <- KubernetesServiceDbQueries
-        .saveOrGetClusterForApp(saveCluster)
+        .saveOrGetClusterForApp(saveCluster, ctx.traceId)
         .transaction(isolationLevel = TransactionIsolation.Serializable)
       _ <-
         if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
