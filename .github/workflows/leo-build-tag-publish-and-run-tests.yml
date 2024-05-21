@@ -66,6 +66,7 @@ jobs:
       relates-to-chart-releases: ${{ steps.prepare-outputs.outputs.relates-to-chart-releases }}
       notify-failure-channel: ${{ steps.prepare-outputs.outputs.notify-failure-channel }}
       test-env: ${{ steps.prepare-outputs.outputs.test-env }}
+      leo-test-command: ${{ steps.prepare-outputs.outputs.leo-test-command }}
     steps:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
@@ -76,8 +77,10 @@ jobs:
           if ${{ github.ref_name == 'develop' }}; then
             echo 'test-context=dev-merge'                              >> $GITHUB_OUTPUT
             echo 'relates-to-chart-releases=leonardo-dev'              >> $GITHUB_OUTPUT
+            echo 'leo-test-command=testOnly -- -l ExcludeFromJenkins'  >> $GITHUB_OUTPUT
           else
             echo 'test-context=pr-test'                                >> $GITHUB_OUTPUT
+            echo 'leo-test-command=testOnly -- -l "ExcludeFromJenkins ScheduledTest"'  >> $GITHUB_OUTPUT
           fi
           ENV=local
           if ${{ github.event_name == 'workflow_dispatch' }}; then
@@ -268,8 +271,6 @@ jobs:
           echo "TEST_REPORTING=$TEST_REPORTING" >> $GITHUB_ENV
 
       - name: dispatch to terra-github-workflows
-        env:
-          leo_test_command: "testOnly -- -l ExcludeFromJenkins"
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
@@ -282,7 +283,7 @@ jobs:
               "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
               "bee-name": "${{ env.BEE_NAME }}",
               "ENV": "${{ matrix.testing-env }}",
-              "sbt-test-command": "${{ env.leo_test_command }}",
+              "sbt-test-command": "${{ needs.init-github-context.outputs.leo_test_command }}",
               "java-version": "17",
               "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
               "test-reporting": ${{ toJson(env.TEST_REPORTING) }}
