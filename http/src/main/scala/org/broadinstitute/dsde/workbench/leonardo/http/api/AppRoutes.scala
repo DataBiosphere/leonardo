@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   listAppResponseEncoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
+import org.broadinstitute.dsde.workbench.leonardo.http.spanResource
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -196,9 +197,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
   private def foldSpan(apiCall: IO[Unit], apiName: String)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.updateAppConfig(userInfo, CloudContext.Gcp(googleProject), appName, req)
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApp").use(_ => apiCall))
-    } yield StatusCodes.Accepted
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, apiName).use(_ => apiCall))
+    } yield ()
 
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
