@@ -283,7 +283,7 @@ jobs:
               "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
               "bee-name": "${{ env.BEE_NAME }}",
               "ENV": "${{ matrix.testing-env }}",
-              "sbt-test-command": "${{ needs.init-github-context.outputs.leo_test_command }}",
+              "sbt-test-command": "${{ needs.init-github-context.outputs.leo-test-command }}",
               "java-version": "17",
               "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
               "test-reporting": ${{ toJson(env.TEST_REPORTING) }}
