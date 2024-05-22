@@ -90,6 +90,7 @@ jobs:
       test-env: ${{ steps.prepare-outputs.outputs.test-env }}
       bee-name: ${{ steps.prepare-outputs.outputs.bee-name }}
       is-triggered-from-pr-dispatch: ${{ steps.prepare-outputs.outputs.is-triggered-from-pr-dispatch }}
+      leo-test-command: ${{ steps.prepare-outputs.outputs.leo-test-command }}
     steps:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
@@ -116,6 +117,11 @@ jobs:
            echo "test-env=$ENV" >> $GITHUB_OUTPUT
            echo "bee-name=$BEE_NAME_TEMP" >> $GITHUB_OUTPUT
            echo "is-triggered-from-pr-dispatch=$IS_TRIGGERED_FROM_PR_DISPATCH" >> $GITHUB_OUTPUT
+          if ${{ github.ref_name == 'develop' }}; then
+            echo 'leo-test-command=testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite'  >> $GITHUB_OUTPUT
+          else
+            echo 'leo-test-command=testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite -l ExcludeFromPRCommit'  >> $GITHUB_OUTPUT
+          fi
 
   create-bee-workflow:
     runs-on: ubuntu-latest
@@ -250,8 +256,6 @@ jobs:
           echo "TEST_REPORTING=$TEST_REPORTING" >> $GITHUB_ENV
 
       - name: dispatch to terra-github-workflows
-        env:
-          leo_test_command: "testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite -l ExcludeFromPRCommit"
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
@@ -264,7 +268,7 @@ jobs:
               "bee-name": "${{ needs.init-github-context.outputs.bee-name }}",
               "ENV": "qa",
               "test-group-name": "workspaces_azure",
-              "sbt-test-command": "${{ env.leo_test_command }}",
+              "sbt-test-command": "${{ needs.init-github-context.outputs.leo-test-command }}",
               "java-version": "17",
               "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
               "e2e-infrastructure": ${{ toJson(env.E2E_INFRASTRUCTURE) }},
