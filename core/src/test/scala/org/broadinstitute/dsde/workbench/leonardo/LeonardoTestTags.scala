@@ -12,5 +12,5 @@ object LeonardoTestTags {
 
   // intent: do not run on every PR commit
   // e.g. GPU tests should not run at every PR commit to avoid resource allocation problems
-  object ExcludeFromPRTest extends Tag("ExcludeFromPRTest")
+  object ExcludeFromPRCommit extends Tag("ExcludeFromPRCommit")
 }

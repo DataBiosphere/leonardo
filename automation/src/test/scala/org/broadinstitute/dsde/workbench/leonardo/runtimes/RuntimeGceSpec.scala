@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.{defaultCreateRuntime2Request, getRuntime}
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromPRTest
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromPRCommit
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
@@ -82,7 +82,7 @@ class RuntimeGceSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "should be able to create a VM with GPU enabled" taggedAs ExcludeFromPRTest in { project =>
+  "should be able to create a VM with GPU enabled" taggedAs ExcludeFromPRCommit in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
 

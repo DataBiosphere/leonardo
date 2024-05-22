@@ -251,7 +251,7 @@ jobs:
 
       - name: dispatch to terra-github-workflows
         env:
-          leo_test_command: "testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite"
+          leo_test_command: "testOnly -s org.broadinstitute.dsde.workbench.leonardo.LeonardoAzureSuite -l ExcludeFromPRCommit"
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
