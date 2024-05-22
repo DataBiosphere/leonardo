@@ -34,5 +34,3 @@ done
 PID=$(lsof -i tcp:$PORT | tail -1 | awk '{print $2}')
 # The last line of this script needs to echo the pid for the sbt test suite to record and clean up
 echo "$PID"
-
-exit 0
