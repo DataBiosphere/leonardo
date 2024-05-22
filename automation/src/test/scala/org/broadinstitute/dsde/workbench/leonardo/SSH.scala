@@ -38,19 +38,23 @@ object SSH {
 
     val makeTunnel = for {
       scriptPath <- IO(getClass.getClassLoader.getResource("startTunnel.sh").getPath)
-      output = Process(
+      process = Process(
         scriptPath,
         None,
         "BASTION_NAME" -> LeonardoConfig.Azure.bastionName,
         "RESOURCE_GROUP" -> staticTestCoordinates.managedResourceGroupId,
         "RESOURCE_ID" -> targetResourceId,
         "PORT" -> port.toString
-      ) !!
-
-      _ <- loggerIO.info(s"startTunnel output: ${output}")
+      )
+      _ <- loggerIO.info(s"startTunnel process")
+      processString = process.toString
+      _ <- loggerIO.info(s"startTunnel process string: ${processString}")
+      hasExit = process.hasExitValue
+      _ <- loggerIO.info(s"startTunnel process hasExit: ${hasExit}")
+      output = process.lazyLines
 //      output <- IO(process)
       _ <- loggerIO.info(s"Bastion tunnel start command full output:\n\t${output}")
-      tunnel = Tunnel(output.split('\n').last, port)
+      tunnel = Tunnel(output.last, port)
     } yield tunnel
 
     Resource.make(makeTunnel)(tunnel => loggerIO.info("Closing tunnel") >> closeTunnel(tunnel))
