@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.{defaultCreateRuntime2Request, getRuntime}
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ScheduledTest
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromPRTest
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
@@ -82,14 +82,13 @@ class RuntimeGceSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "should be able to create a VM with GPU enabled" taggedAs ScheduledTest in { project =>
+  "should be able to create a VM with GPU enabled" taggedAs ExcludeFromPRTest in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
 
     val toolImage = ContainerImage.fromImageUrl(
-      "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:qi-gpu"
-    ) // Use the default base image once we migrate to use gpu images by default
-    // In a europe zone
+      "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.5"
+    )
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
         RuntimeConfigRequest.GceWithPdConfig(

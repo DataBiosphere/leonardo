@@ -10,7 +10,7 @@ object LeonardoTestTags {
   // this is also synonmous with 'azure test'
   object ExcludeFromJenkins extends Tag("ExcludeFromJenkins")
 
-  // intent: run in cron scheduled tests only, not at every PR commit
-  // example use case is for GPU testing that would otherwise run into resource allocation problems
-  object ScheduledTest extends Tag("ScheduledTest")
+  // intent: do not run on every PR commit
+  // e.g. GPU tests should not run at every PR commit to avoid resource allocation problems
+  object ExcludeFromPRTest extends Tag("ExcludeFromPRTest")
 }
