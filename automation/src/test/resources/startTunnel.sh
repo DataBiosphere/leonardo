@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+set -e -x
+
 # This script is meant to be used from within leo automation tests, and starts a tunnel that allows a bastion to be used to ssh into an azure vm
 # It depends on the following env vars:
    # BASTION_NAME, the name of the pre-created bastion in the azure cloud
