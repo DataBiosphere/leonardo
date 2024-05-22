@@ -80,7 +80,7 @@ jobs:
             echo 'leo-test-command=testOnly -- -l ExcludeFromJenkins'  >> $GITHUB_OUTPUT
           else
             echo 'test-context=pr-test'                                >> $GITHUB_OUTPUT
-            echo 'leo-test-command=testOnly -- -l ExcludeFromJenkins'  >> $GITHUB_OUTPUT
+            echo 'leo-test-command=testOnly -- -l ExcludeFromJenkins -l ExcludeFromPRCommit'  >> $GITHUB_OUTPUT
           fi
           ENV=local
           if ${{ github.event_name == 'workflow_dispatch' }}; then
