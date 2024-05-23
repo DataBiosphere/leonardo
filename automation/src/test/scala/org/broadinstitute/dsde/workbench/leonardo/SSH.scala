@@ -47,17 +47,9 @@ object SSH {
         "RESOURCE_ID" -> targetResourceId,
         "PORT" -> port.toString
       )
-      _ <- loggerIO.info(s"startTunnel process")
-      processString = process.toString
-      _ <- loggerIO.info(s"startTunnel process string: ${processString}")
-      hasExit = process.hasExitValue
-      _ <- loggerIO.info(s"startTunnel process hasExit: ${hasExit}")
-      processLazy = process.lazyLines
-      _ <- IO.sleep(10 seconds)
-      pid = processLazy.last
-//      output <- IO(process)
-      _ <- loggerIO.info(s"Bastion tunnel start command pid output:\n\t${pid}")
-      tunnel = Tunnel(pid, port)
+      output <- IO(process !!)
+      _ <- loggerIO.info(s"Bastion tunnel start command pid output:\n\t${output}")
+      tunnel = Tunnel(output.split('\n').last, port)
     } yield tunnel
 
     Resource.make(makeTunnel)(tunnel => loggerIO.info("Closing tunnel") >> closeTunnel(tunnel))
