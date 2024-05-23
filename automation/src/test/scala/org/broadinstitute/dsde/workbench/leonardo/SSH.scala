@@ -16,6 +16,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import scala.sys.process._
+import scala.concurrent.duration._
 
 case class TunnelName(value: String) extends AnyVal
 case class ResourceGroup(value: String)
@@ -52,7 +53,8 @@ object SSH {
       hasExit = process.hasExitValue
       _ <- loggerIO.info(s"startTunnel process hasExit: ${hasExit}")
       processLazy = process.lazyLines
-      pid = "1632"
+      _ <- IO.sleep(10 seconds)
+      pid = processLazy.last
 //      output <- IO(process)
       _ <- loggerIO.info(s"Bastion tunnel start command pid output:\n\t${pid}")
       tunnel = Tunnel(pid, port)
