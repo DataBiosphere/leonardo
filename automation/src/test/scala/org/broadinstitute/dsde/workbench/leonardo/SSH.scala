@@ -48,7 +48,7 @@ object SSH {
         "PORT" -> port.toString
       )
       output <- IO(process !!)
-      _ <- loggerIO.info(s"Bastion tunnel start command pid output:\n\t${output}")
+      _ <- loggerIO.info(s"Bastion tunnel start command full output:\n\t${output}")
       tunnel = Tunnel(output.split('\n').last, port)
     } yield tunnel
 
