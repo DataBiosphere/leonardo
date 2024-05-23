@@ -51,7 +51,7 @@ object SSH {
       _ <- loggerIO.info(s"startTunnel process string: ${processString}")
       hasExit = process.hasExitValue
       _ <- loggerIO.info(s"startTunnel process hasExit: ${hasExit}")
-//      pid = process.lazyLines.last
+      processLazy = process.lazyLines
       pid = "1632"
 //      output <- IO(process)
       _ <- loggerIO.info(s"Bastion tunnel start command pid output:\n\t${pid}")
