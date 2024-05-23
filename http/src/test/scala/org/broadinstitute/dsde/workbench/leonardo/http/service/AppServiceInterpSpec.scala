@@ -3321,13 +3321,34 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     updatedApp.autodeleteThreshold shouldBe Some(newThreshold)
   }
 
-  it should "allow changing autodeletion threshold" in isolatedDbTest {
+  it should "allow changing autodeletion threshold when enableAutodelete=true" in isolatedDbTest {
     val initialAutodeleteEnabled = true
     val autodeleteThreshold = 1000
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val newAutodeleteThreshold = 2000
     val updateReq = UpdateAppConfigRequest(Some(true), Some(newAutodeleteThreshold))
+    appServiceInterp
+      .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(newAutodeleteThreshold)
+  }
+
+  it should "allow changing autodeletion threshold when enableAutodelete=None" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val newAutodeleteThreshold = 2000
+    val updateReq = UpdateAppConfigRequest(None, Some(newAutodeleteThreshold))
     appServiceInterp
       .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
