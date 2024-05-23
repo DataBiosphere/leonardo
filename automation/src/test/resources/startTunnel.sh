@@ -14,13 +14,6 @@ echo "starting tunnel bastion ${BASTION_NAME} with resource id ${RESOURCE_ID} in
 
 nohup az network bastion tunnel --name "$BASTION_NAME" --resource-group "$RESOURCE_GROUP" --target-resource-id "${RESOURCE_ID}" --resource-port 22 --port $PORT > /dev/null 2>&1 &
 
-#nohup az network bastion tunnel --name "$BASTION_NAME" --resource-group "$RESOURCE_GROUP" --target-resource-id "${RESOURCE_ID}" --resource-port 22 --port $PORT > /tmp/nohup.out &
-#
-#
-#echo "displaying nohup output"
-#cat /tmp/nohup.out
-#echo "done displaying nohup output"
-
 NUM_LOOPS=0
 until lsof -i tcp:3000
 do
