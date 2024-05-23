@@ -723,25 +723,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       ctx <- as.ask
 
       // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
+      hasProjectPermission <- authProvider.isUserProjectReader(cloudContext, userInfo)
       _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
 
-      appOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(cloudContext, appName)
-        .transaction
-      appResult <- F.fromOption(
-        appOpt,
-        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
+      appResult <- F.fromOption(appOpt,
+                                AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
 
-      tags = Map("appType" -> appResult.app.appType.toString)
-      _ <- metrics.incrementCounter("updateAppConfig", 1, tags)
-      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+      _ <- metrics.incrementCounter("updateAppConfig", 1, Map("appType" -> appResult.app.appType.toString))
 
       // throw 404 if no UpdateApp permission
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
       hasPermission = listOfPermissions.toSet.contains(AppAction.UpdateApp)
       _ <- F.raiseWhen(!hasPermission)(AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied"))
 
