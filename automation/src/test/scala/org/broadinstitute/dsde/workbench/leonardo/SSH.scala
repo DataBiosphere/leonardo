@@ -51,10 +51,10 @@ object SSH {
       _ <- loggerIO.info(s"startTunnel process string: ${processString}")
       hasExit = process.hasExitValue
       _ <- loggerIO.info(s"startTunnel process hasExit: ${hasExit}")
-      output = process.lazyLines
+      pid = process.lazyLines.last
 //      output <- IO(process)
-      _ <- loggerIO.info(s"Bastion tunnel start command full output:\n\t${output}")
-      tunnel = Tunnel(output.last, port)
+      _ <- loggerIO.info(s"Bastion tunnel start command pid output:\n\t${pid}")
+      tunnel = Tunnel(pid, port)
     } yield tunnel
 
     Resource.make(makeTunnel)(tunnel => loggerIO.info("Closing tunnel") >> closeTunnel(tunnel))
