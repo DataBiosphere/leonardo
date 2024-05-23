@@ -678,13 +678,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): F[Unit] = for {
     ctx <- as.ask
 
+    // 1. The request includes a threshold which is invalid
     invalidThresholdRequest = req.autodeleteThreshold.exists(_ <= 0)
     _ <- F.raiseWhen(invalidThresholdRequest)(
       BadRequestException("invalid value for autodeleteThreshold", Some(ctx.traceId))
     )
 
-    wantEnableButDbInvalid = req.autodeleteEnabled.getOrElse(false) && dbApp.autodeleteThreshold.exists(_ <= 0)
-    _ <- F.raiseWhen(wantEnableButDbInvalid)(
+    // 2. The request includes enabled=true but no threshold is provided, and the existing DB threshold is invalid
+    wantEnableWithoutThresholdButDbInvalid = req.autodeleteEnabled.getOrElse(false) &&
+      req.autodeleteThreshold.isEmpty &&
+      dbApp.autodeleteThreshold.getOrElse(0) <= 0
+
+    _ <- F.raiseWhen(wantEnableWithoutThresholdButDbInvalid)(
       BadRequestException(
         "when enabling autodelete without passing an explicit autodeleteThreshold, the existing config must be valid",
         Some(ctx.traceId)
