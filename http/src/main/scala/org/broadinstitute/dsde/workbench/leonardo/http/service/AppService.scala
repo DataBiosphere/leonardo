@@ -29,11 +29,11 @@ trait AppService[F[_]] {
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
 
-  def updateAppConfig(
+  def updateApp(
     userInfo: UserInfo,
     cloudContext: CloudContext.Gcp,
     appName: AppName,
-    req: UpdateAppConfigRequest
+    req: UpdateAppRequest
   )(implicit as: Ask[F, AppContext]): F[Unit]
 
   def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(implicit
