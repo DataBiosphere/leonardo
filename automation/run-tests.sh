@@ -37,19 +37,22 @@ mkdir -p /root/.ssh
 gcloud auth activate-service-account --key-file=$LEONARDO_ACCOUNT_JSON_PATH
 export GOOGLE_APPLICATION_CREDENTIALS=$LEONARDO_ACCOUNT_JSON_PATH
 
-# Install azure CLI
-curl -sL https://aka.ms/InstallAzureCLIDeb | bash > /dev/null
 
-# Log into service principal and set subscription
-az login --service-principal -u "$LEO_AZURE_CLIENT_ID" -p "$LEO_AZURE_CLIENT_SECRET" -t "$LEO_AZURE_TENANT_ID"
-az account set -s "$LEO_AZURE_SUBSCRIPTION_ID"
-echo "Showing account"
-az account show
+if [ ! -z "$LEO_AZURE_SUBSCRIPTION_ID" ] ; then
+  # Install azure CLI
+  curl -sL https://aka.ms/InstallAzureCLIDeb | bash > /dev/null
 
-# Install the bastion portion of the CLI
-echo "Installing bastion"
-yes | az network bastion list
-echo "Bastion installed"
+  # Log into service principal and set subscription
+  az login --service-principal -u "$LEO_AZURE_CLIENT_ID" -p "$LEO_AZURE_CLIENT_SECRET" -t "$LEO_AZURE_TENANT_ID"
+  az account set -s "$LEO_AZURE_SUBSCRIPTION_ID"
+  echo "Showing account"
+  az account show
+
+  # Install the bastion portion of the CLI
+  echo "Installing bastion"
+  yes | az network bastion list
+  echo "Bastion installed"
+fi
 
 echo "Installing lsof"
 yes | apt update > /dev/null
