@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e -x
+set -x
 
 # Logs into an azure service principal and runs the SBT tests. Requires 5 env vars
 
