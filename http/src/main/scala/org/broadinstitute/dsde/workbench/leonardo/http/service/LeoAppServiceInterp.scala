@@ -714,11 +714,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   } yield ()
 
-  override def updateApp(userInfo: UserInfo,
-                               cloudContext: CloudContext.Gcp,
-                               appName: AppName,
-                               req: UpdateAppRequest
-  )(implicit as: Ask[F, AppContext]): F[Unit] =
+  override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] =
     for {
       ctx <- as.ask
 
