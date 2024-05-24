@@ -3186,14 +3186,14 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     appName
   }
 
-  "updateAppConfig" should "allow enabling autodeletion by specifying both fields" in isolatedDbTest {
+  "updateApp" should "allow enabling autodeletion by specifying both fields" in isolatedDbTest {
     val initialAutodeleteEnabled = false
     val appName = setupAppWithConfig(initialAutodeleteEnabled, None)
 
     val autodeleteThreshold = 1000
-    val updateReq = UpdateAppConfigRequest(Some(true), Some(autodeleteThreshold))
+    val updateReq = UpdateAppRequest(Some(true), Some(autodeleteThreshold))
     appServiceInterp
-      .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // confirm the update
@@ -3211,9 +3211,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val autodeleteThreshold = 1000
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
-    val updateReq = UpdateAppConfigRequest(Some(true), None)
+    val updateReq = UpdateAppRequest(Some(true), None)
     appServiceInterp
-      .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // confirm the update
@@ -3231,10 +3231,10 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val badAutodeleteThreshold = 0
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(badAutodeleteThreshold))
 
-    val updateReq = UpdateAppConfigRequest(Some(true), None)
+    val updateReq = UpdateAppRequest(Some(true), None)
     a[BadRequestException] should be thrownBy {
       appServiceInterp
-        .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -3243,10 +3243,10 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val initialAutodeleteEnabled = false
     val appName = setupAppWithConfig(initialAutodeleteEnabled, None)
 
-    val updateReq = UpdateAppConfigRequest(Some(true), None)
+    val updateReq = UpdateAppRequest(Some(true), None)
     a[BadRequestException] should be thrownBy {
       appServiceInterp
-        .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -3256,10 +3256,10 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = setupAppWithConfig(initialAutodeleteEnabled, None)
 
     val badAutodeleteThreshold = 0
-    val updateReq = UpdateAppConfigRequest(Some(true), Some(badAutodeleteThreshold))
+    val updateReq = UpdateAppRequest(Some(true), Some(badAutodeleteThreshold))
     a[BadRequestException] should be thrownBy {
       appServiceInterp
-        .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -3270,10 +3270,10 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val badAutodeleteThreshold = 0
-    val updateReq = UpdateAppConfigRequest(Some(false), Some(badAutodeleteThreshold))
+    val updateReq = UpdateAppRequest(Some(false), Some(badAutodeleteThreshold))
     a[BadRequestException] should be thrownBy {
       appServiceInterp
-        .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -3284,10 +3284,10 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val badAutodeleteThreshold = 0
-    val updateReq = UpdateAppConfigRequest(None, Some(badAutodeleteThreshold))
+    val updateReq = UpdateAppRequest(None, Some(badAutodeleteThreshold))
     a[BadRequestException] should be thrownBy {
       appServiceInterp
-        .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -3297,9 +3297,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val autodeleteThreshold = 1000
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
-    val updateReq = UpdateAppConfigRequest(Some(false), None)
+    val updateReq = UpdateAppRequest(Some(false), None)
     appServiceInterp
-      .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // confirm the update
@@ -3318,9 +3318,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val newThreshold = 2000
-    val updateReq = UpdateAppConfigRequest(Some(false), Some(newThreshold))
+    val updateReq = UpdateAppRequest(Some(false), Some(newThreshold))
     appServiceInterp
-      .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // confirm the update
@@ -3339,9 +3339,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val newAutodeleteThreshold = 2000
-    val updateReq = UpdateAppConfigRequest(Some(true), Some(newAutodeleteThreshold))
+    val updateReq = UpdateAppRequest(Some(true), Some(newAutodeleteThreshold))
     appServiceInterp
-      .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // confirm the update
@@ -3360,9 +3360,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val newAutodeleteThreshold = 2000
-    val updateReq = UpdateAppConfigRequest(None, Some(newAutodeleteThreshold))
+    val updateReq = UpdateAppRequest(None, Some(newAutodeleteThreshold))
     appServiceInterp
-      .updateAppConfig(userInfo, cloudContextGcp, appName, updateReq)
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // confirm the update
@@ -3387,7 +3387,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val wrongApp = AppName("wrongApp")
     an[AppNotFoundException] should be thrownBy {
       appServiceInterp
-        .updateAppConfig(userInfo, cloudContextGcp, wrongApp, UpdateAppConfigRequest(None, None))
+        .updateApp(userInfo, cloudContextGcp, wrongApp, UpdateAppRequest(None, None))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }

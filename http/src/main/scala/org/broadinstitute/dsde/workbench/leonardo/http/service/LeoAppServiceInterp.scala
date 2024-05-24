@@ -673,7 +673,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   // For simplicity we can enforce this by rejecting the following scenarios:
   // 1. The request includes a threshold which is invalid (0 or negative)
   // 2. The request includes enabled=true but no threshold is provided, and the existing DB threshold is invalid
-  private def validateUpdateAppConfigRequest(req: UpdateAppConfigRequest, dbApp: App)(implicit
+  private def validateUpdateAppConfigRequest(req: UpdateAppRequest, dbApp: App)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
@@ -697,7 +697,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   } yield ()
 
-  private def updateAppConfigInternal(appId: AppId, validatedChanges: UpdateAppConfigRequest): F[Unit] = for {
+  private def updateAppConfigInternal(appId: AppId, validatedChanges: UpdateAppRequest): F[Unit] = for {
     _ <- validatedChanges.autodeleteEnabled.traverse(enabled =>
       appQuery
         .updateAutodeleteEnabled(appId, enabled)
@@ -714,10 +714,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   } yield ()
 
-  override def updateAppConfig(userInfo: UserInfo,
+  override def updateApp(userInfo: UserInfo,
                                cloudContext: CloudContext.Gcp,
                                appName: AppName,
-                               req: UpdateAppConfigRequest
+                               req: UpdateAppRequest
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
@@ -731,7 +731,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                 AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
       )
 
-      _ <- metrics.incrementCounter("updateAppConfig", 1, Map("appType" -> appResult.app.appType.toString))
+      _ <- metrics.incrementCounter("updateApp", 1, Map("appType" -> appResult.app.appType.toString))
 
       // throw 404 if no UpdateApp permission
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)

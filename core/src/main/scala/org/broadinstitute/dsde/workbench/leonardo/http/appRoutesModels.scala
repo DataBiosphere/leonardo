@@ -39,7 +39,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   autodeleteEnabled: Option[Boolean]
 )
 
-final case class UpdateAppConfigRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[Int])
+final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[Int])
 
 final case class GetAppResponse(
   workspaceId: Option[WorkspaceId],

@@ -11,7 +11,6 @@ import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppConfigRequestDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   createAppDecoder,
   getAppResponseEncoder,
@@ -22,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.spanResource
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppConfigDecoder
 
 class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
@@ -74,7 +74,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                             )
                           } ~
                           patch {
-                            entity(as[UpdateAppConfigRequest]) { req =>
+                            entity(as[UpdateAppRequest]) { req =>
                               complete(
                                 updateAppConfigHandler(userInfo, googleProject, appName, req)
                               )
@@ -179,12 +179,10 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
   private[api] def updateAppConfigHandler(userInfo: UserInfo,
                                           googleProject: GoogleProject,
                                           appName: AppName,
-                                          req: UpdateAppConfigRequest
+                                          req: UpdateAppRequest
   )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      _ <- foldSpan(kubernetesService.updateAppConfig(userInfo, CloudContext.Gcp(googleProject), appName, req),
-                    "updateAppConfig"
-      )
+      _ <- foldSpan(kubernetesService.updateApp(userInfo, CloudContext.Gcp(googleProject), appName, req), "updateApp")
     } yield StatusCodes.Accepted
 
   // TODO: this pattern is repeated over 20x
@@ -248,11 +246,11 @@ object AppRoutes {
     }
   )
 
-  implicit val updateAppConfigRequestDecoder: Decoder[UpdateAppConfigRequest] =
+  implicit val updateAppConfigDecoder: Decoder[UpdateAppRequest] =
     Decoder.instance { x =>
       for {
         enabled <- x.downField("autodeleteEnabled").as[Option[Boolean]]
         threshold <- x.downField("autodeleteThreshold").as[Option[Int]]
-      } yield UpdateAppConfigRequest(enabled, threshold)
+      } yield UpdateAppRequest(enabled, threshold)
     }
 }
