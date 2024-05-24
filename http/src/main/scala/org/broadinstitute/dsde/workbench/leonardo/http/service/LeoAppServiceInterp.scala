@@ -698,7 +698,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   } yield ()
 
   private def updateAppConfigInternal(appId: AppId, validatedChanges: UpdateAppConfigRequest): F[Unit] = for {
-    _ <- validatedChanges.autodeleteEnabled.fold(F.unit)(enabled =>
+    _ <- validatedChanges.autodeleteEnabled.traverse(enabled =>
       appQuery
         .updateAutodeleteEnabled(appId, enabled)
         .transaction
@@ -706,7 +706,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
 
     // note: does not clear the threshold if None.  This only sets defined thresholds.
-    _ <- validatedChanges.autodeleteThreshold.fold(F.unit)(threshold =>
+    _ <- validatedChanges.autodeleteThreshold.traverse(threshold =>
       appQuery
         .updateAutodeleteThreshold(appId, Some(threshold))
         .transaction
