@@ -1502,8 +1502,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.extraArgs,
         req.sourceWorkspaceId,
         numOfReplicas,
-        req.autodeleteThreshold,
-        autodeleteEnabled
+        autodeleteEnabled,
+        req.autodeleteThreshold
       )
     )
   }

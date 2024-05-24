@@ -1,11 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
 import java.net.URL
-
 import io.circe.{Decoder, Encoder, KeyDecoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.NumNodepools
+import org.broadinstitute.dsde.workbench.leonardo.{AutodeleteThreshold, NumNodepools}
 import org.http4s.Uri
 
 object AppRoutesTestJsonCodec {
@@ -38,6 +37,13 @@ object AppRoutesTestJsonCodec {
 
   implicit val proxyUrlDecoder: Decoder[Map[ServiceName, URL]] =
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
+
+  // what I'd really prefer to do here is:
+  // import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.autodeleteThresholdDecoder
+  implicit val autodeleteThresholdDecoder: Decoder[AutodeleteThreshold] = Decoder.decodeInt.emap {
+    case n if n <= 0 => Left("autodeleteThreshold must be a positive number of minutes")
+    case n           => Right(AutodeleteThreshold.apply(n))
+  }
 
   implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
     Decoder.forProduct17(

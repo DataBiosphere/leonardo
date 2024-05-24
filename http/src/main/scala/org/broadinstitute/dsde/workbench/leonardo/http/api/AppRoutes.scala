@@ -9,8 +9,9 @@ import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.Decoder
+import io.circe.{Decoder, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppRequestDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   createAppDecoder,
   getAppResponseEncoder,
@@ -239,11 +240,17 @@ object AppRoutes {
     }
   )
 
-  implicit val updateAppDecoder: Decoder[UpdateAppRequest] =
+  implicit val autodeleteThresholdDecoder: Decoder[AutodeleteThreshold] = Decoder.decodeInt.emap {
+    case n if n <= 0 => Left("autodeleteThreshold must be a positive number of minutes")
+    case n           => Right(AutodeleteThreshold.apply(n))
+  }
+  implicit val autodeleteThresholdEncoder: Encoder[AutodeleteThreshold] = Encoder.encodeInt.contramap(_.value)
+
+  implicit val updateAppRequestDecoder: Decoder[UpdateAppRequest] =
     Decoder.instance { x =>
       for {
         enabled <- x.downField("autodeleteEnabled").as[Option[Boolean]]
-        threshold <- x.downField("autodeleteThreshold").as[Option[Int]]
+        threshold <- x.downField("autodeleteThreshold").as[Option[AutodeleteThreshold]]
       } yield UpdateAppRequest(enabled, threshold)
     }
 }
