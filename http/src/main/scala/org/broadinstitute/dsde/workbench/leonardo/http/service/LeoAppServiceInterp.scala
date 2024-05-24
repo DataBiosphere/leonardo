@@ -671,14 +671,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
   // Autodeletion config logic requires a positive integer for threshold if enabled is true.
   // For simplicity we can enforce this by rejecting the following scenarios:
-  // 1. The request includes a threshold which is invalid
+  // 1. The request includes a threshold which is invalid (0 or negative)
   // 2. The request includes enabled=true but no threshold is provided, and the existing DB threshold is invalid
   private def validateUpdateAppConfigRequest(req: UpdateAppConfigRequest, dbApp: App)(implicit
     as: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- as.ask
 
-    // 1. The request includes a threshold which is invalid
+    // 1. The request includes a threshold which is invalid (0 or negative)
     invalidThresholdRequest = req.autodeleteThreshold.exists(_ <= 0)
     _ <- F.raiseWhen(invalidThresholdRequest)(
       BadRequestException("invalid value for autodeleteThreshold", Some(ctx.traceId))
