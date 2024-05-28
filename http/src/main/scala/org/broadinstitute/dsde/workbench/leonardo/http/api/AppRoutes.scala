@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.spanResource
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppConfigDecoder
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppDecoder
 
 class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
@@ -76,7 +76,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                           patch {
                             entity(as[UpdateAppRequest]) { req =>
                               complete(
-                                updateAppConfigHandler(userInfo, googleProject, appName, req)
+                                updateAppHandler(userInfo, googleProject, appName, req)
                               )
                             }
                           } ~
@@ -176,10 +176,10 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
-  private[api] def updateAppConfigHandler(userInfo: UserInfo,
-                                          googleProject: GoogleProject,
-                                          appName: AppName,
-                                          req: UpdateAppRequest
+  private[api] def updateAppHandler(userInfo: UserInfo,
+                                    googleProject: GoogleProject,
+                                    appName: AppName,
+                                    req: UpdateAppRequest
   )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -240,7 +240,7 @@ object AppRoutes {
     }
   )
 
-  implicit val updateAppConfigDecoder: Decoder[UpdateAppRequest] =
+  implicit val updateAppDecoder: Decoder[UpdateAppRequest] =
     Decoder.instance { x =>
       for {
         enabled <- x.downField("autodeleteEnabled").as[Option[Boolean]]
