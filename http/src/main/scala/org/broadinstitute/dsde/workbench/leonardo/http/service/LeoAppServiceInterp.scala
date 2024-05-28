@@ -5,6 +5,7 @@ package service
 import akka.http.scaladsl.model.StatusCodes
 import bio.terra.workspace.model.{IamRole, WorkspaceDescription}
 import cats.Parallel
+import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
