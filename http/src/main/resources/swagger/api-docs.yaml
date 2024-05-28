@@ -1617,7 +1617,7 @@ paths:
             $ref: "#/components/requestBodies/UpdateAppRequest"
         responses:
           "202":
-            description: App configuration update request accepted
+            description: App update request accepted
           "400":
             description: Bad Request
             content:
