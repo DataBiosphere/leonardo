@@ -182,21 +182,15 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                                           req: UpdateAppRequest
   )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      _ <- foldSpan(kubernetesService.updateApp(userInfo, CloudContext.Gcp(googleProject), appName, req), "updateApp")
-    } yield StatusCodes.Accepted
-
-  // TODO: this pattern is repeated over 20x
-  //  ctx <- ev.ask[AppContext]
-  //  apiCall = whatever
-  //  _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "methodName").use(_ => apiCall))
-  //
-  // My intuition is that it's not necessary for all developers to have a deep understanding of what this is doing,
-  // so I want to abstract this implementation detail away for better ergonomics/approachability.  Thoughts?
-  private def foldSpan(apiCall: IO[Unit], apiName: String)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
-    for {
       ctx <- ev.ask[AppContext]
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, apiName).use(_ => apiCall))
-    } yield ()
+      apiCall = kubernetesService.updateApp(
+        userInfo,
+        CloudContext.Gcp(googleProject),
+        appName,
+        req
+      )
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApp").use(_ => apiCall))
+    } yield StatusCodes.Accepted
 
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
