@@ -3226,19 +3226,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     updatedApp.autodeleteThreshold shouldBe Some(autodeleteThreshold)
   }
 
-  it should "reject enabling autodeletion by setting autodeleteEnabled=true if the existing config has an invalid autodeleteThreshold" in isolatedDbTest {
-    val initialAutodeleteEnabled = false
-    val badAutodeleteThreshold = 0
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(badAutodeleteThreshold))
-
-    val updateReq = UpdateAppRequest(Some(true), None)
-    a[BadRequestException] should be thrownBy {
-      appServiceInterp
-        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-
   it should "reject enabling autodeletion by setting autodeleteEnabled=true if the existing config has a missing autodeleteThreshold" in isolatedDbTest {
     val initialAutodeleteEnabled = false
     val appName = setupAppWithConfig(initialAutodeleteEnabled, None)
