@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
@@ -669,22 +670,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
-  private def updateAppInternal(appId: AppId, validatedChanges: UpdateAppRequest): F[Unit] = for {
+  private def getUpdateAppTransaction(appId: AppId, validatedChanges: UpdateAppRequest): F[Unit] = (for {
     _ <- validatedChanges.autodeleteEnabled.traverse(enabled =>
       appQuery
         .updateAutodeleteEnabled(appId, enabled)
-        .transaction
-        .void
     )
 
     // note: does not clear the threshold if None.  This only sets defined thresholds.
     _ <- validatedChanges.autodeleteThreshold.traverse(threshold =>
       appQuery
         .updateAutodeleteThreshold(appId, Some(threshold))
-        .transaction
-        .void
     )
-  } yield ()
+  } yield ()).transaction
 
   override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
     implicit as: Ask[F, AppContext]
@@ -712,7 +709,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       resolvedAutodeleteEnabled = req.autodeleteEnabled.getOrElse(appResult.app.autodeleteEnabled)
       resolvedAutodeleteThreshold = req.autodeleteThreshold.orElse(appResult.app.autodeleteThreshold)
       _ <- F.fromEither(validateAutodelete(resolvedAutodeleteEnabled, resolvedAutodeleteThreshold, ctx.traceId))
-      _ <- updateAppInternal(appResult.app.id, req)
+      _ <- getUpdateAppTransaction(appResult.app.id, req)
     } yield ()
 
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
