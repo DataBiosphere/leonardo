@@ -3162,7 +3162,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .isInstanceOf[ForbiddenError] shouldBe true
   }
 
-  def setupAppWithConfig(autodeleteEnabled: Boolean, autodeleteThreshold: Option[Int]): AppName = {
+  def createAppForAutodeleteTests(autodeleteEnabled: Boolean, autodeleteThreshold: Option[Int]): AppName = {
     val appName = AppName("pong")
     val createReq = createAppRequest.copy(
       diskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty)),
@@ -3188,7 +3188,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   "updateApp" should "allow enabling autodeletion by specifying both fields" in isolatedDbTest {
     val initialAutodeleteEnabled = false
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, None)
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
 
     val autodeleteThreshold = 1000
     val updateReq = UpdateAppRequest(Some(true), Some(autodeleteThreshold))
@@ -3209,7 +3209,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "allow enabling autodeletion by setting autodeleteEnabled=true if the existing config has a valid autodeleteThreshold" in isolatedDbTest {
     val initialAutodeleteEnabled = false
     val autodeleteThreshold = 1000
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val updateReq = UpdateAppRequest(Some(true), None)
     appServiceInterp
@@ -3228,7 +3228,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "reject enabling autodeletion by setting autodeleteEnabled=true if the existing config has a missing autodeleteThreshold" in isolatedDbTest {
     val initialAutodeleteEnabled = false
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, None)
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
 
     val updateReq = UpdateAppRequest(Some(true), None)
     a[BadRequestException] should be thrownBy {
@@ -3240,7 +3240,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "reject enabling autodeletion if the threshold in the request is invalid" in isolatedDbTest {
     val initialAutodeleteEnabled = false
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, None)
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
 
     val badAutodeleteThreshold = 0
     val updateReq = UpdateAppRequest(Some(true), Some(badAutodeleteThreshold))
@@ -3254,7 +3254,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "reject disabling autodeletion if the threshold in the request is invalid" in isolatedDbTest {
     val initialAutodeleteEnabled = true
     val autodeleteThreshold = 1000
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val badAutodeleteThreshold = 0
     val updateReq = UpdateAppRequest(Some(false), Some(badAutodeleteThreshold))
@@ -3268,7 +3268,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "reject autodeletionEnabled=None if the threshold in the request is invalid" in isolatedDbTest {
     val initialAutodeleteEnabled = true
     val autodeleteThreshold = 1000
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val badAutodeleteThreshold = 0
     val updateReq = UpdateAppRequest(None, Some(badAutodeleteThreshold))
@@ -3282,7 +3282,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "allow disabling autodeletion by setting enabled = false" in isolatedDbTest {
     val initialAutodeleteEnabled = true
     val autodeleteThreshold = 1000
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val updateReq = UpdateAppRequest(Some(false), None)
     appServiceInterp
@@ -3302,7 +3302,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "allow disabling autodeletion by setting enabled = false and specifying a new autodeleteThreshold" in isolatedDbTest {
     val initialAutodeleteEnabled = true
     val autodeleteThreshold = 1000
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val newThreshold = 2000
     val updateReq = UpdateAppRequest(Some(false), Some(newThreshold))
@@ -3323,7 +3323,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "allow changing autodeletion threshold when enableAutodelete=true" in isolatedDbTest {
     val initialAutodeleteEnabled = true
     val autodeleteThreshold = 1000
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val newAutodeleteThreshold = 2000
     val updateReq = UpdateAppRequest(Some(true), Some(newAutodeleteThreshold))
@@ -3344,7 +3344,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "allow changing autodeletion threshold when enableAutodelete=None" in isolatedDbTest {
     val initialAutodeleteEnabled = true
     val autodeleteThreshold = 1000
-    val appName = setupAppWithConfig(initialAutodeleteEnabled, Some(autodeleteThreshold))
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
 
     val newAutodeleteThreshold = 2000
     val updateReq = UpdateAppRequest(None, Some(newAutodeleteThreshold))
