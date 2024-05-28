@@ -1517,11 +1517,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   ): Either[LeoException, Unit] = {
     val invalidThreshold = autodeleteThreshold.exists(_ <= 0)
     val wantEnabledButThresholdMissing = autodeleteEnabled && autodeleteThreshold.isEmpty
+
     for {
       _ <- Either.cond(!invalidThreshold,
                        (),
                        BadRequestException("autodeleteThreshold should be a positive value", Some(traceId))
       )
+
       _ <- Either.cond(
         !wantEnabledButThresholdMissing,
         (),
