@@ -41,8 +41,8 @@ final case class AppRecord(id: AppId,
                            extraArgs: Option[List[String]],
                            sourceWorkspaceId: Option[WorkspaceId],
                            numOfReplicas: Option[Int],
-                           autodeleteThreshold: Option[Int],
                            autodeleteEnabled: Boolean,
+                           autodeleteThreshold: Option[AutodeleteThreshold],
                            autopilot: Option[Autopilot]
 )
 
@@ -71,7 +71,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def sourceWorkspaceId = column[Option[WorkspaceId]]("sourceWorkspaceId", O.Length(254))
   def namespaceName = column[NamespaceName]("namespace", O.Length(254))
   def numOfReplicas = column[Option[Int]]("numOfReplicas", O.SqlType("SMALLINT"))
-  def autodeleteThreshold = column[Option[Int]]("autodeleteThreshold")
+  def autodeleteThreshold = column[Option[AutodeleteThreshold]]("autodeleteThreshold")
   def autodeleteEnabled = column[Boolean]("autodeleteEnabled")
   def autopilotEnabled = column[Boolean]("autopilotEnabled")
   def computeClass = column[Option[ComputeClass]]("computeClass")
@@ -101,7 +101,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       extraArgs,
       sourceWorkspaceId,
       numOfReplicas,
-      (autodeleteThreshold, autodeleteEnabled),
+      // combine these values to allow tuple creation; longer than 22 elements is not allowed
+      (autodeleteEnabled, autodeleteThreshold),
       (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage)
     ) <> ({
       case (
@@ -125,7 +126,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             extraArgs,
             sourceWorkspaceId,
             numOfReplicas,
-            autoDelete,
+            autodelete,
             autopilot
           ) =>
         AppRecord(
@@ -154,8 +155,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           extraArgs,
           sourceWorkspaceId,
           numOfReplicas,
-          autoDelete._1,
-          autoDelete._2,
+          autodelete._1,
+          autodelete._2,
           if (autopilot._1)
             for {
               computeClass <- autopilot._2
@@ -196,7 +197,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.extraArgs,
           r.sourceWorkspaceId,
           r.numOfReplicas,
-          (r.autodeleteThreshold, r.autodeleteEnabled),
+          // combine these values to allow tuple creation; longer than 22 elements is not allowed
+          (r.autodeleteEnabled, r.autodeleteThreshold),
           (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage)
         )
       )
@@ -237,8 +239,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.extraArgs.getOrElse(List.empty),
       app.sourceWorkspaceId,
       app.numOfReplicas,
-      app.autodeleteThreshold,
       app.autodeleteEnabled,
+      app.autodeleteThreshold,
       app.autopilot
     )
 
@@ -307,8 +309,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
         saveApp.app.sourceWorkspaceId,
         saveApp.app.numOfReplicas,
-        saveApp.app.autodeleteThreshold,
         saveApp.app.autodeleteEnabled,
+        saveApp.app.autodeleteThreshold,
         saveApp.app.autopilot
       )
       appId <- appQuery returning appQuery.map(_.id) += record
@@ -325,7 +327,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def updateAutodeleteEnabled(id: AppId, autodeleteEnabled: Boolean): DBIO[Int] =
     getByIdQuery(id).map(_.autodeleteEnabled).update(autodeleteEnabled)
 
-  def updateAutodeleteThreshold(id: AppId, autodeleteThreshold: Option[Int]): DBIO[Int] =
+  def updateAutodeleteThreshold(id: AppId, autodeleteThreshold: Option[AutodeleteThreshold]): DBIO[Int] =
     getByIdQuery(id).map(_.autodeleteThreshold).update(autodeleteThreshold)
 
   def markAsErrored(id: AppId): DBIO[Int] =
@@ -412,11 +414,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
+    val greaterThanOrEqual = SimpleFunction.binary[Int, Option[AutodeleteThreshold], Boolean]("GREATER_THAN_OR_EQUAL")
     val minute = SimpleLiteral[String]("MINUTE")
 
     val baseQuery = appQuery
       .filter(_.autodeleteEnabled === true)
-      .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autodeleteThreshold)
+      .filter(record => greaterThanOrEqual(tsdiff(minute, record.dateAccessed, now), record.autodeleteThreshold))
       .filter(_.status inSetBind AppStatus.deletableStatuses)
 
     val query = baseQuery join nodepoolQuery on (_.nodepoolId === _.id) join
