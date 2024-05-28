@@ -78,88 +78,85 @@ class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInf
                                       workspaceId: WorkspaceId,
                                       appName: AppName,
                                       req: CreateAppRequest
-  )(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] = {
+    val apiCallName = "createAppV2"
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.createAppV2(
-        userInfo,
-        workspaceId,
-        appName,
-        req
-      )
-      _ <- metrics.incrementCounter("createAppV2")
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createAppV2").use(_ => apiCall))
+      _ <- metrics.incrementCounter(apiCallName)
+      _ <- withSpanResource(apiCallName, kubernetesService.createAppV2(userInfo, workspaceId, appName, req))
     } yield StatusCodes.Accepted
+  }
 
   private[api] def getAppV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
     ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  ): IO[ToResponseMarshallable] = {
+    val apiCallName = "getAppV2"
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.getAppV2(
-        userInfo,
-        workspaceId,
-        appName
+      _ <- metrics.incrementCounter(apiCallName)
+      resp <- withSpanResource(apiCallName,
+                               kubernetesService.getAppV2(
+                                 userInfo,
+                                 workspaceId,
+                                 appName
+                               )
       )
-      _ <- metrics.incrementCounter("getAppV2")
-      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getAppV2").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
+  }
 
   private[api] def listAppV2Handler(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
     ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  ): IO[ToResponseMarshallable] = {
+    val apiCallName = "listAppV2"
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.listAppV2(
-        userInfo,
-        workspaceId,
-        params
+      _ <- metrics.incrementCounter(apiCallName)
+      resp <- withSpanResource(apiCallName,
+                               kubernetesService.listAppV2(
+                                 userInfo,
+                                 workspaceId,
+                                 params
+                               )
       )
-      _ <- metrics.incrementCounter("listAppV2")
-      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listAppV2").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
+  }
 
   private[api] def deleteAppV2Handler(userInfo: UserInfo,
                                       workspaceId: WorkspaceId,
                                       appName: AppName,
                                       params: Map[String, String]
-  )(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] = {
+    val apiCallName = "deleteAppV2"
+    val deleteDisk = params.get("deleteDisk").exists(_ == "true")
+    val tags = Map("deleteDisk" -> deleteDisk.toString)
     for {
-      ctx <- ev.ask[AppContext]
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
-      apiCall = kubernetesService.deleteAppV2(
-        userInfo,
-        workspaceId,
-        appName,
-        deleteDisk
+      _ <- metrics.incrementCounter(apiCallName, 1, tags)
+      _ <- withSpanResource(apiCallName,
+                            kubernetesService.deleteAppV2(
+                              userInfo,
+                              workspaceId,
+                              appName,
+                              deleteDisk
+                            )
       )
-      tags = Map("deleteDisk" -> deleteDisk.toString)
-      _ <- metrics.incrementCounter("deleteAppV2", 1, tags)
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteAppV2").use(_ => apiCall))
     } yield StatusCodes.Accepted
+  }
 
   private[api] def deleteAllAppsForWorkspaceHandler(userInfo: UserInfo,
                                                     workspaceId: WorkspaceId,
                                                     params: Map[String, String]
-  )(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] = {
+    val apiCallName = "deleteAllAppV2"
+    val deleteDisk = params.get("deleteDisk").exists(_ == "true")
+    val tags = Map("deleteDisk" -> deleteDisk.toString)
     for {
-      ctx <- ev.ask[AppContext]
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
-      apiCall = kubernetesService.deleteAllAppsV2(
-        userInfo,
-        workspaceId,
-        deleteDisk
+      _ <- metrics.incrementCounter(apiCallName, 1, tags)
+      _ <- withSpanResource(apiCallName,
+                            kubernetesService.deleteAllAppsV2(
+                              userInfo,
+                              workspaceId,
+                              deleteDisk
+                            )
       )
-      tags = Map("deleteDisk" -> deleteDisk.toString)
-      _ <- metrics.incrementCounter("deleteAllAppV2", 1, tags)
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteAllAppV2").use(_ => apiCall))
     } yield StatusCodes.Accepted
+  }
 
 }
 
