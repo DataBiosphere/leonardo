@@ -16,7 +16,6 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import scala.sys.process._
-import scala.concurrent.duration._
 
 case class TunnelName(value: String) extends AnyVal
 case class ResourceGroup(value: String)
