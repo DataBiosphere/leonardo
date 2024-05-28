@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   listAppResponseEncoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
-import org.broadinstitute.dsde.workbench.leonardo.http.spanResource
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
