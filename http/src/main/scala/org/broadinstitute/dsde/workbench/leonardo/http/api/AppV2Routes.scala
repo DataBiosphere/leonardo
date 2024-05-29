@@ -19,10 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Uri
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.{
-  autodeleteThresholdDecoder,
-  autodeleteThresholdEncoder
-}
 
 class AppV2Routes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]

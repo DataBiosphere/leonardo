@@ -38,13 +38,6 @@ object AppRoutesTestJsonCodec {
   implicit val proxyUrlDecoder: Decoder[Map[ServiceName, URL]] =
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
-  // what I'd really prefer to do here is:
-  // import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.autodeleteThresholdDecoder
-  implicit val autodeleteThresholdDecoder: Decoder[AutodeleteThreshold] = Decoder.decodeInt.emap {
-    case n if n <= 0 => Left("autodeleteThreshold must be a positive number of minutes")
-    case n           => Right(AutodeleteThreshold.apply(n))
-  }
-
   implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
     Decoder.forProduct17(
       "workspaceId",
