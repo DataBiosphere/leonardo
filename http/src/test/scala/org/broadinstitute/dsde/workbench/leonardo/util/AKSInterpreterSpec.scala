@@ -62,8 +62,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val mockSamAuthProvider = setUpMockSamAuthProvider
 
   implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
-    case AppType.WorkflowsApp => setUpMockWorkflowAppInstall
-    case _                    => setUpMockAppInstall
+    case AppType.WorkflowsApp => setUpMockWorkflowAppInstall()
+    case _                    => setUpMockAppInstall()
   }
   def newAksInterp(configuration: AKSInterpreterConfig = config,
                    mockWsm: WsmApiClientProvider[IO] = mockWsm,
@@ -225,6 +225,68 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       }
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
+
+  it should s"emit an exception if the app is not alive prior to upgrading id1" in isolatedDbTest {
+    implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
+      case AppType.WorkflowsApp => setUpMockWorkflowAppInstall(false)
+      case _                    => setUpMockAppInstall(false)
+    }
+    val aksInterp = new AKSInterpreter[IO](
+      config,
+      new MockHelm,
+      mockAzureContainerService,
+      mockAzureRelayService,
+      mockSamDAO,
+      mockWsmDAO,
+      mockKube,
+      mockWsm,
+      mockWsmDAO,
+      mockSamAuthProvider
+    )
+    val res = for {
+      cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
+      nodepool <- IO(makeNodepool(1, cluster.id).save())
+      app = makeApp(1, nodepool.id).copy(
+        appType = AppType.Cromwell,
+        status = AppStatus.Running,
+        chart = Chart(ChartName("myapp"), ChartVersion("0.0.1")),
+        appResources = AppResources(
+          namespace = NamespaceName("ns-1"),
+          disk = None,
+          services = List.empty,
+          kubernetesServiceAccountName = Some(ServiceAccountName("ksa-1"))
+        )
+      )
+      saveApp <- IO(app.save())
+
+      appName = saveApp.appName
+      appId = saveApp.id
+
+      namespaceId = UUID.randomUUID()
+      _ <- appControlledResourceQuery
+        .insert(appId.id,
+                WsmControlledResourceId(namespaceId),
+                WsmResourceType.AzureKubernetesNamespace,
+                AppControlledResourceStatus.Created
+        )
+        .transaction
+
+      // Throw away the error here, we aren't trying to verify that the exception we are mocking above is being thrown
+      _ <- aksInterp
+        .updateAndPollApp(
+          UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceIdForUpdating), cloudContext)
+        )
+
+    } yield ()
+    val either = res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    either.isLeft shouldBe true
+    either match {
+      case Left(value) =>
+        value.getMessage should include("was not alive")
+        value.getClass shouldBe AppUpdatePollingException("message", None).getClass
+      case _ => true shouldBe false
+    }
+  }
 
   // Note that the app will eventually transition to error or running status, but `Running` occurs on success and `Error` occurs in `LeoPubsubMessageSubscriber` (the latter being applicable to this test).
   // This test ensures that the underlying `AKSInterpreter` correctly transitions app to `Upgrading` and doesn't transition it to `Running` if an error occurs
@@ -1310,7 +1372,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   }
 
-  private def setUpMockAppInstall(): AppInstall[IO] = {
+  private def setUpMockAppInstall(checkStatus: Boolean = true): AppInstall[IO] = {
     val appInstall = mock[AppInstall[IO]]
     when {
       appInstall.databases
@@ -1320,11 +1382,11 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn IO.pure(Values("values"))
     when {
       appInstall.checkStatus(any, any)(any)
-    } thenReturn IO.pure(true)
+    } thenReturn IO.pure(checkStatus)
     appInstall
   }
 
-  private def setUpMockWorkflowAppInstall(): AppInstall[IO] = {
+  private def setUpMockWorkflowAppInstall(checkStatus: Boolean = true): AppInstall[IO] = {
     val mockWorkflowsAppInstall = mock[WorkflowsAppInstall[IO]]
 
     when(mockWorkflowsAppInstall.databases) thenReturn
@@ -1337,7 +1399,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn IO.pure(Values("values"))
     when {
       mockWorkflowsAppInstall.checkStatus(any, any)(any)
-    } thenReturn IO.pure(true)
+    } thenReturn IO.pure(checkStatus)
 
     mockWorkflowsAppInstall
   }

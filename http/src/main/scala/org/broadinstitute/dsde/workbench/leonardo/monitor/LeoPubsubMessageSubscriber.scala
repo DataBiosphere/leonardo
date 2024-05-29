@@ -1534,6 +1534,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           // Fatal case (as in, the app is no longer usable), polling app liveliness failed
           // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
           // This would provide more cases in which an app is left in a usable state
+          // Not that an app can also emit this error if the livliness probe fails before an update is triggered, so rolling back may not have an effect
           case e: AppUpdatePollingException => F.raiseError(e)
           // Fatal case, helm call failed for either listener or app charts
           case e: HelmException => F.raiseError(e)
