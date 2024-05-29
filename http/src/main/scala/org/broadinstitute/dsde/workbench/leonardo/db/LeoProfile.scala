@@ -325,7 +325,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       SetParameter.SetTimestamp.contramap(instant => java.sql.Timestamp.from(instant))
 
     implicit val autodeleteThresholdColumnType: BaseColumnType[AutodeleteThreshold] =
-      MappedColumnType.base[AutodeleteThreshold, Int](_.value, i => AutodeleteThreshold(i))
+      MappedColumnType.base[AutodeleteThreshold, Int](_.value, AutodeleteThreshold.apply)
   }
 
   case class ColumnDecodingException(message: String) extends Exception

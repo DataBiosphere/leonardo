@@ -413,9 +413,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
-//    val kk = slick.ast.TypedType.
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, AutodeleteThreshold]("TIMESTAMPDIFF")
-//    val greaterThanOrEqual = SimpleFunction.binary[Int, Option[AutodeleteThreshold], Boolean]("GREATER_THAN_OR_EQUAL")
     val minute = SimpleLiteral[String]("MINUTE")
 
     val baseQuery = appQuery
