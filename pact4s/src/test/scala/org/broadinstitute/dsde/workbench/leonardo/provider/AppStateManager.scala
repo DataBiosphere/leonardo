@@ -3,9 +3,26 @@ package org.broadinstitute.dsde.workbench.leonardo.provider
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, KubernetesSerializableName, MachineTypeName, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AppAlreadyExistsException, AppNotFoundException, AppService}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppAlreadyExistsException,
+  AppNotFoundException,
+  AppService
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, ListAppResponse}
-import org.broadinstitute.dsde.workbench.leonardo.{AppAccessScope, AppContext, AppError, AppName, AppStatus, AppType, AuditInfo, AutodeleteThreshold, CloudContext, KubernetesRuntimeConfig, NumNodes, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppAccessScope,
+  AppContext,
+  AppError,
+  AppName,
+  AppStatus,
+  AppType,
+  AuditInfo,
+  AutodeleteThreshold,
+  CloudContext,
+  KubernetesRuntimeConfig,
+  NumNodes,
+  WorkspaceId
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.ChartName
@@ -41,7 +58,7 @@ object AppStateManager {
     None,
     Map.empty[String, String],
     autodeleteEnabled = true,
-    autodeleteThreshold = Some(AutodeleteThreshold( 30))
+    autodeleteThreshold = Some(AutodeleteThreshold(30))
   )
   private val mockedAppNotFoundException =
     AppNotFoundException(mockedGetAppResponse.cloudContext,

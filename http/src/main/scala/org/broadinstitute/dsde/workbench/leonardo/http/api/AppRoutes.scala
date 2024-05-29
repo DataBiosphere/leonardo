@@ -13,7 +13,11 @@ import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.autodeleteThresholdDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppRequestDecoder
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{createAppDecoder, getAppResponseEncoder, listAppResponseEncoder}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
+  createAppDecoder,
+  getAppResponseEncoder,
+  listAppResponseEncoder
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
