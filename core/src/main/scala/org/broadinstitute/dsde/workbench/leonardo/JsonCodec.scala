@@ -657,6 +657,8 @@ object JsonCodec {
     Decoder.forProduct2("autoscalingMin", "autoscalingMax")(AutoscalingConfig.apply)
   implicit val kubernetesRuntimeConfigDecoder: Decoder[KubernetesRuntimeConfig] =
     Decoder.forProduct3("numNodes", "machineType", "autoscalingEnabled")(KubernetesRuntimeConfig.apply)
+  implicit val autopilotDecoder: Decoder[Autopilot] =
+    Decoder.forProduct3("cpuInMillicores", "memoryInGb", "ephemeralStorage")(Autopilot.apply)
 
   implicit val locationDecoder: Decoder[Location] = Decoder.decodeString.map(Location)
   implicit val kubeClusterIdDecoder: Decoder[KubernetesClusterLeoId] = Decoder.decodeLong.map(KubernetesClusterLeoId)

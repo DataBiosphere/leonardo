@@ -53,7 +53,8 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
 import org.http4s.Uri
-
+import org.broadinstitute.dsde.workbench.leonardo.Autopilot
+import com.google.api.services.container.model.WorkloadPolicyConfig
 import java.net.URL
 import java.util.Base64
 import scala.concurrent.ExecutionContext
@@ -92,7 +93,11 @@ class GKEInterpreter[F[_]](
 
   override def createCluster(params: CreateClusterParams)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[CreateClusterResult]] =
+  ): F[Option[CreateClusterResult]] = {
+    val autopilot = new com.google.api.services.container.model.Autopilot().setEnabled(params.autopilot)
+    if (params.autopilot)
+      autopilot.setWorkloadPolicyConfig(new WorkloadPolicyConfig().setAllowNetAdmin(true))
+
     for {
       ctx <- ev.ask
 
@@ -111,9 +116,12 @@ class GKEInterpreter[F[_]](
 
       // Get nodepools to pass in the create cluster request
       projectLabels <- googleResourceService.getLabels(params.googleProject)
-      nodepools = dbCluster.nodepools
-        .filter(n => params.nodepoolsToCreate.contains(n.id))
-        .map(np => buildLegacyGoogleNodepool(np, params.googleProject, projectLabels))
+      nodepools =
+        if (params.autopilot) List.empty
+        else
+          dbCluster.nodepools
+            .filter(n => params.nodepoolsToCreate.contains(n.id))
+            .map(np => buildLegacyGoogleNodepool(np, params.googleProject, projectLabels))
 
       _ <-
         if (nodepools.size != params.nodepoolsToCreate.size)
@@ -139,17 +147,24 @@ class GKEInterpreter[F[_]](
 
       networkConfig = new com.google.api.services.container.model.NetworkConfig()
         .setEnableIntraNodeVisibility(params.enableIntraNodeVisibility)
+
+      networkPolicy =
+        if (params.autopilot) null else new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
+
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
         .setInitialClusterVersion(config.clusterConfig.version.value)
         .setNodePools(nodepools.asJava)
+        .setAutopilot(
+          autopilot
+        )
         .setLegacyAbac(new com.google.api.services.container.model.LegacyAbac().setEnabled(false))
         .setNetwork(kubeNetwork.idString)
         .setSubnetwork(kubeSubNetwork.idString)
         .setResourceLabels(Map("leonardo" -> "true").asJava)
         .setNetworkConfig(networkConfig)
         .setNetworkPolicy(
-          new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
+          networkPolicy
         )
         .setMasterAuthorizedNetworksConfig(
           new com.google.api.services.container.model.MasterAuthorizedNetworksConfig()
@@ -168,18 +183,18 @@ class GKEInterpreter[F[_]](
           new com.google.api.services.container.model.WorkloadIdentityConfig()
             .setWorkloadPool(s"${params.googleProject.value}.svc.id.goog")
         )
-
+      location =
+        if (params.autopilot) org.broadinstitute.dsde.workbench.google2.Location(dbCluster.region.value)
+        else dbCluster.location
       // Submit request to GKE
-      req = KubernetesCreateClusterRequest(googleProject, dbCluster.location, legacyCreateClusterRec)
+      req = KubernetesCreateClusterRequest(googleProject, location, legacyCreateClusterRec)
       // the Operation will be none if we get a 409, indicating we have already created this cluster
       operationOpt <- gkeService.createCluster(req)
 
     } yield operationOpt.map(op =>
-      CreateClusterResult(KubernetesOperationId(googleProject, dbCluster.location, op.getName),
-                          kubeNetwork,
-                          kubeSubNetwork
-      )
+      CreateClusterResult(KubernetesOperationId(googleProject, location, op.getName), kubeNetwork, kubeSubNetwork)
     )
+  }
 
   override def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -245,7 +260,7 @@ class GKEInterpreter[F[_]](
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
       ipRange <- F.fromOption(Config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
-                              new RegionNotSupportedException(dbCluster.region, ctx.traceId)
+                              RegionNotSupportedException(dbCluster.region, ctx.traceId)
       )
 
       _ <- kubernetesClusterQuery
@@ -427,6 +442,7 @@ class GKEInterpreter[F[_]](
         case _: AppRestore.Other         => None
       }
 
+      nodepool = if (app.autopilot.isDefined) None else Some(dbApp.nodepool.nodepoolName)
       // helm install and wait
       _ <- app.appType match {
         case AppType.Galaxy =>
@@ -444,7 +460,7 @@ class GKEInterpreter[F[_]](
               app.release,
               app.chart,
               dbCluster,
-              dbApp.nodepool.nodepoolName,
+              dbApp.nodepool.nodepoolName, // TODO: support autopilot mode
               namespaceName,
               app.auditInfo.creator,
               app.customEnvironmentVariables,
@@ -460,7 +476,7 @@ class GKEInterpreter[F[_]](
             app.appName,
             app.release,
             dbCluster,
-            dbApp.nodepool.nodepoolName,
+            nodepool,
             namespaceName,
             nfsDisk,
             ksaName,
@@ -475,13 +491,14 @@ class GKEInterpreter[F[_]](
             app.release,
             app.chart,
             dbCluster,
-            dbApp.nodepool.nodepoolName,
+            nodepool,
             namespaceName,
             nfsDisk,
             ksaName,
             gsa,
             app.auditInfo.creator,
-            app.customEnvironmentVariables
+            app.customEnvironmentVariables,
+            app.autopilot
           )
         case AppType.Custom =>
           installCustomApp(
@@ -490,7 +507,7 @@ class GKEInterpreter[F[_]](
             app.release,
             dbCluster,
             googleCluster,
-            dbApp.nodepool.nodepoolName,
+            nodepool,
             namespaceName,
             nfsDisk,
             app.descriptorPath,
@@ -608,7 +625,7 @@ class GKEInterpreter[F[_]](
         googleClusterOpt,
         AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
       )
-
+      nodepool = if (app.autopilot.isDefined) None else Some(dbApp.nodepool.nodepoolName)
       chartOverridesAndAppOkF = app.appType match {
         case AppType.Galaxy =>
           for {
@@ -682,7 +699,7 @@ class GKEInterpreter[F[_]](
               config,
               app.appName,
               dbCluster,
-              nodepoolName,
+              nodepool,
               namespaceName,
               nfsDisk,
               ksaName,
@@ -709,7 +726,7 @@ class GKEInterpreter[F[_]](
               allowedChart,
               app.appName,
               dbCluster,
-              nodepoolName,
+              nodepool,
               namespaceName,
               nfsDisk,
               ksaName,
@@ -744,7 +761,7 @@ class GKEInterpreter[F[_]](
               config,
               params.appName,
               app.release,
-              nodepoolName,
+              nodepool,
               serviceName,
               dbCluster,
               namespaceName,
@@ -1413,7 +1430,7 @@ class GKEInterpreter[F[_]](
     appName: AppName,
     release: Release,
     cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
+    nodepoolName: Option[NodepoolName],
     namespaceName: NamespaceName,
     disk: PersistentDisk,
     ksaName: ServiceAccountName,
@@ -1492,13 +1509,14 @@ class GKEInterpreter[F[_]](
     release: Release,
     chart: Chart,
     cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
+    nodepoolName: Option[NodepoolName],
     namespaceName: NamespaceName,
     disk: PersistentDisk,
     ksaName: ServiceAccountName,
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail,
-    customEnvironmentVariables: Map[String, String]
+    customEnvironmentVariables: Map[String, String],
+    autopilot: Option[Autopilot]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1582,7 +1600,7 @@ class GKEInterpreter[F[_]](
                                      release: Release,
                                      dbCluster: KubernetesCluster,
                                      googleCluster: Cluster,
-                                     nodepoolName: NodepoolName,
+                                     nodepoolName: Option[NodepoolName],
                                      namespaceName: NamespaceName,
                                      disk: PersistentDisk,
                                      descriptorOpt: Option[Uri],

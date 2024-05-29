@@ -83,7 +83,8 @@ object KubernetesTestData {
     None,
     None,
     None,
-    None
+    None,
+    false
   )
 
   val customEnvironmentVariables =
@@ -127,7 +128,8 @@ object KubernetesTestData {
       None,
       None,
       None,
-      None
+      None,
+      false
     )
 
   def makeNodepool(index: Int,

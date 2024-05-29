@@ -42,7 +42,8 @@ final case class AppRecord(id: AppId,
                            sourceWorkspaceId: Option[WorkspaceId],
                            numOfReplicas: Option[Int],
                            autodeleteThreshold: Option[Int],
-                           autodeleteEnabled: Boolean
+                           autodeleteEnabled: Boolean,
+                           autopilot: Option[Autopilot]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -72,6 +73,10 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def numOfReplicas = column[Option[Int]]("numOfReplicas", O.SqlType("SMALLINT"))
   def autodeleteThreshold = column[Option[Int]]("autodeleteThreshold")
   def autodeleteEnabled = column[Boolean]("autodeleteEnabled")
+  def autopilotEnabled = column[Boolean]("autopilotEnabled")
+  def cpu = column[Option[Int]]("cpu")
+  def memory = column[Option[Int]]("memory")
+  def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
 
   def * =
     (
@@ -95,8 +100,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       extraArgs,
       sourceWorkspaceId,
       numOfReplicas,
-      autodeleteThreshold,
-      autodeleteEnabled
+      (autodeleteThreshold, autodeleteEnabled),
+      (autopilotEnabled, cpu, memory, ephemeralStorage)
     ) <> ({
       case (
             id,
@@ -119,8 +124,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             extraArgs,
             sourceWorkspaceId,
             numOfReplicas,
-            autodeleteThreshold,
-            autodeleteEnabled
+            autoDelete,
+            autopilot
           ) =>
         AppRecord(
           id,
@@ -148,10 +153,20 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           extraArgs,
           sourceWorkspaceId,
           numOfReplicas,
-          autodeleteThreshold,
-          autodeleteEnabled
+          autoDelete._1,
+          autoDelete._2,
+          if (autopilot._1)
+            for {
+              cpu <- autopilot._2
+              memory <- autopilot._3
+              ephemeralStorage <- autopilot._4
+            } yield Autopilot(cpu, memory, ephemeralStorage)
+          else None
         )
     }, { r: AppRecord =>
+      val autopilotCpu = r.autopilot.map(_.cpuInMillicores)
+      val autopilotMemory = r.autopilot.map(_.memoryInGb)
+      val autopilotEphemeralStorage = r.autopilot.map(_.memoryInGb)
       Some(
         (
           r.id,
@@ -178,8 +193,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.extraArgs,
           r.sourceWorkspaceId,
           r.numOfReplicas,
-          r.autodeleteThreshold,
-          r.autodeleteEnabled
+          (r.autodeleteThreshold, r.autodeleteEnabled),
+          (r.autopilot.isDefined, autopilotCpu, autopilotMemory, autopilotEphemeralStorage)
         )
       )
     })
@@ -220,7 +235,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.sourceWorkspaceId,
       app.numOfReplicas,
       app.autodeleteThreshold,
-      app.autodeleteEnabled
+      app.autodeleteEnabled,
+      app.autopilot
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -289,7 +305,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.sourceWorkspaceId,
         saveApp.app.numOfReplicas,
         saveApp.app.autodeleteThreshold,
-        saveApp.app.autodeleteEnabled
+        saveApp.app.autodeleteEnabled,
+        saveApp.app.autopilot
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)

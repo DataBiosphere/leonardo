@@ -266,6 +266,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           CreateClusterParams(KubernetesClusterLeoId(-1),
                               GoogleProject("fake"),
                               List(NodepoolLeoId(-1), NodepoolLeoId(-1)),
+                              false,
                               false
           )
         )
@@ -286,6 +287,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           CreateClusterParams(savedCluster1.id,
                               savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                               List(),
+                              false,
                               false
           )
         )
@@ -313,6 +315,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           CreateClusterParams(savedCluster1.id,
                               savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                               List(NodepoolLeoId(-2)),
+                              false,
                               false
           )
         )
@@ -346,7 +349,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         CreateAppParams(savedApp1.id,
                         savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                         savedApp1.appName,
-                        None
+                        None,
+                        false
         )
       )
       getAppOpt <- KubernetesServiceDbQueries

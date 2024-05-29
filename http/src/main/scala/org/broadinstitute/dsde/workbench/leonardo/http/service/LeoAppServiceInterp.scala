@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleResourceService,
   KubernetesName,
+  Location,
   MachineTypeName,
   RegionName,
   ZoneName
@@ -166,7 +167,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             ) >> F.raiseError[Unit](t)
           }
         saveCluster <- F.fromEither(
-          getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
+          getSavableCluster(originatingUserEmail, cloudContext, req.autopilot.isDefined, ctx.now)
         )
 
         saveClusterResult <- KubernetesServiceDbQueries
@@ -197,27 +198,32 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         machineConfig =
           if (AppType.Allowed == req.appType) machineConfigFromReqAndConfig.copy(autoscalingEnabled = true)
           else machineConfigFromReqAndConfig
+
         // We want to know if the user already has a nodepool with the requested config that can be re-used
         userNodepoolOpt <- nodepoolQuery
           .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
           .transaction
-
-        nodepool <- userNodepoolOpt match {
-          case Some(n) =>
-            log.info(ctx.loggingCtx)(
-              s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
-            ) >> F.pure(n)
-          case None =>
-            for {
-              _ <- log.info(ctx.loggingCtx)(
-                s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
-              )
-              saveNodepool <- F.fromEither(
-                getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
-              )
-              savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
-            } yield savedNodepool
-        }
+        nodepool <-
+          if (req.autopilot.isDefined) {
+            F.pure(saveClusterResult.defaultNodepool.toNodepool())
+          } else {
+            userNodepoolOpt match {
+              case Some(n) =>
+                log.info(ctx.loggingCtx)(
+                  s"Reusing user's nodepool ${n.id} in ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider} with ${machineConfig}"
+                ) >> F.pure(n)
+              case None =>
+                for {
+                  _ <- log.info(ctx.loggingCtx)(
+                    s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
+                  )
+                  saveNodepool <- F.fromEither(
+                    getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
+                  )
+                  savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+                } yield savedNodepool
+            }
+          }
 
         runtimeServiceAccountOpt <- serviceAccountProvider
           .getClusterServiceAccount(userInfo, cloudContext)
@@ -258,6 +264,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                         petSA,
                         nodepool.id,
                         req.workspaceId,
+                        req.autopilot,
                         ctx
           )
         )
@@ -266,9 +273,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         clusterNodepoolAction = saveClusterResult match {
           case ClusterExists(_, _) =>
             // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
-            if (userNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
+            if (req.autopilot.isDefined || userNodepoolOpt.isDefined) None
+            else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
           case ClusterDoesNotExist(c, n) =>
-            Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
+            if (req.autopilot.isDefined) Some(ClusterNodepoolAction.CreateCluster(c.id))
+            else
+              Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
         }
         createAppMessage = CreateAppMessage(
           googleProject,
@@ -786,7 +796,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, ctx.now)
+        getSavableCluster(originatingUserEmail, cloudContext, false, ctx.now)
       )
       saveClusterResult <- KubernetesServiceDbQueries
         .saveOrGetClusterForApp(saveCluster, ctx.traceId)
@@ -842,6 +852,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           petSA,
           nodepool.id,
           Some(workspaceId),
+          None,
           ctx
         )
       )
@@ -1045,18 +1056,21 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
+    autopilot: Boolean,
     now: Instant
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
+    val nodepoolStatus =
+      if (autopilot || cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running
+      else NodepoolStatus.Precreating
     val defaultNodepool = for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
     } yield DefaultNodepool(
       NodepoolLeoId(-1),
       clusterId = KubernetesClusterLeoId(-1),
       nodepoolName,
-      status =
-        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
+      status = nodepoolStatus,
       auditInfo,
       machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
       numNodes = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes,
@@ -1064,13 +1078,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       autoscalingConfig = None
     )
 
+    // autopilot mode clusters are regional
+    val loc =
+      if (autopilot) Location(config.leoKubernetesConfig.clusterConfig.region.value)
+      else config.leoKubernetesConfig.clusterConfig.location
     for {
       nodepool <- defaultNodepool
       defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
     } yield SaveKubernetesCluster(
       cloudContext = cloudContext,
       clusterName = defaultClusterName,
-      location = config.leoKubernetesConfig.clusterConfig.location,
+      location = loc,
       region =
         if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName("unset")
         else config.leoKubernetesConfig.clusterConfig.region,
@@ -1079,7 +1097,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
-      defaultNodepool = nodepool
+      defaultNodepool = nodepool,
+      autopilot
     )
   }
 
@@ -1363,6 +1382,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
                                      workspaceId: Option[WorkspaceId],
+                                     autopilot: Option[Autopilot],
                                      ctx: AppContext
   ): Either[Throwable, SaveApp] = {
     val now = ctx.now
@@ -1503,7 +1523,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.sourceWorkspaceId,
         numOfReplicas,
         req.autodeleteThreshold,
-        autodeleteEnabled
+        autodeleteEnabled,
+        autopilot
       )
     )
   }

@@ -169,7 +169,8 @@ object kubernetesClusterQuery extends TableQuery(KubernetesClusterTable(_)) {
     val clusterRecord = saveCluster.toClusterRecord
     for {
       clusterId <- kubernetesClusterQuery returning kubernetesClusterQuery.map(_.id) += clusterRecord
-      nodepool <- nodepoolQuery.saveForCluster(saveCluster.defaultNodepool.copy(clusterId = clusterId).toNodepool())
+      nodepool <- nodepoolQuery
+        .saveForCluster(saveCluster.defaultNodepool.copy(clusterId = clusterId).toNodepool())
     } yield unmarshalKubernetesCluster(clusterRecord.copy(id = clusterId), List(nodepool))
   }
 
@@ -303,7 +304,8 @@ case class SaveKubernetesCluster(cloudContext: CloudContext,
                                  status: KubernetesClusterStatus,
                                  ingressChart: Chart,
                                  auditInfo: AuditInfo,
-                                 defaultNodepool: DefaultNodepool // Question: does this have to be `DefaultNodepool`?
+                                 defaultNodepool: DefaultNodepool, // Question: does this have to be `DefaultNodepool`?
+                                 autopilot: Boolean
 ) {
   def toClusterRecord: KubernetesClusterRecord =
     KubernetesClusterRecord(

@@ -2,22 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AllowedChartName,
-  App,
-  AppAccessScope,
-  AppError,
-  AppName,
-  AppStatus,
-  AppType,
-  AuditInfo,
-  CloudContext,
-  KubernetesCluster,
-  KubernetesRuntimeConfig,
-  LabelMap,
-  Nodepool,
-  WorkspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AllowedChartName, App, AppAccessScope, AppError, AppName, AppStatus, AppType, AuditInfo, Autopilot, CloudContext, KubernetesCluster, KubernetesRuntimeConfig, LabelMap, Nodepool, WorkspaceId}
 import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
@@ -36,7 +21,8 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   workspaceId: Option[WorkspaceId],
                                   sourceWorkspaceId: Option[WorkspaceId],
                                   autodeleteThreshold: Option[Int],
-                                  autodeleteEnabled: Option[Boolean]
+                                  autodeleteEnabled: Option[Boolean],
+                                  autopilot: Option[Autopilot]
 )
 
 final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[Int])

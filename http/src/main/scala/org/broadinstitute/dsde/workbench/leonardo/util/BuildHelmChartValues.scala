@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import com.google.api.services.container.model.Autopilot
 import org.broadinstitute.dsde.workbench.azure.{PrimaryKey, RelayHybridConnectionName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
@@ -124,7 +125,7 @@ private[leonardo] object BuildHelmChartValues {
   def buildCromwellAppChartOverrideValuesString(config: GKEInterpreterConfig,
                                                 appName: AppName,
                                                 cluster: KubernetesCluster,
-                                                nodepoolName: NodepoolName,
+                                                nodepoolName: Option[NodepoolName],
                                                 namespaceName: NamespaceName,
                                                 disk: PersistentDisk,
                                                 ksaName: ServiceAccountName,
@@ -151,9 +152,8 @@ private[leonardo] object BuildHelmChartValues {
       raw"""db.password=${config.cromwellAppConfig.dbPassword.value}"""
     )
 
+    val nodepoolSelector = nodepoolName.map(n => raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${n.value}""")
     List(
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
@@ -164,13 +164,13 @@ private[leonardo] object BuildHelmChartValues {
       // Service Account
       raw"""config.serviceAccount.name=${ksaName.value}""",
       raw"""config.serviceAccount.annotations.gcpServiceAccount=${gsa.value}"""
-    ) ++ ingress
+    ) ++ ingress ++ nodepoolSelector
   }
 
   def buildCustomChartOverrideValuesString(config: GKEInterpreterConfig,
                                            appName: AppName,
                                            release: Release,
-                                           nodepoolName: NodepoolName,
+                                           nodepoolName: Option[NodepoolName],
                                            serviceName: String,
                                            cluster: KubernetesCluster,
                                            namespaceName: NamespaceName,
@@ -217,6 +217,7 @@ private[leonardo] object BuildHelmChartValues {
       case _ => List(raw"""ingress.hosts[0].paths[0]=${service.baseUrl}""")
     }
 
+    val nodepool = nodepoolName.map(n => raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${n.value}""")
     (List(
       raw"""nameOverride=${serviceName}""",
       // Image
@@ -228,15 +229,13 @@ private[leonardo] object BuildHelmChartValues {
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       raw"""persistence.mountPath=${service.pdMountPath}""",
       raw"""persistence.accessMode=${service.pdAccessMode}""",
       raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ command ++ args ++ configs ++ ingress).mkString(",")
+    ) ++ command ++ args ++ configs ++ ingress ++ nodepool).mkString(",")
   }
 
   def buildListenerChartOverrideValuesString(release: Release,
@@ -294,13 +293,14 @@ private[leonardo] object BuildHelmChartValues {
                                                allowedChartName: AllowedChartName,
                                                appName: AppName,
                                                cluster: KubernetesCluster,
-                                               nodepoolName: NodepoolName,
+                                               nodepoolName: Option[NodepoolName],
                                                namespaceName: NamespaceName,
                                                disk: PersistentDisk,
                                                ksaName: ServiceAccountName,
                                                userEmail: WorkbenchEmail,
                                                stagingBucket: GcsBucketName,
-                                               customEnvironmentVariables: Map[String, String]
+                                               customEnvironmentVariables: Map[String, String],
+                                               autopilot: Option[Autopilot]
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
@@ -317,7 +317,8 @@ private[leonardo] object BuildHelmChartValues {
       stagingBucket,
       customEnvironmentVariables,
       ingressPath,
-      k8sProxyHost
+      k8sProxyHost,
+      autopilot
     )
 
     allowedChartName match {
@@ -345,7 +346,7 @@ private[leonardo] object BuildHelmChartValues {
   private[util] def buildAllowedAppCommonChartValuesString(config: GKEInterpreterConfig,
                                                            appName: AppName,
                                                            cluster: KubernetesCluster,
-                                                           nodepoolName: NodepoolName,
+                                                           nodepoolName: Option[NodepoolName],
                                                            namespaceName: NamespaceName,
                                                            disk: PersistentDisk,
                                                            ksaName: ServiceAccountName,
@@ -353,7 +354,8 @@ private[leonardo] object BuildHelmChartValues {
                                                            stagingBucket: GcsBucketName,
                                                            customEnvironmentVariables: Map[String, String],
                                                            ingressPath: String,
-                                                           k8sProxyHost: akka.http.scaladsl.model.Uri.Host
+                                                           k8sProxyHost: akka.http.scaladsl.model.Uri.Host,
+                                                           autopilot: Option[Autopilot]
   ): List[String] = {
     val k8sProxyHostString = k8sProxyHost.address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -395,15 +397,21 @@ private[leonardo] object BuildHelmChartValues {
       raw"""welder.extraEnv[5].value=dummy""" // TODO: welder requires this env, but it's not needed for welders in GCP
     )
 
+    val nodepoolSelector = nodepoolName match {
+      case Some(npn) =>
+        List(
+          raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${npn.value}"""
+        )
+      case None => List.empty
+    }
+
     List(
       raw"""fullnameOverride=${appName.value}""",
-      // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder ++ configs
+    ) ++ ingress ++ welder ++ configs ++ nodepoolSelector
   }
 }
