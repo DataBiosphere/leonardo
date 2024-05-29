@@ -226,7 +226,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-  it should s"emit an exception if the app is not alive prior to upgrading id1" in isolatedDbTest {
+  it should s"emit an exception if the app is not alive prior to upgrading" in isolatedDbTest {
     implicit val appTypeToAppInstall: AppType => AppInstall[IO] = {
       case AppType.WorkflowsApp => setUpMockWorkflowAppInstall(false)
       case _                    => setUpMockAppInstall(false)
@@ -271,7 +271,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
         .transaction
 
-      // Throw away the error here, we aren't trying to verify that the exception we are mocking above is being thrown
       _ <- aksInterp
         .updateAndPollApp(
           UpdateAKSAppParams(appId, appName, ChartVersion("0.0.2"), Some(workspaceIdForUpdating), cloudContext)
@@ -284,7 +283,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       case Left(value) =>
         value.getMessage should include("was not alive")
         value.getClass shouldBe AppUpdatePollingException("message", None).getClass
-      case _ => true shouldBe false
+      case _ => fail()
     }
   }
 
