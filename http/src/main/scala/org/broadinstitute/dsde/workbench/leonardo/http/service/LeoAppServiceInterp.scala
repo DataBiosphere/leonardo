@@ -1509,10 +1509,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   }
 
   private[service] def validateAutodelete(autodeleteEnabled: Boolean,
-                                          autodeleteThreshold: Option[Int],
+                                          autodeleteThreshold: Option[AutodeleteThreshold],
                                           traceId: TraceId
   ): Either[LeoException, Unit] = {
-    val invalidThreshold = autodeleteThreshold.exists(_ <= 0)
+    val invalidThreshold = autodeleteThreshold.exists(_.value <= 0)
     val wantEnabledButThresholdMissing = autodeleteEnabled && autodeleteThreshold.isEmpty
 
     for {
