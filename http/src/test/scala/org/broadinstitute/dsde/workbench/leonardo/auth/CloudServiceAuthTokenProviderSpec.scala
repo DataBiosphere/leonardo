@@ -28,7 +28,7 @@ class CloudServiceAuthTokenProviderSpec
       now <- IO.realTimeInstant
     } yield {
       // set secondTokenValue to greater than the tokenCacheTimeInMilli which is 30 minutes
-      tokens.push(CloudToken(secondTokenValue, now.plusSeconds(40 * 60)))
+      tokens.push(CloudToken(secondTokenValue, now.plusSeconds(30 * 60 + 10)))
       tokens.push(CloudToken(firstTokenValue, now.plusSeconds(2)))
     }
 
