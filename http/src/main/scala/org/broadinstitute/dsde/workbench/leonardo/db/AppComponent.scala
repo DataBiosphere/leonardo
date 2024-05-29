@@ -391,13 +391,14 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
-    val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
-    val greaterThanOrEqual = SimpleFunction.binary[Int, Option[AutodeleteThreshold], Boolean]("GREATER_THAN_OR_EQUAL")
+//    val kk = slick.ast.TypedType.
+    val tsdiff = SimpleFunction.ternary[String, Instant, Instant, AutodeleteThreshold]("TIMESTAMPDIFF")
+//    val greaterThanOrEqual = SimpleFunction.binary[Int, Option[AutodeleteThreshold], Boolean]("GREATER_THAN_OR_EQUAL")
     val minute = SimpleLiteral[String]("MINUTE")
 
     val baseQuery = appQuery
       .filter(_.autodeleteEnabled === true)
-      .filter(record => greaterThanOrEqual(tsdiff(minute, record.dateAccessed, now), record.autodeleteThreshold))
+      .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autodeleteThreshold)
       .filter(_.status inSetBind AppStatus.deletableStatuses)
 
     val query = baseQuery join nodepoolQuery on (_.nodepoolId === _.id) join
