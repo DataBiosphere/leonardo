@@ -3163,7 +3163,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   }
 
   def createAppForAutodeleteTests(autodeleteEnabled: Boolean, autodeleteThreshold: Option[Int]): AppName = {
-    val appName = AppName("pong")
+    val appName = AppName("Microsoft Excel")
     val createReq = createAppRequest.copy(
       diskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty)),
       autodeleteEnabled = Some(autodeleteEnabled),
