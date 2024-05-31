@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import com.google.api.services.container.model.Autopilot
+import org.broadinstitute.dsde.workbench.leonardo.Autopilot
 import org.broadinstitute.dsde.workbench.azure.{PrimaryKey, RelayHybridConnectionName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
@@ -382,6 +382,20 @@ private[leonardo] object BuildHelmChartValues {
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHostString}"""
     )
 
+    val autopilotParams = autopilot match {
+      case Some(v) =>
+        List(
+          raw"""autopilot.rstudio.cpu=${v.cpuInMillicores}m""",
+          raw"""autopilot.rstudio.memory=${v.memoryInGb}Gi""",
+          raw"""autopilot.rstudio.ephemeral-storage=${v.ephemeralStorageInGb}Gi""",
+          raw"""autopilot.welder.cpu=${config.clusterConfig.autopilotConfig.welder.cpuInMillicores}m""",
+          raw"""autopilot.welder.memory=${config.clusterConfig.autopilotConfig.welder.memoryInGb}Gi""",
+          raw"""autopilot.welder.ephemeral-storage=${config.clusterConfig.autopilotConfig.welder.ephemeralStorageInGb}Gi""",
+          raw"""nodeSelector.cloud\.google\.com/compute-class=${v.computeClass.toString}"""
+        )
+      case None => List.empty
+    }
+
     val welder = List(
       raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",
       raw"""welder.extraEnv[0].value=${cluster.cloudContext.asString}""",
@@ -402,7 +416,8 @@ private[leonardo] object BuildHelmChartValues {
         List(
           raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${npn.value}"""
         )
-      case None => List.empty
+      case None =>
+        List.empty
     }
 
     List(
@@ -412,6 +427,6 @@ private[leonardo] object BuildHelmChartValues {
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder ++ configs ++ nodepoolSelector
+    ) ++ ingress ++ welder ++ configs ++ nodepoolSelector ++ autopilotParams
   }
 }

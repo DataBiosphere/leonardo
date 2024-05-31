@@ -573,4 +573,25 @@ final case class GalaxyOrchUrl(value: String) extends AnyVal
 final case class GalaxyDrsUrl(value: String) extends AnyVal
 final case class AppMachineType(memorySizeInGb: Int, numOfCpus: Int)
 final case class KsaName(value: String) extends AnyVal
-final case class Autopilot(cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
+sealed trait ComputeClass extends Product with Serializable
+object ComputeClass {
+  final case object GeneralPurpose extends ComputeClass {
+    override def toString: String = "General-purpose"
+  }
+  final case object Accelerator extends ComputeClass {
+    override def toString: String = "Accelerator"
+  }
+  final case object Balanced extends ComputeClass {
+    override def toString: String = "Balanced"
+  }
+  final case object Performance extends ComputeClass {
+    override def toString: String = "Performance"
+  }
+  final case object ScaleOut extends ComputeClass {
+    override def toString: String = "Scale-Out"
+  }
+
+  private def values: Set[ComputeClass] = sealerate.values[ComputeClass]
+  val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
+}
+final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)

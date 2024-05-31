@@ -74,6 +74,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def autodeleteThreshold = column[Option[Int]]("autodeleteThreshold")
   def autodeleteEnabled = column[Boolean]("autodeleteEnabled")
   def autopilotEnabled = column[Boolean]("autopilotEnabled")
+  def computeClass = column[Option[ComputeClass]]("computeClass")
   def cpu = column[Option[Int]]("cpu")
   def memory = column[Option[Int]]("memory")
   def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
@@ -101,7 +102,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       sourceWorkspaceId,
       numOfReplicas,
       (autodeleteThreshold, autodeleteEnabled),
-      (autopilotEnabled, cpu, memory, ephemeralStorage)
+      (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage)
     ) <> ({
       case (
             id,
@@ -157,13 +158,15 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           autoDelete._2,
           if (autopilot._1)
             for {
-              cpu <- autopilot._2
-              memory <- autopilot._3
-              ephemeralStorage <- autopilot._4
-            } yield Autopilot(cpu, memory, ephemeralStorage)
+              computeClass <- autopilot._2
+              cpu <- autopilot._3
+              memory <- autopilot._4
+              ephemeralStorage <- autopilot._5
+            } yield Autopilot(computeClass, cpu, memory, ephemeralStorage)
           else None
         )
     }, { r: AppRecord =>
+      val autopilotComputeClass = r.autopilot.map(_.computeClass)
       val autopilotCpu = r.autopilot.map(_.cpuInMillicores)
       val autopilotMemory = r.autopilot.map(_.memoryInGb)
       val autopilotEphemeralStorage = r.autopilot.map(_.memoryInGb)
@@ -194,7 +197,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.sourceWorkspaceId,
           r.numOfReplicas,
           (r.autodeleteThreshold, r.autodeleteEnabled),
-          (r.autopilot.isDefined, autopilotCpu, autopilotMemory, autopilotEphemeralStorage)
+          (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage)
         )
       )
     })

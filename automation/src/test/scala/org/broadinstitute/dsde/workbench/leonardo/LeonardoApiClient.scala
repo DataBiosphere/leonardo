@@ -131,7 +131,7 @@ object LeonardoApiClient {
     None,
     None,
     None,
-    false
+    None
   )
 
   val defaultCreateAzureRuntimeRequest = CreateAzureRuntimeRequest(

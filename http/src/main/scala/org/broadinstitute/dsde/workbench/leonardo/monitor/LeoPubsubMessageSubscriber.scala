@@ -1130,7 +1130,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           None
         )
       }
-    _ <- F.sleep(2 minutes)
+    _ <- F.sleep(3 minutes) // Creating GKE cluster takes a while, so there's no point polling right away
     // monitor cluster creation asynchronously
     monitorOp <- createClusterResultOpt.traverse_(createClusterResult =>
       getGkeAlgFromRegistry()

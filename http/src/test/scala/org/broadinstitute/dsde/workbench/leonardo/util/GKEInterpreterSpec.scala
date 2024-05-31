@@ -349,8 +349,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         CreateAppParams(savedApp1.id,
                         savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                         savedApp1.appName,
-                        None,
-                        false
+                        None
         )
       )
       getAppOpt <- KubernetesServiceDbQueries

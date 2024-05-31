@@ -85,7 +85,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       ).map(CidrIP),
       KubernetesClusterVersion("1.28"),
       1 hour,
-      200
+      200,
+      AutopilotConfig(AutopilotResource(500, 3, 5), AutopilotResource(500, 3, 5))
     )
     Config.gkeClusterConfig shouldBe expectedResult
   }

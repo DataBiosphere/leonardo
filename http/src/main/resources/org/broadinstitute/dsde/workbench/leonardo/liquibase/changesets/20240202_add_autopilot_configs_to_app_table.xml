@@ -5,6 +5,9 @@
             <column name="autopilotEnabled" type="boolean" defaultValue="false">
                 <constraints nullable="false"/>
             </column>
+            <column name="computeClass" type="ENUM('General-purpose', 'Accelerator', 'Balanced', 'Performance', 'Scale-Out')">
+                <constraints nullable="true"/>
+            </column>
             <column name="cpu" type="SMALLINT">
                 <constraints nullable="true"/>
             </column>

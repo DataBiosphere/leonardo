@@ -342,7 +342,6 @@ class GKEInterpreter[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-
       // Grab records from the database
       dbAppOpt <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Gcp(params.googleProject), params.appName)
@@ -354,7 +353,6 @@ class GKEInterpreter[F[_]](
                                                  "No active app found in DB"
                             )
       )
-
       app = dbApp.app
       namespaceName = app.appResources.namespace
       dbCluster = dbApp.cluster
@@ -732,7 +730,8 @@ class GKEInterpreter[F[_]](
               ksaName,
               userEmail,
               stagingBucketName,
-              app.customEnvironmentVariables
+              app.customEnvironmentVariables,
+              app.autopilot
             )
 
             last <- streamFUntilDone(
@@ -1553,7 +1552,8 @@ class GKEInterpreter[F[_]](
                                                              ksaName,
                                                              userEmail,
                                                              stagingBucketName,
-                                                             customEnvironmentVariables
+                                                             customEnvironmentVariables,
+                                                             autopilot
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 

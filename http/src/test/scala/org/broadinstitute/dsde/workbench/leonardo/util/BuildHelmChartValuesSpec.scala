@@ -294,7 +294,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       ksaName = ServiceAccountName("app1-rstudio-ksa"),
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
-      envVariables
+      envVariables,
+      None
     )
 
     res.mkString(",") shouldBe
@@ -346,7 +347,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       ksaName = ServiceAccountName("app1-rstudio-ksa"),
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
-      envVariables
+      envVariables,
+      None
     )
 
     res.mkString(",") shouldBe
