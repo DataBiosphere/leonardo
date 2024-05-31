@@ -169,6 +169,7 @@ echo "Starting Jupyter with command..."
 echo "docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
 --volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR} \
+-e CLOUD_PROVIDER=Azure \
 -e WORKSPACE_ID=$WORKSPACE_ID \
 -e WORKSPACE_NAME=$WORKSPACE_NAME \
 -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -183,6 +184,7 @@ $JUPYTER_DOCKER_IMAGE \
 docker run -d --restart always --network host --name jupyter \
 --entrypoint tail \
 --volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR} \
+--env CLOUD_PROVIDER=Azure \
 --env WORKSPACE_ID=$WORKSPACE_ID \
 --env WORKSPACE_NAME=$WORKSPACE_NAME \
 --env WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
