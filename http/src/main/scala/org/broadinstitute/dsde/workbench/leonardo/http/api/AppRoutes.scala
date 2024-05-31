@@ -5,7 +5,7 @@ package api
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
-import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, _}
+import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppDecoder
 
 class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
@@ -70,6 +71,13 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                                 appName
                               )
                             )
+                          } ~
+                          patch {
+                            entity(as[UpdateAppRequest]) { req =>
+                              complete(
+                                updateAppHandler(userInfo, googleProject, appName, req)
+                              )
+                            }
                           } ~
                           delete {
                             parameterMap { params =>
@@ -167,6 +175,22 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
+  private[api] def updateAppHandler(userInfo: UserInfo,
+                                    googleProject: GoogleProject,
+                                    appName: AppName,
+                                    req: UpdateAppRequest
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = kubernetesService.updateApp(
+        userInfo,
+        CloudContext.Gcp(googleProject),
+        appName,
+        req
+      )
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApp").use(_ => apiCall))
+    } yield StatusCodes.Accepted
+
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
@@ -214,4 +238,12 @@ object AppRoutes {
       case _            => Right(NumNodepools.apply(n))
     }
   )
+
+  implicit val updateAppDecoder: Decoder[UpdateAppRequest] =
+    Decoder.instance { x =>
+      for {
+        enabled <- x.downField("autodeleteEnabled").as[Option[Boolean]]
+        threshold <- x.downField("autodeleteThreshold").as[Option[Int]]
+      } yield UpdateAppRequest(enabled, threshold)
+    }
 }

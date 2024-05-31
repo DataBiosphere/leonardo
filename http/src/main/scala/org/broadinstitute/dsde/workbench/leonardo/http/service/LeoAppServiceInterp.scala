@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
@@ -668,6 +669,48 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           ) >> F
             .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
+
+  private def getUpdateAppTransaction(appId: AppId, validatedChanges: UpdateAppRequest): F[Unit] = (for {
+    _ <- validatedChanges.autodeleteEnabled.traverse(enabled =>
+      appQuery
+        .updateAutodeleteEnabled(appId, enabled)
+    )
+
+    // note: does not clear the threshold if None.  This only sets defined thresholds.
+    _ <- validatedChanges.autodeleteThreshold.traverse(threshold =>
+      appQuery
+        .updateAutodeleteThreshold(appId, Some(threshold))
+    )
+  } yield ()).transaction
+
+  override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+
+      // throw 403 if no project-level permission
+      hasProjectPermission <- authProvider.isUserProjectReader(cloudContext, userInfo)
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(cloudContext, appName).transaction
+      appResult <- F.fromOption(appOpt,
+                                AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+      )
+
+      _ <- metrics.incrementCounter("updateApp", 1, Map("appType" -> appResult.app.appType.toString))
+
+      // throw 404 if no UpdateApp permission
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+      hasPermission = listOfPermissions.toSet.contains(AppAction.UpdateApp)
+      _ <- F.raiseWhen(!hasPermission)(AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied"))
+
+      // confirm that the combination of the request and the existing DB values result in a valid configuration
+      resolvedAutodeleteEnabled = req.autodeleteEnabled.getOrElse(appResult.app.autodeleteEnabled)
+      resolvedAutodeleteThreshold = req.autodeleteThreshold.orElse(appResult.app.autodeleteThreshold)
+      _ <- F.fromEither(validateAutodelete(resolvedAutodeleteEnabled, resolvedAutodeleteThreshold, ctx.traceId))
+      _ <- getUpdateAppTransaction(appResult.app.id, req)
+    } yield ()
 
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
     implicit as: Ask[F, AppContext]
@@ -1429,13 +1472,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         if (req.appType == AppType.Allowed)
           Some(config.leoKubernetesConfig.allowedAppConfig.numOfReplicas)
         else None
-      autodeleteEnabled = req.autodeleteEnabled.getOrElse(false)
-      autodeleteThreshold = req.autodeleteThreshold.getOrElse(0)
 
-      _ <- Either.cond(!(autodeleteEnabled && autodeleteThreshold <= 0),
-                       (),
-                       BadRequestException("autodeleteThreshold should be a positive value", Some(ctx.traceId))
-      )
+      autodeleteEnabled = req.autodeleteEnabled.getOrElse(false)
+      _ <- validateAutodelete(autodeleteEnabled, req.autodeleteThreshold, ctx.traceId)
     } yield SaveApp(
       App(
         AppId(-1),
@@ -1467,6 +1506,27 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         autodeleteEnabled
       )
     )
+  }
+
+  private[service] def validateAutodelete(autodeleteEnabled: Boolean,
+                                          autodeleteThreshold: Option[Int],
+                                          traceId: TraceId
+  ): Either[LeoException, Unit] = {
+    val invalidThreshold = autodeleteThreshold.exists(_ <= 0)
+    val wantEnabledButThresholdMissing = autodeleteEnabled && autodeleteThreshold.isEmpty
+
+    for {
+      _ <- Either.cond(!invalidThreshold,
+                       (),
+                       BadRequestException("autodeleteThreshold should be a positive value", Some(traceId))
+      )
+
+      _ <- Either.cond(
+        !wantEnabledButThresholdMissing,
+        (),
+        BadRequestException("when enabling autodelete, an autodeleteThreshold must be present", Some(traceId))
+      )
+    } yield ()
   }
 
   private def getVisibleApps(allClusters: List[KubernetesCluster], userInfo: UserInfo)(implicit
