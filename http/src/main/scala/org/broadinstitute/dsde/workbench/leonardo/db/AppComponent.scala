@@ -302,6 +302,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(_.status)
       .update(status)
 
+  def updateAutodeleteEnabled(id: AppId, autodeleteEnabled: Boolean): DBIO[Int] =
+    getByIdQuery(id).map(_.autodeleteEnabled).update(autodeleteEnabled)
+
+  def updateAutodeleteThreshold(id: AppId, autodeleteThreshold: Option[Int]): DBIO[Int] =
+    getByIdQuery(id).map(_.autodeleteThreshold).update(autodeleteThreshold)
+
   def markAsErrored(id: AppId): DBIO[Int] =
     getByIdQuery(id)
       .map(x => (x.status, x.diskId))
