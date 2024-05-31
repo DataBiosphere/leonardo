@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{CidrIP, KubernetesClusterVers
 import scala.concurrent.duration.FiniteDuration
 
 final case class AutopilotResource(cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
-final case class AutopilotConfig(welder: AutopilotResource, wonderShaper: AutopilotResource)
+final case class AutopilotConfig(welder: AutopilotResource, wondershaper: AutopilotResource)
 case class KubernetesClusterConfig(
   location: Location,
   region: RegionName,

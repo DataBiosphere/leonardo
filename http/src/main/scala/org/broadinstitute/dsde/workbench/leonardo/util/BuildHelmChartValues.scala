@@ -385,12 +385,16 @@ private[leonardo] object BuildHelmChartValues {
     val autopilotParams = autopilot match {
       case Some(v) =>
         List(
+          raw"""autopilot.enabled=true""",
           raw"""autopilot.rstudio.cpu=${v.cpuInMillicores}m""",
           raw"""autopilot.rstudio.memory=${v.memoryInGb}Gi""",
-          raw"""autopilot.rstudio.ephemeral-storage=${v.ephemeralStorageInGb}Gi""",
+          raw"""autopilot.rstudio.ephemeral\-storage=${v.ephemeralStorageInGb}Gi""",
           raw"""autopilot.welder.cpu=${config.clusterConfig.autopilotConfig.welder.cpuInMillicores}m""",
           raw"""autopilot.welder.memory=${config.clusterConfig.autopilotConfig.welder.memoryInGb}Gi""",
-          raw"""autopilot.welder.ephemeral-storage=${config.clusterConfig.autopilotConfig.welder.ephemeralStorageInGb}Gi""",
+          raw"""autopilot.welder.ephemeral\-storage=${config.clusterConfig.autopilotConfig.welder.ephemeralStorageInGb}Gi""",
+          raw"""autopilot.wondershaper.cpu=${config.clusterConfig.autopilotConfig.wondershaper.cpuInMillicores}m""",
+          raw"""autopilot.wondershaper.memory=${config.clusterConfig.autopilotConfig.wondershaper.memoryInGb}Gi""",
+          raw"""autopilot.wondershaper.ephemeral\-storage=${config.clusterConfig.autopilotConfig.wondershaper.ephemeralStorageInGb}Gi""",
           raw"""nodeSelector.cloud\.google\.com/compute-class=${v.computeClass.toString}"""
         )
       case None => List.empty
