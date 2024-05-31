@@ -497,6 +497,13 @@ class MockSamDAO extends SamDAO[IO] {
   override def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Set[SamRole]] = ???
+
+  /** Gets an action managed identity from Sam as the calling user for the given resource type,
+   * resource ID, and action. Returns the managed identity object ID. */
+  override def getAzureActionManagedIdentity(authHeader: Authorization,
+                                             resource: PrivateAzureStorageAccountSamResourceId,
+                                             action: PrivateAzureStorageAccountAction
+  )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = ???
 }
 
 object MockSamDAO {

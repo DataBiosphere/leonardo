@@ -18,7 +18,8 @@ import bio.terra.workspace.model.{
   CreateControlledAzureVmRequestBody,
   DeleteControlledAzureResourceResult,
   JobControl,
-  JobReport
+  JobReport,
+  UserAssignedIdentities
 }
 import cats.Parallel
 import cats.effect.Async
@@ -29,6 +30,7 @@ import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, Vir
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -146,6 +148,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         CreateAzureDiskParams(msg.workspaceId, runtime, msg.useExistingDisk, azureConfig)
       )
 
+      // Get optional action managed identities from Sam
+      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+      actionIdentityOpt <- tokenOpt.flatTraverse { token =>
+        samDAO.getAzureActionManagedIdentity(
+          org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token)),
+          PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
+          PrivateAzureStorageAccountAction.Read
+        )
+      }
+
       // all other resources (hybrid connection, storage container, vm)
       // are created within the async task
       _ <- monitorCreateRuntime(
@@ -159,7 +171,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.image,
           workspaceStorageContainer,
           msg.workspaceName,
-          cloudContext
+          cloudContext,
+          List(actionIdentityOpt).flatten
         )
       )
     } yield ()
@@ -179,7 +192,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     val vmCommon = getCommonFieldsForWsmGeneratedClient(
       ControlledResourceName(params.runtime.runtimeName.asString),
       config.runtimeDefaults.vmControlledResourceDesc,
-      params.runtime.auditInfo.creator
+      params.runtime.auditInfo.creator,
+      params.userAssignedIdentities
     )
       .resourceId(samResourceId.value)
 
@@ -457,7 +471,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       wsmApi <- buildWsmControlledResourceApiClient
       common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(storageContainerName.value),
                                                     "leonardo staging bucket",
-                                                    runtime.auditInfo.creator
+                                                    runtime.auditInfo.creator,
+                                                    List.empty
       )
       azureStorageContainer = new AzureStorageContainerCreationParameters()
         .storageContainerName(storageContainerName.value)
@@ -542,7 +557,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
           common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(disk.name.value),
                                                         config.runtimeDefaults.diskControlledResourceDesc,
-                                                        params.runtime.auditInfo.creator
+                                                        params.runtime.auditInfo.creator,
+                                                        List.empty
           )
 
           createDiskJobId = WsmJobId(UUID.randomUUID().toString)
@@ -793,8 +809,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def getCommonFieldsForWsmGeneratedClient(name: ControlledResourceName,
                                                    resourceDesc: String,
-                                                   userEmail: WorkbenchEmail
-  ) =
+                                                   userEmail: WorkbenchEmail,
+                                                   userAssignedIdentities: List[String]
+  ) = {
+    val identities = new UserAssignedIdentities()
+    identities.addAll(userAssignedIdentities.asJava)
     new ControlledResourceCommonFields()
       .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
       .cloningInstructions(CloningInstructionsEnum.NOTHING)
@@ -807,6 +826,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .userName(userEmail.value)
           .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
       )
+      .userAssignedIdentities(identities)
+  }
 
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val hybridConnectionName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
