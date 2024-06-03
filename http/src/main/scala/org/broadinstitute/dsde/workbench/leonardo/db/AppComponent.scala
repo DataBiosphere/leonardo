@@ -169,7 +169,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       val autopilotComputeClass = r.autopilot.map(_.computeClass)
       val autopilotCpu = r.autopilot.map(_.cpuInMillicores)
       val autopilotMemory = r.autopilot.map(_.memoryInGb)
-      val autopilotEphemeralStorage = r.autopilot.map(_.memoryInGb)
+      val autopilotEphemeralStorage = r.autopilot.map(_.ephemeralStorageInGb)
       Some(
         (
           r.id,
