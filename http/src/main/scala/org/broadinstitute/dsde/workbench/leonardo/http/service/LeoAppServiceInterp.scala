@@ -89,6 +89,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
+      // We only allow autopilot mode for members of CUSTOM_APP_USERS group
+      // This is only needed while we're evaluating autopilot (6/3/2024).
+      _ <- req.autopilot.traverse { _ =>
+        authProvider.isCustomAppAllowed(userInfo.userEmail) map { res =>
+          if (res) Right(())
+          else Left("You don't have permission to create APP in autopilot mode")
+        }
+      }
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
             AppType.CromwellRunnerApp =>
