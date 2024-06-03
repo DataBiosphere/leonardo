@@ -386,9 +386,9 @@ private[leonardo] object BuildHelmChartValues {
       case Some(v) =>
         List(
           raw"""autopilot.enabled=true""",
-          raw"""autopilot.rstudio.cpu=${v.cpuInMillicores}m""",
-          raw"""autopilot.rstudio.memory=${v.memoryInGb}Gi""",
-          raw"""autopilot.rstudio.ephemeral\-storage=${v.ephemeralStorageInGb}Gi""",
+          raw"""autopilot.app.cpu=${v.cpuInMillicores}m""",
+          raw"""autopilot.app.memory=${v.memoryInGb}Gi""",
+          raw"""autopilot.app.ephemeral\-storage=${v.ephemeralStorageInGb}Gi""",
           raw"""autopilot.welder.cpu=${config.clusterConfig.autopilotConfig.welder.cpuInMillicores}m""",
           raw"""autopilot.welder.memory=${config.clusterConfig.autopilotConfig.welder.memoryInGb}Gi""",
           raw"""autopilot.welder.ephemeral\-storage=${config.clusterConfig.autopilotConfig.welder.ephemeralStorageInGb}Gi""",
