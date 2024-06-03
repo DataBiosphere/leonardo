@@ -9,12 +9,13 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeGceSpecDependencies
 import org.openqa.selenium.Keys
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import cats.syntax.all._
 
 @DoNotDiscover
-class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils with NotebookTestUtils {
+class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils with NotebookTestUtils with ParallelTestExecution {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
+  override def runtimeSystemKey: Option[String] = Some(getClass.getSimpleName)
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl)
 

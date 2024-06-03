@@ -14,12 +14,14 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceServic
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
@@ -34,20 +36,20 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers
+import org.mockito.{ArgumentMatchers, Mock}
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
-
+import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -314,6 +316,37 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       persistentDiskQuery.getById(app.appResources.disk.get.id)
     }
     savedDisk.map(_.name) shouldEqual Some(diskName)
+  }
+
+  it should "rollback Sam resource creation if app creation fails" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+
+    // Fake an error in getLastUsedAppForDisk
+    val disk = makePersistentDisk(None)
+      .copy(cloudContext = cloudContextGcp)
+      .save()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    val mockAuthProvider = mock[LeoAuthProvider[IO]]
+    when(mockAuthProvider.hasPermission(any, any, any)(any, any)).thenReturn(IO.pure(true))
+    when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
+    when(mockAuthProvider.notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)).thenReturn(IO.unit)
+    when(mockAuthProvider.notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)).thenReturn(IO.unit)
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
+    val res = appService
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app"
+
+    verify(mockAuthProvider).notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)
+    verify(mockAuthProvider).notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)
   }
 
   it should "create an app in a user's existing nodepool" in isolatedDbTest {
@@ -3074,7 +3107,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     thrown.appType shouldBe AppType.HailBatch
   }
 
-  "checkIfAppCreationIsAllowedAndIsAoU" should "enable IntraNodeVisibility if customApp check is disabled" in {
+  "checkIfAppCreationIsAllowed" should "enable IntraNodeVisibility if customApp check is disabled" in {
     val interp = makeInterp(QueueFactory.makePublisherQueue(), enableCustomAppCheckFlag = false)
     val res =
       interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
@@ -3127,5 +3160,222 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .toOption
       .get
       .isInstanceOf[ForbiddenError] shouldBe true
+  }
+
+  def createAppForAutodeleteTests(autodeleteEnabled: Boolean, autodeleteThreshold: Option[Int]): AppName = {
+    val appName = AppName("Microsoft Excel")
+    val createReq = createAppRequest.copy(
+      diskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty)),
+      autodeleteEnabled = Some(autodeleteEnabled),
+      autodeleteThreshold = autodeleteThreshold
+    )
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, createReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val createdApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm assumptions
+
+    createdApp.autodeleteEnabled shouldBe autodeleteEnabled
+    createdApp.autodeleteThreshold shouldBe autodeleteThreshold
+
+    appName
+  }
+
+  "updateApp" should "allow enabling autodeletion by specifying both fields" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
+
+    val autodeleteThreshold = 1000
+    val updateReq = UpdateAppRequest(Some(true), Some(autodeleteThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(autodeleteThreshold)
+  }
+
+  it should "allow enabling autodeletion by setting autodeleteEnabled=true if the existing config has a valid autodeleteThreshold" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val updateReq = UpdateAppRequest(Some(true), None)
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(autodeleteThreshold)
+  }
+
+  it should "reject enabling autodeletion by setting autodeleteEnabled=true if the existing config has a missing autodeleteThreshold" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
+
+    val updateReq = UpdateAppRequest(Some(true), None)
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "reject enabling autodeletion if the threshold in the request is invalid" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
+
+    val badAutodeleteThreshold = 0
+    val updateReq = UpdateAppRequest(Some(true), Some(badAutodeleteThreshold))
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "reject disabling autodeletion if the threshold in the request is invalid" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val badAutodeleteThreshold = 0
+    val updateReq = UpdateAppRequest(Some(false), Some(badAutodeleteThreshold))
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "reject autodeletionEnabled=None if the threshold in the request is invalid" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val badAutodeleteThreshold = 0
+    val updateReq = UpdateAppRequest(None, Some(badAutodeleteThreshold))
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "allow disabling autodeletion by setting enabled = false" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val updateReq = UpdateAppRequest(Some(false), None)
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe false
+    updatedApp.autodeleteThreshold shouldBe Some(autodeleteThreshold)
+  }
+
+  it should "allow disabling autodeletion by setting enabled = false and specifying a new autodeleteThreshold" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val newThreshold = 2000
+    val updateReq = UpdateAppRequest(Some(false), Some(newThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe false
+    updatedApp.autodeleteThreshold shouldBe Some(newThreshold)
+  }
+
+  it should "allow changing autodeletion threshold when enableAutodelete=true" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val newAutodeleteThreshold = 2000
+    val updateReq = UpdateAppRequest(Some(true), Some(newAutodeleteThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(newAutodeleteThreshold)
+  }
+
+  it should "allow changing autodeletion threshold when enableAutodelete=None" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val newAutodeleteThreshold = 2000
+    val updateReq = UpdateAppRequest(None, Some(newAutodeleteThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(newAutodeleteThreshold)
+  }
+
+  it should "error if app not found" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val wrongApp = AppName("wrongApp")
+    an[AppNotFoundException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, wrongApp, UpdateAppRequest(None, None))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 }

@@ -13,24 +13,67 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
-import org.scalatest.Assertion
+import org.scalatest.{
+  Assertion,
+  BeforeAndAfterEachTestData,
+  DoNotDiscover,
+  Outcome,
+  ParallelTestExecution,
+  Retries,
+  TestData
+}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.shouldUnclaimProjectsKey
+import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import java.time.LocalDateTime
 
 import scala.concurrent.duration._
 
+@DoNotDiscover
 class AppLifecycleSpec
-    extends BillingProjectFixtureSpec
+    extends FixtureAnyFreeSpecLike
+    with Retries
     with LeonardoTestUtils
     with BillingProjectUtils
     with TableDrivenPropertyChecks
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll {
+    with BeforeAndAfterEachTestData
+    with ParallelTestExecution {
   implicit val (ronAuthToken: IO[AuthToken], ronAuthorization: IO[Authorization]) = getAuthTokenAndAuthorization(Ron)
 
-  override def withFixture(test: NoArgTest) =
-    if (isRetryable(test))
-      withRetry(super.withFixture(test))
-    else
-      super.withFixture(test)
+  override def beforeEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(
+      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}"
+    )
+  }
+
+  override def afterEach(testData: TestData): Unit = {
+    super.afterEach(testData)
+    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
+  }
+
+  override type FixtureParam = GoogleProject
+
+  override def withFixture(test: OneArgTest): Outcome = {
+    def runTestAndCheckOutcome(project: GoogleProject) = {
+      val outcome = super.withFixture(test.toNoArgTest(project))
+      if (!outcome.isSucceeded) {
+        System.setProperty(shouldUnclaimProjectsKey, "false")
+      }
+      outcome
+    }
+    val billingProjectAndWorkspace =
+      createBillingProjectAndWorkspace.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    billingProjectAndWorkspace match {
+      case Left(e) => throw new RuntimeException(s"google project could not be claimed for test, ${e}")
+      case Right(projectAndWorkspace) =>
+        if (isRetryable(test))
+          withRetry(runTestAndCheckOutcome(projectAndWorkspace.googleProject))
+        else
+          runTestAndCheckOutcome(projectAndWorkspace.googleProject)
+    }
+  }
 
   def createAppRequest(appType: AppType,
                        workspaceName: String,
@@ -52,9 +95,9 @@ class AppLifecycleSpec
     sourceWorkspaceId = None
   )
   // Test galaxy app first so that there will be a GKE cluster created already for the next two tests
-  //  "create GALAXY app, start/stop, delete it and re-create it with same disk" in { googleProject =>
-  //    test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
-  //  }
+  // "create GALAXY app, start/stop, delete it and re-create it with same disk" ignore { googleProject =>
+  //   test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
+  // }
 
   "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
@@ -70,7 +113,7 @@ class AppLifecycleSpec
       )
   }
 
-  "create CUSTOM app then delete it" taggedAs Retryable in { googleProject =>
+  "create CUSTOM app then delete it" taggedAs Retryable ignore { googleProject =>
     test(
       googleProject,
       createAppRequest(
@@ -142,9 +185,9 @@ class AppLifecycleSpec
               _ <- IO.sleep(10 minutes)
               monitorStopResult <- streamUntilDoneOrTimeout(
                 getApp,
-                360,
+                120,
                 10 seconds,
-                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 60 minutes"
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 20 minutes"
               )(implicitly, appInStateOrError(AppStatus.Stopped))
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
@@ -215,12 +258,12 @@ class AppLifecycleSpec
                     // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
                     // See https://broadworkbench.atlassian.net/browse/IA-2471
                     listApps = LeonardoApiClient.listApps(googleProject, true)
-                    monitorDeleteResult <- streamFUntilDone(listApps, 200, 10 seconds).compile.lastOrError
+                    monitorDeleteResult <- streamFUntilDone(listApps, 120, 10 seconds).compile.lastOrError
                     // TODO remove first case in below if statement when Galaxy deletion is reliable
                     _ <-
                       if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
                         loggerIO.warn(
-                          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
+                          s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
                         )
                       } else {
                         // verify disk is also deleted

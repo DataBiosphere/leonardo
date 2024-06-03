@@ -43,7 +43,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchE
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.{ChartVersion, HelmException}
-
+import org.broadinstitute.dsde.workbench.leonardo.db.LabelResourceType
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
@@ -227,12 +227,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                                 4.5 minutes
       )
       messageType = event.msg.messageType.asString
-      metricsName = e match {
+      (metricsName, tags) = e match {
         case Some(e) =>
-          s"pubsub/fail/${messageType}/${e.getClass.toString.split('.').last}"
-        case None => s"pubsub/ack/${messageType}"
+          (s"pubsub/fail", Map("messageType" -> messageType, "exception" -> e.getClass.toString.split('.').last))
+        case None => (s"pubsub/success/${messageType}", Map("messageType" -> messageType))
       }
-      _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
+      _ <- metrics.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(implicit
@@ -277,7 +277,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           taskToRun,
           Some(createRuntimeErrorHandler(msg.runtimeId, msg.runtimeConfig.cloudService, ctx.now)),
           ctx.now,
-          TaskMetricsTags("createRuntime", None, Some(isAoU), CloudProvider.Gcp)
+          TaskMetricsTags("createRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(msg.runtimeConfig.cloudService))
         )
       )
     } yield ()
@@ -364,7 +364,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           fa,
           Some(handleRuntimeMessageError(runtime.id, ctx.now, s"deleting runtime ${runtime.projectNameString} failed")),
           ctx.now,
-          TaskMetricsTags("deleteRuntime", None, Some(isAoU), CloudProvider.Gcp)
+          TaskMetricsTags("deleteRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
         )
       )
     } yield ()
@@ -441,7 +441,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                TaskMetricsTags("stopRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                TaskMetricsTags("stopRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
               )
             )
           } yield ()
@@ -501,7 +501,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                TaskMetricsTags("startRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                TaskMetricsTags("startRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
               )
             )
           } yield ()
@@ -648,7 +648,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                   )
                 ),
                 ctx.now,
-                TaskMetricsTags("stopAndUpdateRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                TaskMetricsTags("stopAndUpdateRuntime",
+                                None,
+                                Some(isAoU),
+                                CloudProvider.Gcp,
+                                Some(runtimeConfig.cloudService)
+                )
               )
             )
           } yield ()
@@ -666,7 +671,12 @@ class LeoPubsubMessageSubscriber[F[_]](
                     runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating, None).compile.drain,
                     Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
                     ctx.now,
-                    TaskMetricsTags("updateRuntime", None, Some(isAoU), CloudProvider.Gcp)
+                    TaskMetricsTags("updateRuntime",
+                                    None,
+                                    Some(isAoU),
+                                    CloudProvider.Gcp,
+                                    Some(runtimeConfig.cloudService)
+                    )
                   )
                 )
               } else F.unit
@@ -1127,13 +1137,15 @@ class LeoPubsubMessageSubscriber[F[_]](
       } yield ()
 
       appChart <- appQuery.getAppChart(msg.appId).transaction
+      labels <- labelQuery.getAllForResource(msg.appId.id, LabelResourceType.app).transaction
+      isAoU = labels.get(AOU_UI_LABEL).contains("true")
       _ <- asyncTasks.offer(
         Task(
           ctx.traceId,
           task,
           Some(handleKubernetesError),
           ctx.now,
-          TaskMetricsTags("createApp", Some(resolveAppType(msg.appType, appChart)), None, CloudProvider.Gcp)
+          TaskMetricsTags("createApp", Some(resolveAppType(msg.appType, appChart)), Some(isAoU), CloudProvider.Gcp)
         )
       )
     } yield ()
@@ -1332,6 +1344,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           else F.unit
       } yield ()
 
+      labels <- labelQuery.getAllForResource(msg.appId.id, LabelResourceType.app).transaction
+      isAoU = labels.get(AOU_UI_LABEL).contains("true")
       _ <-
         if (sync) task
         else {
@@ -1342,11 +1356,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               task,
               Some(handleKubernetesError),
               ctx.now,
-              TaskMetricsTags("deleteApp",
-                              Some(resolveAppType(dbApp.app.appType, Some(dbApp.app.chart))),
-                              None,
-                              CloudProvider.Gcp
-              )
+              TaskMetricsTags("deleteApp", Some(toolType), Some(isAoU), CloudProvider.Gcp)
             )
           )
         }
@@ -1531,6 +1541,9 @@ class LeoPubsubMessageSubscriber[F[_]](
           case e =>
             for {
               _ <- appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
+              // You cannot update this log wording without updating the corresponding prod and staging alerts here
+              //     https://console.cloud.google.com/monitoring/alerting/policies/8184448493858086363?project=broad-dsde-prod
+              //     https://console.cloud.google.com/monitoring/alerting/policies/16136890211426349187?project=broad-dsde-staging
               errorContext =
                 s"Error updating Azure app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"
               _ <- logger.warn(ctx.loggingCtx, e)(errorContext)

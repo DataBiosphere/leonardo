@@ -84,7 +84,8 @@ object AsyncTaskProcessor {
   final case class TaskMetricsTags(taskName: String,
                                    toolType: Option[String] = None,
                                    isAoU: Option[Boolean],
-                                   cloudProvider: CloudProvider
+                                   cloudProvider: CloudProvider,
+                                   cloudService: Option[CloudService] = None
   )
   final case class Task[F[_]](traceId: TraceId,
                               op: F[Unit],
@@ -97,7 +98,8 @@ object AsyncTaskProcessor {
         "taskName" -> metricsTags.taskName,
         "toolType" -> metricsTags.toolType.getOrElse("unknown"),
         "isAoU" -> metricsTags.isAoU.map(_.toString).getOrElse("unknown"),
-        "cloud" -> metricsTags.cloudProvider.asString
+        "cloud" -> metricsTags.cloudProvider.asString,
+        "cloudService" -> metricsTags.cloudService.map(_.asString).getOrElse("unknown")
       )
   }
   final case class Config(queueBound: Int, maxConcurrentTasks: Int)

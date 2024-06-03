@@ -91,7 +91,15 @@ RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
-  cos-extensions install gpu
+  version="535.154.05"
+  isAvailable=$(cos-extensions list|grep $version)
+  if [[ -z "$isAvailable" ]]; then
+      # Install default version on the COS image
+      cos-extensions install gpu
+  else
+      cos-extensions install gpu -- --version $version
+  fi
+
   mount --bind /var/lib/nvidia /var/lib/nvidia
   mount -o remount,exec /var/lib/nvidia
 fi

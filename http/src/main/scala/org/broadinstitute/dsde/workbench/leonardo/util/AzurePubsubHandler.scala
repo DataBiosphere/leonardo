@@ -6,11 +6,16 @@ import bio.terra.workspace.api.ControlledAzureResourceApi
 import bio.terra.workspace.model.{
   AzureDiskCreationParameters,
   AzureStorageContainerCreationParameters,
+  AzureVmCreationParameters,
+  AzureVmCustomScriptExtension,
+  AzureVmCustomScriptExtensionSetting,
+  AzureVmUser,
   CloningInstructionsEnum,
   ControlledResourceCommonFields,
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
   CreateControlledAzureStorageContainerRequestBody,
+  CreateControlledAzureVmRequestBody,
   DeleteControlledAzureResourceResult,
   JobControl,
   JobReport
@@ -43,6 +48,7 @@ import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
+import scala.jdk.CollectionConverters._
 import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
@@ -163,19 +169,20 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                          hcPrimaryKey: PrimaryKey,
                                          createVmJobId: WsmJobId,
                                          hcName: RelayHybridConnectionName
-  ): CreateVmRequest = {
+  ): CreateControlledAzureVmRequestBody = {
     val samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
 
     val wsStorageContainerUrl =
       s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.workspaceStorageContainer.name.value}"
 
     // Setup create VM message
-    val vmCommon = getCommonFields(
+    val vmCommon = getCommonFieldsForWsmGeneratedClient(
       ControlledResourceName(params.runtime.runtimeName.asString),
       config.runtimeDefaults.vmControlledResourceDesc,
-      params.runtime.auditInfo.creator,
-      Some(samResourceId)
+      params.runtime.auditInfo.creator
     )
+      .resourceId(samResourceId.value)
+
     val arguments = List(
       params.landingZoneResources.relayNamespace.value,
       hcName.value,
@@ -204,29 +211,43 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .map(s => s"'$s'")
           .mkString(" ")} > /var/log/azure_vm_init_script.log"
 
-    CreateVmRequest(
-      params.workspaceId,
-      vmCommon,
-      CreateVmRequestData(
-        params.runtime.runtimeName,
-        VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
-        config.runtimeDefaults.image,
-        CustomScriptExtension(
-          name = config.runtimeDefaults.customScriptExtension.name,
-          publisher = config.runtimeDefaults.customScriptExtension.publisher,
-          `type` = config.runtimeDefaults.customScriptExtension.`type`,
-          version = config.runtimeDefaults.customScriptExtension.version,
-          minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
-          protectedSettings = ProtectedSettings(
-            config.runtimeDefaults.customScriptExtension.fileUris,
-            cmdToExecute
-          )
-        ),
-        config.runtimeDefaults.vmCredential,
-        params.createDiskResult.resourceId
-      ),
-      WsmJobControl(createVmJobId)
+    val protectedSettings: List[AzureVmCustomScriptExtensionSetting] = List(
+      new AzureVmCustomScriptExtensionSetting()
+        .key("fileUris")
+        .value(config.runtimeDefaults.customScriptExtension.fileUris.asJava),
+      new AzureVmCustomScriptExtensionSetting()
+        .key("commandToExecute")
+        .value(cmdToExecute)
     )
+
+    val customScriptExtension = new AzureVmCustomScriptExtension()
+      .name(config.runtimeDefaults.customScriptExtension.name)
+      .`type`(config.runtimeDefaults.customScriptExtension.`type`)
+      .publisher(config.runtimeDefaults.customScriptExtension.publisher)
+      .version(config.runtimeDefaults.customScriptExtension.version)
+      .minorVersionAutoUpgrade(config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade)
+      .protectedSettings(protectedSettings.asJava)
+
+    val vmPassword = AzurePubsubHandler.getAzureVMSecurePassword(applicationConfig.environment,
+                                                                 config.runtimeDefaults.vmCredential.password
+    )
+
+    val creationParams = new AzureVmCreationParameters()
+      .customScriptExtension(customScriptExtension)
+      .diskId(params.createDiskResult.resourceId.value)
+      .vmImage(config.runtimeDefaults.image.toWsm())
+      .vmSize(VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value).toString)
+      .name(params.runtime.runtimeName.asString)
+      .vmUser(
+        new AzureVmUser()
+          .name(config.runtimeDefaults.vmCredential.username)
+          .password(vmPassword)
+      )
+
+    new CreateControlledAzureVmRequestBody()
+      .azureVm(creationParams)
+      .common(vmCommon)
+      .jobControl(new JobControl().id(createVmJobId.value))
   }
 
   private def monitorStartRuntime(runtime: Runtime, startVmOp: Option[Mono[Void]])(implicit
@@ -796,6 +817,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createVmJobId = WsmJobId(s"create-vm-${params.runtime.id.toString.take(10)}")
       getWsmVmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, createVmJobId), auth)
 
+      wsmApi <- buildWsmControlledResourceApiClient
+
       isJupyterUp = jupyterDAO.isProxyAvailable(params.cloudContext, params.runtime.runtimeName)
       isWelderUp = welderDao.isProxyAvailable(params.cloudContext, params.runtime.runtimeName)
 
@@ -817,7 +840,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           hybridConnectionName
         )
 
-        _ <- wsmDao.createVm(vmRequest, auth)
+        _ <- F.delay(wsmApi.createAzureVm(vmRequest, params.workspaceId.value))
 
         // it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
         _ <- F.sleep(

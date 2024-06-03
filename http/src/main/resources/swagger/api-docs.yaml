@@ -29,8 +29,6 @@ tags:
 security:
   - oidc:
       - openid
-      - email
-      - profile
 
 ##########################################################################################
 ## PATHS
@@ -1596,6 +1594,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+    patch:
+        summary: Updates the configuration of an app
+        description: Updates the configuration of an app.  Currently limited to autodeletion config.
+        operationId: updateApp
+        tags:
+            - apps
+        parameters:
+          - in: path
+            name: googleProject
+            description: googleProject
+            required: true
+            schema:
+                type: string
+          - in: path
+            name: appName
+            description: appName
+            required: true
+            schema:
+                type: string
+        requestBody:
+            $ref: "#/components/requestBodies/UpdateAppRequest"
+        responses:
+          "202":
+            description: App update request accepted
+          "400":
+            description: Bad Request
+            content:
+              application/json:
+                schema:
+                    $ref: "#/components/schemas/ErrorReport"
+          "500":
+            description: Internal Error
+            content:
+              application/json:
+                schema:
+                    $ref: "#/components/schemas/ErrorReport"
     delete:
       summary: Deletes an existing app in the given project
       description: deletes an App
@@ -2916,6 +2950,14 @@ components:
             machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
             autopauseThreshold: 15
+    UpdateAppRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UpdateAppRequest"
+          example:
+            autodeleteEnabled: true
+            autodeleteThreshold: 60
     UpdateAppsRequest:
       content:
         application/json:
@@ -2928,15 +2970,9 @@ components:
 
   securitySchemes:
     oidc:
-      type: oauth2
-      flows:
-        authorizationCode:
-          authorizationUrl: /oauth2/authorize
-          tokenUrl: /oauth2/token
-          scopes:
-            openid: open id authorization
-            email: email authorization
-            profile: profile authorization
+      type: openIdConnect
+      openIdConnectUrl: OPEN_ID_CONNECT_URL
+      x-tokenName: id_token
   schemas:
     AppType:
       type: string
@@ -4117,6 +4153,24 @@ components:
         autodeleteEnabled:
           type: boolean
           description: Whether to turn on autodelete
+
+    UpdateAppRequest:
+      description: A request to update the configuration of an app
+      type: object
+      properties:
+        autodeleteEnabled:
+          type: boolean
+          description: > 
+            Optional: Whether to turn on autodelete.  When autodeleteEnabled is set to true but there is no
+            autodeleteThreshold supplied in this request, the existing app's configuration will be used.  If the 
+            existing configuration does not have an autodeleteThreshold with a positive integer, this would result in 
+            an invalid autodelete configuration, and therefore this update request would be rejected.
+        autodeleteThreshold:
+          type: integer
+          description: >
+            Optional: The number of minutes of idle time to elapse before the app is deleted.  This must be a positive
+            integer.  Note: deletion timing is not exact.  The app will be deleted a short period of time after this
+            threshold time has elapsed.
 
     UpdateAppsRequest:
       description: a request to update a specific set of apps (v1 or v2)

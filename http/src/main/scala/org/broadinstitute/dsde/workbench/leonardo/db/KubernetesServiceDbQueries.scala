@@ -124,7 +124,8 @@ object KubernetesServiceDbQueries {
     * Throws an error if the cluster is in creating status.
     */
   def saveOrGetClusterForApp(
-    saveKubernetesCluster: SaveKubernetesCluster
+    saveKubernetesCluster: SaveKubernetesCluster,
+    traceId: TraceId
   )(implicit ec: ExecutionContext): DBIO[SaveClusterResult] =
     for {
       clusterOpt <- kubernetesClusterQuery.getMinimalActiveClusterByCloudContext(saveKubernetesCluster.cloudContext)
@@ -136,7 +137,7 @@ object KubernetesServiceDbQueries {
               DBIO.failed(
                 KubernetesAppCreationException(
                   s"You cannot create an app while a cluster is in ${KubernetesClusterStatus.creatingStatuses}. Status: ${s}",
-                  None
+                  Some(traceId)
                 )
               )
             case _ => DBIO.successful(ClusterExists(cluster, DefaultNodepool.fromNodepool(cluster.nodepools.head)))

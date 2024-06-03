@@ -2389,8 +2389,8 @@ class LeoPubsubMessageSubscriberSpec
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     verify(mockAckConsumer, times(1)).ack()
-    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/ack/createApp"), any(), any(), any())(any())
-    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/fail/createApp"), any(), any(), any())(any())
+    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/success"), any(), any(), any())(any())
+    verify(metrics, times(1)).recordDuration(startsWith(s"pubsub/fail"), any(), any(), any())(any())
   }
 
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
@@ -2480,6 +2480,7 @@ class LeoPubsubMessageSubscriberSpec
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
                             new URL("https://leonardo.foo.org"),
+                            "dev",
                             0L
       ),
       contentSecurityPolicy,

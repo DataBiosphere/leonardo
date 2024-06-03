@@ -70,6 +70,9 @@ RUNTIME_NAME="${19:-dummy}"
 VALID_HOSTS="${20:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
+# R version
+R_VERSION="4.4.0-1.2004.0"
+
 # Log in script output for debugging purposes.
 echo "RELAY_NAME = ${RELAY_NAME}"
 echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}"
@@ -95,6 +98,7 @@ echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}"
 echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
+echo "R-VERSION = ${R_VERSION}"
 
 ##### Persistent Disk (PD) MOUNTING #####
 # Formatting and mounting persistent disk
