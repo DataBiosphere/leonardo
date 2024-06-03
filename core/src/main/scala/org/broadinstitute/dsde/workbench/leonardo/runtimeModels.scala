@@ -527,7 +527,6 @@ object WelderAction extends Enum[WelderAction] {
 
 final case class MemorySize(bytes: Long) extends AnyVal {
   override def toString: String = bytes.toString + "b"
-  def gb(): Long = bytes / MemorySize.gbInBytes
 }
 object MemorySize {
   val kbInBytes = 1024

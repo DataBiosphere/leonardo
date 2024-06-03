@@ -73,11 +73,10 @@ object Config {
   val referenceConfig = ConfigFactory.load()
 
   // leoConfig has precedence here
-  val config = ConfigFactory.load()
-//  leoConfig
-//    .withFallback(firecloudDevelopConfig)
-//    .withFallback(referenceConfig)
-//    .resolve()
+  val config = leoConfig
+    .withFallback(firecloudDevelopConfig)
+    .withFallback(referenceConfig)
+    .resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
   implicit private val groupNameReader: ValueReader[GroupName] = stringValueReader.map(GroupName)
