@@ -148,6 +148,9 @@ class GKEInterpreter[F[_]](
       networkConfig = new com.google.api.services.container.model.NetworkConfig()
         .setEnableIntraNodeVisibility(params.enableIntraNodeVisibility)
 
+      networkTag = new com.google.api.services.container.model.NetworkTags()
+        .setTags(List(config.vpcNetworkTag.value).asJava)
+      nodepoolConfig = new com.google.api.services.container.model.NodePoolAutoConfig().setNetworkTags(networkTag)
       networkPolicy =
         if (params.autopilot) null else new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
 
@@ -158,6 +161,7 @@ class GKEInterpreter[F[_]](
         .setAutopilot(
           autopilot
         )
+        .setNodePoolAutoConfig(nodepoolConfig)
         .setLegacyAbac(new com.google.api.services.container.model.LegacyAbac().setEnabled(false))
         .setNetwork(kubeNetwork.idString)
         .setSubnetwork(kubeSubNetwork.idString)
