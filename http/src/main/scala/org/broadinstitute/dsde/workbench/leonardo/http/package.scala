@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import _root_.io.opencensus.trace.{AttributeValue, Span, Tracing}
 import akka.http.scaladsl.model.Uri.Host
 import cats.Applicative
-import cats.effect.{Resource, Sync}
+import cats.effect.{IO, Resource, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.Encoder
@@ -92,6 +92,13 @@ package object http {
     Resource.make[F, Unit](Sync[F].delay(span.putAttribute("api", AttributeValue.stringAttributeValue(apiName))))(_ =>
       Sync[F].delay(span.end())
     )
+
+  // wrap the apiCall in a spanResource if a span is present in the context
+  def withSpanResource[T](apiName: String, apiCall: IO[T])(implicit ev: Ask[IO, AppContext]): IO[T] =
+    for {
+      ctx <- ev.ask[AppContext]
+      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, apiName).use(_ => apiCall))
+    } yield resp
 
   /**
    * Creates a child Span from the parent span in the AppContext. If no parent span exists, a root
