@@ -101,9 +101,9 @@ render_configs() {
 
 	# Get CloudSQL proxy GOOGLE_PROJECT and CLOUDSQL_ZONE from dev as defaults,
 	# CLOUDSQL_INSTANCE must be set by the user in their environment.
-	local _csp_gproj="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.project | base64decode }}')"
-	local _csp_zone="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.region | base64decode }}')"
-	local _csp_dev_instance="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance -o 'go-template={{ .data.name | base64decode }}')"
+	local _csp_gproj="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance-eso -o 'go-template={{ .data.project | base64decode }}')"
+	local _csp_zone="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance-eso -o 'go-template={{ .data.region | base64decode }}')"
+	local _csp_dev_instance="$(kubectl -n terra-dev get secret leonardo-cloudsql-instance-eso -o 'go-template={{ .data.name | base64decode }}')"
 
 	# Check for CloudSQL proxy env settings, tell user to set if missing.
 	if [ -z "${CLOUDSQL_INSTANCE}" ]; then
@@ -137,7 +137,7 @@ render_configs() {
 	echo "Copying resources from kubernetes..."
 
 	# Get secret backend env vars
-	kubectl -n terra-dev get secret leonardo-backend-env-secrets -o go-template='
+	kubectl -n terra-dev get secret leonardo-backend-env-secrets-eso -o go-template='
 {{- range $k, $v := .data }}
 	{{- printf "%s=" $k }}
 	{{- if not $v}}
@@ -217,11 +217,11 @@ render_configs() {
 	# Tunneling certs
 	kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{ index .data "leonardo-account.json" | base64decode }}' > ${_out_dir}/leonardo-account.json
 	kubectl -n terra-dev get secret leonardo-sa-secret -o 'go-template={{ index .data "leonardo-account.pem" | base64decode }}' > ${_out_dir}/leonardo-account.pem
-	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "jupyter-server.crt" | base64decode }}' > ${_out_dir}/jupyter-server.crt
-	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "jupyter-server.key" | base64decode }}' > ${_out_dir}/jupyter-server.key
-	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "leo-client.p12" | base64decode }}' > ${_out_dir}/leo-client.p12
-	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "rootCA.key" | base64decode }}' > ${_out_dir}/rootCA.key
-	kubectl -n terra-dev get secret leonardo-application-secret -o 'go-template={{ index .data "rootCA.pem" | base64decode }}' > ${_out_dir}/rootCA.pem
+	kubectl -n terra-dev get secret leonardo-application-secret-eso -o 'go-template={{ index .data "jupyter-server.crt" | base64decode }}' > ${_out_dir}/jupyter-server.crt
+	kubectl -n terra-dev get secret leonardo-application-secret-eso -o 'go-template={{ index .data "jupyter-server.key" | base64decode }}' > ${_out_dir}/jupyter-server.key
+	kubectl -n terra-dev get secret leonardo-application-secret-eso -o 'go-template={{ index .data "leo-client.p12" | base64decode }}' > ${_out_dir}/leo-client.p12
+	kubectl -n terra-dev get secret leonardo-application-secret-eso -o 'go-template={{ index .data "rootCA.key" | base64decode }}' > ${_out_dir}/rootCA.key
+	kubectl -n terra-dev get secret leonardo-application-secret-eso -o 'go-template={{ index .data "rootCA.pem" | base64decode }}' > ${_out_dir}/rootCA.pem
 
 	# OAuth and proxy configs
 	kubectl -n terra-dev get configmap leonardo-oauth2-configmap -o 'go-template={{index .data "oauth2.conf"}}' > ${_out_dir}/oauth2.conf
