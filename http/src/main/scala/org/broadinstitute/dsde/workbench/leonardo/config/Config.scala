@@ -887,7 +887,7 @@ object Config {
       config.as[PollMonitorConfig]("scalingDownNodepool"),
       config.as[InterruptablePollMonitorConfig]("startApp"),
       config.as[InterruptablePollMonitorConfig]("updateApp"),
-      config.as[PollMonitorConfig]("appLivenessCheck")
+      config.as[PollMonitorConfig]("appLiveness")
     )
   }
 

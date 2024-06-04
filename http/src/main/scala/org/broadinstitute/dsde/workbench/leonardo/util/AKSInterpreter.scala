@@ -698,8 +698,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       op = pollApp(userEmail, relayBaseUri, appInstall)
       appOk <- streamFUntilDone(
         op,
-        maxAttempts = config.appMonitorConfig.appLivenessCheck.maxAttempts,
-        delay = config.appMonitorConfig.appLivenessCheck.interval
+        maxAttempts = config.appMonitorConfig.appLiveness.maxAttempts,
+        delay = config.appMonitorConfig.appLiveness.interval
       ).compile.lastOrError
     } yield appOk.isDone
 

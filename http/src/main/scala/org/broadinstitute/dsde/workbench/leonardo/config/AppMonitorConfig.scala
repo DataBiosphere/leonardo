@@ -14,5 +14,5 @@ case class AppMonitorConfig(nodepoolCreate: PollMonitorConfig,
                             scalingDownNodepool: PollMonitorConfig,
                             startApp: InterruptablePollMonitorConfig,
                             updateApp: InterruptablePollMonitorConfig,
-                            appLivenessCheck: PollMonitorConfig
+                            appLiveness: PollMonitorConfig
 )
