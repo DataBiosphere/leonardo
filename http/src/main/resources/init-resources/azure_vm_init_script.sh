@@ -170,7 +170,7 @@ sudo chmod a+rwx ${PD_DIRECTORY}
 echo "------ Jupyter version: ${JUPYTER_DOCKER_IMAGE} ------"
 echo "Starting Jupyter with command..."
 
-echo "docker run -d --restart always --network host --name jupyter \
+echo "docker run -d --gpus all --restart always --network host --name jupyter \
 --entrypoint tail \
 --volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR} \
 -e CLOUD_PROVIDER=Azure \
@@ -185,7 +185,7 @@ $JUPYTER_DOCKER_IMAGE \
 #Override entrypoint with a placeholder (tail -f /dev/null) to keep the container running indefinitely.
 #The jupyter server itself will be started via docker exec after.
 #Mount the persistent disk directory to the jupyter notebook home directory
-docker run -d --restart always --network host --name jupyter \
+docker run -d --gpus all --restart always --network host --name jupyter \
 --entrypoint tail \
 --volume ${PD_DIRECTORY}:${NOTEBOOKS_DIR} \
 --env CLOUD_PROVIDER=Azure \
