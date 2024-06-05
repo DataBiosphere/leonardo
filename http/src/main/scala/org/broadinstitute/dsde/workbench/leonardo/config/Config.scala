@@ -789,7 +789,8 @@ object Config {
         config.getInt("concurrency"),
         config.as[FiniteDuration]("timeout"),
         config.as[PersistentDiskMonitorConfig]("persistent-disk-monitor"),
-        gkeGalaxyDiskConfig
+        gkeGalaxyDiskConfig,
+        config.as[FiniteDuration]("gke-cluster-creation-polling-initial-delay")
       )
     }
 

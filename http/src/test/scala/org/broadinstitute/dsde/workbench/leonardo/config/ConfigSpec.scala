@@ -35,7 +35,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "gxy-postres-disk",
         DiskSize(10),
         BlockSize(4096)
-      )
+      ),
+      1 seconds
     )
 
     Config.leoPubsubMessageSubscriberConfig shouldBe expectedResult

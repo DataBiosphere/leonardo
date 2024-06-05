@@ -1179,7 +1179,8 @@ final case class PersistentDiskMonitorConfig(create: CreateDiskTimeout,
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig,
-                                                  galaxyDiskConfig: GalaxyDiskConfig
+                                                  galaxyDiskConfig: GalaxyDiskConfig,
+                                                  gkeClusterCreationPollingInitialDelay: FiniteDuration
 )
 
 final case class DiskDetachStatus(disk: Option[Disk], originalDetachTimestampOpt: Option[String])

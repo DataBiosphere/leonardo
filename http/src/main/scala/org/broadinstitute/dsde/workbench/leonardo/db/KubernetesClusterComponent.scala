@@ -305,7 +305,7 @@ case class SaveKubernetesCluster(cloudContext: CloudContext,
                                  ingressChart: Chart,
                                  auditInfo: AuditInfo,
                                  defaultNodepool: DefaultNodepool, // Question: does this have to be `DefaultNodepool`?
-                                 autopilot: Boolean
+                                 autopilotEnabled: Boolean
 ) {
   def toClusterRecord: KubernetesClusterRecord =
     KubernetesClusterRecord(

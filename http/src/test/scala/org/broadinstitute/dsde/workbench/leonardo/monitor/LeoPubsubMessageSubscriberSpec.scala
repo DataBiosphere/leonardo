@@ -2453,7 +2453,8 @@ class LeoPubsubMessageSubscriberSpec
       LeoPubsubMessageSubscriberConfig(1,
                                        30 seconds,
                                        Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig,
-                                       Config.leoPubsubMessageSubscriberConfig.galaxyDiskConfig
+                                       Config.leoPubsubMessageSubscriberConfig.galaxyDiskConfig,
+                                       1 seconds
       ),
       cloudSubscriber,
       asyncTaskQueue,

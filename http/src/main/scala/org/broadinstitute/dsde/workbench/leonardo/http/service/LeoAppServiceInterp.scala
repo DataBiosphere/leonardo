@@ -1064,13 +1064,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
-    autopilot: Boolean,
+    autopilotEnabled: Boolean,
     now: Instant
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
     val nodepoolStatus =
-      if (autopilot || cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running
+      if (autopilotEnabled || cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running
       else NodepoolStatus.Precreating
     val defaultNodepool = for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
@@ -1088,7 +1088,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
     // autopilot mode clusters are regional
     val loc =
-      if (autopilot) Location(config.leoKubernetesConfig.clusterConfig.region.value)
+      if (autopilotEnabled) Location(config.leoKubernetesConfig.clusterConfig.region.value)
       else config.leoKubernetesConfig.clusterConfig.location
     for {
       nodepool <- defaultNodepool
@@ -1106,7 +1106,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool,
-      autopilot
+      autopilotEnabled
     )
   }
 

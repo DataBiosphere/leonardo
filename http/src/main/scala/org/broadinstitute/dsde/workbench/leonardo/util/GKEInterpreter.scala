@@ -462,7 +462,7 @@ class GKEInterpreter[F[_]](
               app.release,
               app.chart,
               dbCluster,
-              dbApp.nodepool.nodepoolName, // TODO: support autopilot mode
+              dbApp.nodepool.nodepoolName, // https://broadworkbench.atlassian.net/browse/IA-4987
               namespaceName,
               app.auditInfo.creator,
               app.customEnvironmentVariables,

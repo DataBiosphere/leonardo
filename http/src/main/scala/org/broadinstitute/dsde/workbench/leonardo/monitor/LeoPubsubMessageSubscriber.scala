@@ -1074,7 +1074,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         _ <- getGkeAlgFromRegistry()
           .createAndPollApp(
             CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType)
-          ) // TODO: qi fix this
+          )
           .onError { case e =>
             cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk, e)
           }
@@ -1130,7 +1130,9 @@ class LeoPubsubMessageSubscriber[F[_]](
           None
         )
       }
-    _ <- F.sleep(3 minutes) // Creating GKE cluster takes a while, so there's no point polling right away
+    _ <- F.sleep(
+      config.gkeClusterCreationPollingInitialDelay
+    ) // Creating GKE cluster takes a while, so there's no point polling right away
     // monitor cluster creation asynchronously
     monitorOp <- createClusterResultOpt.traverse_(createClusterResult =>
       getGkeAlgFromRegistry()
