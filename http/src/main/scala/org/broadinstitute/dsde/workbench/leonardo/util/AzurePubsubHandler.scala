@@ -10,6 +10,7 @@ import bio.terra.workspace.model.{
   AzureVmCustomScriptExtension,
   AzureVmCustomScriptExtensionSetting,
   AzureVmUser,
+  AzureVmUserAssignedIdentities,
   CloningInstructionsEnum,
   ControlledResourceCommonFields,
   CreateControlledAzureDiskRequestV2Body,
@@ -18,8 +19,7 @@ import bio.terra.workspace.model.{
   CreateControlledAzureVmRequestBody,
   DeleteControlledAzureResourceResult,
   JobControl,
-  JobReport,
-  UserAssignedIdentities
+  JobReport
 }
 import cats.Parallel
 import cats.effect.Async
@@ -50,10 +50,10 @@ import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
-import scala.jdk.CollectionConverters._
 import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters._
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
@@ -192,8 +192,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     val vmCommon = getCommonFieldsForWsmGeneratedClient(
       ControlledResourceName(params.runtime.runtimeName.asString),
       config.runtimeDefaults.vmControlledResourceDesc,
-      params.runtime.auditInfo.creator,
-      params.userAssignedIdentities
+      params.runtime.auditInfo.creator
     )
       .resourceId(samResourceId.value)
 
@@ -246,6 +245,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                                  config.runtimeDefaults.vmCredential.password
     )
 
+    val userAssignedIdentities = new AzureVmUserAssignedIdentities()
+    userAssignedIdentities.addAll(params.userAssignedIdentities.asJava)
+
     val creationParams = new AzureVmCreationParameters()
       .customScriptExtension(customScriptExtension)
       .diskId(params.createDiskResult.resourceId.value)
@@ -257,6 +259,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .name(config.runtimeDefaults.vmCredential.username)
           .password(vmPassword)
       )
+      .userAssignedIdentities(userAssignedIdentities)
 
     new CreateControlledAzureVmRequestBody()
       .azureVm(creationParams)
@@ -471,8 +474,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       wsmApi <- buildWsmControlledResourceApiClient
       common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(storageContainerName.value),
                                                     "leonardo staging bucket",
-                                                    runtime.auditInfo.creator,
-                                                    List.empty
+                                                    runtime.auditInfo.creator
       )
       azureStorageContainer = new AzureStorageContainerCreationParameters()
         .storageContainerName(storageContainerName.value)
@@ -557,8 +559,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
           common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(disk.name.value),
                                                         config.runtimeDefaults.diskControlledResourceDesc,
-                                                        params.runtime.auditInfo.creator,
-                                                        List.empty
+                                                        params.runtime.auditInfo.creator
           )
 
           createDiskJobId = WsmJobId(UUID.randomUUID().toString)
@@ -809,11 +810,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   private def getCommonFieldsForWsmGeneratedClient(name: ControlledResourceName,
                                                    resourceDesc: String,
-                                                   userEmail: WorkbenchEmail,
-                                                   userAssignedIdentities: List[String]
-  ) = {
-    val identities = new UserAssignedIdentities()
-    identities.addAll(userAssignedIdentities.asJava)
+                                                   userEmail: WorkbenchEmail
+  ) =
     new ControlledResourceCommonFields()
       .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
       .cloningInstructions(CloningInstructionsEnum.NOTHING)
@@ -826,8 +824,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .userName(userEmail.value)
           .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
       )
-      .userAssignedIdentities(identities)
-  }
 
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val hybridConnectionName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
