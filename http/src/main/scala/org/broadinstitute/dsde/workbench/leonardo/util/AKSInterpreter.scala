@@ -430,6 +430,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         namespaceName
       )
 
+      // Check if the app is alive before attempting to update. We transition the app to error status if this fails
+      isAppAlive <- childSpan("isAppAlive").use { implicit ev =>
+        isAppAlive(app.auditInfo.creator, relayPath, app.appType)
+      }
+      _ <-
+        if (isAppAlive)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdatePollingException(
+              s"App ${params.appName.value} was not alive and therefore failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
+              Some(ctx.traceId)
+            )
+          )
+
       // The app is blocked in updating now (as in, if leo restarts between here and the app transitioning back to `Running`, it is unusable
       // See: https://broadworkbench.atlassian.net/browse/IA-4867
       _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
@@ -673,6 +688,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         maxAttempts = config.appMonitorConfig.updateApp.maxAttempts,
         delay = config.appMonitorConfig.updateApp.interval
       ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
+    } yield appOk.isDone
+
+  private[util] def isAppAlive(userEmail: WorkbenchEmail, relayBaseUri: Uri, appInstall: AppInstall[F])(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] =
+    for {
+      _ <- ev.ask
+      op = pollApp(userEmail, relayBaseUri, appInstall)
+      appOk <- streamFUntilDone(
+        op,
+        maxAttempts = config.appMonitorConfig.appLiveness.maxAttempts,
+        delay = config.appMonitorConfig.appLiveness.interval
+      ).compile.lastOrError
     } yield appOk.isDone
 
   private[util] def getHelmAuthContext(clusterName: AKSClusterName,

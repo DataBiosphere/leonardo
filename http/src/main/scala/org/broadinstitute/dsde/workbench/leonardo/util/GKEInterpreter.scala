@@ -609,7 +609,7 @@ class GKEInterpreter[F[_]](
         AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
       )
 
-      (chartOverrideValues, appOk) <- app.appType match {
+      chartOverridesAndAppOkF = app.appType match {
         case AppType.Galaxy =>
           for {
 
@@ -764,11 +764,28 @@ class GKEInterpreter[F[_]](
             ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
 
           } yield (chartValues, last)
-        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId)))
+        case _ =>
+          F.raiseError[(String, Boolean)](
+            AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId))
+          )
       }
+
+      (chartOverrideValues, preUpdateAppOk) <- chartOverridesAndAppOkF
 
       // Authenticate helm client
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+
+      // Fail if apps are not live before update attempt
+      _ <-
+        if (preUpdateAppOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdatePollingException(
+              s"App ${params.appName.value} is not live in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}, failing prior to upgrade attempt",
+              Some(ctx.traceId)
+            )
+          )
 
       // Change app status to updating
       _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
@@ -783,9 +800,10 @@ class GKEInterpreter[F[_]](
         )
         .run(helmAuthContext)
 
-      // Fail if apps are not live
+      // Fail if apps are not live after update attempt
+      (_, postUpdateAppOk) <- chartOverridesAndAppOkF
       _ <-
-        if (appOk)
+        if (postUpdateAppOk)
           F.unit
         else
           F.raiseError[Unit](

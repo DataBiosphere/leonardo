@@ -37,7 +37,11 @@ abstract class CloudServiceAuthTokenProvider[F[_]](cloudProvider: CloudProvider)
             _ <- tokenRef.update(_ => Some(newToken))
           } yield newToken
         case Some(cloudToken) =>
-          if (cloudToken.expiration.toEpochMilli <= now.toEpochMilli) for {
+          // this token needs to live long enough to complete a stairway which
+          // can take 15 minutes so set to 30 minutes to be safe (30 * 60000)
+          val tokenCacheTimeInMilli = now.toEpochMilli + 1800000
+
+          if (cloudToken.expiration.toEpochMilli <= tokenCacheTimeInMilli) for {
             newToken <- getCloudProviderAuthToken
             _ <- tokenRef.update(_ => Some(newToken))
           } yield newToken

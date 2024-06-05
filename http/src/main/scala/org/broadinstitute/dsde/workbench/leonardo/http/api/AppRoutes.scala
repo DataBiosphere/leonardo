@@ -119,17 +119,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                                     googleProject: GoogleProject,
                                     appName: AppName,
                                     req: CreateAppRequest
-  )(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.createApp(
-        userInfo,
-        CloudContext.Gcp(googleProject),
-        appName,
-        req
-      )
       _ <- req.allowedChartName match {
         case Some(cn) =>
           val tags = Map("appType" -> req.appType.toString) + ("chartName" -> cn.asString)
@@ -141,39 +132,44 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
           val tags = Map("appType" -> req.appType.toString)
           metrics.incrementCounter("createApp", 1, tags)
       }
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
+      _ <- withSpanResource("createApp",
+                            kubernetesService.createApp(
+                              userInfo,
+                              CloudContext.Gcp(googleProject),
+                              appName,
+                              req
+                            )
+      )
     } yield StatusCodes.Accepted
 
   private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
     ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  ): IO[ToResponseMarshallable] = {
+    val apiCallName = "getApp"
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.getApp(
-        userInfo,
-        CloudContext.Gcp(googleProject),
-        appName
+      _ <- metrics.incrementCounter(apiCallName)
+      resp <- withSpanResource(apiCallName,
+                               kubernetesService.getApp(userInfo, CloudContext.Gcp(googleProject), appName)
       )
-      _ <- metrics.incrementCounter("getApp")
-      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
+  }
 
   private[api] def listAppHandler(userInfo: UserInfo,
                                   googleProject: Option[GoogleProject],
                                   params: Map[String, String]
-  )(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] = {
+    val apiCallName = "listApp"
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.listApp(
-        userInfo,
-        googleProject.map(CloudContext.Gcp),
-        params
+      _ <- metrics.incrementCounter(apiCallName)
+      resp <- withSpanResource(apiCallName,
+                               kubernetesService.listApp(
+                                 userInfo,
+                                 googleProject.map(CloudContext.Gcp),
+                                 params
+                               )
       )
-      _ <- metrics.incrementCounter("listApp")
-      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
+  }
 
   private[api] def updateAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
@@ -181,52 +177,43 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                                     req: UpdateAppRequest
   )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.updateApp(
-        userInfo,
-        CloudContext.Gcp(googleProject),
-        appName,
-        req
+      _ <- withSpanResource("updateApp",
+                            kubernetesService.updateApp(
+                              userInfo,
+                              CloudContext.Gcp(googleProject),
+                              appName,
+                              req
+                            )
       )
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
                                     params: Map[String, String]
-  )(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
-    for {
-      ctx <- ev.ask[AppContext]
-      // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
-      deleteDisk = params.get("deleteDisk").exists(_ == "true")
-      apiCall = kubernetesService.deleteApp(
-        userInfo,
-        CloudContext.Gcp(googleProject),
-        appName,
-        deleteDisk
-      )
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
-    } yield StatusCodes.Accepted
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] = for {
+    _ <- withSpanResource("deleteApp",
+                          kubernetesService.deleteApp(
+                            userInfo,
+                            CloudContext.Gcp(googleProject),
+                            appName,
+                            deleteDisk = params.get("deleteDisk").exists(_ == "true")
+                          )
+    )
+  } yield StatusCodes.Accepted
 
   private[api] def stopAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.stopApp(userInfo, CloudContext.Gcp(googleProject), appName)
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "stopApp").use(_ => apiCall))
+      _ <- withSpanResource("stopApp", kubernetesService.stopApp(userInfo, CloudContext.Gcp(googleProject), appName))
     } yield StatusCodes.Accepted
 
   private[api] def startAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.startApp(userInfo, CloudContext.Gcp(googleProject), appName)
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "startApp").use(_ => apiCall))
+      _ <- withSpanResource("startApp", kubernetesService.startApp(userInfo, CloudContext.Gcp(googleProject), appName))
     } yield StatusCodes.Accepted
 }
 

@@ -215,19 +215,18 @@ class AzureDiskSpec
           _ = disk2.getStatus() shouldBe DiskStatus.READY
           _ = disk2.getId() shouldBe monitorGetDisk.getId()
 
-          // TODO: re-enable once ssh issues are resolved: https://broadworkbench.atlassian.net/browse/IA-4889
-//          _ <- loggerIO.info("SSHing into second vm to verify disk contents")
-//          output <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
-//            for {
-//              output <- SSH.startSessionAndExecuteCommand(t.hostName,
-//                                                          t.port,
-//                                                          s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
-//                                                          SSHRuntimeInfo(None, CloudProvider.Azure)
-//              )
-//            } yield output
-//          }
-//
-//          _ = output.outputLines.mkString shouldBe "{}"
+          _ <- loggerIO.info("SSHing into second vm to verify disk contents")
+          output <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
+            for {
+              output <- SSH.startSessionAndExecuteCommand(t.hostName,
+                                                          t.port,
+                                                          s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
+                                                          SSHRuntimeInfo(None, CloudProvider.Azure)
+              )
+            } yield output
+          }
+
+          _ = output.outputLines.mkString shouldBe "{}"
         } yield ()
       res.unsafeRunSync()
   }
