@@ -82,16 +82,16 @@ class GcpDependenciesBuilderSpec
       .unsafeRunSync()
 
     registry.lookup[ProxyService].get shouldBe a[ProxyService]
-    registry.lookup[RuntimeService[IO]].get shouldBe a[RuntimeService[IO]]
-    registry.lookup[DiskService[IO]].get shouldBe a[DiskService[IO]]
-    registry.lookup[DataprocInterpreter[IO]].get shouldBe a[DataprocInterpreter[IO]]
-    registry.lookup[GceInterpreter[IO]].get shouldBe a[GceInterpreter[IO]]
-    registry.lookup[GcpDependencies[IO]].get shouldBe a[GcpDependencies[IO]]
-    registry.lookup[GKEAlgebra[IO]].get shouldBe a[GKEAlgebra[IO]]
-    registry.lookup[RuntimeMonitor[IO, CloudService]].get shouldBe a[RuntimeMonitor[IO, CloudService]]
-    registry.lookup[ResourcesService[IO]].get shouldBe a[ResourcesServiceInterp[IO]]
-    registry.lookup[LeoAppServiceInterp[IO]].get shouldBe a[LeoAppServiceInterp[IO]]
-    registry.lookup[RuntimeInstances[IO]].get shouldBe a[RuntimeInstances[IO]]
+    registry.lookup[RuntimeService[IO]].get shouldBe a[RuntimeService[_]]
+    registry.lookup[DiskService[IO]].get shouldBe a[DiskService[_]]
+    registry.lookup[DataprocInterpreter[IO]].get shouldBe a[DataprocInterpreter[_]]
+    registry.lookup[GceInterpreter[IO]].get shouldBe a[GceInterpreter[_]]
+    registry.lookup[GcpDependencies[IO]].get shouldBe a[GcpDependencies[_]]
+    registry.lookup[GKEAlgebra[IO]].get shouldBe a[GKEAlgebra[_]]
+    registry.lookup[RuntimeMonitor[IO, CloudService]].get shouldBe a[RuntimeMonitor[_, CloudService]]
+    registry.lookup[ResourcesService[IO]].get shouldBe a[ResourcesServiceInterp[_]]
+    registry.lookup[LeoAppServiceInterp[IO]].get shouldBe a[LeoAppServiceInterp[_]]
+    registry.lookup[RuntimeInstances[IO]].get shouldBe a[RuntimeInstances[_]]
   }
 
   // NonLeoMessageSubscriber[IO], CloudSubscriber (NonLeoMessageSubscriber), and MonitorAtBoot

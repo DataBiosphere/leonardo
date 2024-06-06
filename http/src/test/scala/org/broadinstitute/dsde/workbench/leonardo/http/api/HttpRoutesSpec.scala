@@ -864,7 +864,8 @@ class HttpRoutesSpec
     Post(s"/api/admin/v2/apps/update")
       .withEntity(
         ContentTypes.`application/json`,
-        UpdateAppsRequest(AppType.Galaxy,
+        UpdateAppsRequest(None,
+                          AppType.Galaxy,
                           CloudProvider.Gcp,
                           List.empty,
                           List.empty,
@@ -882,7 +883,8 @@ class HttpRoutesSpec
     Post(s"/api/admin/v2/apps/update")
       .withEntity(
         ContentTypes.`application/json`,
-        UpdateAppsRequest(AppType.Galaxy,
+        UpdateAppsRequest(None,
+                          AppType.Galaxy,
                           CloudProvider.Gcp,
                           List.empty,
                           List.empty,

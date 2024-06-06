@@ -30,6 +30,7 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
   }
 
   val updateAppsRequest = UpdateAppsRequest(
+    None,
     appType = AppType.Cromwell,
     cloudProvider = CloudProvider.Gcp,
     appVersionsInclude = List(),

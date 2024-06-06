@@ -2166,7 +2166,14 @@ class LeoPubsubMessageSubscriberSpec
       val savedNodepool1 = makeNodepool(index, savedCluster1.id).save()
       val savedApp1 = makeApp(index, savedNodepool1.id, appType = AppType.Cromwell).save()
       val msg =
-        UpdateAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext, savedApp1.workspaceId, None, None)
+        UpdateAppMessage(UpdateAppJobId(UUID.randomUUID()),
+                         savedApp1.id,
+                         savedApp1.appName,
+                         savedCluster1.cloudContext,
+                         savedApp1.workspaceId,
+                         None,
+                         None
+        )
 
       val res =
         for {
@@ -2212,7 +2219,14 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
     val msg =
-      UpdateAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext, savedApp1.workspaceId, None, None)
+      UpdateAppMessage(UpdateAppJobId(UUID.randomUUID()),
+                       savedApp1.id,
+                       savedApp1.appName,
+                       savedCluster1.cloudContext,
+                       savedApp1.workspaceId,
+                       None,
+                       None
+      )
 
     val res =
       for {
