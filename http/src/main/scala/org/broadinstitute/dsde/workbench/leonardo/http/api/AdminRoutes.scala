@@ -60,9 +60,12 @@ object AdminRoutes {
 
   implicit val chartVersionDecoder: Decoder[ChartVersion] = Decoder.decodeString.map(ChartVersion)
 
+  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeUUID.map(UpdateAppJobId)
+
   implicit val updateAppsDecoder: Decoder[UpdateAppsRequest] =
     Decoder.instance { x =>
       for {
+        jobId <- x.downField("jobId").as[Option[UpdateAppJobId]]
         at <- x.downField("appType").as[AppType]
         cp <- x.downField("cloudProvider").as[CloudProvider]
         avi <- x.downField("appVersionsInclude").as[Option[List[ChartVersion]]].map(_.getOrElse(List()))
@@ -71,7 +74,7 @@ object AdminRoutes {
         wid <- x.downField("workspaceId").as[Option[WorkspaceId]]
         aids <- x.downField("appNames").as[Option[List[AppName]]].map(_.getOrElse(List()))
         dr <- x.downField("dryRun").as[Option[Boolean]].map(_.getOrElse(false))
-      } yield UpdateAppsRequest(at, cp, avi, ave, gp, wid, aids, dr)
+      } yield UpdateAppsRequest(jobId, at, cp, avi, ave, gp, wid, aids, dr)
     }
 
   implicit val appIdEncoder: Encoder[AppId] = Encoder.encodeLong.contramap(_.id)

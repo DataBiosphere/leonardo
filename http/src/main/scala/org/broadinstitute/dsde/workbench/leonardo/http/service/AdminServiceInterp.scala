@@ -5,19 +5,19 @@ package service
 import cats.Parallel
 import cats.effect.Async
 import org.broadinstitute.dsde.workbench.leonardo.config.KubernetesAppConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries
+import org.broadinstitute.dsde.workbench.leonardo.db.{updateAppLogQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.model.NoMatchingAppError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.UpdateAppMessage
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotAnAdminError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.typelevel.log4cats.StructuredLogger
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
@@ -35,6 +35,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
   )(implicit as: Ask[F, AppContext]): F[Vector[ListUpdateableAppResponse]] =
     for {
       ctx: AppContext <- as.ask
+      jobId = req.jobId.getOrElse(UpdateAppJobId(UUID.randomUUID()))
 
       // Ensure the user is a Terra admin
       hasPermission: Boolean <- authProvider.isAdminUser(userInfo)
@@ -60,7 +61,25 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
           req.appNames
         )
         .transaction
-      responseList = ListUpdateableAppResponse.fromClusters(matchingApps).toVector
+
+      responseList = ListUpdateableAppResponse.fromClusters(matchingApps, jobId).toVector
+      appNames = responseList.map(_.appName.value).mkString(", ")
+
+      _ <- F.whenA(!req.dryRun) {
+        for {
+          _ <- log.info(
+            s"Triggering job $jobId update of ${responseList.length} apps of type ${req.cloudProvider}/${req.appType}: $appNames"
+          )
+          _ <- responseList.traverse { app =>
+            updateAppLogQuery.save(jobId, app.appId, ctx.now).transaction
+          }
+
+          _ <- responseList
+            .map(makeUpdateAppMessage(_, ctx.traceId))
+            .map(publisherQueue.offer)
+            .traverse(identity)
+        } yield ()
+      }
 
       // If not a dry run, enqueue messages requesting app update.
       _ <- {
@@ -69,7 +88,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
         else {
           val appNames = responseList.map(_.appName.value).mkString(", ")
           log.info(
-            s"Triggering update of ${responseList.length} apps of type ${req.cloudProvider}/${req.appType}: ${appNames}"
+            s"Triggering job ${jobId} update of ${responseList.length} apps of type ${req.cloudProvider}/${req.appType}: ${appNames}"
           )
           responseList
             .map(makeUpdateAppMessage(_, ctx.traceId))
@@ -81,6 +100,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
 
   private def makeUpdateAppMessage(updateableApp: ListUpdateableAppResponse, traceId: TraceId): UpdateAppMessage =
     UpdateAppMessage(
+      updateableApp.jobId,
       updateableApp.appId,
       updateableApp.appName,
       updateableApp.cloudContext,

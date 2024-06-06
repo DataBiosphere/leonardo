@@ -1523,44 +1523,53 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
       }
 
-      updateApp = msg.cloudContext match {
+      updateApp = (msg.cloudContext match {
         case CloudContext.Gcp(_) =>
           getGkeAlgFromRegistry()
             .updateAndPollApp(UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject))
         case CloudContext.Azure(azureContext) =>
           azurePubsubHandler
             .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
+      }).flatMap { _ =>
+        updateAppLogQuery
+          .update(msg.appId, msg.jobId, UpdateAppJobStatus.Success, Some(ctx.now))
+          .transaction
+          .void
       }
 
       updateAppWithErrorHandling = updateApp
-        .handleErrorWith {
-          // Fatal case (as in, the app is no longer usable), polling app liveness failed
-          // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
-          // This would provide more cases in which an app is left in a usable state
-          // Note that an app can also emit this error if the liveness probe fails before an update is triggered, so rolling back may not have an effect
-          case e: AppUpdatePollingException => F.raiseError(e)
-          // Fatal case, helm call failed for either listener or app charts
-          case e: HelmException => F.raiseError(e)
-          // Non fatal catch-all case, set app status back to running but append whatever error occurred in db for traceability
-          case e =>
-            for {
-              _ <- appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
-              // You cannot update this log wording without updating the corresponding prod and staging alerts here
-              //     https://console.cloud.google.com/monitoring/alerting/policies/8184448493858086363?project=broad-dsde-prod
-              //     https://console.cloud.google.com/monitoring/alerting/policies/16136890211426349187?project=broad-dsde-staging
-              errorContext =
-                s"Error updating Azure app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"
-              _ <- logger.warn(ctx.loggingCtx, e)(errorContext)
-              error = AppError(
-                s"${errorContext}: ${e.getMessage}",
-                ctx.now,
-                ErrorAction.UpdateApp,
-                ErrorSource.App,
-                None,
-                Some(ctx.traceId)
-              )
-              _ <- appErrorQuery.save(msg.appId, error).transaction
-            } yield ()
+        .handleErrorWith { throwable =>
+          updateAppLogQuery
+            .update(msg.appId, msg.jobId, UpdateAppJobStatus.Error, Some(ctx.now))
+            .transaction >> (throwable match {
+            // Fatal case (as in, the app is no longer usable), polling app liveness failed
+            // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
+            // This would provide more cases in which an app is left in a usable state
+            // Note that an app can also emit this error if the liveness probe fails before an update is triggered, so rolling back may not have an effect
+            case e: AppUpdatePollingException => F.raiseError(e)
+            // Fatal case, helm call failed for either listener or app charts
+            case e: HelmException => F.raiseError(e)
+            // Non fatal catch-all case, set app status back to running but append whatever error occurred in db for traceability
+            case e =>
+              for {
+                _ <- appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
+                // You cannot update this log wording without updating the corresponding prod and staging alerts here
+                //     https://console.cloud.google.com/monitoring/alerting/policies/8184448493858086363?project=broad-dsde-prod
+                //     https://console.cloud.google.com/monitoring/alerting/policies/16136890211426349187?project=broad-dsde-staging
+                errorContext =
+                  s"Error updating Azure app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"
+                _ <- logger.warn(ctx.loggingCtx, e)(errorContext)
+                error = AppError(
+                  s"${errorContext}: ${e.getMessage}",
+                  ctx.now,
+                  ErrorAction.UpdateApp,
+                  ErrorSource.App,
+                  None,
+                  Some(ctx.traceId)
+                )
+                _ <- appErrorQuery.save(msg.appId, error).transaction
+              } yield ()
+          })
         }
         .adaptError { case e =>
           PubsubKubernetesError(
