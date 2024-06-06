@@ -10,7 +10,7 @@ object AdminRoutesTestJsonCodec {
 
   implicit val chartVersionEncoder: Encoder[ChartVersion] = Encoder.encodeString.contramap(_.asString)
 
-  implicit val chartVersionEncoder: Encoder[UpdateAppJobId] = Encoder.encodeUUID.contramap(_.value)
+  implicit val updateAppJobIdEncoder: Encoder[UpdateAppJobId] = Encoder.encodeUUID.contramap(_.value)
 
   implicit val getAppUpdateRequestEncoder: Encoder[UpdateAppsRequest] = Encoder.forProduct9(
     "jobId",

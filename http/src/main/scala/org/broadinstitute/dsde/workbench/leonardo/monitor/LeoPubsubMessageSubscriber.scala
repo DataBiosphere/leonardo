@@ -1541,14 +1541,15 @@ class LeoPubsubMessageSubscriber[F[_]](
         .handleErrorWith { throwable =>
           updateAppLogQuery
             .update(msg.appId, msg.jobId, UpdateAppJobStatus.Error, Some(ctx.now))
-            .transaction >> (throwable match {
+            .transaction
+            .void >> (throwable match {
             // Fatal case (as in, the app is no longer usable), polling app liveness failed
             // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
             // This would provide more cases in which an app is left in a usable state
             // Note that an app can also emit this error if the liveness probe fails before an update is triggered, so rolling back may not have an effect
-            case e: AppUpdatePollingException => F.raiseError(e)
+            case e: AppUpdatePollingException => F.raiseError[Unit](e)
             // Fatal case, helm call failed for either listener or app charts
-            case e: HelmException => F.raiseError(e)
+            case e: HelmException => F.raiseError[Unit](e)
             // Non fatal catch-all case, set app status back to running but append whatever error occurred in db for traceability
             case e =>
               for {

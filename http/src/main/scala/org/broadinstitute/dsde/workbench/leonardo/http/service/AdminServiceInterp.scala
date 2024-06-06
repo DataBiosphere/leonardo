@@ -5,7 +5,7 @@ package service
 import cats.Parallel
 import cats.effect.Async
 import org.broadinstitute.dsde.workbench.leonardo.config.KubernetesAppConfig
-import org.broadinstitute.dsde.workbench.leonardo.db.{updateAppLogQuery, DbReference, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.NoMatchingAppError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.UpdateAppMessage
 import cats.effect.std.Queue
