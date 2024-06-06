@@ -209,7 +209,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     )
 
     res.mkString(",") shouldBe
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service/cromwell,""" +
@@ -228,7 +227,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.""" +
       """jupyter.firecloud.org,""" +
-      """db.password=replace-me"""
+      """db.password=replace-me,""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
   }
 
   it should "build Custom App override values string" in {
@@ -260,7 +260,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """persistence.mountPath=/data,""" +
@@ -276,7 +275,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/custom-service,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-      """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/custom-service(/|$)(.*)"""
+      """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/custom-service(/|$)(.*),""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
   }
 
   it should "build RStudio override values string" in {
@@ -303,7 +303,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
       """fullnameOverride=app1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
@@ -329,7 +328,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
-      """replicaCount=1"""
+      """replicaCount=1,""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
   }
 
   it should "build SAS override values string" in {
@@ -360,7 +360,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """imageCredentials.username=sasUserName,""" +
       """imageCredentials.password=sasPassword,""" +
       """fullnameOverride=app1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
@@ -386,7 +385,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
-      """replicaCount=1"""
+      """replicaCount=1,""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
   }
 
   it should "build relay listener override values string" in {
