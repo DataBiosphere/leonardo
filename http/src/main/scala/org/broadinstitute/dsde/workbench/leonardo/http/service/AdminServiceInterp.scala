@@ -77,8 +77,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
 
           _ <- responseList
             .map(makeUpdateAppMessage(_, ctx.traceId))
-            .map(publisherQueue.offer)
-            .traverse(identity)
+            .traverse(publisherQueue.offer(_))
         } yield ()
       }
     } yield responseList
