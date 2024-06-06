@@ -4,8 +4,6 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.ChartVersion
 
-import java.util.UUID
-
 final case class UpdateAppsRequest(jobId: Option[UpdateAppJobId],
                                    appType: AppType,
                                    cloudProvider: CloudProvider,
