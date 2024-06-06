@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import io.circe.Encoder
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.UpdateAppJobId
 import org.broadinstitute.dsp.ChartVersion
 
 object AdminRoutesTestJsonCodec {

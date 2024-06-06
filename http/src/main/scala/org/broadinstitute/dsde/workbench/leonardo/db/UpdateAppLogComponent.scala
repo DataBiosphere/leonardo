@@ -26,7 +26,7 @@ class UpdateAppLogTable(tag: Tag) extends Table[UpdateAppLogRecord](tag, "APP_UP
   def endTime = column[Option[Instant]]("endTime", O.SqlType("TIMESTAMP(6)"))
 
   def * =
-    (id, jobId, appId, status, startTime, endTime, ) <> (UpdateAppLogRecord.tupled, UpdateAppLogRecord.unapply)
+    (id, jobId, appId, status, startTime, endTime) <> (UpdateAppLogRecord.tupled, UpdateAppLogRecord.unapply)
 }
 
 object updateAppLogQuery extends TableQuery(new UpdateAppLogTable(_)) {
