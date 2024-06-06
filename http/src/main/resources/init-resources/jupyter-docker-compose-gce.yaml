@@ -19,12 +19,7 @@ services:
     volumes:
       # shared with welder
       - "/mnt/disks/work:${NOTEBOOKS_DIR}"
-    devices:
-      - /dev/fuse:/dev/fuse
-    cap_add:
-      - SYS_ADMIN
-    security_opt:
-      - apparmor:unconfined
+      - /mnt/disks/bucket:/usr/local/genomics
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
