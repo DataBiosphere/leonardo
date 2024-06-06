@@ -65,6 +65,7 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
       responseList = ListUpdateableAppResponse.fromClusters(matchingApps, jobId).toVector
       appNames = responseList.map(_.appName.value).mkString(", ")
 
+      // If not a dry run, enqueue messages requesting app update and record in update app log table
       _ <- F.whenA(!req.dryRun) {
         for {
           _ <- log.info(
@@ -79,22 +80,6 @@ final class AdminServiceInterp[F[_]: Parallel](authProvider: LeoAuthProvider[F],
             .map(publisherQueue.offer)
             .traverse(identity)
         } yield ()
-      }
-
-      // If not a dry run, enqueue messages requesting app update.
-      _ <- {
-        if (req.dryRun)
-          F.unit
-        else {
-          val appNames = responseList.map(_.appName.value).mkString(", ")
-          log.info(
-            s"Triggering job ${jobId} update of ${responseList.length} apps of type ${req.cloudProvider}/${req.appType}: ${appNames}"
-          )
-          responseList
-            .map(makeUpdateAppMessage(_, ctx.traceId))
-            .map(publisherQueue.offer)
-            .traverse(identity)
-        }
       }
     } yield responseList
 
