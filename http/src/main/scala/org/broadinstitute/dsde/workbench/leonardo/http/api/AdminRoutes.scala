@@ -59,7 +59,6 @@ class AdminRoutes(adminService: AdminService[IO], userInfoDirectives: UserInfoDi
 object AdminRoutes {
 
   implicit val chartVersionDecoder: Decoder[ChartVersion] = Decoder.decodeString.map(ChartVersion)
-  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeUUID.map(UpdateAppJobId)
 
   implicit val updateAppsDecoder: Decoder[UpdateAppsRequest] =
     Decoder.instance { x =>
