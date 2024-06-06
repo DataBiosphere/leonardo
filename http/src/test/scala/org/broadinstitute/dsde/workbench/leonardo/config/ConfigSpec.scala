@@ -87,7 +87,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       KubernetesClusterVersion("1.28"),
       1 hour,
       200,
-      AutopilotConfig(AutopilotResource(500, 3, 5), AutopilotResource(500, 3, 5))
+      AutopilotConfig(AutopilotResource(500, 3, 1), AutopilotResource(500, 3, 1))
     )
     Config.gkeClusterConfig shouldBe expectedResult
   }
