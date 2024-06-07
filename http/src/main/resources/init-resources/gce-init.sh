@@ -276,6 +276,14 @@ STEP_TIMINGS+=($(date +%s))
 
 log 'Starting up the Jupyter...'
 
+
+# Start gcsfuse as a sidecar
+mkdir -p /mnt/disks/bucket
+docker run -d --name gcsfuse-container --privileged  -u root -e PIP_USER=false  --env BUCKET_NAME=genomics-public-data   --device /dev/fuse:/dev/fuse   --security-opt apparmor=unconfined   -v /mnt/disks/bucket:/mnt/gcs-bucket:shared   tarekmahmed/gcsfuse-container:latest
+# Use docker compose here
+# $(DOCKER_COMPOSE) -f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename gcsfuse-docker-compose-gce.yaml` config
+
+
 # Run docker-compose for each specified compose file.
 # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
 # `docker-compose up` is not retried since if that fails, something is probably broken
@@ -347,6 +355,9 @@ retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pu
 chmod a+rwx ${WORK_DIRECTORY}
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
+
+# Create genomics folder in the Jupyter container
+docker exec $JUPYTER_SERVER_NAME /bin/bash -c "mkdir /usr/local/genomics"
 
 # Start up crypto detector, if enabled.
 # This should be started after other containers.

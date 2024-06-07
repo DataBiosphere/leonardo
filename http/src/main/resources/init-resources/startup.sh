@@ -123,12 +123,6 @@ then
     mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
     chmod a+rwx /mnt/disks/work
 
-    # Start gcsfuse as a sidecar
-    mkdir -p /mnt/disks/bucket
-    docker exec $JUPYTER_SERVER_NAME /bin/bash -c "mkdir /usr/local/genomics"
-    docker run -d --name gcsfuse-container   --platform linux/amd64   --privileged   --env BUCKET_NAME=genomics-public-data   --device /dev/fuse   --security-opt apparmor=unconfined   -v /mnt/disks/bucket:/mnt/gcs-bucket:shared   -v /mnt/disks/bucket:/mnt/gcs-data   tarekmahmed/gcsfuse-container:latest
-
-
     # (1/6/22) Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."

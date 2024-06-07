@@ -36,7 +36,7 @@ services:
       - /hadoop:/hadoop
       - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
       - /usr/local/share/google/dataproc:/usr/local/share/google/dataproc
-      - /mnt/disks/bucket:/usr/local/genomics
+      - /mnt/disks/bucket:/usr/local/genomics:shared
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
