@@ -384,7 +384,7 @@ private[leonardo] object BuildHelmChartValues {
 
     val autopilotParams = autopilot match {
       case Some(v) =>
-        List(
+        val ls = List(
           raw"""autopilot.enabled=true""",
           raw"""autopilot.app.cpu=${v.cpuInMillicores}m""",
           raw"""autopilot.app.memory=${v.memoryInGb}Gi""",
@@ -394,9 +394,11 @@ private[leonardo] object BuildHelmChartValues {
           raw"""autopilot.welder.ephemeral\-storage=${config.clusterConfig.autopilotConfig.welder.ephemeralStorageInGb}Gi""",
           raw"""autopilot.wondershaper.cpu=${config.clusterConfig.autopilotConfig.wondershaper.cpuInMillicores}m""",
           raw"""autopilot.wondershaper.memory=${config.clusterConfig.autopilotConfig.wondershaper.memoryInGb}Gi""",
-          raw"""autopilot.wondershaper.ephemeral\-storage=${config.clusterConfig.autopilotConfig.wondershaper.ephemeralStorageInGb}Gi""",
-          raw"""nodeSelector.cloud\.google\.com/compute-class=${v.computeClass.toString}"""
+          raw"""autopilot.wondershaper.ephemeral\-storage=${config.clusterConfig.autopilotConfig.wondershaper.ephemeralStorageInGb}Gi"""
         )
+        if (v.computeClass == ComputeClass.GeneralPurpose)
+          ls
+        else raw"""nodeSelector.cloud\.google\.com/compute-class=${v.computeClass.toString}""" :: ls
       case None => List.empty
     }
 
