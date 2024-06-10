@@ -396,6 +396,8 @@ private[leonardo] object BuildHelmChartValues {
           raw"""autopilot.wondershaper.memory=${config.clusterConfig.autopilotConfig.wondershaper.memoryInGb}Gi""",
           raw"""autopilot.wondershaper.ephemeral\-storage=${config.clusterConfig.autopilotConfig.wondershaper.ephemeralStorageInGb}Gi"""
         )
+        // when it's general purpose, GCP doesn't allow us to pass the compute class value.
+        // the API behaves in a way that when the value isn't specified, general-purpose is used
         if (v.computeClass == ComputeClass.GeneralPurpose)
           ls
         else raw"""nodeSelector.cloud\.google\.com/compute-class=${v.computeClass.toString}""" :: ls
