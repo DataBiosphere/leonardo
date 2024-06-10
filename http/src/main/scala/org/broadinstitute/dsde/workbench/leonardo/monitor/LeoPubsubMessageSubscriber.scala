@@ -1007,9 +1007,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       // handler.
       createClusterOrNodepoolOp = msg.clusterNodepoolAction match {
         case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
-          createClusterAndNodepools(msg, clusterId, autopilot = false, List(defaultNodepoolId, nodepoolId))
+          createClusterAndNodepools(msg, clusterId, autopilotEnabled = false, List(defaultNodepoolId, nodepoolId))
         case Some(ClusterNodepoolAction.CreateCluster(clusterId)) =>
-          createClusterAndNodepools(msg, clusterId, autopilot = true, List.empty)
+          createClusterAndNodepools(msg, clusterId, autopilotEnabled = true, List.empty)
         case Some(ClusterNodepoolAction.CreateNodepool(nodepoolId)) =>
           // create nodepool asynchronously
           getGkeAlgFromRegistry()
@@ -1106,7 +1106,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
   private def createClusterAndNodepools(msg: CreateAppMessage,
                                         clusterId: KubernetesClusterLeoId,
-                                        autopilot: Boolean,
+                                        autopilotEnabled: Boolean,
                                         nodepoolLeoIds: List[NodepoolLeoId]
   )(implicit
     ev: Ask[F, AppContext]
@@ -1115,7 +1115,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     // initial the createCluster call synchronously
     createClusterResultOpt <- getGkeAlgFromRegistry()
       .createCluster(
-        CreateClusterParams(clusterId, msg.project, nodepoolLeoIds, msg.enableIntraNodeVisibility, autopilot)
+        CreateClusterParams(clusterId, msg.project, nodepoolLeoIds, msg.enableIntraNodeVisibility, autopilotEnabled)
       )
       .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
       .adaptError { case e =>
