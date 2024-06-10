@@ -181,7 +181,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           chartVersionsToExcludeFromUpdates = List.empty,
           ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org"),
-          bardBaseUri = new URL("https://terra-bard-dev.appspot.com")
+          bardBaseUri = new URL("https://terra-bard-dev.appspot.com"),
+          bardEnabled = false
         ),
         WdsAppConfig(
           ChartName("terra-helm/wds"),
