@@ -1130,6 +1130,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           None
         )
       }
+
     _ <- F.sleep(
       config.gkeClusterCreationPollingInitialDelay
     ) // Creating GKE cluster takes a while, so there's no point polling right away

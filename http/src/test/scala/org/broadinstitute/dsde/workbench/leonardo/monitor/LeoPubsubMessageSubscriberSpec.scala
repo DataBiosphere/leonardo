@@ -1587,12 +1587,6 @@ class LeoPubsubMessageSubscriberSpec
       .save()
     val mockAckConsumer = mock[AckHandler]
 
-    val mockGKEService = new MockGKEService {
-      override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[com.google.api.services.container.model.Operation]] = IO.raiseError(new Exception("test exception"))
-    }
-
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
       getCluster = clusterOpt.get
@@ -1608,6 +1602,12 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val mockGKEService = new MockGKEService {
+      override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[com.google.api.services.container.model.Operation]] = IO.raiseError(new Exception("test exception"))
+    }
     val gkeInterp = new GKEInterpreter[IO](
       Config.gkeInterpConfig,
       bucketHelper,
@@ -1627,10 +1627,6 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskService = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
-    implicit val googleDiskService: GoogleDiskService[IO] =
-      serviceRegistry.lookup[GcpDependencies[IO]].get.googleDiskService // googleDiskService
-    implicit val gkeAlg: GKEAlgebra[IO] = serviceRegistry.lookup[GKEAlgebra[IO]].get
-
     val res =
       for {
         tr <- traceId.ask[TraceId]
@@ -1648,11 +1644,12 @@ class LeoPubsubMessageSubscriberSpec
           Some(tr),
           false
         )
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    assertions.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle StopAppMessage" in isolatedDbTest {
