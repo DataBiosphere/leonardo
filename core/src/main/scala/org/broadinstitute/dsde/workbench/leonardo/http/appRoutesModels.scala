@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppStatus,
   AppType,
   AuditInfo,
+  Autopilot,
   CloudContext,
   KubernetesCluster,
   KubernetesRuntimeConfig,
@@ -36,7 +37,8 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   workspaceId: Option[WorkspaceId],
                                   sourceWorkspaceId: Option[WorkspaceId],
                                   autodeleteThreshold: Option[Int],
-                                  autodeleteEnabled: Option[Boolean]
+                                  autodeleteEnabled: Option[Boolean],
+                                  autopilot: Option[Autopilot]
 )
 
 final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[Int])
