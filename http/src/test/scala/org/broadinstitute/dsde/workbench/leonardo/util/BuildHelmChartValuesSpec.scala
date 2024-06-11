@@ -200,7 +200,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       Config.gkeInterpConfig,
       appName = AppName("app1"),
       cluster = savedCluster1,
-      nodepoolName = NodepoolName("pool1"),
+      nodepoolName = Some(NodepoolName("pool1")),
       namespaceName = NamespaceName("ns"),
       disk = savedDisk1,
       ksaName = ServiceAccountName("app1-cromwell-ksa"),
@@ -209,7 +209,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     )
 
     res.mkString(",") shouldBe
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service/cromwell,""" +
@@ -228,7 +227,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.""" +
       """jupyter.firecloud.org,""" +
-      """db.password=replace-me"""
+      """db.password=replace-me,""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
   }
 
   it should "build Custom App override values string" in {
@@ -240,7 +240,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       Config.gkeInterpConfig,
       appName = AppName("app1"),
       release = Release("app1-custom-rls"),
-      nodepoolName = NodepoolName("pool1"),
+      nodepoolName = Some(NodepoolName("pool1")),
       serviceName = "custom-service",
       savedCluster1,
       namespaceName = NamespaceName("ns"),
@@ -260,7 +260,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """persistence.mountPath=/data,""" +
@@ -276,7 +275,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/custom-service,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-      """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/custom-service(/|$)(.*)"""
+      """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/custom-service(/|$)(.*),""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
   }
 
   it should "build RStudio override values string" in {
@@ -288,13 +288,14 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       AllowedChartName.RStudio,
       appName = AppName("app1"),
       cluster = savedCluster1,
-      nodepoolName = NodepoolName("pool1"),
+      nodepoolName = Some(NodepoolName("pool1")),
       namespaceName = NamespaceName("ns"),
       disk = savedDisk1,
       ksaName = ServiceAccountName("app1-rstudio-ksa"),
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
-      envVariables
+      envVariables,
+      None
     )
 
     res.mkString(",") shouldBe
@@ -302,7 +303,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
       """fullnameOverride=app1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
@@ -328,7 +328,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
-      """replicaCount=1"""
+      """replicaCount=1,""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
   }
 
   it should "build SAS override values string" in {
@@ -340,13 +341,14 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       AllowedChartName.Sas,
       appName = AppName("app1"),
       cluster = savedCluster1,
-      nodepoolName = NodepoolName("pool1"),
+      nodepoolName = Some(NodepoolName("pool1")),
       namespaceName = NamespaceName("ns"),
       disk = savedDisk1,
       ksaName = ServiceAccountName("app1-rstudio-ksa"),
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
-      envVariables
+      envVariables,
+      None
     )
 
     res.mkString(",") shouldBe
@@ -358,7 +360,6 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """imageCredentials.username=sasUserName,""" +
       """imageCredentials.password=sasPassword,""" +
       """fullnameOverride=app1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
       """persistence.size=250G,""" +
       """persistence.gcePersistentDisk=disk1,""" +
       """serviceAccount.name=app1-rstudio-ksa,""" +
@@ -384,7 +385,135 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """welder.extraEnv[5].value=dummy,""" +
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
-      """replicaCount=1"""
+      """replicaCount=1,""" +
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
+  }
+
+  it should "build SAS override values string in autopilot mode" in {
+    val savedCluster1 = makeKubeCluster(1)
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
+    val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
+    val res = buildAllowedAppChartOverrideValuesString(
+      Config.gkeInterpConfig,
+      AllowedChartName.Sas,
+      appName = AppName("app1"),
+      cluster = savedCluster1,
+      nodepoolName = None,
+      namespaceName = NamespaceName("ns"),
+      disk = savedDisk1,
+      ksaName = ServiceAccountName("app1-rstudio-ksa"),
+      userEmail = userEmail2,
+      stagingBucket = GcsBucketName("test-staging-bucket"),
+      envVariables,
+      Some(Autopilot(ComputeClass.Balanced, 500, 1, 2))
+    )
+
+    res.mkString(",") shouldBe
+      """ingress.path.sas=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
+      """ingress.path.welder=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.proxyPath=/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+      """ingress.referer=https://leo,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://1455694897.jupyter.firecloud.org,""" +
+      """imageCredentials.username=sasUserName,""" +
+      """imageCredentials.password=sasPassword,""" +
+      """fullnameOverride=app1,""" +
+      """persistence.size=250G,""" +
+      """persistence.gcePersistentDisk=disk1,""" +
+      """serviceAccount.name=app1-rstudio-ksa,""" +
+      """ingress.enabled=true,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
+      """ingress.host=1455694897.jupyter.firecloud.org,""" +
+      """ingress.tls[0].secretName=tls-secret,""" +
+      """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
+      """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
+      """welder.extraEnv[0].value=dsp-leo-test1,""" +
+      """welder.extraEnv[1].name=STAGING_BUCKET,""" +
+      """welder.extraEnv[1].value=test-staging-bucket,""" +
+      """welder.extraEnv[2].name=CLUSTER_NAME,""" +
+      """welder.extraEnv[2].value=app1,""" +
+      """welder.extraEnv[3].name=OWNER_EMAIL,""" +
+      """welder.extraEnv[3].value=user2@example.com,""" +
+      """welder.extraEnv[4].name=WORKSPACE_ID,""" +
+      """welder.extraEnv[4].value=dummy,""" +
+      """welder.extraEnv[5].name=WSM_URL,""" +
+      """welder.extraEnv[5].value=dummy,""" +
+      """extraEnv[0].name=WORKSPACE_NAME,""" +
+      """extraEnv[0].value=test-workspace-name,""" +
+      """replicaCount=1,""" +
+      """nodeSelector.cloud\.google\.com/compute-class=Balanced,""" +
+      """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
+      """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
+      """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
+      """autopilot.welder.ephemeral\-storage=1Gi,""" +
+      """autopilot.wondershaper.cpu=500m,""" +
+      """autopilot.wondershaper.memory=3Gi,""" +
+      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin
+  }
+
+  it should "build SAS override values string in autopilot mode without compute-class when it's General-purpose" in {
+    val savedCluster1 = makeKubeCluster(1)
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
+    val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
+    val res = buildAllowedAppChartOverrideValuesString(
+      Config.gkeInterpConfig,
+      AllowedChartName.Sas,
+      appName = AppName("app1"),
+      cluster = savedCluster1,
+      nodepoolName = None,
+      namespaceName = NamespaceName("ns"),
+      disk = savedDisk1,
+      ksaName = ServiceAccountName("app1-rstudio-ksa"),
+      userEmail = userEmail2,
+      stagingBucket = GcsBucketName("test-staging-bucket"),
+      envVariables,
+      Some(Autopilot(ComputeClass.GeneralPurpose, 500, 1, 2))
+    )
+
+    res.mkString(",") shouldBe
+      """ingress.path.sas=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
+      """ingress.path.welder=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+      """ingress.proxyPath=/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+      """ingress.referer=https://leo,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=http://1455694897.jupyter.firecloud.org,""" +
+      """imageCredentials.username=sasUserName,""" +
+      """imageCredentials.password=sasPassword,""" +
+      """fullnameOverride=app1,""" +
+      """persistence.size=250G,""" +
+      """persistence.gcePersistentDisk=disk1,""" +
+      """serviceAccount.name=app1-rstudio-ksa,""" +
+      """ingress.enabled=true,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
+      """ingress.host=1455694897.jupyter.firecloud.org,""" +
+      """ingress.tls[0].secretName=tls-secret,""" +
+      """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
+      """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
+      """welder.extraEnv[0].value=dsp-leo-test1,""" +
+      """welder.extraEnv[1].name=STAGING_BUCKET,""" +
+      """welder.extraEnv[1].value=test-staging-bucket,""" +
+      """welder.extraEnv[2].name=CLUSTER_NAME,""" +
+      """welder.extraEnv[2].value=app1,""" +
+      """welder.extraEnv[3].name=OWNER_EMAIL,""" +
+      """welder.extraEnv[3].value=user2@example.com,""" +
+      """welder.extraEnv[4].name=WORKSPACE_ID,""" +
+      """welder.extraEnv[4].value=dummy,""" +
+      """welder.extraEnv[5].name=WSM_URL,""" +
+      """welder.extraEnv[5].value=dummy,""" +
+      """extraEnv[0].name=WORKSPACE_NAME,""" +
+      """extraEnv[0].value=test-workspace-name,""" +
+      """replicaCount=1,""" +
+      """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
+      """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
+      """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
+      """autopilot.welder.ephemeral\-storage=1Gi,""" +
+      """autopilot.wondershaper.cpu=500m,""" +
+      """autopilot.wondershaper.memory=3Gi,""" +
+      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin
   }
 
   it should "build relay listener override values string" in {
