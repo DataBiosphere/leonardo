@@ -83,6 +83,7 @@ object KubernetesTestData {
     None,
     None,
     None,
+    None,
     None
   )
 
@@ -124,6 +125,7 @@ object KubernetesTestData {
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
       extraArgs = List.empty,
+      None,
       None,
       None,
       None,
@@ -246,7 +248,8 @@ object KubernetesTestData {
       None,
       Some(1),
       Some(autodeleteThreshold),
-      autodeleteEnabled
+      autodeleteEnabled,
+      None
     )
   }
 

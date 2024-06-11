@@ -35,7 +35,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "gxy-postres-disk",
         DiskSize(10),
         BlockSize(4096)
-      )
+      ),
+      1 seconds
     )
 
     Config.leoPubsubMessageSubscriberConfig shouldBe expectedResult
@@ -85,7 +86,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       ).map(CidrIP),
       KubernetesClusterVersion("1.28"),
       1 hour,
-      200
+      200,
+      AutopilotConfig(AutopilotResource(500, 3, 1), AutopilotResource(500, 3, 1))
     )
     Config.gkeClusterConfig shouldBe expectedResult
   }

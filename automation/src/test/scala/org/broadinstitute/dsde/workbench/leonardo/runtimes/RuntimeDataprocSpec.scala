@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   StorageRole
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.model.TraceId
