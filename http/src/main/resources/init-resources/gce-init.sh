@@ -356,9 +356,6 @@ chmod a+rwx ${WORK_DIRECTORY}
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
-# Create genomics folder in the Jupyter container
-docker exec $JUPYTER_SERVER_NAME /bin/bash -c "mkdir /usr/local/genomics"
-
 # Start up crypto detector, if enabled.
 # This should be started after other containers.
 # Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
