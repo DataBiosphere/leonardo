@@ -161,6 +161,10 @@ class GKEInterpreter[F[_]](
         .setAutopilot(
           autopilot
         )
+        .setAddonsConfig(
+          new com.google.api.services.container.model.AddonsConfig()
+            .setGcsFuseCsiDriverConfig(new com.google.api.services.container.model.GcsFuseCsiDriverConfig().setEnabled(true))
+        )
         .setNodePoolAutoConfig(nodepoolConfig)
         .setLegacyAbac(new com.google.api.services.container.model.LegacyAbac().setEnabled(false))
         .setNetwork(kubeNetwork.idString)
