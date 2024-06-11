@@ -163,7 +163,9 @@ class GKEInterpreter[F[_]](
         )
         .setAddonsConfig(
           new com.google.api.services.container.model.AddonsConfig()
-            .setGcsFuseCsiDriverConfig(new com.google.api.services.container.model.GcsFuseCsiDriverConfig().setEnabled(true))
+            .setGcsFuseCsiDriverConfig(
+              new com.google.api.services.container.model.GcsFuseCsiDriverConfig().setEnabled(true)
+            )
         )
         .setNodePoolAutoConfig(nodepoolConfig)
         .setLegacyAbac(new com.google.api.services.container.model.LegacyAbac().setEnabled(false))
