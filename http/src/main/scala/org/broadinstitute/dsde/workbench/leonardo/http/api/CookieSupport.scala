@@ -25,14 +25,14 @@ object CookieSupport {
     RawHeader(
       name = "Set-Cookie",
       value =
-        s"$tokenCookieName=${userInfo.accessToken.token}; Max-Age=${userInfo.tokenExpiresIn.toString}; Path=/; Secure; SameSite=None; HttpOnly; Partitioned;"
+        s"$tokenCookieName=${userInfo.accessToken.token}; Max-Age=${userInfo.tokenExpiresIn.toString}; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
     )
 
   private def buildRawUnsetCookie(): RawHeader =
     RawHeader(
       name = "Set-Cookie",
       value =
-        s"$tokenCookieName=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly; Partitioned;"
+        s"$tokenCookieName=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
     )
 
 }
