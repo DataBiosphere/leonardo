@@ -49,6 +49,12 @@ env:
   PUBLISH_CONTRACTS_RUN_NAME: 'publish-contracts-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   CAN_I_DEPLOY_RUN_NAME: 'can-i-deploy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
+concurrency:
+  # Don't run this workflow concurrently on the same branch
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # For PRs, don't wait for completion of existing runs, cancel them instead
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # The primary objective of this section is to carefully control the dispatching of tags,
   # ensuring it only occurs during the 'Tag, publish, deploy' workflow.

@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+set -e -x
+
 # This script is meant to be used from within leo automation tests, and starts a tunnel that allows a bastion to be used to ssh into an azure vm
 # It depends on the following env vars:
    # BASTION_NAME, the name of the pre-created bastion in the azure cloud
@@ -7,8 +10,10 @@
 
 # Outputs: a file with the name tunnel_$PORT.pid with the system pid of the tunnel process
 
+echo "starting tunnel bastion ${BASTION_NAME} with resource id ${RESOURCE_ID} in resource group ${RESOURCE_GROUP} on port ${PORT}"
 
 nohup az network bastion tunnel --name "$BASTION_NAME" --resource-group "$RESOURCE_GROUP" --target-resource-id "${RESOURCE_ID}" --resource-port 22 --port $PORT > /dev/null 2>&1 &
+
 NUM_LOOPS=0
 until lsof -i tcp:3000
 do

@@ -1,22 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.azure
 
-import org.scalatest.prop.TableDrivenPropertyChecks
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{
-  AzureDiskConfig,
-  ClusterStatus,
-  CreateAzureRuntimeRequest,
-  DiskStatus,
-  GetRuntimeResponse
-}
+import org.broadinstitute.dsde.workbench.client.leonardo.model._
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
 import org.broadinstitute.dsde.workbench.leonardo.{
   AzureBilling,
@@ -26,6 +19,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeName,
   SSH
 }
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
 

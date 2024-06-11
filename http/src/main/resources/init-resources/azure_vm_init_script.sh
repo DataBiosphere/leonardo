@@ -71,7 +71,10 @@ else
   ) | sudo fdisk ${DISK_DEVICE_PATH}
   echo "successful partitioning"
   ## Format the partition
-  echo y | sudo mkfs -t ext4 "${DISK_DEVICE_PATH}1"
+  # It's likely that the persistent disk was previously mounted on another VM and wasn't properly unmounted
+  # Passing -F -F to mkfs ext4 forces the tool to ignore the state of the partition.
+  # Note that there should be two instances command-line switch (-F -F) to override this check
+  echo y | sudo mkfs.ext4 "${DISK_DEVICE_PATH}1" -F -F
   echo "successful formatting"
   ## From https://learn.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal?tabs=ubuntu
   ## Use the partprobe utility to make sure the kernel is aware of the new partition and filesystem.
@@ -135,6 +138,9 @@ RUNTIME_NAME="${19:-dummy}"
 VALID_HOSTS="${20:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
+# R version
+R_VERSION="4.4.0-1.2004.0"
+
 # Log in script output for debugging purposes.
 echo "RELAY_NAME = ${RELAY_NAME}"
 echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}"
@@ -160,6 +166,7 @@ echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}"
 echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
+echo "R-VERSION = ${R_VERSION}"
 
 # Wait for lock to resolve before any installs, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
 
@@ -168,6 +175,15 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
     echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
     sleep 5
   done
+
+# Install updated R version
+echo "Installing R version ${R_VERSION}"
+# Add the CRAN repository to the sources list
+echo "deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/" | sudo tee /etc/apt/sources.list -a
+# Update package list
+sudo apt-get update
+# Install new R version
+sudo apt-get install --no-install-recommends -y r-base=${R_VERSION}
 
 #Update kernel list
 

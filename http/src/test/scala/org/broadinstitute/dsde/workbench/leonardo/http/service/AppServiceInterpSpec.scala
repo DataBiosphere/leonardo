@@ -2,32 +2,24 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import bio.terra.workspace.api.WorkspaceApi
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.MachineType
+import fs2.Pipe
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGooglePublisher,
-  FakeGoogleResourceService
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleResourceService}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  HttpWsmClientProvider,
-  MockWsmClientProvider,
-  MockWsmDAO,
-  WorkspaceDescription,
-  WsmApiClientProvider,
-  WsmDao
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -43,25 +35,44 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
+import org.mockito.ArgumentMatchers
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks._
-import org.scalatestplus.mockito.MockitoSugar.mock
+import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
-
+import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
-trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   val wsmDao = new MockWsmDAO
+  val workspaceApi = mock[WorkspaceApi]
+  when {
+    workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId.value), any())
+  } thenReturn {
+    wsmWorkspaceDesc
+  }
+  when {
+    workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
+  } thenAnswer (_ => throw new Exception("workspace not found"))
+
   val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
+  when {
+    wsmClientProvider.getWorkspaceApi(any)(any)
+  } thenReturn {
+    IO.pure(workspaceApi)
+  }
 
   val gcpWsmDao = new MockWsmDAO {
     override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
@@ -87,7 +98,13 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
+
+    val mockCloudPublisher = mock[CloudPublisher[IO]]
+    def noOpPipe[A]: Pipe[IO, A, Unit] = _.evalMap(_ => IO.unit)
+    when(mockCloudPublisher.publish[LeoPubsubMessage](any)).thenReturn(noOpPipe)
+    when(mockCloudPublisher.publishOne[LeoPubsubMessage](any, any)(any, any)).thenReturn(IO.unit)
+
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mockCloudPublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }
 
@@ -108,8 +125,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       authProvider,
       serviceAccountProvider,
       queue,
-      FakeGoogleComputeService,
-      googleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(googleResourceService),
       customAppConfig,
       wsmDao,
       wsmClientProvider
@@ -159,8 +176,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      passComputeService,
-      FakeGoogleResourceService,
+      Some(passComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -170,8 +187,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      notEnoughMemoryComputeService,
-      FakeGoogleResourceService,
+      Some(notEnoughMemoryComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -181,8 +198,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      notEnoughCpuComputeService,
-      FakeGoogleResourceService,
+      Some(notEnoughCpuComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -213,8 +230,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noLabelsGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -244,8 +261,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
       wsmClientProvider
@@ -298,6 +315,37 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       persistentDiskQuery.getById(app.appResources.disk.get.id)
     }
     savedDisk.map(_.name) shouldEqual Some(diskName)
+  }
+
+  it should "rollback Sam resource creation if app creation fails" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+
+    // Fake an error in getLastUsedAppForDisk
+    val disk = makePersistentDisk(None)
+      .copy(cloudContext = cloudContextGcp)
+      .save()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    val mockAuthProvider = mock[LeoAuthProvider[IO]]
+    when(mockAuthProvider.hasPermission(any, any, any)(any, any)).thenReturn(IO.pure(true))
+    when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
+    when(mockAuthProvider.notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)).thenReturn(IO.unit)
+    when(mockAuthProvider.notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)).thenReturn(IO.unit)
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
+    val res = appService
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app"
+
+    verify(mockAuthProvider).notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)
+    verify(mockAuthProvider).notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)
   }
 
   it should "create an app in a user's existing nodepool" in isolatedDbTest {
@@ -1346,8 +1394,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(FakeGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1497,8 +1545,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      FakeGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(FakeGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1541,8 +1589,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noSecurityGroupGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1584,8 +1632,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(highSecurityGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1624,8 +1672,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       allowListAuthProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      highSecurityGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(highSecurityGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1670,8 +1718,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noSecurityGroupGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1716,8 +1764,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       authProvider,
       serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
-      FakeGoogleComputeService,
-      noSecurityGroupGoogleResourceService,
+      Some(FakeGoogleComputeService),
+      Some(noSecurityGroupGoogleResourceService),
       CustomAppConfig(
         ChartName(""),
         ChartVersion(""),
@@ -1799,6 +1847,188 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val messages = publisherQueue.tryTakeN(Some(1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     messages.map(_.messageType) shouldBe List.empty
 
+  }
+
+  it should "Azure - only delete App records in deleteAllAppsV2 if a workspace has been deleted" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+
+    val appName = AppName("app1")
+
+    val appReq =
+      createAppRequest.copy(
+        kubernetesRuntimeConfig = None,
+        appType = AppType.Cromwell,
+        allowedChartName = Some(AllowedChartName.Sas),
+        diskConfig = None,
+        workspaceId = Some(workspaceId2)
+      )
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
+    }
+    // Set the cluster, app, and nodepool to running and start tracking the usage
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    kubeServiceInterp
+      .deleteAllAppsV2(userInfo, workspaceId2, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId2), Map.empty, true)
+    }
+
+    clusterPostDelete.length shouldEqual 1
+    clusterPostDelete.map(_.status) shouldEqual List(KubernetesClusterStatus.Deleted)
+    val nodepools = clusterPostDelete.flatMap(_.nodepools)
+    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
+    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Deleted)
+    apps.map(_.status) shouldEqual List(AppStatus.Deleted)
+
+    // throw away create messages
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val messages = publisherQueue.tryTakeN(Some(1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    messages.map(_.messageType) shouldBe List.empty
+
+  }
+
+  it should "Azure - only delete App records in deleteAppV2 if a workspace has been deleted" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+
+    val appName = AppName("app1")
+
+    val appReq =
+      createAppRequest.copy(
+        kubernetesRuntimeConfig = None,
+        appType = AppType.Cromwell,
+        allowedChartName = Some(AllowedChartName.Sas),
+        diskConfig = None,
+        workspaceId = Some(workspaceId2)
+      )
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
+    }
+    // Set the cluster, app, and nodepool to running and start tracking the usage
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    kubeServiceInterp
+      .deleteAppV2(userInfo, workspaceId2, appName, true)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId2), Map.empty, true)
+    }
+
+    clusterPostDelete.length shouldEqual 1
+    clusterPostDelete.map(_.status) shouldEqual List(KubernetesClusterStatus.Deleted)
+    val nodepools = clusterPostDelete.flatMap(_.nodepools)
+    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
+    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Deleted)
+    apps.map(_.status) shouldEqual List(AppStatus.Deleted)
+
+    // throw away create messages
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val messages = publisherQueue.tryTakeN(Some(1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    messages.map(_.messageType) shouldBe List.empty
+
+  }
+
+  it should "error on deleteAllApps if the user doesn't have permission to access the workspace" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
+    when {
+      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
+    } thenAnswer (_ => throw new Exception("User does not have access to this workspace"))
+
+    val appName = AppName("app1")
+
+    val appReq =
+      createAppRequest.copy(
+        kubernetesRuntimeConfig = None,
+        appType = AppType.Cromwell,
+        allowedChartName = Some(AllowedChartName.Sas),
+        diskConfig = None,
+        workspaceId = Some(workspaceId2)
+      )
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
+    }
+    // Set the cluster, app, and nodepool to running and start tracking the usage
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    an[WorkspaceNotFoundException] should be thrownBy {
+      kubeServiceInterp
+        .deleteAllAppsV2(userInfo, workspaceId2, false)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "error on deleteAppV2 if the user doesn't have permission to access the workspace" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
+    when {
+      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
+    } thenAnswer (_ => throw new Exception("User does not have access to this workspace"))
+
+    val appName = AppName("app1")
+
+    val appReq =
+      createAppRequest.copy(
+        kubernetesRuntimeConfig = None,
+        appType = AppType.Cromwell,
+        allowedChartName = Some(AllowedChartName.Sas),
+        diskConfig = None,
+        workspaceId = Some(workspaceId2)
+      )
+
+    kubeServiceInterp
+      .createAppV2(userInfo, workspaceId2, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
+    }
+    // Set the cluster, app, and nodepool to running and start tracking the usage
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    an[WorkspaceNotFoundException] should be thrownBy {
+      kubeServiceInterp
+        .deleteAppV2(userInfo, workspaceId2, appName, false)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   it should "V1 GCP - deleteAppRecords error on delete if app creator is removed from app's project" in isolatedDbTest {
@@ -2770,46 +3000,46 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   }
 
   /** TODO: Once disks are supported on Azure Apps
-  it should "error on delete if disk is in a status that cannot be deleted" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val wsmClientProvider = new MockWsmClientProvider() {
-      override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-                                                                                                                 ev: Ask[IO, AppContext]
-      ): IO[WsmState] =
+   it should "error on delete if disk is in a status that cannot be deleted" in isolatedDbTest {
+   val publisherQueue = QueueFactory.makePublisherQueue()
+   val wsmClientProvider = new MockWsmClientProvider() {
+   override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
+   ev: Ask[IO, AppContext]
+   ): IO[WsmState] =
         IO.pure(WsmState(Some("CREATING")))
-    }
-    val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
+   }
+   val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
 
-    val appName = AppName("app1")
-    val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
-    val appReq =
+   val appName = AppName("app1")
+   val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
+   val appReq =
       createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = Some(diskConfig))
 
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+   appServiceInterp
+   .createAppV2(userInfo, workspaceId, appName, appReq)
+   .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
+   val appResultPreStatusUpdate = dbFutureValue {
+   KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+   }
 
-    // we can't delete while its creating, so set it to Running
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+   // we can't delete while its creating, so set it to Running
+   dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+   dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
-    val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+   val appResultPreDelete = dbFutureValue {
+   KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
+   }
+   appResultPreDelete.get.app.status shouldEqual AppStatus.Running
+   appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
-    an[DiskCannotBeDeletedWsmException] should be thrownBy {
-      appServiceInterp
-        .deleteAppV2(userInfo, workspaceId, appName, true)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-  */
+   an[DiskCannotBeDeletedWsmException] should be thrownBy {
+   appServiceInterp
+   .deleteAppV2(userInfo, workspaceId, appName, true)
+   .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+   }
+   }
+   */
 
   it should "error on delete if app subresource is in a status that cannot be deleted" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
@@ -2876,7 +3106,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     thrown.appType shouldBe AppType.HailBatch
   }
 
-  "checkIfAppCreationIsAllowedAndIsAoU" should "enable IntraNodeVisibility if customApp check is disabled" in {
+  "checkIfAppCreationIsAllowed" should "enable IntraNodeVisibility if customApp check is disabled" in {
     val interp = makeInterp(QueueFactory.makePublisherQueue(), enableCustomAppCheckFlag = false)
     val res =
       interp.checkIfAppCreationIsAllowed(userEmail, project, Uri.unsafeFromString("https://dummy"))
@@ -2929,5 +3159,222 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .toOption
       .get
       .isInstanceOf[ForbiddenError] shouldBe true
+  }
+
+  def createAppForAutodeleteTests(autodeleteEnabled: Boolean, autodeleteThreshold: Option[Int]): AppName = {
+    val appName = AppName("Microsoft Excel")
+    val createReq = createAppRequest.copy(
+      diskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty)),
+      autodeleteEnabled = Some(autodeleteEnabled),
+      autodeleteThreshold = autodeleteThreshold
+    )
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, createReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val createdApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm assumptions
+
+    createdApp.autodeleteEnabled shouldBe autodeleteEnabled
+    createdApp.autodeleteThreshold shouldBe autodeleteThreshold
+
+    appName
+  }
+
+  "updateApp" should "allow enabling autodeletion by specifying both fields" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
+
+    val autodeleteThreshold = 1000
+    val updateReq = UpdateAppRequest(Some(true), Some(autodeleteThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(autodeleteThreshold)
+  }
+
+  it should "allow enabling autodeletion by setting autodeleteEnabled=true if the existing config has a valid autodeleteThreshold" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val updateReq = UpdateAppRequest(Some(true), None)
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(autodeleteThreshold)
+  }
+
+  it should "reject enabling autodeletion by setting autodeleteEnabled=true if the existing config has a missing autodeleteThreshold" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
+
+    val updateReq = UpdateAppRequest(Some(true), None)
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "reject enabling autodeletion if the threshold in the request is invalid" in isolatedDbTest {
+    val initialAutodeleteEnabled = false
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, None)
+
+    val badAutodeleteThreshold = 0
+    val updateReq = UpdateAppRequest(Some(true), Some(badAutodeleteThreshold))
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "reject disabling autodeletion if the threshold in the request is invalid" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val badAutodeleteThreshold = 0
+    val updateReq = UpdateAppRequest(Some(false), Some(badAutodeleteThreshold))
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "reject autodeletionEnabled=None if the threshold in the request is invalid" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val badAutodeleteThreshold = 0
+    val updateReq = UpdateAppRequest(None, Some(badAutodeleteThreshold))
+    a[BadRequestException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "allow disabling autodeletion by setting enabled = false" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val updateReq = UpdateAppRequest(Some(false), None)
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe false
+    updatedApp.autodeleteThreshold shouldBe Some(autodeleteThreshold)
+  }
+
+  it should "allow disabling autodeletion by setting enabled = false and specifying a new autodeleteThreshold" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val newThreshold = 2000
+    val updateReq = UpdateAppRequest(Some(false), Some(newThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe false
+    updatedApp.autodeleteThreshold shouldBe Some(newThreshold)
+  }
+
+  it should "allow changing autodeletion threshold when enableAutodelete=true" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val newAutodeleteThreshold = 2000
+    val updateReq = UpdateAppRequest(Some(true), Some(newAutodeleteThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(newAutodeleteThreshold)
+  }
+
+  it should "allow changing autodeletion threshold when enableAutodelete=None" in isolatedDbTest {
+    val initialAutodeleteEnabled = true
+    val autodeleteThreshold = 1000
+    val appName = createAppForAutodeleteTests(initialAutodeleteEnabled, Some(autodeleteThreshold))
+
+    val newAutodeleteThreshold = 2000
+    val updateReq = UpdateAppRequest(None, Some(newAutodeleteThreshold))
+    appServiceInterp
+      .updateApp(userInfo, cloudContextGcp, appName, updateReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // confirm the update
+
+    val updatedApp = appServiceInterp
+      .getApp(userInfo, cloudContextGcp, appName)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    updatedApp.autodeleteEnabled shouldBe true
+    updatedApp.autodeleteThreshold shouldBe Some(newAutodeleteThreshold)
+  }
+
+  it should "error if app not found" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val wrongApp = AppName("wrongApp")
+    an[AppNotFoundException] should be thrownBy {
+      appServiceInterp
+        .updateApp(userInfo, cloudContextGcp, wrongApp, UpdateAppRequest(None, None))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 }

@@ -2,9 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import io.opencensus.common.Scope
 import io.opencensus.trace.{Span, Tracing}
-
-import javax.ws.rs.client.{ClientRequestContext, ClientRequestFilter, ClientResponseContext, ClientResponseFilter}
-import javax.ws.rs.ext.Provider
+import jakarta.ws.rs.client.{ClientRequestContext, ClientRequestFilter, ClientResponseContext, ClientResponseFilter}
+import jakarta.ws.rs.ext.Provider
 
 /**
  * Deferred execution in Scala (Futures, IOs, DBIOs, etc) result in a thread switchery. OpenCensus tracing

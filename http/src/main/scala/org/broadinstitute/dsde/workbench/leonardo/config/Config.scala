@@ -88,6 +88,7 @@ object Config {
       config.as[Path]("leoServiceAccountJsonFile"),
       config.as[WorkbenchEmail]("leoServiceAccountEmail"),
       config.as[URL]("leoUrlBase"),
+      config.getString("environment"),
       config.as[Long]("concurrency")
     )
   }
@@ -586,7 +587,19 @@ object Config {
   val dbConcurrency = config.as[Long]("mysql.concurrency")
 
   implicit private val cidrIPReader: ValueReader[CidrIP] = stringValueReader.map(CidrIP)
-
+  implicit val autopilotReader: ValueReader[AutopilotResource] = ValueReader.relative { config =>
+    AutopilotResource(
+      config.getInt("cpu"),
+      config.getInt("memory"),
+      config.getInt("ephemeral-storage")
+    )
+  }
+  implicit val autopilotConfigReader: ValueReader[AutopilotConfig] = ValueReader.relative { config =>
+    AutopilotConfig(
+      config.as[AutopilotResource]("welder"),
+      config.as[AutopilotResource]("wondershaper")
+    )
+  }
   implicit private val kubeClusterConfigReader: ValueReader[KubernetesClusterConfig] = ValueReader.relative { config =>
     KubernetesClusterConfig(
       config.as[Location]("location"),
@@ -594,7 +607,8 @@ object Config {
       config.as[List[CidrIP]]("authorizedNetworks"),
       config.as[KubernetesClusterVersion]("version"),
       config.as[FiniteDuration]("nodepoolLockCacheExpiryTime"),
-      config.getInt("nodepoolLockCacheMaxSize")
+      config.getInt("nodepoolLockCacheMaxSize"),
+      config.as[AutopilotConfig]("autopilot")
     )
   }
 
@@ -775,7 +789,8 @@ object Config {
         config.getInt("concurrency"),
         config.as[FiniteDuration]("timeout"),
         config.as[PersistentDiskMonitorConfig]("persistent-disk-monitor"),
-        gkeGalaxyDiskConfig
+        gkeGalaxyDiskConfig,
+        config.as[FiniteDuration]("gke-cluster-creation-polling-initial-delay")
       )
     }
 
@@ -885,7 +900,8 @@ object Config {
       config.as[PollMonitorConfig]("scalingUpNodepool"),
       config.as[PollMonitorConfig]("scalingDownNodepool"),
       config.as[InterruptablePollMonitorConfig]("startApp"),
-      config.as[InterruptablePollMonitorConfig]("updateApp")
+      config.as[InterruptablePollMonitorConfig]("updateApp"),
+      config.as[PollMonitorConfig]("appLiveness")
     )
   }
 

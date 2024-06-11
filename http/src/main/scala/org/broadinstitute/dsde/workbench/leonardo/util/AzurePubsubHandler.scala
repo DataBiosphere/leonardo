@@ -2,15 +2,33 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import bio.terra.workspace.api.ControlledAzureResourceApi
+import bio.terra.workspace.model.{
+  AzureDiskCreationParameters,
+  AzureStorageContainerCreationParameters,
+  AzureVmCreationParameters,
+  AzureVmCustomScriptExtension,
+  AzureVmCustomScriptExtensionSetting,
+  AzureVmUser,
+  CloningInstructionsEnum,
+  ControlledResourceCommonFields,
+  CreateControlledAzureDiskRequestV2Body,
+  CreateControlledAzureResourceResult,
+  CreateControlledAzureStorageContainerRequestBody,
+  CreateControlledAzureVmRequestBody,
+  DeleteControlledAzureResourceResult,
+  JobControl,
+  JobReport
+}
 import cats.Parallel
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -28,7 +46,9 @@ import org.broadinstitute.dsp.ChartVersion
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
+import reactor.core.publisher.Mono
 
+import scala.jdk.CollectionConverters._
 import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
@@ -45,7 +65,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F],
   aksAlgebra: AKSAlgebra[F],
-  refererConfig: RefererConfig
+  refererConfig: RefererConfig,
+  wsmClientProvider: WsmApiClientProvider[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
 
@@ -56,6 +77,19 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   implicit private def wsmDeleteDoneCheckable: DoneCheckable[GetDeleteJobResult] = (v: GetDeleteJobResult) =>
     v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
 
+  implicit private def wsmDeleteDoneControlledAzureResourceDoneCheckable
+    : DoneCheckable[DeleteControlledAzureResourceResult] = (v: DeleteControlledAzureResourceResult) =>
+    v.getJobReport.getStatus.equals(JobReport.StatusEnum.SUCCEEDED) || v.getJobReport.getStatus
+      .equals(JobReport.StatusEnum.FAILED)
+
+  implicit private def wsmCreateAzureResourceResultDoneCheckable: DoneCheckable[CreateControlledAzureResourceResult] =
+    (v: CreateControlledAzureResourceResult) =>
+      v.getJobReport.getStatus.equals(JobReport.StatusEnum.SUCCEEDED) || v.getJobReport.getStatus
+        .equals(JobReport.StatusEnum.FAILED)
+
+  implicit private def vmStopDoneCheckable: DoneCheckable[Option[VirtualMachine]] = (v: Option[VirtualMachine]) =>
+    v.get.powerState() == PowerState.DEALLOCATED
+
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -64,8 +98,22 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       azureConfig <- runtimeConfig match {
         case x: RuntimeConfig.AzureConfig => F.pure(x)
-        case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
+        case x =>
+          F.raiseError[RuntimeConfig.AzureConfig](
+            new RuntimeException(s"this runtime doesn't have proper azure config $x")
+          )
       }
+
+      // verify the cloud context
+      cloudContext = runtime.cloudContext match {
+        case _: CloudContext.Gcp =>
+          throw PubsubHandleMessageError.ClusterError(runtime.id,
+                                                      ctx.traceId,
+                                                      "Azure runtime should not have GCP cloud context"
+          )
+        case cc: CloudContext.Azure => cc
+      }
+
       // Query the Landing Zone service for the landing zone resources
       leoAuth <- samDAO.getLeoAuthToken
       landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, leoAuth)
@@ -77,278 +125,361 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // Get the optional storage container for the workspace
       tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-      storageContainerOpt <- tokenOpt.flatTraverse { token =>
+      workspaceStorageContainerOpt <- tokenOpt.flatTraverse { token =>
         wsmDao.getWorkspaceStorageContainer(
           msg.workspaceId,
           org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
         )
       }
-      storageContainer <- F.fromOption(
-        storageContainerOpt,
+      workspaceStorageContainer <- F.fromOption(
+        workspaceStorageContainerOpt,
         AzureRuntimeCreationError(
           runtime.id,
           msg.workspaceId,
-          s"Storage container not found for runtime: ${runtime.id}",
+          s"Storage container not found for workspace: ${msg.workspaceId.value}",
           msg.useExistingDisk
         )
       )
-      createVmJobId = WsmJobId(s"create-vm-${runtime.id.toString.take(10)}")
-      _ <- createRuntime(
-        CreateAzureRuntimeParams(
+
+      // send create disk message to WSM
+      createDiskResult <- createDiskForRuntime(
+        CreateAzureDiskParams(msg.workspaceId, runtime, msg.useExistingDisk, azureConfig)
+      )
+
+      // all other resources (hybrid connection, storage container, vm)
+      // are created within the async task
+      _ <- monitorCreateRuntime(
+        PollRuntimeParams(
           msg.workspaceId,
           runtime,
-          storageContainer.resourceId,
+          msg.useExistingDisk,
+          createDiskResult,
           landingZoneResources,
           azureConfig,
           config.runtimeDefaults.image,
-          msg.useExistingDisk,
+          workspaceStorageContainer,
           msg.workspaceName,
-          storageContainer.name
-        ),
-        WsmJobControl(createVmJobId)
-      )
-      _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId,
-                          runtime,
-                          createVmJobId,
-                          landingZoneResources.relayNamespace,
-                          msg.useExistingDisk
+          cloudContext
         )
       )
     } yield ()
 
-  /** Creates an Azure VM but doesn't wait for its completion.
-   * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
-   * If useExistingDisk is specified, disk is transferred to new runtime and no new disk is created
-   * */
-  private def createRuntime(params: CreateAzureRuntimeParams, jobControl: WsmJobControl)(implicit
+  private def setupCreateVmCreateMessage(params: PollRuntimeParams,
+                                         storageContainer: CreateStorageContainerResourcesResult,
+                                         hcPrimaryKey: PrimaryKey,
+                                         createVmJobId: WsmJobId,
+                                         hcName: RelayHybridConnectionName
+  ): CreateControlledAzureVmRequestBody = {
+    val samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
+
+    val wsStorageContainerUrl =
+      s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.workspaceStorageContainer.name.value}"
+
+    // Setup create VM message
+    val vmCommon = getCommonFieldsForWsmGeneratedClient(
+      ControlledResourceName(params.runtime.runtimeName.asString),
+      config.runtimeDefaults.vmControlledResourceDesc,
+      params.runtime.auditInfo.creator
+    )
+      .resourceId(samResourceId.value)
+
+    val arguments = List(
+      params.landingZoneResources.relayNamespace.value,
+      hcName.value,
+      "localhost",
+      hcPrimaryKey.value,
+      config.runtimeDefaults.listenerImage,
+      config.samUrl.renderString,
+      samResourceId.value.toString,
+      "csp.txt",
+      config.wsmUrl.renderString,
+      params.workspaceId.value.toString,
+      params.workspaceStorageContainer.resourceId.value.toString,
+      config.welderImage,
+      params.runtime.auditInfo.creator.value,
+      storageContainer.containerName.value,
+      storageContainer.resourceId.value.toString,
+      params.workspaceName,
+      wsStorageContainerUrl,
+      applicationConfig.leoUrlBase,
+      params.runtime.runtimeName.asString,
+      s"'${refererConfig.validHosts.mkString("','")}'"
+    )
+
+    val cmdToExecute = s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
+      s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
+          .map(s => s"'$s'")
+          .mkString(" ")} > /var/log/azure_vm_init_script.log"
+
+    val protectedSettings: List[AzureVmCustomScriptExtensionSetting] = List(
+      new AzureVmCustomScriptExtensionSetting()
+        .key("fileUris")
+        .value(config.runtimeDefaults.customScriptExtension.fileUris.asJava),
+      new AzureVmCustomScriptExtensionSetting()
+        .key("commandToExecute")
+        .value(cmdToExecute)
+    )
+
+    val customScriptExtension = new AzureVmCustomScriptExtension()
+      .name(config.runtimeDefaults.customScriptExtension.name)
+      .`type`(config.runtimeDefaults.customScriptExtension.`type`)
+      .publisher(config.runtimeDefaults.customScriptExtension.publisher)
+      .version(config.runtimeDefaults.customScriptExtension.version)
+      .minorVersionAutoUpgrade(config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade)
+      .protectedSettings(protectedSettings.asJava)
+
+    val vmPassword = AzurePubsubHandler.getAzureVMSecurePassword(applicationConfig.environment,
+                                                                 config.runtimeDefaults.vmCredential.password
+    )
+
+    val creationParams = new AzureVmCreationParameters()
+      .customScriptExtension(customScriptExtension)
+      .diskId(params.createDiskResult.resourceId.value)
+      .vmImage(config.runtimeDefaults.image.toWsm())
+      .vmSize(VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value).toString)
+      .name(params.runtime.runtimeName.asString)
+      .vmUser(
+        new AzureVmUser()
+          .name(config.runtimeDefaults.vmCredential.username)
+          .password(vmPassword)
+      )
+
+    new CreateControlledAzureVmRequestBody()
+      .azureVm(creationParams)
+      .common(vmCommon)
+      .jobControl(new JobControl().id(createVmJobId.value))
+  }
+
+  private def monitorStartRuntime(runtime: Runtime, startVmOp: Option[Mono[Void]])(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      auth <- samDAO.getLeoAuthToken
-
-      cloudContext <- params.runtime.cloudContext match {
-        case _: CloudContext.Gcp =>
-          F.raiseError[AzureCloudContext](
-            PubsubHandleMessageError.ClusterError(params.runtime.id,
-                                                  ctx.traceId,
-                                                  "Azure runtime should not have GCP cloud context"
-            )
-          )
-        case x: CloudContext.Azure => F.pure(x.value)
-      }
-      hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
-      primaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
-                                                           hcName,
-                                                           cloudContext
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    task = for {
+      _ <- startVmOp.traverse(startVmOp => F.blocking(startVmOp.block(Duration.ofMinutes(5))))
+      isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
+      _ <- streamUntilDoneOrTimeout(
+        isJupyterUp,
+        config.startStopVmPollConfig.maxAttempts,
+        config.startStopVmPollConfig.interval,
+        s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
       )
-
-      createDiskAction = createDisk(params, auth)
-
-      (stagingContainerName, stagingContainerResourceId) <- createStorageContainer(params, auth)
-
-      samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
-      // Construct the workspace storage container URL which will be passed to the JupyterLab environment variables.
-      wsStorageContainerUrl =
-        s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.storageContainerName.value}"
-      createVmRequest <- createDiskAction.map { diskResp =>
-        val vmCommon = getCommonFields(
-          ControlledResourceName(params.runtime.runtimeName.asString),
-          config.runtimeDefaults.vmControlledResourceDesc,
-          params.runtime.auditInfo.creator,
-          Some(samResourceId)
-        )
-        val arguments = List(
-          params.landingZoneResources.relayNamespace.value,
-          hcName.value,
-          "localhost",
-          primaryKey.value,
-          config.runtimeDefaults.listenerImage,
-          config.samUrl.renderString,
-          samResourceId.value.toString,
-          "csp.txt",
-          config.wsmUrl.renderString,
-          params.workspaceId.value.toString,
-          params.storageContainerResourceId.value.toString,
-          config.welderImage,
-          params.runtime.auditInfo.creator.value,
-          stagingContainerName.value,
-          stagingContainerResourceId.value.toString,
-          params.workspaceName,
-          wsStorageContainerUrl,
-          applicationConfig.leoUrlBase,
-          params.runtime.runtimeName.asString,
-          s"'${refererConfig.validHosts.mkString("','")}'"
-        )
-
-        val cmdToExecute =
-          s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
-            s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments
-                .map(s => s"'$s'")
-                .mkString(" ")} > /var/log/azure_vm_init_script.log"
-
-        CreateVmRequest(
-          params.workspaceId,
-          vmCommon,
-          CreateVmRequestData(
-            params.runtime.runtimeName,
-            VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
-            config.runtimeDefaults.image,
-            CustomScriptExtension(
-              name = config.runtimeDefaults.customScriptExtension.name,
-              publisher = config.runtimeDefaults.customScriptExtension.publisher,
-              `type` = config.runtimeDefaults.customScriptExtension.`type`,
-              version = config.runtimeDefaults.customScriptExtension.version,
-              minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
-              protectedSettings = ProtectedSettings(
-                config.runtimeDefaults.customScriptExtension.fileUris,
-                cmdToExecute
-              )
-            ),
-            config.runtimeDefaults.vmCredential,
-            diskResp.resourceId
-          ),
-          jobControl
-        )
-      }
-      _ <- wsmDao.createVm(createVmRequest, auth)
+      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
+      _ <- logger.info(ctx.loggingCtx)("runtime is ready")
     } yield ()
+    _ <- asyncTasks.offer(
+      Task(
+        ctx.traceId,
+        task,
+        Some(e =>
+          handleAzureRuntimeStartError(
+            AzureRuntimeStartingError(
+              runtime.id,
+              s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+              ctx.traceId
+            ),
+            ctx.now
+          )
+        ),
+        ctx.now,
+        TaskMetricsTags("startRuntimeV2", None, Some(false), CloudProvider.Azure)
+      )
+    )
+  } yield ()
 
   override def startAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
-    monoOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+    vm <- azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
 
-    _ <- monoOpt match {
+    // if vm is stopping, stopped or deallocated --> send start message and monitor
+    // if vm is starting --> monitor
+    // if vm is running --> update DB
+    // else --> error
+    _ <- vm match {
+      case Some(vm) =>
+        vm.powerState() match {
+          case PowerState.STOPPED | PowerState.DEALLOCATED | PowerState.STOPPING | PowerState.DEALLOCATING =>
+            for {
+              startVmOpOpt <- azureVmServiceInterp.startAzureVm(InstanceName(runtime.runtimeName.asString),
+                                                                azureCloudContext
+              )
+              _ <- startVmOpOpt match {
+                case None =>
+                  F.raiseError[Unit](
+                    AzureRuntimeStartingError(
+                      runtime.id,
+                      s"Starting runtime ${runtime.id} request to Azure failed.",
+                      ctx.traceId
+                    )
+                  )
+                case Some(startVmOp) =>
+                  monitorStartRuntime(runtime, Some(startVmOp))
+              }
+            } yield ()
+          case PowerState.STARTING => monitorStartRuntime(runtime, None)
+          case PowerState.RUNNING =>
+            for {
+              _ <- logger.info(s"Runtime ${runtime.runtimeName.asString} already running, no-op for startRuntime")
+              _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
+            } yield ()
+          case _ =>
+            F.raiseError(
+              AzureRuntimeStartingError(
+                runtime.id,
+                s"Runtime ${runtime.runtimeName.asString} cannot be started in a ${vm.powerState().toString} state, starting runtime request failed",
+                ctx.traceId
+              )
+            )
+        }
       case None =>
         F.raiseError(
           AzureRuntimeStartingError(
             runtime.id,
-            s"Starting runtime ${runtime.id} request to Azure failed.",
+            s"Runtime ${runtime.runtimeName.asString} cannot be found in Azure, starting runtime request failed",
             ctx.traceId
           )
         )
-      case Some(mono) =>
-        val task = for {
-          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
-          isJupyterUp = jupyterDAO.isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
-          _ <- streamUntilDoneOrTimeout(
-            isJupyterUp,
-            config.createVmPollConfig.maxAttempts,
-            config.createVmPollConfig.interval,
-            s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
-          )
-          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Running, ctx.now).transaction
-          _ <- logger.info(ctx.loggingCtx)("runtime is ready")
-        } yield ()
-        asyncTasks.offer(
-          Task(
-            ctx.traceId,
-            task,
-            Some(e =>
-              handleAzureRuntimeStartError(
-                AzureRuntimeStartingError(
-                  runtime.id,
-                  s"Starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
-                  ctx.traceId
-                ),
-                ctx.now
-              )
-            ),
-            ctx.now,
-            "startRuntime"
+    }
+
+  } yield ()
+
+  private def monitorStopRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext, monoOpt: Option[Mono[Void]])(
+    implicit ev: Ask[F, AppContext]
+  ): F[Unit] = for {
+    ctx <- ev.ask
+    task = for {
+      _ <- monoOpt.traverse(mono => F.blocking(mono.block(Duration.ofMinutes(5))))
+      vmStopped = azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+      _ <- streamUntilDoneOrTimeout(
+        vmStopped,
+        config.startStopVmPollConfig.maxAttempts,
+        config.startStopVmPollConfig.interval,
+        s"The VM was not stopped within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+      )
+      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
+      _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
+      _ <- welderDao
+        .flushCache(runtime.cloudContext, runtime.runtimeName)
+        .handleErrorWith(e =>
+          logger.error(ctx.loggingCtx, e)(
+            s"Failed to flush welder cache for ${runtime.projectNameString}"
           )
         )
-    }
+        .whenA(runtime.welderEnabled)
+    } yield ()
+    _ <- asyncTasks.offer(
+      Task(
+        ctx.traceId,
+        task,
+        Some(e =>
+          handleAzureRuntimeStopError(
+            AzureRuntimeStoppingError(
+              runtime.id,
+              s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
+              ctx.traceId
+            ),
+            ctx.now
+          )
+        ),
+        ctx.now,
+        TaskMetricsTags("startRuntimeV2", None, Some(false), CloudProvider.Azure)
+      )
+    )
   } yield ()
 
   override def stopAndMonitorRuntime(runtime: Runtime, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
-    monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
-    _ <- monoOpt match {
+    vm <- azureVmServiceInterp.getAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+
+    // if vm is starting/running --> send stop message and monitor
+    // if vm is stopping/deallocating --> monitor
+    // if vm is stopped/deallocated --> update DB
+    // else --> error
+    _ <- vm match {
+      case Some(vm) =>
+        vm.powerState() match {
+          case PowerState.STARTING | PowerState.RUNNING =>
+            for {
+
+              monoOpt <- azureVmServiceInterp.stopAzureVm(InstanceName(runtime.runtimeName.asString), azureCloudContext)
+              _ <- monoOpt match {
+                case None =>
+                  F.raiseError[Unit](
+                    AzureRuntimeStoppingError(
+                      runtime.id,
+                      s"Stopping runtime ${runtime.id} request to Azure failed.",
+                      ctx.traceId
+                    )
+                  )
+                case Some(mono) =>
+                  monitorStopRuntime(runtime, azureCloudContext, Some(mono))
+              }
+            } yield ()
+          case PowerState.DEALLOCATING | PowerState.STOPPING => monitorStopRuntime(runtime, azureCloudContext, None)
+
+          case PowerState.DEALLOCATED | PowerState.STOPPED =>
+            for {
+              _ <- logger.info(s"Runtime ${runtime.runtimeName.asString} already stopped, no-op for stopRuntime")
+              _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
+            } yield ()
+          case _ =>
+            F.raiseError(
+              AzureRuntimeStoppingError(
+                runtime.id,
+                s"Runtime ${runtime.runtimeName.asString} cannot be stopped in a ${vm.powerState().toString} state, stopping runtime request failed",
+                ctx.traceId
+              )
+            )
+        }
       case None =>
         F.raiseError(
           AzureRuntimeStoppingError(
             runtime.id,
-            s"Stopping runtime ${runtime.id} request to Azure failed.",
+            s"Runtime ${runtime.runtimeName.asString} cannot be found in Azure, stopping runtime request failed",
             ctx.traceId
-          )
-        )
-      case Some(mono) =>
-        val task = for {
-          _ <- F.blocking(mono.block(Duration.ofMinutes(5)))
-          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Stopped, ctx.now).transaction
-          _ <- logger.info(ctx.loggingCtx)("runtime is stopped")
-          _ <- welderDao
-            .flushCache(runtime.cloudContext, runtime.runtimeName)
-            .handleErrorWith(e =>
-              logger.error(ctx.loggingCtx, e)(
-                s"Failed to flush welder cache for ${runtime.projectNameString}"
-              )
-            )
-            .whenA(runtime.welderEnabled)
-        } yield ()
-        asyncTasks.offer(
-          Task(
-            ctx.traceId,
-            task,
-            Some(e =>
-              handleAzureRuntimeStopError(
-                AzureRuntimeStoppingError(
-                  runtime.id,
-                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
-                  ctx.traceId
-                ),
-                ctx.now
-              )
-            ),
-            ctx.now,
-            "startRuntime"
           )
         )
     }
   } yield ()
 
-  private def createStorageContainer(params: CreateAzureRuntimeParams, auth: Authorization)(implicit
+  private def createStorageContainer(runtime: Runtime,
+                                     landingZoneResources: LandingZoneResources,
+                                     workspaceId: WorkspaceId
+  )(implicit
     ev: Ask[F, AppContext]
-  ): F[(ContainerName, WsmControlledResourceId)] = {
-    val stagingContainerName = ContainerName(s"ls-${params.runtime.runtimeName.asString}")
-    val storageContainerCommonFields = getCommonFields(
-      ControlledResourceName(s"c-${stagingContainerName.value}"),
-      "leonardo staging bucket",
-      params.runtime.auditInfo.creator,
-      None
-    )
+  ): F[CreateStorageContainerResourcesResult] = {
+    val storageContainerName = ContainerName(s"ls-${runtime.runtimeName.asString}")
     for {
       ctx <- ev.ask[AppContext]
-      resp <- wsmDao.createStorageContainer(
-        CreateStorageContainerRequest(
-          params.workspaceId,
-          storageContainerCommonFields,
-          StorageContainerRequest(stagingContainerName)
-        ),
-        auth
+      wsmApi <- buildWsmControlledResourceApiClient
+      common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(storageContainerName.value),
+                                                    "leonardo staging bucket",
+                                                    runtime.auditInfo.creator
       )
+      azureStorageContainer = new AzureStorageContainerCreationParameters()
+        .storageContainerName(storageContainerName.value)
+
+      request = new CreateControlledAzureStorageContainerRequestBody()
+        .common(common)
+        .azureStorageContainer(azureStorageContainer)
+      storageContainer <- F
+        .delay(wsmApi.createAzureStorageContainer(request, workspaceId.value))
+      resourceId = WsmControlledResourceId(storageContainer.getResourceId)
       _ <- controlledResourceQuery
-        .save(params.runtime.id, resp.resourceId, WsmResourceType.AzureStorageContainer)
+        .save(runtime.id, resourceId, WsmResourceType.AzureStorageContainer)
         .transaction
       _ <- clusterQuery
-        .updateStagingBucket(
-          params.runtime.id,
-          Some(StagingBucket.Azure(stagingContainerName)),
-          ctx.now
-        )
+        .updateStagingBucket(runtime.id, Some(StagingBucket.Azure(storageContainerName)), ctx.now)
         .transaction
-    } yield (stagingContainerName, resp.resourceId)
+    } yield CreateStorageContainerResourcesResult(storageContainerName, resourceId)
   }
 
-  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
+  private def createDiskForRuntime(params: CreateAzureDiskParams)(implicit
     ev: Ask[F, AppContext]
-  ): F[CreateDiskResponse] = for {
+  ): F[CreateDiskForRuntimeResult] = for {
 
     diskId <- F.fromOption(
       params.runtimeConfig.persistentDiskId,
@@ -364,7 +495,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       // if using existing disk, check conditions and update tables
       case true =>
         for {
-          ctx <- ev.ask
           diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
@@ -395,52 +525,258 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           _ <- controlledResourceQuery
             .updateRuntime(wsmDisk.resourceId, WsmResourceType.AzureDisk, params.runtime.id)
             .transaction
-          diskResp = CreateDiskResponse(wsmDisk.resourceId)
+          diskResp = CreateDiskForRuntimeResult(wsmDisk.resourceId, None)
         } yield diskResp
 
       // if not using existing disk, send a create disk request
       case false =>
         for {
-          ctx <- ev.ask
           diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
             AzureRuntimeCreationError(params.runtime.id,
                                       params.workspaceId,
-                                      s"Disk ${diskId} not found",
+                                      s"Disk $diskId not found",
                                       params.useExistingDisk
             )
           )
-          common = getCommonFields(ControlledResourceName(disk.name.value),
-                                   config.runtimeDefaults.diskControlledResourceDesc,
-                                   params.runtime.auditInfo.creator,
-                                   None
+          common = getCommonFieldsForWsmGeneratedClient(ControlledResourceName(disk.name.value),
+                                                        config.runtimeDefaults.diskControlledResourceDesc,
+                                                        params.runtime.auditInfo.creator
           )
-          request: CreateDiskRequest = CreateDiskRequest(
-            params.workspaceId,
-            common,
-            CreateDiskRequestData(
-              // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
-              AzureDiskName(disk.name.value),
-              disk.size
+
+          createDiskJobId = WsmJobId(UUID.randomUUID().toString)
+          jobControl = new JobControl()
+            .id(createDiskJobId.value)
+
+          azureDisk = new AzureDiskCreationParameters()
+            .name(disk.name.value)
+            .size(disk.size.gb)
+
+          request = new CreateControlledAzureDiskRequestV2Body()
+            .common(common)
+            .azureDisk(azureDisk)
+            .jobControl(jobControl)
+
+          wsmApi <- buildWsmControlledResourceApiClient
+          _ <- F.delay(wsmApi.createAzureDiskV2(request, params.workspaceId.value))
+
+          syncDiskResp = CreateDiskForRuntimeResult(
+            WsmControlledResourceId(common.getResourceId),
+            Some(
+              PollDiskParams(params.workspaceId,
+                             createDiskJobId,
+                             disk.id,
+                             params.runtime,
+                             WsmControlledResourceId(common.getResourceId)
+              )
             )
           )
-          diskResp <- wsmDao.createDisk(request, leoAuth)
-          _ <- controlledResourceQuery
-            .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
-            .transaction
-          _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
-          _ <- persistentDiskQuery.updateWSMResourceId(disk.id, diskResp.resourceId, ctx.now).transaction
-        } yield diskResp
+        } yield syncDiskResp
     }
   } yield resp
+
+  private def monitorCreateDisk(params: PollDiskParams)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+      getWsmJobResult = F.delay(wsmApi.getCreateAzureDiskResult(params.workspaceId.value, params.jobId.value))
+
+      _ <- F.sleep(
+        config.createDiskPollConfig.initialDelay
+      )
+
+      // it does not take long to create a disk
+      resp <- streamFUntilDone(
+        getWsmJobResult,
+        config.createDiskPollConfig.maxAttempts,
+        config.createDiskPollConfig.interval
+      ).compile.lastOrError
+
+      _ <- resp.getJobReport.getStatus match {
+        case JobReport.StatusEnum.FAILED =>
+          logger.error(s"Wsm createDisk job failed due to ${resp.getErrorReport.getMessage}") >> F.raiseError[Unit](
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"Wsm createDisk job failed due to ${resp.getErrorReport.getMessage}",
+              useExistingDisk = false
+            )
+          )
+        case JobReport.StatusEnum.RUNNING =>
+          F.raiseError[Unit](
+            AzureRuntimeCreationError(
+              params.runtime.id,
+              params.workspaceId,
+              s"Wsm createDisk job was not completed within ${config.createDiskPollConfig.maxAttempts} attempts with ${config.createDiskPollConfig.interval} delay",
+              useExistingDisk = false
+            )
+          )
+        case JobReport.StatusEnum.SUCCEEDED =>
+          for {
+            _ <- controlledResourceQuery
+              .save(params.runtime.id, params.wsmResourceId, WsmResourceType.AzureDisk)
+              .transaction
+            _ <- persistentDiskQuery.updateStatus(params.diskId, DiskStatus.Ready, ctx.now).transaction
+            _ <- persistentDiskQuery.updateWSMResourceId(params.diskId, params.wsmResourceId, ctx.now).transaction
+          } yield ()
+      }
+    } yield ()
+
+  // we expect the caller of this to update the disk status, since this is monitoring for the WSM record deletion
+  // this is important not to conflate the two, since a Wsm resource can exist without a leo resource and vice versa (if the systems get into a bad state)
+  private def monitorDeleteDisk(params: PollDeleteDiskParams)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+      getWsmJobResult = F.delay(wsmApi.getDeleteAzureDiskResult(params.workspaceId.value, params.jobId.value))
+
+      _ <- F.sleep(
+        config.deleteDiskPollConfig.initialDelay
+      )
+
+      resp <- streamFUntilDone(
+        getWsmJobResult,
+        config.deleteDiskPollConfig.maxAttempts,
+        config.deleteDiskPollConfig.interval
+      ).compile.lastOrError
+
+      _ <- resp.getJobReport.getStatus match {
+        case JobReport.StatusEnum.SUCCEEDED =>
+          for {
+            _ <- logger.info(ctx.loggingCtx)(
+              s"disk  for runtime ${params.runtime.id} with resource id ${params.wsmResourceId} is deleted successfully"
+            )
+          } yield ()
+        case JobReport.StatusEnum.FAILED =>
+          for {
+            _ <- logger.error(s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}")
+            _ <- params.diskId.traverse(id =>
+              dbRef.inTransaction(persistentDiskQuery.updateStatus(id, DiskStatus.Error, ctx.now))
+            )
+            _ <- F.raiseError[Unit](
+              AzureRuntimeDeletionError(
+                params.runtime.id,
+                params.workspaceId,
+                s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}, disk resource id ${params.wsmResourceId}"
+              )
+            )
+          } yield ()
+        case JobReport.StatusEnum.RUNNING =>
+          params.diskId.traverse(id =>
+            dbRef.inTransaction(persistentDiskQuery.updateStatus(id, DiskStatus.Error, ctx.now))
+          ) >> F.raiseError[Unit](
+            AzureRuntimeDeletionError(
+              params.runtime.id,
+              params.workspaceId,
+              s"Wsm deleteDisk was not completed within ${config.deleteDiskPollConfig.maxAttempts} attempts with ${config.deleteDiskPollConfig.interval} delay, disk resource id ${params.wsmResourceId}"
+            )
+          )
+      }
+    } yield ()
+
+  private def monitorDeleteVm(params: PollVmParams)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+      getWsmJobResult = F.delay(wsmApi.getDeleteAzureVmResult(params.workspaceId.value, params.jobId.value))
+
+      _ <- F.sleep(
+        config.deleteVmPollConfig.initialDelay
+      )
+
+      resp <- streamFUntilDone(
+        getWsmJobResult,
+        config.deleteVmPollConfig.maxAttempts,
+        config.deleteVmPollConfig.interval
+      ).compile.lastOrError
+
+      _ <- resp.getJobReport.getStatus match {
+        case JobReport.StatusEnum.SUCCEEDED =>
+          for {
+            _ <- logger.info(ctx.loggingCtx)(
+              s"vm ${params.runtime.id} is deleted successfully"
+            )
+          } yield ()
+        case JobReport.StatusEnum.FAILED =>
+          logger.error(s"Wsm deleteVm job failed due to ${resp.getErrorReport.getMessage}") >> F.raiseError[Unit](
+            AzureRuntimeDeletionError(
+              params.runtime.id,
+              params.workspaceId,
+              s"WSM delete VM job failed due to ${resp.getErrorReport.getMessage}"
+            )
+          )
+        case JobReport.StatusEnum.RUNNING =>
+          F.raiseError[Unit](
+            AzureRuntimeDeletionError(
+              params.runtime.id,
+              params.workspaceId,
+              s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
+            )
+          )
+      }
+    } yield ()
+
+  private def monitorDeleteStorageContainer(params: PollStorageContainerParams)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      wsmApi <- buildWsmControlledResourceApiClient
+      getWsmJobResult = F.delay(
+        wsmApi.getDeleteAzureStorageContainerResult(params.workspaceId.value, params.jobId.value)
+      )
+
+      _ <- F.sleep(
+        config.deleteStorageContainerPollConfig.initialDelay
+      )
+
+      // it does not take long to delete a storage container
+      resp <- streamFUntilDone(
+        getWsmJobResult,
+        config.deleteStorageContainerPollConfig.maxAttempts,
+        config.deleteStorageContainerPollConfig.interval
+      ).compile.lastOrError
+
+      _ <- resp.getJobReport.getStatus match {
+        case JobReport.StatusEnum.SUCCEEDED =>
+          for {
+            _ <- logger.info(ctx.loggingCtx)(
+              s"storage container for runtime ${params.runtime.id} is deleted successfully"
+            )
+          } yield ()
+        case JobReport.StatusEnum.FAILED =>
+          logger.error(s"Wsm deleteStorageContainer job failed due to ${resp.getErrorReport.getMessage}") >> F
+            .raiseError[Unit](
+              AzureRuntimeDeletionError(
+                params.runtime.id,
+                params.workspaceId,
+                s"WSM storage container delete job failed due to ${resp.getErrorReport.getMessage} for runtime ${params.runtime.id}"
+              )
+            )
+        case JobReport.StatusEnum.RUNNING =>
+          F.raiseError[Unit](
+            AzureRuntimeDeletionError(
+              params.runtime.id,
+              params.workspaceId,
+              s"WSM delete storage container job was not completed within ${config.deleteStorageContainerPollConfig.maxAttempts} attempts with ${config.deleteStorageContainerPollConfig.interval} delay"
+            )
+          )
+      }
+    } yield ()
 
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
                               userEmail: WorkbenchEmail,
                               resourceId: Option[WsmControlledResourceId]
   ) =
-    ControlledResourceCommonFields(
+    InternalDaoControlledResourceCommonFields(
       name,
       ControlledResourceDescription(resourceDesc),
       CloningInstructions.Nothing,
@@ -455,31 +791,65 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       resourceId
     )
 
-  private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  private def getCommonFieldsForWsmGeneratedClient(name: ControlledResourceName,
+                                                   resourceDesc: String,
+                                                   userEmail: WorkbenchEmail
+  ) =
+    new ControlledResourceCommonFields()
+      .accessScope(bio.terra.workspace.model.AccessScope.PRIVATE_ACCESS)
+      .cloningInstructions(CloningInstructionsEnum.NOTHING)
+      .description(resourceDesc)
+      .name(name.value)
+      .managedBy(bio.terra.workspace.model.ManagedBy.APPLICATION)
+      .resourceId(UUID.randomUUID())
+      .privateResourceUser(
+        new bio.terra.workspace.model.PrivateResourceUser()
+          .userName(userEmail.value)
+          .privateResourceIamRole(bio.terra.workspace.model.ControlledResourceIamRole.WRITER)
+      )
+
+  private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    val hybridConnectionName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
+
     for {
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
-      getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId), auth)
+      createVmJobId = WsmJobId(s"create-vm-${params.runtime.id.toString.take(10)}")
+      getWsmVmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, createVmJobId), auth)
 
-      cloudContext = params.runtime.cloudContext match {
-        case _: CloudContext.Gcp =>
-          throw PubsubHandleMessageError.ClusterError(params.runtime.id,
-                                                      ctx.traceId,
-                                                      "Azure runtime should not have GCP cloud context"
-          )
-        case x: CloudContext.Azure => x
-      }
+      wsmApi <- buildWsmControlledResourceApiClient
 
-      isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
-      isWelderUp = welderDao.isProxyAvailable(cloudContext, params.runtime.runtimeName)
+      isJupyterUp = jupyterDAO.isProxyAvailable(params.cloudContext, params.runtime.runtimeName)
+      isWelderUp = welderDao.isProxyAvailable(params.cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
+        // the result of creating the hybrid connection + storage container are necessary for the createVm request
+        hcPrimaryKey <- azureRelay.createRelayHybridConnection(params.landingZoneResources.relayNamespace,
+                                                               hybridConnectionName,
+                                                               params.cloudContext.value
+        )
+        storageContainer <- createStorageContainer(params.runtime, params.landingZoneResources, params.workspaceId)
+
+        _ <- params.createDiskResult.pollParams.traverse(params => monitorCreateDisk(params))
+
+        vmRequest = setupCreateVmCreateMessage(
+          params,
+          storageContainer,
+          hcPrimaryKey,
+          createVmJobId,
+          hybridConnectionName
+        )
+
+        _ <- F.delay(wsmApi.createAzureVm(vmRequest, params.workspaceId.value))
+
+        // it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
         _ <- F.sleep(
           config.createVmPollConfig.initialDelay
-        ) // it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
-        // first poll the WSM createVm job for completion
+        )
+
+        // Poll the WSM createVm job for completion
         resp <- streamFUntilDone(
-          getWsmJobResult,
+          getWsmVmJobResult,
           config.createVmPollConfig.maxAttempts,
           config.createVmPollConfig.interval
         ).compile.lastOrError
@@ -503,7 +873,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case WsmJobStatus.Succeeded =>
-            val hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
+            val hostIp = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
             for {
               now <- nowInstant
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
@@ -541,45 +911,21 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           ),
           ctx.now,
-          "createAzureRuntime"
+          TaskMetricsTags("createRuntimeV2", None, Some(false), CloudProvider.Azure)
         )
       )
     } yield ()
+  }
 
   override def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     for {
+      // Perform initial db retrievals
       ctx <- ev.ask
 
       runtimeOpt <- dbRef.inTransaction(clusterQuery.getClusterById(msg.runtimeId))
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       auth <- samDAO.getLeoAuthToken
-
-      // Query the Landing Zone service for the landing zone resources
-      landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, auth)
-
-      // Delete the staging storage container in WSM
-      stagingBucketResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
-        .transaction
-      _ <- stagingBucketResourceOpt.fold(
-        logger
-          .info(ctx.loggingCtx)(
-            s"No Storage Container wsmResourceId found for delete azure runtime msg $msg. No-op for wsmDao.deleteStorageContainer."
-          )
-      ) { stagingBucketResourceId =>
-        wsmDao
-          .deleteStorageContainer(
-            DeleteWsmResourceRequest(
-              msg.workspaceId,
-              stagingBucketResourceId.resourceId,
-              DeleteControlledAzureResourceRequest(
-                WsmJobControl(getWsmJobId("del-staging", stagingBucketResourceId.resourceId))
-              )
-            ),
-            auth
-          )
-          .void
-      }
+      wsmApi <- buildWsmControlledResourceApiClient
 
       // Grab the cloud context for the runtime
       cloudContext <- runtime.cloudContext match {
@@ -593,8 +939,37 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
 
-      // Delete hybrid connection for this VM
-      _ <- azureRelay.deleteRelayHybridConnection(
+      // Delete the storage container in WSM if it exists
+      storageContainerResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureStorageContainer)
+        .transaction
+
+      deleteStorageContainerActionOpt = storageContainerResourceOpt.fold {
+        // if the storage container hasn't been created in WSM yet, skip storage container deletion
+        logger
+          .info(
+            s"No storage container resource found for runtime ${msg.runtimeId.toString} in ${msg.workspaceId.value}. No-op for wsmApi.deleteAzureStorageContainer."
+          )
+          .map(_ => none[PollStorageContainerParams])
+      } { storageContainerResourceRecord =>
+        val deleteJobControl = getDeleteControlledResourceRequest
+        F
+          .delay(
+            wsmApi.deleteAzureStorageContainer(deleteJobControl,
+                                               msg.workspaceId.value,
+                                               storageContainerResourceRecord.resourceId.value
+            )
+          )
+          .map(_ =>
+            Some(PollStorageContainerParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime))
+          )
+      }
+
+      // Query the Landing Zone service for the landing zone resources
+      landingZoneResources <- wsmDao.getLandingZoneResources(msg.billingProfileId, auth)
+
+      // Delete hybrid connection for this VM, delayed later for async task queue
+      deleteHybridConnectionAction = azureRelay.deleteRelayHybridConnection(
         landingZoneResources.relayNamespace,
         RelayHybridConnectionName(runtime.runtimeName.asString),
         cloudContext
@@ -602,131 +977,117 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // if there's a disk to delete, find the disk record associated with the runtime
       // - if there's a disk record, then delete in WSM
-      // - update the disk's Leo state
-      deleteDiskAction = msg.diskIdToDelete.traverse { diskId =>
-        for {
-          diskRecordOpt <- controlledResourceQuery
-            .getWsmRecordForRuntime(msg.runtimeId, WsmResourceType.AzureDisk)
-            .transaction
-          _ <- diskRecordOpt match {
-            case Some(diskRecord) =>
-              for {
-                _ <- deleteDiskInWSM(diskId, diskRecord.resourceId, msg.workspaceId, auth, Some(runtime.id))
-              } yield ()
-            case _ =>
-              // if the disk hasn't been created in WSM yet, skip disk deletion
-              for {
-                _ <- logger.info(
-                  s"No disk resource found for runtime ${msg.runtimeId.toString} in ${msg.workspaceId.value}. No-op for wsmDao.deleteDisk."
-                )
-                _ <- clusterQuery.setDiskDeleted(msg.runtimeId, ctx.now).transaction
-              } yield ()
-          }
-        } yield ()
-      }.void
+      //   - update the disk's Leo state if it exists in leo AND the user specifies deletion
 
-      // Delete the VM in WSM
-      _ <- msg.wsmResourceId.fold(
-        for {
-          // Error'd runtimes might not have a WSM resourceId and therefore no WsmJobStatus.
-          // We still want deletion to succeed in this case.
-          _ <- logger
-            .info(ctx.loggingCtx)(
-              s"No VM wsmResourceId found for delete azure runtime msg $msg. No-op for wsmDao.deleteVm."
-            )
+      // Perform lookups needed to get wsm disk information from DB
+      diskRecordOpt <- msg.diskIdToDelete.flatTraverse { _ =>
+        controlledResourceQuery
+          .getWsmRecordForRuntime(msg.runtimeId, WsmResourceType.AzureDisk)
+          .transaction
+      }
 
-          // if no wsmResource to delete, delete the disk and set runtime to deleted
-          _ <- deleteDiskAction
-          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-          _ <- logger.info(ctx.loggingCtx)(
-            s"runtime ${msg.runtimeId} with name ${runtime.runtimeName.asString} is deleted successfully"
+      // Formulate the WSM call and polling params for later use in async disk deletion
+      wsmDeleteDiskActionOpt = diskRecordOpt.fold {
+        // if the disk hasn't been created in WSM yet, skip disk deletion
+        logger
+          .info(
+            s"No disk resource found for runtime ${msg.runtimeId.toString} in workspace ${msg.workspaceId.value}. No-op for wsmApi.deleteAzureDisk."
           )
-        } yield ()
-      ) { wsmResourceId =>
+          .map(_ => none[PollDeleteDiskParams])
+      } { wsmDiskRecord =>
         for {
-          _ <- wsmDao
-            .deleteVm(
-              DeleteWsmResourceRequest(
-                msg.workspaceId,
-                wsmResourceId,
-                DeleteControlledAzureResourceRequest(
-                  WsmJobControl(getWsmJobId("delete-vm", wsmResourceId))
-                )
-              ),
-              auth
-            )
-            .void
-            .adaptError(e =>
-              AzureRuntimeDeletionError(
-                runtime.id,
-                msg.workspaceId,
-                s"${ctx.traceId.asString} | WSM call to delete runtime failed due to ${e.getMessage}. Please retry delete again"
+          deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
+          _ <- F.delay(
+            wsmApi.deleteAzureDisk(deleteJobControl, msg.workspaceId.value, wsmDiskRecord.resourceId.value)
+          )
+        } yield Some(
+          PollDeleteDiskParams(msg.workspaceId,
+                               WsmJobId(deleteJobControl.getJobControl.getId),
+                               msg.diskIdToDelete,
+                               runtime,
+                               wsmDiskRecord.resourceId
+          )
+        )
+      }
+
+      // Even if there is no wsm record yet, we may still have a leo disk record to clean up
+      leoDiskCleanupActionOpt = msg.diskIdToDelete.traverse { diskId =>
+        dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
+      }
+
+      // Formulate the WSM call and polling params for later use in async VM deletion
+      deleteVmActionOpt = msg.wsmResourceId.fold {
+        // Error'd runtimes might not have a WSM resourceId. We still want deletion to succeed in this case.
+        logger
+          .info(ctx.loggingCtx)(
+            s"No VM wsmResourceId found for delete azure runtime msg $msg. No-op for wsmApi.deleteAzureVm."
+          )
+          .map(_ => none[PollVmParams])
+      } { resourceId =>
+        for {
+          deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
+          _ <- F.delay(wsmApi.deleteAzureVm(deleteJobControl, msg.workspaceId.value, resourceId.value))
+        } yield Some(PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime))
+      }
+
+      // Delete and poll on all associated resources in WSM, and then mark the runtime as deleted
+      // The resources handled here are Storage container, Hybrid connection, Virtual Machine, and Disk
+      // It is worth noting disk error handling is a bit special as it has its own table, the polling method for that is responsible for updating the disk to error state
+      // A possible optimization is pairing each (wsmCall, pollingOnCompletion) into operations and running them in parallel
+      // This would ensure that the ordering in conjunction with a single failure doesn't prevent as many things as possible from being deleted
+      taskToRun = for {
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning azure storage container deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
+        pollStorageContainerParamsOpt <- deleteStorageContainerActionOpt
+        _ <- pollStorageContainerParamsOpt.traverse(params => monitorDeleteStorageContainer(params))
+
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning hybrid connection deletion for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
+        _ <- deleteHybridConnectionAction
+
+        // Vm must be done before disk
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning azure vm deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
+        pollDeleteVmParamsOpt <- deleteVmActionOpt
+        _ <- pollDeleteVmParamsOpt.traverse(params => monitorDeleteVm(params))
+
+        // if Some(leodisk) None(wsmDisk) -> mark deleted
+        // if Some(leodisk) Some(wsmDisk) -> poll then mark deleted
+        // if none(leodisk) Some(wsmDisk) -> do not poll, user wants to keep disk, noop
+        // if none(LeoDisk) none(wsmDisk) -> noop
+        _ <- logger.info(ctx.loggingCtx)(
+          s"beginning azure disk deletion and polling for runtime ${msg.runtimeId} in workspace ${msg.workspaceId}"
+        )
+        pollDiskParamsOpt <-
+          if (msg.diskIdToDelete.isDefined) wsmDeleteDiskActionOpt else F.delay(none[PollDeleteDiskParams])
+        _ <- pollDiskParamsOpt.traverse(params => monitorDeleteDisk(params))
+        _ <- leoDiskCleanupActionOpt
+
+        _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
+        _ <- logger.info(ctx.loggingCtx)(
+          s"runtime ${msg.runtimeId} with name ${runtime.runtimeName.asString} is deleted successfully"
+        )
+      } yield ()
+
+      _ <- asyncTasks.offer(
+        Task(
+          ctx.traceId,
+          taskToRun,
+          Some { e =>
+            handleAzureRuntimeDeletionError(
+              AzureRuntimeDeletionError(msg.runtimeId,
+                                        msg.workspaceId,
+                                        s"Fail to delete runtime due to ${e.getMessage}"
               )
             )
-
-          getDeleteJobResult = wsmDao.getDeleteVmJobResult(
-            GetJobResultRequest(msg.workspaceId, getWsmJobId("delete-vm", wsmResourceId)),
-            auth
-          )
-
-          // Poll for VM deletion
-          taskToRun = for {
-            // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk
-            resp <- streamFUntilDone(
-              getDeleteJobResult,
-              config.deleteVmPollConfig.maxAttempts,
-              config.deleteVmPollConfig.interval
-            ).compile.lastOrError
-
-            _ <- resp.jobReport.status match {
-              case WsmJobStatus.Succeeded =>
-                for {
-                  _ <- logger.info(ctx.loggingCtx)(
-                    s"runtime ${msg.runtimeId} is deleted successfully, moving to disk deletion"
-                  )
-                  _ <- deleteDiskAction
-                  _ <- dbRef.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
-                  _ <- logger.info(ctx.loggingCtx)(
-                    s"runtime ${msg.runtimeId} ${if (msg.diskIdToDelete.isDefined) "and associated disk"} have been deleted successfully"
-                  )
-                } yield ()
-              case WsmJobStatus.Failed =>
-                F.raiseError[Unit](
-                  AzureRuntimeDeletionError(
-                    msg.runtimeId,
-                    msg.workspaceId,
-                    s"WSM delete VM job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
-                  )
-                )
-              case WsmJobStatus.Running =>
-                F.raiseError[Unit](
-                  AzureRuntimeDeletionError(
-                    msg.runtimeId,
-                    msg.workspaceId,
-                    s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
-                  )
-                )
-            }
-          } yield ()
-
-          _ <- asyncTasks.offer(
-            Task(
-              ctx.traceId,
-              taskToRun,
-              Some { e =>
-                handleAzureRuntimeDeletionError(
-                  AzureRuntimeDeletionError(msg.runtimeId,
-                                            msg.workspaceId,
-                                            s"Fail to delete runtime due to ${e.getMessage}"
-                  )
-                )
-              },
-              ctx.now,
-              "deleteAzureRuntime"
-            )
-          )
-        } yield ()
-      }
+          },
+          ctx.now,
+          TaskMetricsTags("deleteRuntimeV2", None, Some(false), CloudProvider.Azure)
+        )
+      )
     } yield ()
   }
 
@@ -763,7 +1124,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
     } yield ()
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
+  override def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -832,7 +1193,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             Some(ctx.traceId)
           ),
           Some(appId),
-          false,
+          isRetryable = false,
           None,
           None,
           None
@@ -848,27 +1209,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      params = UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext)
-      _ <- aksAlgebra.updateAndPollApp(params).adaptError { case e =>
-        PubsubKubernetesError(
-          AppError(
-            s"Error updating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
-            ctx.now,
-            ErrorAction.UpdateApp,
-            ErrorSource.App,
-            None,
-            Some(ctx.traceId)
-          ),
-          Some(appId),
-          false,
-          None,
-          None,
-          None
-        )
-      }
-    } yield ()
+    aksAlgebra.updateAndPollApp(UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext))
 
   override def deleteApp(
     appId: AppId,
@@ -893,7 +1234,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             Some(ctx.traceId)
           ),
           Some(appId),
-          false,
+          isRetryable = false,
           None,
           None,
           None
@@ -918,7 +1259,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           DeleteWsmResourceRequest(
             workspaceId,
             wsmResourceId,
-            DeleteControlledAzureResourceRequest(
+            WsmDaoDeleteControlledAzureResourceRequest(
               WsmJobControl(jobId)
             )
           ),
@@ -953,7 +1294,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               _ <- logger.info(ctx.loggingCtx)(s"disk ${diskId.value} is deleted successfully")
               _ <- runtimeId match {
                 case Some(runtimeId) => clusterQuery.setDiskDeleted(runtimeId, ctx.now).transaction
-                case _               => dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now))
+                case _               => dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now)).void
               }
             } yield ()
           case WsmJobStatus.Failed =>
@@ -987,7 +1328,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           },
           ctx.now,
-          "deleteDiskV2"
+          TaskMetricsTags("deleteDiskV2", None, Some(false), CloudProvider.Azure)
         )
       )
     } yield ()
@@ -1018,6 +1359,25 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   } yield ()
 
   def getWsmJobId(jobName: String, resourceId: WsmControlledResourceId): WsmJobId = WsmJobId(
-    s"${jobName}-${resourceId.value.toString.take(10)}"
+    s"$jobName-${resourceId.value.toString.take(10)}"
   )
+
+  private def buildWsmControlledResourceApiClient(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi] =
+    for {
+      auth <- samDAO.getLeoAuthToken
+      token <- auth.credentials match {
+        case org.http4s.Credentials.Token(_, token) => F.pure(token)
+        case _ => F.raiseError[String](new RuntimeException("Could not obtain Leo auth token"))
+      }
+      wsmControlledResourceClient <- wsmClientProvider.getControlledAzureResourceApi(token)
+    } yield wsmControlledResourceClient
+
+  private def getDeleteControlledResourceRequest: bio.terra.workspace.model.DeleteControlledAzureResourceRequest = {
+    val deleteStorageContainerJobId = WsmJobId(UUID.randomUUID().toString)
+    val jobControl = new JobControl()
+      .id(deleteStorageContainerJobId.value)
+    val deleteControlledResource = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest()
+      .jobControl(jobControl)
+    deleteControlledResource
+  }
 }

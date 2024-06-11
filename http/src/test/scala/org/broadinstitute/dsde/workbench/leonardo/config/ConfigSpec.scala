@@ -35,7 +35,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "gxy-postres-disk",
         DiskSize(10),
         BlockSize(4096)
-      )
+      ),
+      1 seconds
     )
 
     Config.leoPubsubMessageSubscriberConfig shouldBe expectedResult
@@ -83,9 +84,10 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "69.173.127.240/28",
         "69.173.112.0/21"
       ).map(CidrIP),
-      KubernetesClusterVersion("1.25"),
+      KubernetesClusterVersion("1.28"),
       1 hour,
-      200
+      200,
+      AutopilotConfig(AutopilotResource(500, 3, 1), AutopilotResource(500, 3, 1))
     )
     Config.gkeClusterConfig shouldBe expectedResult
   }
@@ -138,7 +140,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         ChartVersion("2.5.1"),
         ChartVersion("2.5.2"),
         ChartVersion("2.8.0"),
-        ChartVersion("2.8.1")
+        ChartVersion("2.8.1"),
+        ChartVersion("2.9.0")
       )
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
@@ -163,7 +166,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         PollMonitorConfig(0 days, 10, 2 seconds),
         PollMonitorConfig(0 days, 10, 2 seconds),
         InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes),
-        InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes)
+        InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes),
+        PollMonitorConfig(1 second, 1, 1 second)
       )
     Config.appMonitorConfig shouldBe expectedResult
   }

@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
+import org.broadinstitute.dsde.workbench.leonardo.util.PollDiskParams
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
@@ -83,7 +84,7 @@ trait WsmDao[F[_]] {
 
 final case class StorageContainerRequest(storageContainerName: ContainerName)
 final case class CreateStorageContainerRequest(workspaceId: WorkspaceId,
-                                               commonFields: ControlledResourceCommonFields,
+                                               commonFields: InternalDaoControlledResourceCommonFields,
                                                storageContainerReq: StorageContainerRequest
 )
 final case class CreateStorageContainerResult(resourceId: WsmControlledResourceId)
@@ -126,7 +127,7 @@ final case class ListLandingZoneResourcesResult(id: UUID, resources: List[Landin
 
 //Azure Vm Models
 final case class CreateVmRequest(workspaceId: WorkspaceId,
-                                 common: ControlledResourceCommonFields,
+                                 common: InternalDaoControlledResourceCommonFields,
                                  vmData: CreateVmRequestData,
                                  jobControl: WsmJobControl
 )
@@ -154,10 +155,12 @@ final case class WsmVm(metadata: WsmVMMetadata, attributes: WsmVMAttributes)
 
 final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
                                           resourceId: WsmControlledResourceId,
-                                          deleteRequest: DeleteControlledAzureResourceRequest
+                                          deleteRequest: WsmDaoDeleteControlledAzureResourceRequest
 )
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+
 final case class GetCreateVmJobResult(vm: Option[WsmVm], jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+
 final case class GetDeleteJobResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 
 sealed trait ResourceAttributes extends Serializable with Product
@@ -172,7 +175,7 @@ final case class GetJobResultRequest(workspaceId: WorkspaceId, jobId: WsmJobId)
 
 // Azure Disk models
 final case class CreateDiskRequest(workspaceId: WorkspaceId,
-                                   common: ControlledResourceCommonFields,
+                                   common: InternalDaoControlledResourceCommonFields,
                                    diskData: CreateDiskRequestData
 )
 
@@ -180,14 +183,16 @@ final case class CreateDiskRequestData(name: AzureDiskName, size: DiskSize)
 
 final case class CreateDiskResponse(resourceId: WsmControlledResourceId)
 
+final case class CreateDiskForRuntimeResult(resourceId: WsmControlledResourceId, pollParams: Option[PollDiskParams])
+
 // Common Controlled resource models
-final case class ControlledResourceCommonFields(name: ControlledResourceName,
-                                                description: ControlledResourceDescription,
-                                                cloningInstructions: CloningInstructions,
-                                                accessScope: AccessScope,
-                                                managedBy: ManagedBy,
-                                                privateResourceUser: Option[PrivateResourceUser],
-                                                resourceId: Option[WsmControlledResourceId]
+final case class InternalDaoControlledResourceCommonFields(name: ControlledResourceName,
+                                                           description: ControlledResourceDescription,
+                                                           cloningInstructions: CloningInstructions,
+                                                           accessScope: AccessScope,
+                                                           managedBy: ManagedBy,
+                                                           privateResourceUser: Option[PrivateResourceUser],
+                                                           resourceId: Option[WsmControlledResourceId]
 )
 
 final case class ControlledResourceName(value: String) extends AnyVal
@@ -205,7 +210,7 @@ final case class WsmJobReport(id: WsmJobId,
 )
 
 final case class WsmJobControl(id: WsmJobId)
-final case class DeleteControlledAzureResourceRequest(jobControl: WsmJobControl)
+final case class WsmDaoDeleteControlledAzureResourceRequest(jobControl: WsmJobControl)
 
 final case class DeleteWsmResourceResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 
@@ -423,7 +428,7 @@ object WsmEncoders {
     Encoder.encodeString.contramap(x => x.toString)
   implicit val privateResourceUserEncoder: Encoder[PrivateResourceUser] =
     Encoder.forProduct2("userName", "privateResourceIamRole")(x => (x.userName.value, x.privateResourceIamRoles))
-  implicit val wsmCommonFieldsEncoder: Encoder[ControlledResourceCommonFields] =
+  implicit val wsmCommonFieldsEncoder: Encoder[InternalDaoControlledResourceCommonFields] =
     Encoder.forProduct7("name",
                         "description",
                         "cloningInstructions",
@@ -483,7 +488,7 @@ object WsmEncoders {
   implicit val createStorageContainerRequestEncoder: Encoder[CreateStorageContainerRequest] =
     Encoder.forProduct2("common", "azureStorageContainer")(x => (x.commonFields, x.storageContainerReq))
 
-  implicit val deleteControlledAzureResourceRequestEncoder: Encoder[DeleteControlledAzureResourceRequest] =
+  implicit val deleteControlledAzureResourceRequestEncoder: Encoder[WsmDaoDeleteControlledAzureResourceRequest] =
     Encoder.forProduct1("jobControl")(x => x.jobControl)
 }
 

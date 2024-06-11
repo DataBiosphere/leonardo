@@ -8,6 +8,10 @@ on:
   push:
     branches: [ develop ]
     paths-ignore: [ '**.md' ]
+  workflow_run:
+    workflows: [ automerge ]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       terra-env:
@@ -20,7 +24,7 @@ on:
         required: true
         default: 'develop'
         type: string
-  
+
 env:
   BEE_NAME: '${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt}}-gcp-dev'
   TOKEN: '${{ secrets.BROADBOT_TOKEN }}' # github token for access to kick off a job in the private repo
@@ -30,6 +34,12 @@ env:
   BEE_DESTROY_RUN_NAME: 'bee-destroy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   AZURE_SWAT_TESTS_RUN_NAME: 'azure-swat-tests-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
+concurrency:
+  # Don't run this workflow concurrently on the same branch
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # For PRs, don't wait for completion of existing runs, cancel them instead
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
 
   #
@@ -38,6 +48,7 @@ jobs:
 
   init-github-context:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
     # automation-branch: the git branch automation test application to be used, running on the gha runner
     # build-branch: the git branch to checkout to build a new app-version
@@ -55,6 +66,7 @@ jobs:
       relates-to-chart-releases: ${{ steps.prepare-outputs.outputs.relates-to-chart-releases }}
       notify-failure-channel: ${{ steps.prepare-outputs.outputs.notify-failure-channel }}
       test-env: ${{ steps.prepare-outputs.outputs.test-env }}
+      leo-test-command: ${{ steps.prepare-outputs.outputs.leo-test-command }}
     steps:
       - name: Get inputs and/or set defaults
         id: prepare-outputs
@@ -65,8 +77,10 @@ jobs:
           if ${{ github.ref_name == 'develop' }}; then
             echo 'test-context=dev-merge'                              >> $GITHUB_OUTPUT
             echo 'relates-to-chart-releases=leonardo-dev'              >> $GITHUB_OUTPUT
+            echo 'leo-test-command=testOnly -- -l ExcludeFromJenkins'  >> $GITHUB_OUTPUT
           else
             echo 'test-context=pr-test'                                >> $GITHUB_OUTPUT
+            echo 'leo-test-command=testOnly -- -l ExcludeFromJenkins -l ExcludeFromPRCommit'  >> $GITHUB_OUTPUT
           fi
           ENV=local
           if ${{ github.event_name == 'workflow_dispatch' }}; then
@@ -217,6 +231,8 @@ jobs:
           repo: DataBiosphere/leonardo
           ref: refs/heads/develop
           token: ${{ env.TOKEN }}
+          # this is not actually 85mins, the timeout is not working correctly and is summing from other jobs
+          wait-for-completion-timeout: 85m
           inputs: '{
             "terra-env": "${{ needs.init-github-context.outputs.test-env }}",
             "automation-branch": "${{ needs.init-github-context.outputs.automation-branch }}",
@@ -255,21 +271,19 @@ jobs:
           echo "TEST_REPORTING=$TEST_REPORTING" >> $GITHUB_ENV
 
       - name: dispatch to terra-github-workflows
-        env:
-          leo_test_command: "testOnly -- -l ExcludeFromJenkins"
         uses: broadinstitute/workflow-dispatch@v4.0.0
         with:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
           workflow: leonardo-swat-tests
           repo: broadinstitute/terra-github-workflows
           ref: refs/heads/main
-          wait-for-completion-timeout: 75m
+          wait-for-completion-timeout: 85m
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
               "run-name": "${{ env.LEO_SWAT_TESTS_RUN_NAME }}",
               "bee-name": "${{ env.BEE_NAME }}",
               "ENV": "${{ matrix.testing-env }}",
-              "sbt-test-command": "${{ env.leo_test_command }}",
+              "sbt-test-command": "${{ needs.init-github-context.outputs.leo-test-command }}",
               "java-version": "17",
               "ref": "${{ needs.init-github-context.outputs.automation-branch }}",
               "test-reporting": ${{ toJson(env.TEST_REPORTING) }}

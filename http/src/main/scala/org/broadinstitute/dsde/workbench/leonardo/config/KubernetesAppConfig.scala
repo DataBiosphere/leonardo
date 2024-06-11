@@ -135,7 +135,8 @@ final case class WorkflowsAppConfig(chartName: ChartName,
                                     instrumentationEnabled: Boolean,
                                     enabled: Boolean,
                                     dockstoreBaseUrl: URL,
-                                    chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                    chartVersionsToExcludeFromUpdates: List[ChartVersion],
+                                    ecmBaseUri: URL
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
@@ -152,7 +153,8 @@ final case class CromwellRunnerAppConfig(chartName: ChartName,
                                          services: List[ServiceConfig],
                                          instrumentationEnabled: Boolean,
                                          enabled: Boolean,
-                                         chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                         chartVersionsToExcludeFromUpdates: List[ChartVersion],
+                                         ecmBaseUri: URL
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)

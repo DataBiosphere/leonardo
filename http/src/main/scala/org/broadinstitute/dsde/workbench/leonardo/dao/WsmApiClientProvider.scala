@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import bio.terra.common.tracing.JerseyTracingFilter
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.client.ApiClient
 import bio.terra.workspace.model.{ResourceMetadata, State}
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.opencensus.trace.Tracing
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId, WsmControlledResourceId, WsmState}
 import org.broadinstitute.dsde.workbench.leonardo.util.WithSpanFilter
@@ -76,7 +74,6 @@ class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Asyn
           super.performAdditionalClientConfiguration(clientConfig)
           ctx.span.foreach { span =>
             clientConfig.register(new WithSpanFilter(span))
-            clientConfig.register(new JerseyTracingFilter(Tracing.getTracer))
           }
         }
       }

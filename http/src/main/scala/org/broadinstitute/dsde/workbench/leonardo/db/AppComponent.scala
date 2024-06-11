@@ -42,7 +42,8 @@ final case class AppRecord(id: AppId,
                            sourceWorkspaceId: Option[WorkspaceId],
                            numOfReplicas: Option[Int],
                            autodeleteThreshold: Option[Int],
-                           autodeleteEnabled: Boolean
+                           autodeleteEnabled: Boolean,
+                           autopilot: Option[Autopilot]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -72,6 +73,11 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def numOfReplicas = column[Option[Int]]("numOfReplicas", O.SqlType("SMALLINT"))
   def autodeleteThreshold = column[Option[Int]]("autodeleteThreshold")
   def autodeleteEnabled = column[Boolean]("autodeleteEnabled")
+  def autopilotEnabled = column[Boolean]("autopilotEnabled")
+  def computeClass = column[Option[ComputeClass]]("computeClass")
+  def cpu = column[Option[Int]]("cpu")
+  def memory = column[Option[Int]]("memory")
+  def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
 
   def * =
     (
@@ -95,8 +101,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       extraArgs,
       sourceWorkspaceId,
       numOfReplicas,
-      autodeleteThreshold,
-      autodeleteEnabled
+      (autodeleteThreshold, autodeleteEnabled),
+      (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage)
     ) <> ({
       case (
             id,
@@ -119,8 +125,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             extraArgs,
             sourceWorkspaceId,
             numOfReplicas,
-            autodeleteThreshold,
-            autodeleteEnabled
+            autoDelete,
+            autopilot
           ) =>
         AppRecord(
           id,
@@ -148,10 +154,22 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           extraArgs,
           sourceWorkspaceId,
           numOfReplicas,
-          autodeleteThreshold,
-          autodeleteEnabled
+          autoDelete._1,
+          autoDelete._2,
+          if (autopilot._1)
+            for {
+              computeClass <- autopilot._2
+              cpu <- autopilot._3
+              memory <- autopilot._4
+              ephemeralStorage <- autopilot._5
+            } yield Autopilot(computeClass, cpu, memory, ephemeralStorage)
+          else None
         )
     }, { r: AppRecord =>
+      val autopilotComputeClass = r.autopilot.map(_.computeClass)
+      val autopilotCpu = r.autopilot.map(_.cpuInMillicores)
+      val autopilotMemory = r.autopilot.map(_.memoryInGb)
+      val autopilotEphemeralStorage = r.autopilot.map(_.ephemeralStorageInGb)
       Some(
         (
           r.id,
@@ -178,8 +196,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.extraArgs,
           r.sourceWorkspaceId,
           r.numOfReplicas,
-          r.autodeleteThreshold,
-          r.autodeleteEnabled
+          (r.autodeleteThreshold, r.autodeleteEnabled),
+          (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage)
         )
       )
     })
@@ -220,7 +238,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.sourceWorkspaceId,
       app.numOfReplicas,
       app.autodeleteThreshold,
-      app.autodeleteEnabled
+      app.autodeleteEnabled,
+      app.autopilot
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -289,7 +308,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.sourceWorkspaceId,
         saveApp.app.numOfReplicas,
         saveApp.app.autodeleteThreshold,
-        saveApp.app.autodeleteEnabled
+        saveApp.app.autodeleteEnabled,
+        saveApp.app.autopilot
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
@@ -301,6 +321,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id)
       .map(_.status)
       .update(status)
+
+  def updateAutodeleteEnabled(id: AppId, autodeleteEnabled: Boolean): DBIO[Int] =
+    getByIdQuery(id).map(_.autodeleteEnabled).update(autodeleteEnabled)
+
+  def updateAutodeleteThreshold(id: AppId, autodeleteThreshold: Option[Int]): DBIO[Int] =
+    getByIdQuery(id).map(_.autodeleteThreshold).update(autodeleteThreshold)
 
   def markAsErrored(id: AppId): DBIO[Int] =
     getByIdQuery(id)
@@ -412,6 +438,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def getAppStatus(id: AppId): DBIO[Option[AppStatus]] =
     getByIdQuery(id).map(_.status).result.headOption
+
+  def getAppChart(id: AppId): DBIO[Option[Chart]] =
+    getByIdQuery(id).map(_.chart).result.headOption
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)

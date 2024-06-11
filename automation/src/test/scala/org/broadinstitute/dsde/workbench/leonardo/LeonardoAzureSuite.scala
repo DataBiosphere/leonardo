@@ -23,8 +23,8 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
   implicit val azureManagedAppCoordinates: AzureManagedAppCoordinates = AzureManagedAppCoordinates(
     UUID.fromString("fad90753-2022-4456-9b0a-c7e5b934e408"),
     UUID.fromString("f557c728-871d-408c-a28b-eb6b2141a087"),
-    "e2e-n6bgy8",
-    Some(UUID.fromString("9aa7e351-5448-4669-9f02-7e3466027c78"))
+    "e2e-xmx74y",
+    Some(UUID.fromString("997743f4-1bee-43af-90be-29ae0a47fdfc"))
   )
 
   override def withFixture(test: OneArgTest): Outcome = {
@@ -74,17 +74,7 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
     println(s"withRawlsWorkspace: Rawls workspace get called, response: ${response}")
 
-    try
-      testCode(response)
-    finally
-      try
-        Rawls.workspaces.delete(projectName.value, workspaceName)
-      catch {
-        case e: Throwable =>
-          println(
-            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: $e"
-          )
-      }
+    testCode(response)
   }
 
   private def workspaceResponse(projectName: String, workspaceName: String)(implicit

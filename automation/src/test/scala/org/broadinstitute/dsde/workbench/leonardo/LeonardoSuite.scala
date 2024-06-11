@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.apps.AppLifecycleSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
@@ -19,8 +20,14 @@ import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import java.time.LocalDateTime
 
-trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
+trait BillingProjectFixtureSpec
+    extends FixtureAnyFreeSpecLike
+    with Retries
+    with LazyLogging
+    with BeforeAndAfterEachTestData
+    with ParallelTestExecution {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -40,6 +47,18 @@ trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with
         else
           runTestAndCheckOutcome(GoogleProject(googleProjectId))
     }
+  }
+
+  override def beforeEach(testData: TestData): Unit = {
+    super.beforeEach(testData)
+    logger.info(
+      s"Start time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}"
+    )
+  }
+
+  override def afterEach(testData: TestData): Unit = {
+    super.afterEach(testData)
+    logger.info(s"End time for test ${testData.name} in suite ${getClass.getSimpleName}: ${LocalDateTime.now()}")
   }
 }
 object BillingProjectFixtureSpec {
@@ -134,7 +153,10 @@ trait BillingProjectUtils extends LeonardoTestUtils {
   }
 }
 
-trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
+trait NewBillingProjectAndWorkspaceBeforeAndAfterAll
+    extends BillingProjectUtils
+    with BeforeAndAfterAll
+    with ParallelTestExecution {
   this: TestSuite =>
 
   implicit val ronTestersonAuthorization: IO[Authorization] = Ron.authorization()
@@ -248,12 +270,11 @@ final class LeonardoSuite
       new RuntimeCreationDiskSpec,
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
-      new RuntimeSystemSpec,
+      new StandardRuntimeSpec,
       new RuntimeStatusTransitionsSpec,
-      new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec,
       new RuntimeDataprocSpec,
-      new RuntimeGceSpec
+      new RuntimeGceSpec,
+      new AppLifecycleSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
@@ -262,8 +283,9 @@ final class LeonardoSuite
 final class LeonardoTerraDockerSuite
     extends Suites(
       new NotebookHailSpec,
-      new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
+      new NotebookGCECustomizationSpec,
+      new NotebookGCEDataSyncingSpec,
       new RStudioSpec
     )
     with TestSuite

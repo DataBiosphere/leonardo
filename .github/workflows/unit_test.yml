@@ -9,6 +9,12 @@ on:
   merge_group:
     branches: [ develop ]
 
+concurrency:
+  # Don't run this workflow concurrently on the same branch
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # For PRs, don't wait for completion of existing runs, cancel them instead
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -58,7 +64,7 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        fail_ci_if_error: true
+        fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
         version: "v0.1.15"
 

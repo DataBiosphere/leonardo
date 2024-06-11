@@ -48,7 +48,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("/leonardo/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("2.8.1")
+  val galaxyChartVersion = ChartVersion("2.9.0")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -58,7 +58,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("cromwell-helm/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.449")
+  val coaChartVersion = ChartVersion("0.2.502")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -80,6 +80,7 @@ object KubernetesTestData {
     Map.empty,
     None,
     List.empty,
+    None,
     None,
     None,
     None,
@@ -124,6 +125,7 @@ object KubernetesTestData {
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
       extraArgs = List.empty,
+      None,
       None,
       None,
       None,
@@ -178,7 +180,7 @@ object KubernetesTestData {
   ): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueCloudContextAzure = CloudContext.Azure(
-      AzureCloudContext(tenantId = TenantId("tenant-id"),
+      AzureCloudContext(tenantId = TenantId("tenant-id" + index),
                         subscriptionId = SubscriptionId("sub-id"),
                         managedResourceGroupName = ManagedResourceGroupName("mrg-name")
       )
@@ -246,7 +248,8 @@ object KubernetesTestData {
       None,
       Some(1),
       Some(autodeleteThreshold),
-      autodeleteEnabled
+      autodeleteEnabled,
+      None
     )
   }
 

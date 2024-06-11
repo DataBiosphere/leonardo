@@ -9,11 +9,11 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
+import fs2.Pipe
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeComputeOperationFuture,
   FakeGoogleComputeService,
-  FakeGooglePublisher,
   FakeGoogleStorageInterpreter
 }
 import org.broadinstitute.dsde.workbench.google2.{
@@ -61,6 +61,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.Assertion
@@ -2636,7 +2637,13 @@ class RuntimeServiceInterpTest
   private def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)(
+
+    val mockCloudPublisher = mock[CloudPublisher[IO]]
+    def noOpPipe[A]: Pipe[IO, A, Unit] = _.evalMap(_ => IO.unit)
+    when(mockCloudPublisher.publish[LeoPubsubMessage](any)).thenReturn(noOpPipe)
+    when(mockCloudPublisher.publishOne[LeoPubsubMessage](any, any)(any, any)).thenReturn(IO.unit)
+
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, mockCloudPublisher)(
       implicitly,
       implicitly,
       implicitly,

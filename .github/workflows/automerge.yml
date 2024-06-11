@@ -17,6 +17,7 @@ jobs:
       - uses: "hmarr/auto-approve-action@v3"
         with:
           review-message: "This PR was automatically approved"
+
   automerge:
     runs-on: ubuntu-latest
     needs: auto-approve
@@ -33,3 +34,30 @@ jobs:
           UPDATE_RETRIES: 180 # Retry for 3 hours
           UPDATE_RETRY_SLEEP: 60000 # 60 seconds
           MERGE_REQUIRED_APPROVALS: 0
+          MERGE_ERROR_FAIL: true
+
+  init-github-context:
+    runs-on: ubuntu-latest
+    needs: auto-approve
+    outputs:
+      notify-failure-channel: ${{ steps.prepare-outputs.outputs.notify-failure-channel }}
+    steps:
+      - name: Match the PR to the corresponding team's slack notification channel
+        id: prepare-outputs
+        run: |
+          if ${{ contains(github.event.pull_request.title, 'WM-') }}; then
+            echo 'notify-failure-channel=dsp-workflows'                 >> $GITHUB_OUTPUT
+          elif ${{ contains(github.event.pull_request.title, 'WX-') }}; then
+            echo 'notify-failure-channel=dsp-workflows'                >> $GITHUB_OUTPUT
+          else ${{ contains(github.event.pull_request.title, 'AJ-') }};
+           echo 'notify-failure-channel=dsp-analysis-journeys'        >> $GITHUB_OUTPUT
+          fi
+
+  report-workflow:
+    uses: broadinstitute/sherlock/.github/workflows/client-report-workflow.yaml@main
+    needs: [ automerge, init-github-context ]
+    with:
+      notify-slack-channels-upon-workflow-failure: ${{ needs.init-github-context.outputs.notify-failure-channel }}
+    permissions:
+      id-token: 'write'
+

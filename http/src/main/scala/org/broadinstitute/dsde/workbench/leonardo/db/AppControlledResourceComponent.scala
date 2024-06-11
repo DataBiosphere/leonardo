@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import ca.mrvisser.sealerate
-import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
+import org.broadinstitute.dsde.workbench.leonardo.{AppId, WsmControlledResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -77,6 +77,14 @@ object appControlledResourceQuery extends TableQuery(new AppControlledResourceTa
     appControlledResourceQuery
       .filter(_.appId === appId)
       .filter(_.status inSet statuses)
+      .result
+      .map(_.toList)
+
+  def getAllForApp(appId: AppId)(implicit
+    ec: ExecutionContext
+  ): DBIO[List[AppControlledResourceRecord]] =
+    appControlledResourceQuery
+      .filter(_.appId === appId.id)
       .result
       .map(_.toList)
 

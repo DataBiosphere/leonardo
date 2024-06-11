@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, UserInfo}
 import org.scalatest.concurrent.ScalaFutures
@@ -47,35 +48,52 @@ class HttpRoutesSpec
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
 
+  def createGcpOnlyServicesRegistry() = {
+    val registry = ServicesRegistry()
+    registry.register[ProxyService](proxyService)
+    registry.register[RuntimeService[IO]](MockRuntimeServiceInterp)
+    registry.register[DiskService[IO]](MockDiskServiceInterp)
+    registry.register[ResourcesService[IO]](MockResourcesService)
+    registry
+  }
+
   val routes =
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
     )
 
+  val httpRoutesAzureOnly = new HttpRoutes(
+    openIdConnectionConfiguration,
+    statusService,
+    createGcpOnlyServicesRegistry(),
+    MockDiskV2ServiceInterp,
+    MockAppService,
+    new MockRuntimeV2Interp,
+    MockAdminServiceInterp,
+    timedUserInfoDirectives,
+    contentSecurityPolicy,
+    refererConfig,
+    true
+  )
+
   val routesWithStrictRefererConfig =
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -85,14 +103,11 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -102,14 +117,11 @@ class HttpRoutesSpec
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
+      createGcpOnlyServicesRegistry(),
       MockDiskV2ServiceInterp,
       MockAppService,
       new MockRuntimeV2Interp,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -685,6 +697,35 @@ class HttpRoutesSpec
     }
   }
 
+  it should "have expected azure routes when azure hosting mode is true" in {
+
+    val adminRoute = "/api/admin/v2/apps/update"
+    val appsV2Route = s"/api/apps/v2/${workspaceId.value.toString}/app1"
+    val diskV2Route = "/api/v2/disks/-1"
+    val runtimeV2Route = "/api/v2/runtimes"
+    val statusRoute = "/status"
+
+    Get(adminRoute) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(appsV2Route) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(diskV2Route) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(runtimeV2Route) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(statusRoute) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+  }
+
   "Kubernetes Routes" should "create an app" in {
     Post("/api/google/v1/apps/googleProject1/app1")
       .withEntity(ContentTypes.`application/json`, createAppRequest.asJson.spaces2) ~> routes.route ~> check {
@@ -913,37 +954,45 @@ class HttpRoutesSpec
     decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
   }
 
-  def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes =
+  def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes = {
+    val gcpOnlyServicesRegistry = ServicesRegistry()
+    gcpOnlyServicesRegistry.register[ProxyService](proxyService)
+    gcpOnlyServicesRegistry.register[RuntimeService[IO]](runtimeService)
+    gcpOnlyServicesRegistry.register[DiskService[IO]](MockDiskServiceInterp)
+    gcpOnlyServicesRegistry.register[ResourcesService[IO]](MockResourcesService)
+
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       MockAppService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
     )
+  }
 
-  def fakeRoutes(kubernetesService: AppService[IO]): HttpRoutes =
+  def fakeRoutes(kubernetesService: AppService[IO]): HttpRoutes = {
+    val gcpOnlyServicesRegistry = ServicesRegistry()
+    gcpOnlyServicesRegistry.register[ProxyService](proxyService)
+    gcpOnlyServicesRegistry.register[RuntimeService[IO]](runtimeService)
+    gcpOnlyServicesRegistry.register[DiskService[IO]](MockDiskServiceInterp)
+    gcpOnlyServicesRegistry.register[ResourcesService[IO]](MockResourcesService)
+
     new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
-      proxyService,
-      runtimeService,
-      MockDiskServiceInterp,
+      gcpOnlyServicesRegistry,
       MockDiskV2ServiceInterp,
       kubernetesService,
       runtimev2Service,
       MockAdminServiceInterp,
-      MockResourcesService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
     )
+  }
 }

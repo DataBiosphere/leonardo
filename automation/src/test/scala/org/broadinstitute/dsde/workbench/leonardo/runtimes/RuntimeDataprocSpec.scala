@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   StorageRole
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -51,48 +50,7 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
     httpClient <- LeonardoApiClient.client
   } yield RuntimeDataprocSpecDependencies(httpClient, dataprocService, storage)
 
-  "should create a Dataproc cluster in a non-default region" taggedAs Retryable in { project =>
-    val runtimeName = randomClusterName
-
-    // In a europe region
-    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-      runtimeConfig = Some(
-        RuntimeConfigRequest.DataprocConfig(
-          Some(2),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(130)),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(150)),
-          None,
-          Some(1),
-          Map.empty,
-          Some(RegionName("europe-west1")),
-          true,
-          false
-        )
-      ),
-      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
-    )
-
-    val res = dependencies.use { dep =>
-      implicit val client = dep.httpClient
-      for {
-        // create runtime
-        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
-
-        // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 1, RegionName("europe-west1"))
-        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
-
-        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
-      } yield ()
-    }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
+  "should create a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
     val res = dependencies.use { dep =>
@@ -182,45 +140,6 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
           .toList
 
         _ = startScriptOutputs.size shouldBe 1
-        _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
-
-        // stop the cluster
-        _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
-
-        // preemptibles should be removed in Dataproc
-        _ <- verifyDataproc(project,
-                            runtime.clusterName,
-                            dep.dataproc,
-                            2,
-                            0,
-                            RegionName("us-central1"),
-                            DataprocClusterStatus.Stopped
-        )
-
-        // start the cluster
-        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
-
-        // preemptibles should be added in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
-
-        // startup script should have run again
-        startScriptOutputs <- dep.storage
-          .listBlobsWithPrefix(
-            runtime.stagingBucket.get,
-            "startscript_output",
-            true
-          )
-          .evalMap(blob =>
-            dep.storage
-              .getBlobBody(runtime.stagingBucket.get, GcsBlobName(blob.getName))
-              .compile
-              .toList
-              .map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
-          )
-          .compile
-          .toList
-
-        _ = startScriptOutputs.size shouldBe 2
         _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)

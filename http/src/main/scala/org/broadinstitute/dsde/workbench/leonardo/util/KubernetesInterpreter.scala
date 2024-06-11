@@ -6,20 +6,13 @@ import cats.Show
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.auth.oauth2.GoogleCredentials
 import io.kubernetes.client.openapi.apis.CoreV1Api
 import io.kubernetes.client.openapi.models.{V1Namespace, V1NamespaceList, V1ObjectMeta}
 import io.kubernetes.client.util.Config
 import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContext, AzureContainerService}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.whenStatusCode
-import org.broadinstitute.dsde.workbench.google2.{
-  autoClosableResourceF,
-  recoverF,
-  GKEModels,
-  GKEService,
-  KubernetesClusterNotFoundException
-}
+import org.broadinstitute.dsde.workbench.google2.{autoClosableResourceF, recoverF}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.util2.withLogging
 import org.typelevel.log4cats.StructuredLogger
@@ -28,10 +21,7 @@ import java.io.ByteArrayInputStream
 import java.util.Base64
 import scala.jdk.CollectionConverters._
 
-class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F],
-                                  gkeService: GKEService[F],
-                                  credentials: GoogleCredentials
-)(implicit
+class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F])(implicit
   F: Async[F],
   logger: StructuredLogger[F]
 ) extends KubernetesAlgebra[F] {
@@ -43,22 +33,23 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
     client <- createClientInternal(credentials.token.value, credentials.certificate.value, credentials.server.value)
   } yield client
 
-  override def createGcpClient(clusterId: GKEModels.KubernetesClusterId)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CoreV1Api] = for {
-    ctx <- ev.ask
-    clusterOpt <- gkeService.getCluster(clusterId)
-    cluster <- F.fromEither(
-      clusterOpt.toRight(
-        KubernetesClusterNotFoundException(
-          s"Could not create client for cluster $clusterId because it does not exist in GCP. Trace ID: ${ctx.traceId.asString}"
-        )
-      )
-    )
-    _ <- F.blocking(credentials.refreshIfExpired())
-    token = credentials.getAccessToken.getTokenValue
-    client <- createClientInternal(token, cluster.getMasterAuth.getClusterCaCertificate, cluster.getEndpoint)
-  } yield client
+// Leave the implementation here in case later we'd like to converge this class with org.broadinstitute.dsde.workbench.google2.KubernetesService
+//  override def createGcpClient(clusterId: GKEModels.KubernetesClusterId)(implicit
+//    ev: Ask[F, AppContext]
+//  ): F[CoreV1Api] = for {
+//    ctx <- ev.ask
+//    clusterOpt <- gkeService.getCluster(clusterId)
+//    cluster <- F.fromEither(
+//      clusterOpt.toRight(
+//        KubernetesClusterNotFoundException(
+//          s"Could not create client for cluster $clusterId because it does not exist in GCP. Trace ID: ${ctx.traceId.asString}"
+//        )
+//      )
+//    )
+//    _ <- F.blocking(credentials.refreshIfExpired())
+//    token = credentials.getAccessToken.getTokenValue
+//    client <- createClientInternal(token, cluster.getMasterAuth.getClusterCaCertificate, cluster.getEndpoint)
+//  } yield client
 
   // The underlying http client for ApiClient claims that it releases idle threads and that shutdown is not necessary
   // Here is a guide on how to proactively release resource if this proves to be problematic https://square.github.io/okhttp/4.x/okhttp/okhttp3/-ok-http-client/#shutdown-isnt-necessary

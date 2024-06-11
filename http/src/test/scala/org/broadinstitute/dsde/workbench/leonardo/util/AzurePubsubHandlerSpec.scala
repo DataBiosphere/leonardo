@@ -3,6 +3,7 @@ package util
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, JobReport}
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.implicits._
@@ -10,13 +11,13 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService, ContainerName}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, _}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -27,7 +28,7 @@ import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.HelmException
 import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{times, verify, when}
+import org.mockito.Mockito.{spy, times, verify, when}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -49,6 +50,24 @@ class AzurePubsubHandlerSpec
     with Eventually
     with LeonardoTestSuite {
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
+
+  val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
+
+  it should "generate an Azure VM password properly" in {
+    // Test this with a short password to make sure that the while loop works properly
+    val password = AzurePubsubHandler.generateAzureVMSecurePassword(4)
+    password.length shouldBe 4
+    password.exists(_.isLower) shouldBe true
+    password.exists(_.isUpper) shouldBe true
+    password.exists(_.isDigit) shouldBe true
+    password.exists(IndexedSeq('!', '@', '#', '$', '&', '*', '?', '^', '(', ')').contains) shouldBe true
+  }
+
+  it should "not use the shared Azure VM credentials in prod" in {
+    val password = AzurePubsubHandler.getAzureVMSecurePassword("prod", "sharedPassword")
+    assert(password != "sharedPassword")
+    password.length shouldBe 25
+  }
 
   it should "create azure vm properly" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
@@ -334,6 +353,48 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "handle azure disk creation failure from wsm properly" in isolatedDbTest {
+    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azurePubsubHandler =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
+
+        _ <- azurePubsubHandler.createAndPollRuntime(msg)
+
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        } yield {
+          getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include("Wsm createDisk job failed due to")
+
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "fail to create azure vm if welder doesn't come up" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
     val ipReturn: PublicIpAddress = mock[PublicIpAddress]
@@ -400,36 +461,8 @@ class AzurePubsubHandlerSpec
     when {
       mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(landingZoneResources)
-    when {
-      mockWsmDao.getWorkspaceStorageContainer(WorkspaceId(any[UUID]), any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-    when {
-      mockWsmDao.deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(
-      GetDeleteJobResult(
-        WsmJobReport(
-          WsmJobId("job1"),
-          "desc",
-          WsmJobStatus.Succeeded,
-          200,
-          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-          "resultUrl"
-        ),
-        None
-      )
-    )
 
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao, wsmClient = mockWsm)
 
     val res =
       for {
@@ -451,9 +484,9 @@ class AzurePubsubHandlerSpec
           getRuntime = getRuntimeOpt.get
           controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
         } yield {
-          verify(mockWsmDao, times(1)).deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(
-            any[Ask[IO, AppContext]]
-          )
+          verify(mockControlledResourceApi, times(1)).deleteAzureStorageContainer(any, any, any)
+          verify(mockControlledResourceApi, times(1)).deleteAzureDisk(any, any, any)
+          verify(mockControlledResourceApi, times(1)).deleteAzureVm(any, any, any)
           getRuntime.status shouldBe RuntimeStatus.Deleted
           controlledResources.length shouldBe 3
         }
@@ -484,58 +517,15 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "poll on azure delete vm and disk " in isolatedDbTest {
+  it should "poll on azure delete vm and disk" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val mockWsmDao = mock[WsmDao[IO]]
     when {
       mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(landingZoneResources)
-    when {
-      mockWsmDao.getWorkspaceStorageContainer(WorkspaceId(any[UUID]), any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-    when {
-      mockWsmDao.deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.getDeleteDiskJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(
-      GetDeleteJobResult(
-        WsmJobReport(
-          WsmJobId("job1"),
-          "desc",
-          WsmJobStatus.Succeeded,
-          200,
-          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-          "resultUrl"
-        ),
-        None
-      )
-    )
-    when {
-      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(
-      GetDeleteJobResult(
-        WsmJobReport(
-          WsmJobId("job1"),
-          "desc",
-          WsmJobStatus.Succeeded,
-          200,
-          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-          "resultUrl"
-        ),
-        None
-      )
-    )
 
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val (mockWsm, mockControlledResourceApi, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao, wsmClient = mockWsm)
 
     val res =
       for {
@@ -557,12 +547,9 @@ class AzurePubsubHandlerSpec
           getRuntime = getRuntimeOpt.get
           controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
         } yield {
-          verify(mockWsmDao, times(1)).getDeleteDiskJobResult(any[GetJobResultRequest], any[Authorization])(
-            any[Ask[IO, AppContext]]
-          )
-          verify(mockWsmDao, times(1)).getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(
-            any[Ask[IO, AppContext]]
-          )
+          verify(mockControlledResourceApi, times(1)).getDeleteAzureDiskResult(any[UUID], any[String])
+          verify(mockControlledResourceApi, times(1)).getDeleteAzureVmResult(any[UUID], any[String])
+          verify(mockControlledResourceApi, times(1)).getDeleteAzureStorageContainerResult(any[UUID], any[String])
           getRuntime.status shouldBe RuntimeStatus.Deleted
           controlledResources.length shouldBe 3
         }
@@ -599,33 +586,9 @@ class AzurePubsubHandlerSpec
     when {
       mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(landingZoneResources)
-    when {
-      mockWsmDao.getWorkspaceStorageContainer(WorkspaceId(any[UUID]), any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-    when {
-      mockWsmDao.deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(
-      GetDeleteJobResult(
-        WsmJobReport(
-          WsmJobId("job1"),
-          "desc",
-          WsmJobStatus.Succeeded,
-          200,
-          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-          "resultUrl"
-        ),
-        None
-      )
-    )
+    val (mockWsm, mockControlledResourceApi, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
 
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao, wsmClient = mockWsm)
 
     val res =
       for {
@@ -650,8 +613,11 @@ class AzurePubsubHandlerSpec
           diskStatus = diskStatusOpt.get
           isAttached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
         } yield {
-          verify(mockWsmDao, times(1)).deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(
-            any[Ask[IO, AppContext]]
+          verify(mockControlledResourceApi, times(1)).getDeleteAzureStorageContainerResult(any[UUID], any[String])
+          verify(mockControlledResourceApi, times(1)).getDeleteAzureVmResult(any[UUID], any[String])
+          verify(mockControlledResourceApi, times(0)).deleteAzureDisk(any[DeleteControlledAzureResourceRequest],
+                                                                      any[UUID],
+                                                                      any[UUID]
           )
           getRuntime.status shouldBe RuntimeStatus.Deleted
           controlledResources.length shouldBe 2
@@ -681,7 +647,50 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "handle error in create azure vm async task properly" in isolatedDbTest {
+  it should "handle storage container creation error in async task properly" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val exceptionMsg = "storage container failed to create"
+    val (mockWsm, _, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId2, false, None, "WorkspaceName", billingProfileId)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.createAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle vm creation error in async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
@@ -824,14 +833,9 @@ class AzurePubsubHandlerSpec
   }
 
   it should "handle error in delete azure vm async task properly" in isolatedDbTest {
-    val exceptionMsg = "test exception"
     val queue = QueueFactory.asyncTaskQueue()
-    val wsm = new MockWsmDAO {
-      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetDeleteJobResult] = IO.raiseError(new Exception("test exception"))
-    }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
+    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -862,7 +866,7 @@ class AzurePubsubHandlerSpec
           error <- clusterErrorQuery.get(runtime.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
-          error.map(_.errorMessage).head should include(exceptionMsg)
+          error.map(_.errorMessage).head should include("WSM delete VM job failed due")
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -883,28 +887,10 @@ class AzurePubsubHandlerSpec
   }
 
   it should "fail if WSM delete VM job doesn't complete in time" in isolatedDbTest {
-    val exceptionMsg = "WSM delete VM job was not completed within 20 attempts with 1 second delay"
+    val exceptionMsg = "WSM delete VM job was not completed within"
     val queue = QueueFactory.asyncTaskQueue()
-    val wsm = new MockWsmDAO {
-      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetDeleteJobResult] =
-        IO.pure(
-          GetDeleteJobResult(
-            WsmJobReport(
-              request.jobId,
-              "desc",
-              WsmJobStatus.Running,
-              200,
-              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-              "resultUrl"
-            ),
-            None
-          )
-        )
-    }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
+    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.RUNNING)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -948,80 +934,6 @@ class AzurePubsubHandlerSpec
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
-
-        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-      } yield ()
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "fail to delete Azure Vm if WSM delete VM job fails" in isolatedDbTest {
-    val exceptionMsg = "WSM delete VM job failed due to unknown"
-    val queue = QueueFactory.asyncTaskQueue()
-    val wsm = new MockWsmDAO {
-      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetDeleteJobResult] =
-        IO.pure(
-          GetDeleteJobResult(
-            WsmJobReport(
-              request.jobId,
-              "desc",
-              WsmJobStatus.Failed,
-              200,
-              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-              "resultUrl"
-            ),
-            None // Some(WsmErrorReport("test error", 200, ))
-          )
-        )
-    }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
-
-    val res =
-      for {
-        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-
-        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       Some(disk.id),
-                                                       None
-        )
-        runtime = makeCluster(1)
-          .copy(
-            status = RuntimeStatus.Running,
-            cloudContext = CloudContext.Azure(azureCloudContext)
-          )
-          .saveWithRuntimeConfig(azureRuntimeConfig)
-
-        // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
-          .transaction
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
-          .transaction
-
-        assertions = for {
-          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-          getRuntime = getRuntimeOpt.get
-          error <- clusterErrorQuery.get(runtime.id).transaction
-        } yield {
-          getRuntime.status shouldBe RuntimeStatus.Error
-          error.map(_.errorMessage).head should include(exceptionMsg)
-        }
-
-        msg = DeleteAzureRuntimeMessage(runtime.id,
-                                        Some(disk.id),
-                                        workspaceId,
-                                        Some(wsmResourceId),
-                                        billingProfileId,
-                                        None
-        )
-
-        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- azureInterp.deleteAndPollRuntime(msg)
-
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
@@ -1030,26 +942,8 @@ class AzurePubsubHandlerSpec
 
   it should "update state correctly if WSM deleteDisk job fails during runtime deletion" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val wsm = new MockWsmDAO {
-      override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetDeleteJobResult] =
-        IO.pure(
-          GetDeleteJobResult(
-            WsmJobReport(
-              request.jobId,
-              "desc",
-              WsmJobStatus.Failed,
-              200,
-              ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-              Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-              "resultUrl"
-            ),
-            None // Some(WsmErrorReport("test error", 200, ))
-          )
-        )
-    }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
+    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -1083,9 +977,9 @@ class AzurePubsubHandlerSpec
         } yield {
           // VM must be deleted successfully for deleteDisk action to start
           // disk can then be deleted from the cloud environment page if desired
-          runtime.status shouldBe RuntimeStatus.Deleted
+          runtime.status shouldBe RuntimeStatus.Error
           getDisk.status shouldBe DiskStatus.Error
-          diskAttached shouldBe false
+          diskAttached shouldBe true
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -1105,15 +999,10 @@ class AzurePubsubHandlerSpec
   }
 
   it should "update runtime correctly when wsm deleteDisk call errors on runtime deletion" in isolatedDbTest {
-    val exceptionMsg = "test exception"
+    val exceptionMsg = "Wsm deleteDisk job failed due to"
     val queue = QueueFactory.asyncTaskQueue()
-    val wsm = new MockWsmDAO {
-      override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[Option[DeleteWsmResourceResult]] =
-        IO.raiseError(new Exception("test exception"))
-    }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = wsm)
+    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -1165,21 +1054,74 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "update runtime correctly when wsm deleteStorageContainer call errors on runtime deletion" in isolatedDbTest {
+    val exceptionMsg = "WSM storage container delete job failed due to"
+    val queue = QueueFactory.asyncTaskQueue()
+    val (mockWsm, _, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(2)
+          .copy(
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDatabase)
+          .transaction
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
+          .transaction
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureStorageContainer)
+          .transaction
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          getRuntime.auditInfo.destroyedDate shouldBe None
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+
+        msg = DeleteAzureRuntimeMessage(runtime.id,
+                                        Some(disk.id),
+                                        workspaceId,
+                                        Some(wsmResourceId),
+                                        billingProfileId,
+                                        None
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azureInterp.deleteAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "start azure vm" in isolatedDbTest {
     // Set up virtual machine mock.
-    val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.STOPPED)
-
-    val passAzureVmService = new FakeAzureVmService {
-      override def startAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
-    }
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.DEALLOCATED)
 
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
 
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
@@ -1207,15 +1149,85 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail on startAzureVm - Azure runtime starting error" in isolatedDbTest {
-    val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.STOPPED)
+  it should "start azure vm - in starting status" in isolatedDbTest {
+    // Set up virtual machine mock.
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.STARTING)
 
-    val failAzureVmService = new FakeAzureVmService {
-      override def startAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.none
-    }
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield getRuntime.status shouldBe RuntimeStatus.Running
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "start azure vm - no-op if already running " in isolatedDbTest {
+    val vmName = "RunningRuntime"
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.RUNNING)
+
+    val spyAzureVmService = spy(fakeAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield {
+        verify(spyAzureVmService, times(0)).startAzureVm(InstanceName(vmName), azureCloudContext)
+        getRuntime.status shouldBe RuntimeStatus.Running
+      }
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on startAzureVm - Azure runtime starting error" in isolatedDbTest {
+
+    val failAzureVmService = AzureTestUtils.setupFakeAzureVmService(startVm = false, vmState = PowerState.DEALLOCATED)
 
     val queue = QueueFactory.asyncTaskQueue()
 
@@ -1243,21 +1255,16 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "stop azure vm" in isolatedDbTest {
-    val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+  it should "fail on startAzureVm - Azure vm in an unstartable status" in isolatedDbTest {
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.UNKNOWN)
 
-    val passAzureVmService = new FakeAzureVmService {
-      override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
-        ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
-    }
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = passAzureVmService)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
 
     val res = for {
+      ctx <- appContext.ask[AppContext]
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      Some(disk.id),
@@ -1266,6 +1273,56 @@ class AzurePubsubHandlerSpec
       runtime = makeCluster(1)
         .copy(
           cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      startResult <- azureInterp.startAndMonitorRuntime(runtime, azureCloudContext).attempt
+
+    } yield startResult shouldBe Left(
+      AzureRuntimeStartingError(
+        runtime.id,
+        s"Runtime ${runtime.runtimeName.asString} cannot be started in a ${PowerState.UNKNOWN.toString} state, starting runtime request failed",
+        ctx.traceId
+      )
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "stop azure vm" in isolatedDbTest {
+    val vmName = "RunningRuntime"
+    val vmReturn = mock[VirtualMachine]
+    when(vmReturn.powerState())
+      .thenReturn(PowerState.RUNNING)
+      .thenReturn(PowerState.DEALLOCATED)
+
+    val passAzureVmService = new FakeAzureVmService {
+      override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
+
+      override def getAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[VirtualMachine]] = IO.some(vmReturn)
+    }
+
+    val spyAzureVmService = spy(passAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = spyAzureVmService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
@@ -1283,16 +1340,105 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail on stopAzureVm - Azure runtime stopping error" in isolatedDbTest {
-    // Set up virtual machine mock.
+  it should "stop azure vm - in stopping status" in isolatedDbTest {
+    val vmName = "StoppingRuntime"
     val vmReturn = mock[VirtualMachine]
-    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+    when(vmReturn.powerState())
+      .thenReturn(PowerState.DEALLOCATING)
+      .thenReturn(PowerState.DEALLOCATED)
 
-    val failAzureVmService = new FakeAzureVmService {
+    val passAzureVmService = new FakeAzureVmService {
       override def stopAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
         ev: Ask[IO, TraceId]
-      ): IO[Option[Mono[Void]]] = IO.none
+      ): IO[Option[Mono[Void]]] = IO.some(Mono.empty[Void]())
+
+      override def getAzureVm(name: InstanceName, cloudContext: AzureCloudContext)(implicit
+        ev: Ask[IO, TraceId]
+      ): IO[Option[VirtualMachine]] = IO.some(vmReturn)
     }
+
+    val spyAzureVmService = spy(passAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = spyAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield {
+        verify(spyAzureVmService, times(0)).stopAzureVm(InstanceName(vmName), azureCloudContext)
+        getRuntime.status shouldBe RuntimeStatus.Stopped
+      }
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "stop azure vm - no-op if already stopped" in isolatedDbTest {
+    val vmName = "StoppedRuntime"
+
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.STOPPED)
+
+    val spyAzureVmService = spy(fakeAzureVmService)
+
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = spyAzureVmService)
+
+    val res = for {
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext),
+          runtimeName = RuntimeName(vmName)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      assertions = for {
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+      } yield {
+        verify(spyAzureVmService, times(0)).stopAzureVm(InstanceName(vmName), azureCloudContext)
+        getRuntime.status shouldBe RuntimeStatus.Stopped
+      }
+
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+
+    } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on stopAzureVm - Azure runtime stopping error" in isolatedDbTest {
+    val failAzureVmService = AzureTestUtils.setupFakeAzureVmService(stopVm = false)
+
     val queue = QueueFactory.asyncTaskQueue()
 
     val azureInterp =
@@ -1315,6 +1461,38 @@ class AzurePubsubHandlerSpec
 
     } yield stopResult shouldBe Left(
       AzureRuntimeStoppingError(runtime.id, s"Stopping runtime ${runtime.id} request to Azure failed.", ctx.traceId)
+    )
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail on stopAzureVm - Azure runtime not in stoppable status" in isolatedDbTest {
+    val fakeAzureVmService = AzureTestUtils.setupFakeAzureVmService(vmState = PowerState.UNKNOWN)
+    val queue = QueueFactory.asyncTaskQueue()
+
+    val azureInterp =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, azureVmService = fakeAzureVmService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     Some(disk.id),
+                                                     None
+      )
+      runtime = makeCluster(1)
+        .copy(
+          cloudContext = CloudContext.Azure(azureCloudContext)
+        )
+        .saveWithRuntimeConfig(azureRuntimeConfig)
+
+      stopResult <- azureInterp.stopAndMonitorRuntime(runtime, azureCloudContext).attempt
+
+    } yield stopResult shouldBe Left(
+      AzureRuntimeStoppingError(
+        runtime.id,
+        s"Runtime ${runtime.runtimeName.asString} cannot be stopped in a ${PowerState.UNKNOWN.toString} state, stopping runtime request failed",
+        ctx.traceId
+      )
     )
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1427,40 +1605,11 @@ class AzurePubsubHandlerSpec
 
   it should "not send delete to WSM without a disk record" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val mockWsmDao = mock[WsmDao[IO]]
-    when {
-      mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(landingZoneResources)
-    when {
-      mockWsmDao.getWorkspaceStorageContainer(WorkspaceId(any[UUID]), any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-    when {
-      mockWsmDao.deleteStorageContainer(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteVm(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(None)
-    when {
-      mockWsmDao.getDeleteVmJobResult(any[GetJobResultRequest], any[Authorization])(any[Ask[IO, AppContext]])
-    } thenReturn IO.pure(
-      GetDeleteJobResult(
-        WsmJobReport(
-          WsmJobId("job1"),
-          "desc",
-          WsmJobStatus.Succeeded,
-          200,
-          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-          "resultUrl"
-        ),
-        None
-      )
-    )
 
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val (mockWsm, mockControlledResourceApi, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -1481,10 +1630,10 @@ class AzurePubsubHandlerSpec
           diskStatusOpt <- persistentDiskQuery.getStatus(disk.id).transaction
           diskStatus = diskStatusOpt.get
         } yield {
-          verify(mockWsmDao, times(0)).deleteDisk(any[DeleteWsmResourceRequest], any[Authorization])(
-            any[Ask[IO, AppContext]]
+          verify(mockControlledResourceApi, times(0)).deleteAzureDisk(any[DeleteControlledAzureResourceRequest],
+                                                                      any[UUID],
+                                                                      any[UUID]
           )
-
           diskStatus shouldBe DiskStatus.Deleted
         }
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -1508,7 +1657,8 @@ class AzurePubsubHandlerSpec
                              wsmDAO: WsmDao[IO] = new MockWsmDAO,
                              welderDao: WelderDAO[IO] = new MockWelderDAO(),
                              azureVmService: AzureVmService[IO] = FakeAzureVmService,
-                             aksAlg: AKSAlgebra[IO] = new MockAKSInterp
+                             aksAlg: AKSAlgebra[IO] = new MockAKSInterp,
+                             wsmClient: WsmApiClientProvider[IO] = mockWsm
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -1517,6 +1667,7 @@ class AzurePubsubHandlerSpec
                             Paths.get("x.y"),
                             WorkbenchEmail("z@x.y"),
                             new URL("https://leonardo.foo.broadinstitute.org"),
+                            "dev",
                             0L
       ),
       contentSecurityPolicy,
@@ -1528,7 +1679,8 @@ class AzurePubsubHandlerSpec
       relayService,
       azureVmService,
       aksAlg,
-      refererConfig
+      refererConfig,
+      wsmClient
     )
 
 }

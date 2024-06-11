@@ -1,6 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
+import bio.terra.workspace.client.ApiException
+import bio.terra.workspace.model.WorkspaceDescription
 import cats.effect.IO
 import cats.effect.Ref
 import cats.effect.unsafe.implicits.global
@@ -37,10 +40,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   AccessScope,
   CloningInstructions,
-  ControlledResourceCommonFields,
   ControlledResourceDescription,
   ControlledResourceIamRole,
   ControlledResourceName,
+  InternalDaoControlledResourceCommonFields,
   ManagedBy,
   MockSamDAO,
   PrivateResourceUser
@@ -53,13 +56,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.model._
-import org.broadinstitute.dsde.workbench.model.google.{
-  GoogleProject,
-  ServiceAccountKey,
-  ServiceAccountKeyId,
-  ServiceAccountPrivateKeyData,
-  _
-}
+import org.broadinstitute.dsde.workbench.model.google._
 
 import java.nio.file.Paths
 import java.time.Instant
@@ -529,6 +526,9 @@ object CommonTestData {
   val workspaceId = WorkspaceId(UUID.randomUUID())
   val workspaceCreatedDate = java.time.OffsetDateTime.parse("1970-01-01T12:15:30-07:00")
   val workspaceIdForCloning = WorkspaceId(UUID.randomUUID())
+  val workspaceIdForUpdating = WorkspaceId(UUID.randomUUID())
+  val cbasUuidForUpdateApp = java.util.UUID.randomUUID()
+  val cromwellmetadataUuidForUpdateApp = java.util.UUID.randomUUID()
   val workspaceIdForAppCreation = WorkspaceId(UUID.randomUUID())
   val workspaceIdOpt = Some(workspaceId)
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
@@ -537,8 +537,9 @@ object CommonTestData {
   val wsmResourceIdOpt = Some(wsmResourceId)
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
   val billingProfileId = BillingProfileId("spend-profile")
+  val wsmWorkspaceDesc = new WorkspaceDescription().id(workspaceId.value).spendProfile("spendProfile")
 
-  val testCommonControlledResourceFields = ControlledResourceCommonFields(
+  val testCommonControlledResourceFields = InternalDaoControlledResourceCommonFields(
     ControlledResourceName("name"),
     ControlledResourceDescription("desc"),
     CloningInstructions.Nothing,
@@ -589,4 +590,8 @@ object CommonTestData {
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath =
     parseGcsPath(str).right.get
+}
+class TestException(message: String = "Test error", statusCode: StatusCode = StatusCodes.NotFound)
+    extends ApiException {
+  override def getCode: Int = statusCode.intValue
 }

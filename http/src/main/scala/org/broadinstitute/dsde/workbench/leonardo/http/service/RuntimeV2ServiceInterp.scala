@@ -332,10 +332,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       diskIdToDeleteOpt <-
         if (deleteDisk) for {
           // check if disk is deletable in WSM if disk is being deleted
-          diskOpt <- persistentDiskQuery.getActiveById(diskId).transaction
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundByIdException(diskId, ctx.traceId)))(F.pure)
-          diskIdToDelete <- disk.wsmResourceId match {
-            case Some(wsmResourceId) =>
+          diskIdToDelete <-
+            if (disk.wsmResourceId.isDefined && disk.status.isDeletable) {
               for {
                 wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
                                                           workspaceId,
@@ -347,11 +347,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                     DiskCannotBeDeletedWsmException(disk.id, wsmState, disk.cloudContext, ctx.traceId)
                   )
                 _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
-              } yield if (wsmState.isDeleted) F.pure(none[DiskId]) else Some(diskId)
-            // if disk hasn't been created in WSM, don't pass id to back leo
-            case None => F.pure(none[DiskId])
-          }
-        } yield Some(diskId)
+              } yield if (wsmState.isDeleted) None else Some(diskId)
+            } else F.pure(none[DiskId])
+        } yield diskIdToDelete
         else F.pure(none[DiskId])
 
       // only pass wsmResourceId if vm isn't already deleted in WSM

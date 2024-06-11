@@ -53,7 +53,8 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
 import org.http4s.Uri
-
+import org.broadinstitute.dsde.workbench.leonardo.Autopilot
+import com.google.api.services.container.model.WorkloadPolicyConfig
 import java.net.URL
 import java.util.Base64
 import scala.concurrent.ExecutionContext
@@ -92,7 +93,11 @@ class GKEInterpreter[F[_]](
 
   override def createCluster(params: CreateClusterParams)(implicit
     ev: Ask[F, AppContext]
-  ): F[Option[CreateClusterResult]] =
+  ): F[Option[CreateClusterResult]] = {
+    val autopilot = new com.google.api.services.container.model.Autopilot().setEnabled(params.autopilot)
+    if (params.autopilot)
+      autopilot.setWorkloadPolicyConfig(new WorkloadPolicyConfig().setAllowNetAdmin(true))
+
     for {
       ctx <- ev.ask
 
@@ -111,9 +116,12 @@ class GKEInterpreter[F[_]](
 
       // Get nodepools to pass in the create cluster request
       projectLabels <- googleResourceService.getLabels(params.googleProject)
-      nodepools = dbCluster.nodepools
-        .filter(n => params.nodepoolsToCreate.contains(n.id))
-        .map(np => buildLegacyGoogleNodepool(np, params.googleProject, projectLabels))
+      nodepools =
+        if (params.autopilot) List.empty
+        else
+          dbCluster.nodepools
+            .filter(n => params.nodepoolsToCreate.contains(n.id))
+            .map(np => buildLegacyGoogleNodepool(np, params.googleProject, projectLabels))
 
       _ <-
         if (nodepools.size != params.nodepoolsToCreate.size)
@@ -139,17 +147,28 @@ class GKEInterpreter[F[_]](
 
       networkConfig = new com.google.api.services.container.model.NetworkConfig()
         .setEnableIntraNodeVisibility(params.enableIntraNodeVisibility)
+
+      networkTag = new com.google.api.services.container.model.NetworkTags()
+        .setTags(List(config.vpcNetworkTag.value).asJava)
+      nodepoolConfig = new com.google.api.services.container.model.NodePoolAutoConfig().setNetworkTags(networkTag)
+      networkPolicy =
+        if (params.autopilot) null else new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
+
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
         .setInitialClusterVersion(config.clusterConfig.version.value)
         .setNodePools(nodepools.asJava)
+        .setAutopilot(
+          autopilot
+        )
+        .setNodePoolAutoConfig(nodepoolConfig)
         .setLegacyAbac(new com.google.api.services.container.model.LegacyAbac().setEnabled(false))
         .setNetwork(kubeNetwork.idString)
         .setSubnetwork(kubeSubNetwork.idString)
         .setResourceLabels(Map("leonardo" -> "true").asJava)
         .setNetworkConfig(networkConfig)
         .setNetworkPolicy(
-          new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
+          networkPolicy
         )
         .setMasterAuthorizedNetworksConfig(
           new com.google.api.services.container.model.MasterAuthorizedNetworksConfig()
@@ -168,18 +187,18 @@ class GKEInterpreter[F[_]](
           new com.google.api.services.container.model.WorkloadIdentityConfig()
             .setWorkloadPool(s"${params.googleProject.value}.svc.id.goog")
         )
-
+      location =
+        if (params.autopilot) org.broadinstitute.dsde.workbench.google2.Location(dbCluster.region.value)
+        else dbCluster.location
       // Submit request to GKE
-      req = KubernetesCreateClusterRequest(googleProject, dbCluster.location, legacyCreateClusterRec)
+      req = KubernetesCreateClusterRequest(googleProject, location, legacyCreateClusterRec)
       // the Operation will be none if we get a 409, indicating we have already created this cluster
       operationOpt <- gkeService.createCluster(req)
 
     } yield operationOpt.map(op =>
-      CreateClusterResult(KubernetesOperationId(googleProject, dbCluster.location, op.getName),
-                          kubeNetwork,
-                          kubeSubNetwork
-      )
+      CreateClusterResult(KubernetesOperationId(googleProject, location, op.getName), kubeNetwork, kubeSubNetwork)
     )
+  }
 
   override def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -245,7 +264,7 @@ class GKEInterpreter[F[_]](
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
       ipRange <- F.fromOption(Config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
-                              new RegionNotSupportedException(dbCluster.region, ctx.traceId)
+                              RegionNotSupportedException(dbCluster.region, ctx.traceId)
       )
 
       _ <- kubernetesClusterQuery
@@ -327,7 +346,6 @@ class GKEInterpreter[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-
       // Grab records from the database
       dbAppOpt <- KubernetesServiceDbQueries
         .getActiveFullAppByName(CloudContext.Gcp(params.googleProject), params.appName)
@@ -339,7 +357,6 @@ class GKEInterpreter[F[_]](
                                                  "No active app found in DB"
                             )
       )
-
       app = dbApp.app
       namespaceName = app.appResources.namespace
       dbCluster = dbApp.cluster
@@ -427,6 +444,7 @@ class GKEInterpreter[F[_]](
         case _: AppRestore.Other         => None
       }
 
+      nodepool = if (app.autopilot.isDefined) None else Some(dbApp.nodepool.nodepoolName)
       // helm install and wait
       _ <- app.appType match {
         case AppType.Galaxy =>
@@ -444,7 +462,7 @@ class GKEInterpreter[F[_]](
               app.release,
               app.chart,
               dbCluster,
-              dbApp.nodepool.nodepoolName,
+              dbApp.nodepool.nodepoolName, // https://broadworkbench.atlassian.net/browse/IA-4987
               namespaceName,
               app.auditInfo.creator,
               app.customEnvironmentVariables,
@@ -460,7 +478,7 @@ class GKEInterpreter[F[_]](
             app.appName,
             app.release,
             dbCluster,
-            dbApp.nodepool.nodepoolName,
+            nodepool,
             namespaceName,
             nfsDisk,
             ksaName,
@@ -475,13 +493,14 @@ class GKEInterpreter[F[_]](
             app.release,
             app.chart,
             dbCluster,
-            dbApp.nodepool.nodepoolName,
+            nodepool,
             namespaceName,
             nfsDisk,
             ksaName,
             gsa,
             app.auditInfo.creator,
-            app.customEnvironmentVariables
+            app.customEnvironmentVariables,
+            app.autopilot
           )
         case AppType.Custom =>
           installCustomApp(
@@ -490,7 +509,7 @@ class GKEInterpreter[F[_]](
             app.release,
             dbCluster,
             googleCluster,
-            dbApp.nodepool.nodepoolName,
+            nodepool,
             namespaceName,
             nfsDisk,
             app.descriptorPath,
@@ -608,8 +627,8 @@ class GKEInterpreter[F[_]](
         googleClusterOpt,
         AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
       )
-
-      (chartOverrideValues, appOk) <- app.appType match {
+      nodepool = if (app.autopilot.isDefined) None else Some(dbApp.nodepool.nodepoolName)
+      chartOverridesAndAppOkF = app.appType match {
         case AppType.Galaxy =>
           for {
 
@@ -638,9 +657,7 @@ class GKEInterpreter[F[_]](
               .flatMap(opt =>
                 F.fromOption(
                   opt,
-                  new AppUpdateException(s"Unknown machine type for ${machineTypeName.value}",
-                                         traceId = Some(ctx.traceId)
-                  )
+                  AppUpdateException(s"Unknown machine type for ${machineTypeName.value}", traceId = Some(ctx.traceId))
                 )
               )
 
@@ -684,7 +701,7 @@ class GKEInterpreter[F[_]](
               config,
               app.appName,
               dbCluster,
-              nodepoolName,
+              nodepool,
               namespaceName,
               nfsDisk,
               ksaName,
@@ -711,13 +728,14 @@ class GKEInterpreter[F[_]](
               allowedChart,
               app.appName,
               dbCluster,
-              nodepoolName,
+              nodepool,
               namespaceName,
               nfsDisk,
               ksaName,
               userEmail,
               stagingBucketName,
-              app.customEnvironmentVariables
+              app.customEnvironmentVariables,
+              app.autopilot
             )
 
             last <- streamFUntilDone(
@@ -746,7 +764,7 @@ class GKEInterpreter[F[_]](
               config,
               params.appName,
               app.release,
-              nodepoolName,
+              nodepool,
               serviceName,
               dbCluster,
               namespaceName,
@@ -766,11 +784,31 @@ class GKEInterpreter[F[_]](
             ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
 
           } yield (chartValues, last)
-        case _ => F.raiseError(AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId)))
+        case _ =>
+          F.raiseError[(String, Boolean)](
+            AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId))
+          )
       }
+
+      (chartOverrideValues, preUpdateAppOk) <- chartOverridesAndAppOkF
 
       // Authenticate helm client
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+
+      // Fail if apps are not live before update attempt
+      _ <-
+        if (preUpdateAppOk)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdatePollingException(
+              s"App ${params.appName.value} is not live in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}, failing prior to upgrade attempt",
+              Some(ctx.traceId)
+            )
+          )
+
+      // Change app status to updating
+      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
 
       // Upgrade app chart version and explicitly pass the values
       _ <- helmClient
@@ -782,13 +820,14 @@ class GKEInterpreter[F[_]](
         )
         .run(helmAuthContext)
 
-      // Fail if apps are not live
+      // Fail if apps are not live after update attempt
+      (_, postUpdateAppOk) <- chartOverridesAndAppOkF
       _ <-
-        if (appOk)
+        if (postUpdateAppOk)
           F.unit
         else
           F.raiseError[Unit](
-            AppUpdateException(
+            AppUpdatePollingException(
               s"App ${params.appName.value} failed to update in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}",
               Some(ctx.traceId)
             )
@@ -995,6 +1034,7 @@ class GKEInterpreter[F[_]](
           _ <- kubeService.deletePv(dbCluster.getClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
         } yield ()
       }
+
       _ <-
         if (!params.errorAfterDelete) {
           F.unit
@@ -1393,7 +1433,7 @@ class GKEInterpreter[F[_]](
     appName: AppName,
     release: Release,
     cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
+    nodepoolName: Option[NodepoolName],
     namespaceName: NamespaceName,
     disk: PersistentDisk,
     ksaName: ServiceAccountName,
@@ -1472,19 +1512,20 @@ class GKEInterpreter[F[_]](
     release: Release,
     chart: Chart,
     cluster: KubernetesCluster,
-    nodepoolName: NodepoolName,
+    nodepoolName: Option[NodepoolName],
     namespaceName: NamespaceName,
     disk: PersistentDisk,
     ksaName: ServiceAccountName,
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail,
-    customEnvironmentVariables: Map[String, String]
+    customEnvironmentVariables: Map[String, String],
+    autopilot: Option[Autopilot]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart for RStudio app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+        s"Installing helm chart for Allowed app ${appName.value} in cluster ${cluster.getClusterId.toString}"
       )
 
       googleProject <- F.fromOption(
@@ -1493,7 +1534,7 @@ class GKEInterpreter[F[_]](
       )
 
       // Create the staging bucket to be used by Welder
-      stagingBucketName = generateUniqueBucketName("leostaging-" + appName.value)
+      stagingBucketName = buildAppStagingBucketName(disk.name)
 
       _ <- bucketHelper
         .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
@@ -1515,7 +1556,8 @@ class GKEInterpreter[F[_]](
                                                              ksaName,
                                                              userEmail,
                                                              stagingBucketName,
-                                                             customEnvironmentVariables
+                                                             customEnvironmentVariables,
+                                                             autopilot
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
@@ -1562,7 +1604,7 @@ class GKEInterpreter[F[_]](
                                      release: Release,
                                      dbCluster: KubernetesCluster,
                                      googleCluster: Cluster,
-                                     nodepoolName: NodepoolName,
+                                     nodepoolName: Option[NodepoolName],
                                      namespaceName: NamespaceName,
                                      disk: PersistentDisk,
                                      descriptorOpt: Option[Uri],
@@ -1990,6 +2032,13 @@ final case class AppStartException(message: String) extends AppProcessingExcepti
 }
 
 final case class AppUpdateException(message: String, traceId: Option[TraceId] = None) extends AppProcessingException {
+  override def getMessage: String = message
+}
+
+// This should only be used in exactly one place, when polling after an app update call. Using this will signal to pubsub processing to transition app to error state
+// Any other exception besides a `HelmException` during app upgrades will result in an error being saved to the db, but NOT an `ERROR` state app to preserve usage
+final case class AppUpdatePollingException(message: String, traceId: Option[TraceId] = None)
+    extends AppProcessingException {
   override def getMessage: String = message
 }
 

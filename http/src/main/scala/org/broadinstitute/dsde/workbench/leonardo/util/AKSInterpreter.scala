@@ -35,6 +35,7 @@ import java.net.URL
 import java.util.{Base64, UUID}
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
+import scala.util.Try
 
 class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            helmClient: HelmAlgebra[F],
@@ -178,10 +179,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
-      // get workspaceDescription from WSM
-      wsmWorkspaceApi <- buildWsmWorkspaceApiClient
-      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, params.workspaceId.value)
-
       // Create relay hybrid connection pool
       // TODO: make into a WSM resource
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${params.workspaceId.value}")
@@ -235,7 +232,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         params.workspaceId,
-        workspaceDescription.getCreatedDate,
         params.cloudContext,
         landingZoneResources,
         storageContainerOpt,
@@ -263,16 +259,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       appOk <- childSpan("pollAppCreation").use { implicit ev =>
         pollAppCreation(app.auditInfo.creator, relayPath, app.appType)
       }
-      _ <-
-        if (appOk)
-          F.unit
-        else
-          F.raiseError[Unit](
-            AppCreationException(
-              s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
-              Some(ctx.traceId)
-            )
-          )
+      _ <- F.raiseWhen(!appOk)(
+        AppCreationException(
+          s"App ${params.appName.value} failed to start in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
+          Some(ctx.traceId)
+        )
+      )
 
       // Populate async fields in the KUBERNETES_CLUSTER table.
       // For Azure we don't need each field, but we do need the relay https endpoint.
@@ -365,20 +357,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         F.blocking(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
       }
 
-      // Call WSM to get the list of databases for the app.
-      wsmDatabases <- appControlledResourceQuery
-        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
-        .transaction
-      wsmDatabases <- wsmDatabases.traverse { wsmDatabase =>
-        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, wsmDatabase.resourceId.value))
-          .map(db =>
-            WsmControlledDatabaseResource(db.getMetadata.getName,
-                                          db.getAttributes.getDatabaseName,
-                                          db.getMetadata.getResourceId
-            )
-          )
-      }
-
       wsmResourceApi <- buildWsmResourceApiClient
 
       // create any missing AppControlledResources
@@ -389,6 +367,21 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         landingZoneResources,
         wsmResourceApi
       )
+
+      // get list of APP_CONTROLLED_RESOURCES
+      controlledDatabases <- appControlledResourceQuery
+        .getAllForAppByType(app.id.id, WsmResourceType.AzureDatabase)
+        .transaction
+      // Call WSM to get more info about each database (by resourceId) that exists in APP_CONTROLLED_RESOURCE
+      wsmDatabases <- controlledDatabases.traverse { controlledDatabase =>
+        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, controlledDatabase.resourceId.value))
+          .map(db =>
+            WsmControlledDatabaseResource(db.getMetadata.getName,
+                                          db.getAttributes.getDatabaseName,
+                                          db.getMetadata.getResourceId
+            )
+          )
+      }
 
       // call WSM resource API to get list of ReferenceDatabases
       referenceDatabaseNames = app.appType.databases.collect { case ReferenceDatabase(name) => name }.toSet
@@ -407,10 +400,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       wsmNamespace <- F.fromOption(wsmNamespaceOpt,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
       )
-
-      // get workspaceDescription from WSM
-      wsmWorkspaceApi <- buildWsmWorkspaceApiClient
-      workspaceDescription <- getWorkspaceDescription(wsmWorkspaceApi, workspaceId.value)
 
       // The k8s namespace name and service account name are in the WSM response
       namespaceName = NamespaceName(wsmNamespace.getAttributes.getKubernetesNamespace)
@@ -441,6 +430,25 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                         namespaceName
       )
 
+      // Check if the app is alive before attempting to update. We transition the app to error status if this fails
+      isAppAlive <- childSpan("isAppAlive").use { implicit ev =>
+        isAppAlive(app.auditInfo.creator, relayPath, app.appType)
+      }
+      _ <-
+        if (isAppAlive)
+          F.unit
+        else
+          F.raiseError[Unit](
+            AppUpdatePollingException(
+              s"App ${params.appName.value} was not alive and therefore failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
+              Some(ctx.traceId)
+            )
+          )
+
+      // The app is blocked in updating now (as in, if leo restarts between here and the app transitioning back to `Running`, it is unusable
+      // See: https://broadworkbench.atlassian.net/browse/IA-4867
+      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
+
       // Update the relay listener deployment
       _ <- childSpan("helmUpdateListener").use { implicit ev =>
         updateListener(authContext,
@@ -458,7 +466,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         workspaceId,
-        workspaceDescription.getCreatedDate,
         params.cloudContext,
         landingZoneResources,
         storageContainerOpt,
@@ -483,6 +490,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Poll until all pods in the app namespace are running
+      // TODO: we should be able to test this method and the subsequent `AppUpdatePollingException` more easily when we start to implement rollbacks
       appOk <- childSpan("pollAppUpdate").use { implicit ev =>
         pollAppUpdate(app.auditInfo.creator, relayPath, app.appType)
       }
@@ -491,7 +499,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           F.unit
         else
           F.raiseError[Unit](
-            AppUpdateException(
+            AppUpdatePollingException(
               s"App ${params.appName.value} failed to update in cluster ${landingZoneResources.aksCluster.name} in cloud context ${params.cloudContext.asString}",
               Some(ctx.traceId)
             )
@@ -561,7 +569,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       deletedNamespace <- childSpan("deleteWsmNamespace").use { implicit ev =>
         wsmNamespaces
           .traverse { namespace =>
-            deleteWsmNamespaceResource(workspaceId, app, namespace)
+            deleteWsmResource(workspaceId, app, namespace)
           }
           .map(_.nonEmpty)
       }
@@ -613,7 +621,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           )
           .handleErrorWith {
             case e: ManagementException if e.getResponse.getStatusCode == StatusCodes.NotFound.intValue =>
-              logger.info(s"${name} does not exist to delete in ${cloudContext}")
+              logger.info(ctx.loggingCtx)(s"${name} does not exist to delete in ${cloudContext}")
             case e => F.raiseError[Unit](e)
           }
       }
@@ -680,6 +688,19 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         maxAttempts = config.appMonitorConfig.updateApp.maxAttempts,
         delay = config.appMonitorConfig.updateApp.interval
       ).interruptAfter(config.appMonitorConfig.updateApp.interruptAfter).compile.lastOrError
+    } yield appOk.isDone
+
+  private[util] def isAppAlive(userEmail: WorkbenchEmail, relayBaseUri: Uri, appInstall: AppInstall[F])(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] =
+    for {
+      _ <- ev.ask
+      op = pollApp(userEmail, relayBaseUri, appInstall)
+      appOk <- streamFUntilDone(
+        op,
+        maxAttempts = config.appMonitorConfig.appLiveness.maxAttempts,
+        delay = config.appMonitorConfig.appLiveness.interval
+      ).compile.lastOrError
     } yield appOk.isDone
 
   private[util] def getHelmAuthContext(clusterName: AKSClusterName,
@@ -820,49 +841,46 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                       landingZoneResources: LandingZoneResources,
                                                       wsmResourceApi: ResourceApi
   )(implicit ev: Ask[F, AppContext]): F[List[WsmControlledDatabaseResource]] =
-    if (landingZoneResources.postgresServer.isDefined) {
-      for {
-        wsmApi <- buildWsmControlledResourceApiClient
+    for {
+      ctx <- ev.ask
+      _ <- F.raiseWhen(landingZoneResources.postgresServer.isEmpty)(
+        AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId))
+      )
+      wsmApi <- buildWsmControlledResourceApiClient
 
-        // get a list of database types required for this app
-        controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
-        // retrieve databases that might already be created in workspace
-        existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
-                                                                 controlledDbsForApp.map(_.prefix).toSet,
-                                                                 workspaceId.value
-        )
-        wsmControlledDBResources <- controlledDbsForApp
-          .map { controlledDbForApp =>
-            // if a database already exists (because of workspace cloning or Leo restarting mid-app creation) use that otherwise create a new one
-            if (
-              existingControlledDbsInWorkspace
-                .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
-            ) {
-              logger.info(
-                s"Database found in WSM for app ${app.appName}, using previously created database: $existingControlledDbsInWorkspace"
-              )
+      // get a list of database types required for this app
+      controlledDbsForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
+      // retrieve databases that might already be created in workspace
+      existingControlledDbsInWorkspace <- retrieveWsmDatabases(wsmResourceApi,
+                                                               controlledDbsForApp.map(_.prefix).toSet,
+                                                               workspaceId.value
+      )
+      wsmControlledDBResources <- controlledDbsForApp
+        .traverse { controlledDbForApp =>
+          // if a database already exists (because of workspace cloning or Leo restarting mid-app creation) use that otherwise create a new one
+          if (
+            existingControlledDbsInWorkspace
+              .exists(existingDb => controlledDbForApp.prefix == existingDb.wsmDatabaseName)
+          ) {
+            logger.info(
+              s"Database found in WSM for app ${app.appName}, using previously created database: $existingControlledDbsInWorkspace"
+            ) >>
               F.pure(
                 existingControlledDbsInWorkspace
                   .find(clonedDatabase => controlledDbForApp.prefix == clonedDatabase.wsmDatabaseName)
                   .get
               )
-            } else {
-              logger.info(s"Creating databases for app ${app.appName}")
+          } else {
+            logger.info(s"Creating databases for app ${app.appName}") >>
               createWsmDatabaseResource(app, workspaceId, controlledDbForApp, namespacePrefix, owner, wsmApi).map {
                 db =>
                   WsmControlledDatabaseResource(db.getAzureDatabase.getMetadata.getName,
                                                 db.getAzureDatabase.getAttributes.getDatabaseName
                   )
               }
-            }
           }
-          .traverse(identity)
-      } yield wsmControlledDBResources
-    } else {
-      ev.ask.flatMap(ctx =>
-        F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
-      )
-    }
+        }
+    } yield wsmControlledDBResources
 
   private[util] def createMissingAppControlledResources(app: App,
                                                         appInstall: AppInstall[F],
@@ -870,8 +888,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                         landingZoneResources: LandingZoneResources,
                                                         wsmResourceApi: ResourceApi
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
-    if (landingZoneResources.postgresServer.isDefined) for {
+    for {
       ctx <- ev.ask
+      _ <- F.raiseWhen(landingZoneResources.postgresServer.isEmpty)(
+        AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId))
+      )
       wsmApi <- buildWsmControlledResourceApiClient
 
       // get a list of database types required for this app
@@ -909,11 +930,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
     } yield ()
-    else {
-      ev.ask.flatMap(ctx =>
-        F.raiseError(AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId)))
-      )
-    }
 
   private[util] def createWsmDatabaseResource(app: App,
                                               workspaceId: WorkspaceId,
@@ -986,15 +1002,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create database job result: ${result}")
 
-      _ <-
-        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
-          F.raiseError(
-            AppCreationException(
-              s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
-              Some(ctx.traceId)
-            )
-          )
-        } else F.unit
+      _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
+        AppCreationException(
+          s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
+          Some(ctx.traceId)
+        )
+      )
 
       // Save record in APP_CONTROLLED_RESOURCE table
       _ <- appControlledResourceQuery
@@ -1010,53 +1023,37 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                                appType: AppType,
                                                workspaceId: UUID
   ): F[Option[WsmManagedAzureIdentity]] = {
-    val wsmManagedIdentities = F.blocking(
-      resourceApi
-        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_MANAGED_IDENTITY, StewardshipType.CONTROLLED)
-        .getResources
-        .asScala
-        .toList
-    )
     val wsmResourceName = generateWsmNameForIdentity(appType)
-    wsmManagedIdentities.map { identities =>
-      // there should be only 1 Azure managed identity per app
-      identities
-        .find(identity => wsmResourceName == identity.getMetadata.getName)
-        .map(identity =>
-          WsmManagedAzureIdentity(wsmResourceName,
-                                  identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
-          )
+    F.blocking(
+      getWorkspaceResourceByName(workspaceId, wsmResourceName, resourceApi).map { identity =>
+        WsmManagedAzureIdentity(
+          wsmResourceName,
+          identity.getResourceAttributes.getAzureManagedIdentity.getManagedIdentityName
         )
-    }
+      }
+    )
   }
 
   private[util] def retrieveWsmDatabases(resourceApi: ResourceApi,
                                          databaseNames: Set[String],
                                          workspaceId: UUID
-  ): F[List[WsmControlledDatabaseResource]] = {
-    val wsmResourceDatabases = F.blocking(
-      resourceApi
-        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_DATABASE, StewardshipType.CONTROLLED)
-        .getResources
-        .asScala
-        .toList
-    )
-
+  ): F[List[WsmControlledDatabaseResource]] =
     // TODO: this currently matches on the 'name' (actually type) of database so for example
     // it compares for a 'cbas' or 'cromwellmetadata' database. In the future, their maybe
     // multiple of those in a workspace so this approach will have to be re-considered
     // see https://broadworkbench.atlassian.net/browse/IA-4844
-    wsmResourceDatabases.map { dbs =>
-      dbs
-        .filter(r => databaseNames.contains(r.getMetadata().getName()))
-        .map(r =>
-          WsmControlledDatabaseResource(r.getMetadata().getName(),
-                                        r.getResourceAttributes().getAzureDatabase().getDatabaseName(),
-                                        r.getMetadata().getResourceId
-          )
+    F.blocking(
+      databaseNames
+        .flatMap(dbName =>
+          getWorkspaceResourceByName(workspaceId, dbName, resourceApi).map { r =>
+            WsmControlledDatabaseResource(r.getMetadata.getName,
+                                          r.getResourceAttributes.getAzureDatabase.getDatabaseName,
+                                          r.getMetadata.getResourceId
+            )
+          }
         )
-    }
-  }
+        .toList
+    )
 
   private[util] def getWorkspaceDescription(workspaceApi: WorkspaceApi,
                                             workspaceId: UUID
@@ -1077,8 +1074,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           case Some(identity) =>
             logger.info(
               s"Managed ID found in WSM app ${app.appName}, using previously created identity: ${identity.managedIdentityName}"
-            )
-            F.pure(Option(identity))
+            ) >>
+              F.pure(Option(identity))
           case None =>
             createAzureManagedIdentity(app, namespacePrefix, workspaceId)
         }
@@ -1092,14 +1089,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                                               wsmManagedIdentityOpt: Option[WsmManagedAzureIdentity]
   )(implicit ev: Ask[F, AppContext]): F[WsmControlledKubernetesNamespaceResource] =
     for {
-      wsmNamespaces <- retrieveWsmNamespace(resourceApi, namespacePrefix, workspaceId.value)
-      namespace <- wsmNamespaces.length match {
-        case 1 =>
+      wsmNamespace <- retrieveWsmNamespace(resourceApi, namespacePrefix, workspaceId.value)
+      namespace <- wsmNamespace match {
+        case Some(ns) =>
           logger.info(
-            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${wsmNamespaces.head.name}"
+            s"Namespace found in WSM for app ${app.appName}, using previously created namespace: ${ns.name}"
           )
-          F.pure(wsmNamespaces.head)
-        case 0 =>
+          F.pure(ns)
+        case None =>
           createWsmKubernetesNamespaceResource(
             app,
             workspaceId,
@@ -1107,42 +1104,28 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
             wsmDatabases.map(_.wsmDatabaseName),
             wsmManagedIdentityOpt.map(_.wsmResourceName)
           )
-        case _ =>
-          F.raiseError(
-            AppCreationException(
-              s"App ${app.appName} has multiple namespaces $wsmNamespaces. Only one namespace per app allowed"
-            )
-          )
       }
     } yield namespace
 
   private[util] def retrieveWsmNamespace(resourceApi: ResourceApi,
                                          namespacePrefix: String,
                                          workspaceId: UUID
-  ): F[List[WsmControlledKubernetesNamespaceResource]] = {
-
-    val wsmNamespaces = F.blocking(
-      resourceApi
-        .enumerateResources(workspaceId, 0, 100, ResourceType.AZURE_KUBERNETES_NAMESPACE, StewardshipType.CONTROLLED)
-        .getResources
-        .asScala
-        .toList
-    )
-    wsmNamespaces.map { namespaces =>
-      namespaces
-        .filter(ns =>
-          ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace.startsWith(namespacePrefix)
-        )
-        .map(filtered_ns =>
-          WsmControlledKubernetesNamespaceResource(
-            NamespaceName(filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace),
-            WsmControlledResourceId(filtered_ns.getMetadata.getResourceId),
-            ServiceAccountName(
-              filtered_ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount
-            )
+  ): F[Option[WsmControlledKubernetesNamespaceResource]] = {
+    // The full namespace name will be {namespacePrefix}-{workspaceId},
+    // and the resource name is the same as the kubernetes namespace
+    // The construction of this is done in ControlledAzureResourceApiController.createAzureKubernetesNamespace
+    val namespaceName = s"$namespacePrefix-$workspaceId"
+    F.blocking(
+      getWorkspaceResourceByName(workspaceId, namespaceName, resourceApi).map { ns =>
+        WsmControlledKubernetesNamespaceResource(
+          NamespaceName(ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesNamespace),
+          WsmControlledResourceId(ns.getMetadata.getResourceId),
+          ServiceAccountName(
+            ns.getResourceAttributes.getAzureKubernetesNamespace.getKubernetesServiceAccount
           )
         )
-    }
+      }
+    )
   }
 
   private[util] def createWsmKubernetesNamespaceResource(app: App,
@@ -1183,6 +1166,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       createNamespaceParams = new AzureKubernetesNamespaceCreationParameters()
         .namespacePrefix(namespacePrefix)
         .databases((databases ++ appExternalDatabaseNames).asJava)
+
       _ = identity.foreach(createNamespaceParams.setManagedIdentity)
 
       // Build request
@@ -1194,7 +1178,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .azureKubernetesNamespace(createNamespaceParams)
         .jobControl(createNamespaceJobControl)
 
-      _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace request: ${createNamespaceRequest}")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace request: $createNamespaceRequest")
 
       _ <- appControlledResourceQuery
         .insert(
@@ -1222,15 +1206,12 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM create namespace job result: ${result}")
 
-      _ <-
-        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
-          F.raiseError(
-            AppCreationException(
-              s"WSM namespace creation failed for app ${app.appName.value}. WSM response: ${result}",
-              Some(ctx.traceId)
-            )
-          )
-        } else F.unit
+      _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
+        AppCreationException(
+          s"WSM namespace creation failed for app ${app.appName.value}. WSM response: ${result}",
+          Some(ctx.traceId)
+        )
+      )
 
       resourceId = WsmControlledResourceId(result.getAzureKubernetesNamespace.getMetadata.getResourceId)
 
@@ -1248,29 +1229,23 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       ServiceAccountName(namespaceAttributes.getKubernetesServiceAccount)
     )
 
-  private[util] def deleteWsmNamespaceResource(workspaceId: WorkspaceId,
-                                               app: App,
-                                               wsmResource: AppControlledResourceRecord
+  private[util] def deleteAndPollWsmNamespaceResource(workspaceId: WorkspaceId,
+                                                      app: App,
+                                                      wsmResource: AppControlledResourceRecord,
+                                                      jobId: UUID,
+                                                      deleteResourceRequest: DeleteControlledAzureResourceRequest,
+                                                      wsmApi: ControlledAzureResourceApi
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
 
-      // Build WSM client
-      wsmApi <- buildWsmControlledResourceApiClient
-
-      // Build delete namespace request
-      jobId = UUID.randomUUID()
-      deleteNamespaceRequest = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest().jobControl(
-        new JobControl().id(jobId.toString)
-      )
-
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteNamespaceRequest}")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace request: ${deleteResourceRequest}")
 
       // Execute WSM call
       result <- F.blocking(
-        wsmApi.deleteAzureKubernetesNamespace(deleteNamespaceRequest, workspaceId.value, wsmResource.resourceId.value)
+        wsmApi.deleteAzureKubernetesNamespace(deleteResourceRequest, workspaceId.value, wsmResource.resourceId.value)
       )
 
       _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace response: ${result}")
@@ -1287,26 +1262,73 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       op = F.blocking(
         wsmApi.getDeleteAzureKubernetesNamespaceResult(workspaceId.value, jobId.toString)
       )
+
       result <- streamFUntilDone(
         op,
-        config.appMonitorConfig.createApp.maxAttempts,
-        config.appMonitorConfig.createApp.interval
-      ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+        config.appMonitorConfig.deleteApp.maxAttempts,
+        config.appMonitorConfig.deleteApp.interval
+      ).compile.lastOrError
 
-      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace job result: ${result}")
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete namespace job result: $result")
 
-      _ <-
-        if (result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED) {
-          F.raiseError(
-            AppCreationException(
-              s"WSM namespace deletion failed for app ${app.appName.value}. WSM response: ${result}",
-              Some(ctx.traceId)
-            )
-          )
-        } else F.unit
+      _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
+        AppDeletionException(
+          s"WSM namespace deletion failed for app ${app.appName.value}. WSM response: $result"
+        )
+      )
+
+      // record in APP_CONTROLLED_RESOURCE table is set to deleted by caller
+    } yield ()
+
+  private[util] def deleteAndPollWsmDatabaseResource(workspaceId: WorkspaceId,
+                                                     app: App,
+                                                     wsmResource: AppControlledResourceRecord,
+                                                     jobId: UUID,
+                                                     deleteResourceRequest: DeleteControlledAzureResourceRequest,
+                                                     wsmApi: ControlledAzureResourceApi
+  )(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database request: ${deleteResourceRequest}")
+
+      // Execute WSM call
+      result <- F.blocking(
+        wsmApi.deleteAzureDatabaseAsync(deleteResourceRequest, workspaceId.value, wsmResource.resourceId.value)
+      )
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database response: ${result}")
 
       // Update record in APP_CONTROLLED_RESOURCE table
-      _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+      _ <- appControlledResourceQuery
+        .updateStatus(
+          wsmResource.resourceId,
+          AppControlledResourceStatus.Deleting
+        )
+        .transaction
+
+      // Poll for database deletion
+      op = F.blocking(
+        wsmApi.getDeleteAzureDatabaseResult(workspaceId.value, jobId.toString)
+      )
+
+      result <- streamFUntilDone(
+        op,
+        config.appMonitorConfig.deleteApp.maxAttempts,
+        config.appMonitorConfig.deleteApp.interval
+      ).compile.lastOrError
+
+      _ <- logger.info(ctx.loggingCtx)(s"WSM delete database job result: $result")
+
+      _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
+        AppDeletionException(
+          s"WSM database deletion failed for app ${app.appName.value}. WSM response: $result"
+        )
+      )
+
+      // record in APP_CONTROLLED_RESOURCE table is set to deleted by caller
     } yield ()
 
   private[util] def deleteWsmResource(workspaceId: WorkspaceId, app: App, wsmResource: AppControlledResourceRecord)(
@@ -1318,11 +1340,18 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(
         s"Deleting WSM resource ${wsmResource.resourceId.value} for app ${app.appName.value} in workspace ${workspaceId.value}"
       )
+
+      jobId = UUID.randomUUID()
+      deleteResourceRequest = new DeleteControlledAzureResourceRequest().jobControl(
+        new JobControl().id(jobId.toString)
+      )
       _ <- wsmResource.resourceType match {
         case WsmResourceType.AzureManagedIdentity =>
           F.blocking(wsmApi.deleteAzureManagedIdentity(workspaceId.value, wsmResource.resourceId.value))
         case WsmResourceType.AzureDatabase =>
-          F.blocking(wsmApi.deleteAzureDatabase(workspaceId.value, wsmResource.resourceId.value))
+          deleteAndPollWsmDatabaseResource(workspaceId, app, wsmResource, jobId, deleteResourceRequest, wsmApi)
+        case WsmResourceType.AzureKubernetesNamespace =>
+          deleteAndPollWsmNamespaceResource(workspaceId, app, wsmResource, jobId, deleteResourceRequest, wsmApi)
         case _ =>
           F.raiseError(AppDeletionException(s"Unexpected WSM resource type ${wsmResource.resourceType}"))
       }
@@ -1333,10 +1362,26 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     delete.handleErrorWith {
       case e: ApiException if e.getCode == StatusCodes.NotFound.intValue =>
         // If the resource doesn't exist, that's fine. We're deleting it anyway.
-        F.unit
+        for {
+          _ <- logger.info(s"No-op for delete WSM app resource ${wsmResource.resourceId.value}")
+          _ <- appControlledResourceQuery.delete(wsmResource.resourceId).transaction
+        } yield ()
       case e => F.raiseError(e)
     }
   }
+
+  // This should probably be moved to WsmDao, if HttpWsmDao switches to using the WSM api clients
+  private def getWorkspaceResourceByName(
+    workspaceId: UUID,
+    resourceName: String,
+    resourceApi: ResourceApi
+  ): Option[ResourceDescription] =
+    Try(resourceApi.getResourceByName(workspaceId, resourceName))
+      .map(Option.apply)
+      .handleError {
+        case e: ApiException if e.getCode == StatusCodes.NotFound.intValue => None
+      }
+      .get
 
   private[util] def updateListener(authContext: AuthContext,
                                    app: App,

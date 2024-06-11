@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesClusterLeoId,
   NodepoolLeoId
 }
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsp.ChartVersion
 
 trait GKEAlgebra[F[_]] {
@@ -95,12 +95,19 @@ object GKEAlgebra {
       .setPhysicalBlockSizeBytes(galaxyDiskConfig.postgresDiskBlockSize.bytes)
       .putAllLabels(Map("leonardo" -> "true").asJava)
       .build()
+
+  // Utility for building staging bucket name for apps.
+  // Staging bucket is used for storing state files for welder.
+  def buildAppStagingBucketName(diskName: DiskName): GcsBucketName = GcsBucketName(
+    s"leostaging-${diskName.value}"
+  )
 }
 
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,
                                      googleProject: GoogleProject,
                                      nodepoolsToCreate: List[NodepoolLeoId],
-                                     enableIntraNodeVisibility: Boolean
+                                     enableIntraNodeVisibility: Boolean,
+                                     autopilot: Boolean
 )
 
 final case class CreateClusterResult(op: KubernetesOperationId,

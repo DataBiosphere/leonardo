@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makePersistentD
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -16,6 +16,8 @@ import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
+  val traceId = TraceId(java.util.UUID.randomUUID())
+
   "listFullApps" should "list apps" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()
     val nodepool1 = makeNodepool(1, cluster1.id).save()
@@ -443,9 +445,10 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       makeCluster2.status,
       makeCluster2.ingressChart,
       makeCluster2.auditInfo,
-      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get)
+      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get),
+      false
     )
-    val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2))
+    val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2, traceId))
     saveClusterResult shouldBe a[ClusterExists]
     saveClusterResult.minimalCluster shouldEqual makeCluster1
   }
@@ -460,9 +463,10 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       makeCluster1.status,
       makeCluster1.ingressChart,
       makeCluster1.auditInfo,
-      DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get)
+      DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get),
+      false
     )
-    val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1))
+    val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1, traceId))
     saveResult shouldBe a[ClusterDoesNotExist]
     saveResult.minimalCluster shouldEqual makeCluster1
   }
@@ -478,9 +482,10 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       makeCluster2.status,
       makeCluster2.ingressChart,
       makeCluster2.auditInfo,
-      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get)
+      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get),
+      false
     )
-    val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2))
+    val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2, traceId))
     saveResult shouldBe a[ClusterDoesNotExist]
     saveResult.minimalCluster shouldEqual makeCluster2
   }
@@ -497,7 +502,8 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         makeCluster1.status,
         makeCluster1.ingressChart,
         makeCluster1.auditInfo,
-        DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get)
+        DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get),
+        false
       )
     val saveCluster2 =
       SaveKubernetesCluster(
@@ -508,10 +514,11 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         makeCluster2.status,
         makeCluster2.ingressChart,
         makeCluster2.auditInfo,
-        DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get)
+        DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get),
+        false
       )
-    val saveResult1IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1).transaction
-    val saveResult2IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2).transaction
+    val saveResult1IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1, traceId).transaction
+    val saveResult2IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2, traceId).transaction
     the[KubernetesAppCreationException] thrownBy {
       saveResult1IO.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }

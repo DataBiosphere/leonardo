@@ -1,7 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, ClientId, ClientSecret, ManagedAppTenantId}
+import org.broadinstitute.dsde.workbench.azure.{
+  AzureAppRegistrationConfig,
+  AzureServiceBusPublisherConfig,
+  AzureServiceBusSubscriberConfig,
+  ClientId,
+  ClientSecret,
+  ManagedAppTenantId
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -42,6 +49,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           PollMonitorConfig(1 seconds, 10, 1 seconds),
+          PollMonitorConfig(1 seconds, 10, 1 seconds),
           AzureRuntimeDefaults(
             "Azure Ip",
             "ip",
@@ -65,18 +73,20 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/52aab3b7f252667f73b23682062ab3e0d9d533b9/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/788e53e22dab4f0cee6e7b7cdbfd271a0b43450d/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:ad57bda",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:76d982c",
             VMCredential(username = "username", password = "password")
-          )
+          ),
+          PollMonitorConfig(1 seconds, 10, 1 seconds),
+          PollMonitorConfig(1 seconds, 10, 1 seconds)
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("cromwell-helm/cromwell-on-azure"),
-          ChartVersion("0.2.449"),
+          ChartVersion("0.2.502"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -138,7 +148,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.96.0"),
+          ChartVersion("0.145.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -150,11 +160,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           instrumentationEnabled = false,
           enabled = true,
-          chartVersionsToExcludeFromUpdates = List.empty
+          chartVersionsToExcludeFromUpdates = List.empty,
+          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.150.0"),
+          ChartVersion("0.215.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -168,11 +179,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
-          chartVersionsToExcludeFromUpdates = List.empty
+          chartVersionsToExcludeFromUpdates = List.empty,
+          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
         ),
         WdsAppConfig(
           ChartName("terra-helm/wds"),
-          ChartVersion("0.71.0"),
+          ChartVersion("0.80.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -208,7 +220,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         HailBatchAppConfig(
           ChartName("/leonardo/hail-batch-terra-azure"),
-          ChartVersion("0.1.9"),
+          ChartVersion("0.2.0"),
           ReleaseNameSuffix("hail-rls"),
           NamespaceNameSuffix("hail-ns"),
           KsaName("hail-ksa"),
@@ -224,14 +236,14 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureHostingModeConfig(
           false,
           "AZURE",
-          AzureManagedIdentityAuthConfig(".default", 30)
+          AzureManagedIdentityAuthConfig(".default", 30),
+          AzureServiceBusPublisherConfig("replace_me", Some("replace_me"), Some("replace_me")),
+          AzureServiceBusSubscriberConfig("replace_me", "replace_me", Some("replace_me"), Some("replace_me"), 1, 1)
         )
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),
-        org.broadinstitute.dsde.workbench.oauth2.ClientId("fakeClientId"),
-        Some(org.broadinstitute.dsde.workbench.oauth2.ClientSecret("fakeClientSecret")),
-        org.broadinstitute.dsde.workbench.oauth2.ClientId("legacyClientSecret")
+        org.broadinstitute.dsde.workbench.oauth2.ClientId("fakeClientId")
       ),
       DrsConfig(
         "https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"

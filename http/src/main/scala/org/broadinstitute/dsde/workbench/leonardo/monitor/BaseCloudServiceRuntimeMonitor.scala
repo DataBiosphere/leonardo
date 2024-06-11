@@ -172,7 +172,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
                       persistentDiskOpt.traverse_(d =>
                         googleDisk.deleteDisk(googleProject, rc.zone, d.name) >> persistentDiskQuery
-                          .updateStatus(d.id, DiskStatus.Deleted, ctx.now)
+                          .delete(d.id, ctx.now)
                           .transaction
                       )
                     } else F.unit
@@ -216,7 +216,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
       tags = Map(
         "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
-        "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo")
+        "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo"),
+        "isAoU" -> runtimeAndRuntimeConfig.runtime.labels.get(AOU_UI_LABEL).contains("true").toString
       )
       _ <- openTelemetry.incrementCounter(s"runtimeFailure", 1, tags)
     } yield ((), None): CheckResult

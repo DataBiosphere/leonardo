@@ -108,7 +108,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |      "minorVersionAutoUpgrade": true,
          |      "protectedSettings": [{
          |          "key": "fileUris",
-         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/52aab3b7f252667f73b23682062ab3e0d9d533b9/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/788e53e22dab4f0cee6e7b7cdbfd271a0b43450d/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
          |        },
          |        {
          |          "key": "commandToExecute",
@@ -128,7 +128,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
 
   it should "encode DeleteVmRequest" in {
     val fixedUUID = UUID.randomUUID().toString
-    val req = DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(fixedUUID)))
+    val req = WsmDaoDeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(fixedUUID)))
 
     req.asJson.deepDropNullValues.noSpaces shouldBe
       s"""

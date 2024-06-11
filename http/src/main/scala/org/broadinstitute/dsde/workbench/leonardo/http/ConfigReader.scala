@@ -18,7 +18,6 @@ object ConfigReader {
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
 }
-
 final case class AzureConfig(
   pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
@@ -36,9 +35,7 @@ final case class AzureConfig(
 
 final case class OidcAuthConfig(
   authorityEndpoint: Uri,
-  clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId,
-  clientSecret: Option[org.broadinstitute.dsde.workbench.oauth2.ClientSecret],
-  legacyGoogleClientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
+  clientId: org.broadinstitute.dsde.workbench.oauth2.ClientId
 )
 
 final case class DrsConfig(url: String)
