@@ -106,7 +106,8 @@ object GKEAlgebra {
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,
                                      googleProject: GoogleProject,
                                      nodepoolsToCreate: List[NodepoolLeoId],
-                                     enableIntraNodeVisibility: Boolean
+                                     enableIntraNodeVisibility: Boolean,
+                                     autopilot: Boolean
 )
 
 final case class CreateClusterResult(op: KubernetesOperationId,

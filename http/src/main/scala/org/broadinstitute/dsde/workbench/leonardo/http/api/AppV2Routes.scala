@@ -176,6 +176,7 @@ object AppV2Routes {
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
         adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
         adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
+        autopilot <- x.downField("autopilot").as[Option[Autopilot]]
 
         optStr <- x.downField("appType").as[Option[String]]
         cn <- x.downField("allowedChartName").as[Option[AllowedChartName]]
@@ -193,19 +194,21 @@ object AppV2Routes {
             }
           case None => (AppType.Galaxy, cn).asRight[DecodingFailure]
         }
-      } yield CreateAppRequest(c,
-                               appType,
-                               allowedChartName,
-                               s,
-                               d,
-                               l.getOrElse(Map.empty),
-                               cv.getOrElse(Map.empty),
-                               dp,
-                               ea.getOrElse(List.empty),
-                               wsi,
-                               swi,
-                               adtm,
-                               adte
+      } yield CreateAppRequest(
+        c,
+        appType,
+        allowedChartName,
+        s,
+        d,
+        l.getOrElse(Map.empty),
+        cv.getOrElse(Map.empty),
+        dp,
+        ea.getOrElse(List.empty),
+        wsi,
+        swi,
+        adtm,
+        adte,
+        autopilot
       )
     }
 

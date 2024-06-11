@@ -1005,74 +1005,26 @@ class LeoPubsubMessageSubscriber[F[_]](
       // _initial_ GKE call synchronous to the pubsub processing so we can nack the message on
       // errors and retry. All other operations plus monitoring will be asynchronous to the message
       // handler.
-
-      createClusterOrNodepoolOp <- msg.clusterNodepoolAction match {
+      createClusterOrNodepoolOp = msg.clusterNodepoolAction match {
         case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
-          for {
-            // initial the createCluster call synchronously
-            createClusterResultOpt <- getGkeAlgFromRegistry()
-              .createCluster(
-                CreateClusterParams(clusterId,
-                                    msg.project,
-                                    List(defaultNodepoolId, nodepoolId),
-                                    msg.enableIntraNodeVisibility
-                )
-              )
-              .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
-              .adaptError { case e =>
-                PubsubKubernetesError(
-                  AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
-                  Some(msg.appId),
-                  false,
-                  // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
-                  // The app will have the error so the user can see it, delete their app, and try again
-                  None,
-                  None,
-                  None
-                )
-              }
-            // monitor cluster creation asynchronously
-            monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
-              getGkeAlgFromRegistry()
-                .pollCluster(PollClusterParams(clusterId, msg.project, createClusterResult))
-                .adaptError { case e =>
-                  PubsubKubernetesError(
-                    AppError(e.getMessage,
-                             ctx.now,
-                             ErrorAction.CreateApp,
-                             ErrorSource.Cluster,
-                             None,
-                             Some(ctx.traceId)
-                    ),
-                    Some(msg.appId),
-                    false,
-                    // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
-                    // The app will have the error so the user can see it, delete their app, and try again
-                    None,
-                    None,
-                    None
-                  )
-                }
-            )
-          } yield monitorOp
-
+          createClusterAndNodepools(msg, clusterId, autopilotEnabled = false, List(defaultNodepoolId, nodepoolId))
+        case Some(ClusterNodepoolAction.CreateCluster(clusterId)) =>
+          createClusterAndNodepools(msg, clusterId, autopilotEnabled = true, List.empty)
         case Some(ClusterNodepoolAction.CreateNodepool(nodepoolId)) =>
           // create nodepool asynchronously
-          F.pure(
-            getGkeAlgFromRegistry()
-              .createAndPollNodepool(CreateNodepoolParams(nodepoolId, msg.project))
-              .adaptError { case e =>
-                PubsubKubernetesError(
-                  AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Nodepool, None, Some(ctx.traceId)),
-                  Some(msg.appId),
-                  false,
-                  Some(nodepoolId),
-                  None,
-                  None
-                )
-              }
-          )
-        case None => F.pure(F.unit)
+          getGkeAlgFromRegistry()
+            .createAndPollNodepool(CreateNodepoolParams(nodepoolId, msg.project))
+            .adaptError { case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Nodepool, None, Some(ctx.traceId)),
+                Some(msg.appId),
+                false,
+                Some(nodepoolId),
+                None,
+                None
+              )
+            }
+        case None => F.unit
       }
 
       // create disk asynchronously
@@ -1120,7 +1072,9 @@ class LeoPubsubMessageSubscriber[F[_]](
 
         // create and monitor app
         _ <- getGkeAlgFromRegistry()
-          .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType))
+          .createAndPollApp(
+            CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType)
+          )
           .onError { case e =>
             cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk, e)
           }
@@ -1149,6 +1103,55 @@ class LeoPubsubMessageSubscriber[F[_]](
         )
       )
     } yield ()
+
+  private def createClusterAndNodepools(msg: CreateAppMessage,
+                                        clusterId: KubernetesClusterLeoId,
+                                        autopilotEnabled: Boolean,
+                                        nodepoolLeoIds: List[NodepoolLeoId]
+  )(implicit
+    ev: Ask[F, AppContext]
+  ) = for {
+    ctx <- ev.ask
+    // initial the createCluster call synchronously
+    createClusterResultOpt <- getGkeAlgFromRegistry()
+      .createCluster(
+        CreateClusterParams(clusterId, msg.project, nodepoolLeoIds, msg.enableIntraNodeVisibility, autopilotEnabled)
+      )
+      .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
+      .adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
+          Some(msg.appId),
+          false,
+          // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
+          // The app will have the error so the user can see it, delete their app, and try again
+          None,
+          None,
+          None
+        )
+      }
+
+    _ <- F.sleep(
+      config.gkeClusterCreationPollingInitialDelay
+    ) // Creating GKE cluster takes a while, so there's no point polling right away
+    // monitor cluster creation asynchronously
+    monitorOp <- createClusterResultOpt.traverse_(createClusterResult =>
+      getGkeAlgFromRegistry()
+        .pollCluster(PollClusterParams(clusterId, msg.project, createClusterResult))
+        .adaptError { case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
+            Some(msg.appId),
+            false,
+            // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
+            // The app will have the error so the user can see it, delete their app, and try again
+            None,
+            None,
+            None
+          )
+        }
+    )
+  } yield monitorOp
 
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(implicit
     ev: Ask[F, AppContext]

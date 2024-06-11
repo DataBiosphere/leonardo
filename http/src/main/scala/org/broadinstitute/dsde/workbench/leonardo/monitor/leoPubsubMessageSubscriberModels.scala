@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.{
+  CreateCluster,
   CreateClusterAndNodepool,
   CreateNodepool
 }
@@ -408,6 +409,9 @@ object ClusterNodepoolActionType {
   final case object CreateNodepool extends ClusterNodepoolActionType {
     val asString: String = "createNodepool"
   }
+  final case object CreateCluster extends ClusterNodepoolActionType {
+    val asString: String = "createCluster"
+  }
 
   def values: Set[ClusterNodepoolActionType] = sealerate.values[ClusterNodepoolActionType]
   def stringToObject: Map[String, ClusterNodepoolActionType] = values.map(v => v.asString -> v).toMap
@@ -426,6 +430,9 @@ object ClusterNodepoolAction {
   }
   final case class CreateNodepool(nodepoolId: NodepoolLeoId) extends ClusterNodepoolAction {
     val actionType: ClusterNodepoolActionType = ClusterNodepoolActionType.CreateNodepool
+  }
+  final case class CreateCluster(clusterId: KubernetesClusterLeoId) extends ClusterNodepoolAction {
+    val actionType: ClusterNodepoolActionType = ClusterNodepoolActionType.CreateCluster
   }
 }
 
@@ -520,12 +527,16 @@ object LeoPubsubCodec {
   implicit val createNodepoolDecoder: Decoder[CreateNodepool] =
     Decoder.forProduct1("nodepoolId")(CreateNodepool.apply)
 
+  implicit val createClusterDecoder: Decoder[CreateCluster] =
+    Decoder.forProduct1("clusterId")(CreateCluster.apply)
+
   implicit val clusterNodepoolActionDecoder: Decoder[ClusterNodepoolAction] = Decoder.instance { message =>
     for {
       actionType <- message.downField("actionType").as[ClusterNodepoolActionType]
       value <- actionType match {
         case ClusterNodepoolActionType.CreateClusterAndNodepool => message.as[CreateClusterAndNodepool]
         case ClusterNodepoolActionType.CreateNodepool           => message.as[CreateNodepool]
+        case ClusterNodepoolActionType.CreateCluster            => message.as[CreateCluster]
       }
     } yield value
   }
@@ -880,11 +891,15 @@ object LeoPubsubCodec {
   implicit val createNodepoolEncoder: Encoder[CreateNodepool] =
     Encoder.forProduct2("actionType", "nodepoolId")(x => (x.actionType, x.nodepoolId))
 
+  implicit val createClusterEncoder: Encoder[CreateCluster] =
+    Encoder.forProduct2("actionType", "clusterId")(x => (x.actionType, x.clusterId))
+
   implicit val clusterNodepoolActionEncoder: Encoder[ClusterNodepoolAction] =
     Encoder.instance { message =>
       message match {
         case m: CreateClusterAndNodepool => m.asJson
         case m: CreateNodepool           => m.asJson
+        case m: CreateCluster            => m.asJson
       }
     }
 
@@ -1164,7 +1179,8 @@ final case class PersistentDiskMonitorConfig(create: CreateDiskTimeout,
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig,
-                                                  galaxyDiskConfig: GalaxyDiskConfig
+                                                  galaxyDiskConfig: GalaxyDiskConfig,
+                                                  gkeClusterCreationPollingInitialDelay: FiniteDuration
 )
 
 final case class DiskDetachStatus(disk: Option[Disk], originalDetachTimestampOpt: Option[String])
