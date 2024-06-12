@@ -82,7 +82,7 @@ class RuntimeGceSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "should be able to create a VM with GPU enabled" taggedAs ExcludeFromPRCommit in { project =>
+  "should be able to create a VM with GPU enabled" in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
 
@@ -121,6 +121,7 @@ class RuntimeGceSpec
                 |print(gpus)
                 |""".stripMargin
             val output = notebookPage.executeCell(deviceNameOutput).get
+            loggerIO.info(s"RuntimeGCESpec: GPU output $output")
             output.contains("GPU:0") shouldBe true
             output.contains("GPU:1") shouldBe true
           }
