@@ -58,7 +58,7 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val coaChartName = ChartName("cromwell-helm/cromwell-on-azure")
-  val coaChartVersion = ChartVersion("0.2.502")
+  val coaChartVersion = ChartVersion("0.2.506")
 
   val coaChart = Chart(coaChartName, coaChartVersion)
 
@@ -80,6 +80,7 @@ object KubernetesTestData {
     Map.empty,
     None,
     List.empty,
+    None,
     None,
     None,
     None,
@@ -124,6 +125,7 @@ object KubernetesTestData {
       customEnvironmentVariables = customEnvVars,
       descriptorPath = None,
       extraArgs = List.empty,
+      None,
       None,
       None,
       None,
@@ -246,7 +248,8 @@ object KubernetesTestData {
       None,
       Some(1),
       Some(autodeleteThreshold),
-      autodeleteEnabled
+      autodeleteEnabled,
+      None
     )
   }
 

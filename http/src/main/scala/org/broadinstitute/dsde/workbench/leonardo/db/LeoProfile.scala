@@ -69,6 +69,16 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         .base[GcsPath, String](_.toUri,
                                s => parseGcsPath(s).fold(e => throw ColumnDecodingException(e.toString()), identity)
         )
+    implicit val computeClassMappedColumnType: BaseColumnType[ComputeClass] =
+      MappedColumnType
+        .base[ComputeClass, String](
+          _.toString,
+          s =>
+            ComputeClass.stringToObject.get(s.toLowerCase) match {
+              case Some(v) => v
+              case None    => throw ColumnDecodingException(s"Invalid compute class in DB ${s}")
+            }
+        )
 
     implicit val statusMappedColumnType: BaseColumnType[RuntimeStatus] =
       MappedColumnType
