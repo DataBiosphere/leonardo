@@ -276,7 +276,7 @@ jobs:
           run-name: "${{ env.LEO_SWAT_TESTS_RUN_NAME }}"
           workflow: leonardo-swat-tests
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: refs/heads/IA-4994-remove-syslog-thingy
           wait-for-completion-timeout: 85m
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
