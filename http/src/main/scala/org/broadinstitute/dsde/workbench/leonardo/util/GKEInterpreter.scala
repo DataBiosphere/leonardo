@@ -154,13 +154,26 @@ class GKEInterpreter[F[_]](
       networkPolicy =
         if (params.autopilot) null else new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
 
+      autoscaling =
+        if (params.autopilot) {
+          val serviceAccount = getNodepoolServiceAccount(projectLabels, params.googleProject)
+
+          serviceAccount match {
+            case Some(sa) =>
+              new com.google.api.services.container.model.ClusterAutoscaling().setAutoprovisioningNodePoolDefaults(
+                new com.google.api.services.container.model.AutoprovisioningNodePoolDefaults().setServiceAccount(sa)
+              )
+            case None => null
+          }
+
+        } else null
+
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
         .setInitialClusterVersion(config.clusterConfig.version.value)
         .setNodePools(nodepools.asJava)
-        .setAutopilot(
-          autopilot
-        )
+        .setAutopilot(autopilot)
+        .setAutoscaling(autoscaling)
         .setAddonsConfig(
           new com.google.api.services.container.model.AddonsConfig()
             .setGcsFuseCsiDriverConfig(
