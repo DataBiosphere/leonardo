@@ -114,10 +114,9 @@ class RuntimeGceSpec
         implicit0(authToken: AuthToken) <- Ron.authToken()
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
+            notebookPage.executeCell("import tensorflow as tf")
             val deviceNameOutput =
-              """
-                |import tensorflow as tf
-                |gpus = tf.config.experimental.list_physical_devices('GPU')
+              """gpus = tf.config.experimental.list_physical_devices('GPU')
                 |print(gpus)
                 |""".stripMargin
             notebookPage.executeCell(deviceNameOutput).get should include("GPU:0")
