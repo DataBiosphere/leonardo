@@ -1563,11 +1563,11 @@ class LeoPubsubMessageSubscriber[F[_]](
               // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
               // This would provide more cases in which an app is left in a usable state
               // Note that an app can also emit this error if the liveness probe fails before an update is triggered, so rolling back may not have an effect
-              case e: AppUpdatePollingException => appQuery.updateStatus(msg.appId, AppStatus.Error).transaction
+              case _: AppUpdatePollingException => appQuery.updateStatus(msg.appId, AppStatus.Error).transaction
               // Fatal case, helm call failed for either listener or app charts
-              case e: HelmException => appQuery.updateStatus(msg.appId, AppStatus.Error).transaction
+              case _: HelmException => appQuery.updateStatus(msg.appId, AppStatus.Error).transaction
               // Non fatal catch-all case, set app status back to running but append whatever error occurred in db for traceability
-              case e => appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
+              case _ => appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
             }
           } yield ()
         }
