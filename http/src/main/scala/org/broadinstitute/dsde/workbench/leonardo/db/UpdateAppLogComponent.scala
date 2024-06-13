@@ -6,7 +6,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImpl
 import slick.lifted.Tag
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 
-import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
