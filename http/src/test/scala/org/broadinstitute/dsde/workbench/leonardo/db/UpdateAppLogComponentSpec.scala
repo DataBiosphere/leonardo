@@ -54,14 +54,11 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
 
     val appErrorTime = Instant.now()
     val appError = AppError("error msg", appErrorTime, ErrorAction.UpdateApp, ErrorSource.App, None, None)
-    println("startTime", startTime)
-    println("appErrorTime", appErrorTime)
 
     val test = for {
       errorId <- appErrorQuery.save(savedApp.id, appError)
       _ <- updateAppLogQuery.save(jobId1, savedApp.id, startTime)
       endTime = Instant.now()
-      _ =     println("endtime", endTime)
       _ <- updateAppLogQuery.update(savedApp.id, jobId1, UpdateAppJobStatus.Error, Some(errorId), Some(endTime))
       appUpdateLogRecordOpt <- updateAppLogQuery.get(savedApp.id, jobId1)
     } yield {
@@ -75,4 +72,9 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
     }
     test.transaction.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
+  //test update with no error, to succeed
+
+  //update non-existent data
+
+  //test update with multiple rows
 }

@@ -1,11 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import org.broadinstitute.dsde.workbench.leonardo.{AppId, UpdateAppJobStatus, UpdateAppTableId}
+import org.broadinstitute.dsde.workbench.leonardo.{UpdateAppTableId, AppId, UpdateAppJobStatus}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import slick.lifted.Tag
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 
+import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
@@ -49,12 +50,17 @@ object updateAppLogQuery extends TableQuery(new UpdateAppLogTable(_)) {
              status: UpdateAppJobStatus,
              errorId: Option[KubernetesErrorId] = None,
              endTime: Option[Instant] = None
-  ): DBIO[Int] =
-    updateAppLogQuery
+  )(implicit ec: ExecutionContext): DBIO[Int] = {
+    for {
+      record <- get(appId, jobId)
+      existingRecord = record.getOrElse(throw new SQLDataException(s"Cannot update a log record that does not exist"))
+      int <- updateAppLogQuery
       .filter(_.appId === appId)
       .filter(_.jobId === jobId)
-      .map(x => (x.errorId, x.status, x.endTime))
-      .update((errorId, status, endTime))
+      .map(x => (x.errorId, x.status, x.endTime, x.startTime))
+      .update((errorId, status, endTime, existingRecord.startTime))
+    } yield int
+  }
 
   def get(appId: AppId, jobId: UpdateAppJobId)(implicit ec: ExecutionContext): DBIO[Option[UpdateAppLogRecord]] =
     updateAppLogQuery
