@@ -119,10 +119,9 @@ class RuntimeGceSpec
               """gpus = tf.config.experimental.list_physical_devices('GPU')
                 |print(gpus)
                 |""".stripMargin
-            notebookPage.executeCell(deviceNameOutput).get should include("GPU:0")
-//            loggerIO.info(s"RuntimeGCESpec: GPU output $output")
-//            output.contains("GPU:0") shouldBe true
-//            output.contains("GPU:1") shouldBe true
+            val output = notebookPage.executeCell(deviceNameOutput).get
+            output should include("GPU:0")
+            output should include("GPU:1")
           }
         })
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
