@@ -328,12 +328,14 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[AutodeleteThreshold, Int](_.value, AutodeleteThreshold.apply)
 
     implicit val appUpgradeTableIdColumnType: BaseColumnType[UpdateAppTableId] =
+
+    implicit val updateAppTableIdColumnType: BaseColumnType[UpdateAppTableId] =
       MappedColumnType.base[UpdateAppTableId, Long](_.value, UpdateAppTableId.apply)
 
-    implicit val appUpgradeJobIdColumnType: BaseColumnType[UpdateAppJobId] =
+    implicit val updateAppJobIdColumnType: BaseColumnType[UpdateAppJobId] =
       MappedColumnType.base[UpdateAppJobId, UUID](_.value, UpdateAppJobId.apply)
 
-    implicit val appUpdateJobStatusColumnType: BaseColumnType[UpdateAppJobStatus] =
+    implicit val updateAppJobStatusColumnType: BaseColumnType[UpdateAppJobStatus] =
       MappedColumnType.base[UpdateAppJobStatus, String](
         _.toString,
         s =>
