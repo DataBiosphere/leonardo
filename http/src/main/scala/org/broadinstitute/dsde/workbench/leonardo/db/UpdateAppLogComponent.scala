@@ -18,7 +18,7 @@ case class UpdateAppLogRecord(id: UpdateAppTableId,
                               endTime: Option[Instant]
 )
 
-class UpdateAppLogTable(tag: Tag) extends Table[UpdateAppLogRecord](tag, "APP_UPDATE_LOG") {
+class UpdateAppLogTable(tag: Tag) extends Table[UpdateAppLogRecord](tag, "UPDATE_APP_LOG") {
   def id = column[UpdateAppTableId]("id", O.PrimaryKey, O.AutoInc)
   def jobId = column[UpdateAppJobId]("jobId")
   def appId = column[AppId]("appId")
