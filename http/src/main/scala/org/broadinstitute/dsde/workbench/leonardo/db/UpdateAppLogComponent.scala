@@ -52,13 +52,13 @@ object updateAppLogQuery extends TableQuery(new UpdateAppLogTable(_)) {
              endTime: Option[Instant] = None
   )(implicit ec: ExecutionContext): DBIO[Int] =
     for {
-      record <- get(appId, jobId)
-      existingRecord = record.getOrElse(throw new SQLDataException(s"Cannot update a log record that does not exist"))
+//      record <- get(appId, jobId)
+//      existingRecord = record.getOrElse(throw new SQLDataException(s"Cannot update a log record that does not exist"))
       int <- updateAppLogQuery
         .filter(_.appId === appId)
         .filter(_.jobId === jobId)
-        .map(x => (x.errorId, x.status, x.endTime, x.startTime))
-        .update((errorId, status, endTime, existingRecord.startTime))
+        .map(x => (x.errorId, x.status, x.endTime))
+        .update((errorId, status, endTime))
     } yield int
 
   def get(appId: AppId, jobId: UpdateAppJobId)(implicit ec: ExecutionContext): DBIO[Option[UpdateAppLogRecord]] =
