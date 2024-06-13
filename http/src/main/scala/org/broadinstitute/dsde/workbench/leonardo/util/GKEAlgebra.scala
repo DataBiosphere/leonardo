@@ -125,7 +125,8 @@ final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: 
 final case class CreateAppParams(appId: AppId,
                                  googleProject: GoogleProject,
                                  appName: AppName,
-                                 appMachineType: Option[AppMachineType]
+                                 appMachineType: Option[AppMachineType],
+                                 mountWorkspaceBucketEnabled: Boolean
 )
 
 final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googleProject: GoogleProject)
@@ -149,5 +150,6 @@ final case class StartAppParams(appId: AppId, appName: AppName, googleProject: G
 final case class UpdateAppParams(appId: AppId,
                                  appName: AppName,
                                  appChartVersion: ChartVersion,
-                                 googleProject: Option[GoogleProject]
+                                 googleProject: Option[GoogleProject],
+                                 mountWorkspaceBucketEnabled: Boolean
 )

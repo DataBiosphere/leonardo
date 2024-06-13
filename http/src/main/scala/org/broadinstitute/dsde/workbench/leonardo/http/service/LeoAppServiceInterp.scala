@@ -88,6 +88,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
+      mountWorkspaceBucketEnabled = req.mountWorkspaceBucketEnabled.getOrElse(false)
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       // We only allow autopilot mode for members of CUSTOM_APP_USERS group
       // This is only needed while we're evaluating autopilot (6/3/2024).
@@ -299,7 +300,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           app.appResources.namespace,
           appMachineType,
           Some(ctx.traceId),
-          enableIntraNodeVisibility
+          enableIntraNodeVisibility,
+          mountWorkspaceBucketEnabled,
         )
         _ <- publisherQueue.offer(createAppMessage)
       } yield ()

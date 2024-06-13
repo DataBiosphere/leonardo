@@ -519,7 +519,8 @@ class GKEInterpreter[F[_]](
             gsa,
             app.auditInfo.creator,
             app.customEnvironmentVariables,
-            app.autopilot
+            app.autopilot,
+            params.mountWorkspaceBucketEnabled
           )
         case AppType.Custom =>
           installCustomApp(
@@ -754,7 +755,8 @@ class GKEInterpreter[F[_]](
               userEmail,
               stagingBucketName,
               app.customEnvironmentVariables,
-              app.autopilot
+              app.autopilot,
+              params.mountWorkspaceBucketEnabled
             )
 
             last <- streamFUntilDone(
@@ -1538,7 +1540,8 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String],
-    autopilot: Option[Autopilot]
+    autopilot: Option[Autopilot],
+    mountWorkspaceBucketEnabled,
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1576,7 +1579,8 @@ class GKEInterpreter[F[_]](
                                                              userEmail,
                                                              stagingBucketName,
                                                              customEnvironmentVariables,
-                                                             autopilot
+                                                             autopilot,
+        params.mountWorkspaceBucketEnabled
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 

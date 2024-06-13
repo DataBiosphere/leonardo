@@ -275,7 +275,8 @@ object LeoPubsubMessage {
       AppMachineType
     ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
     traceId: Option[TraceId],
-    enableIntraNodeVisibility: Boolean
+    enableIntraNodeVisibility: Boolean,
+    mountWorkspaceBucketEnabled: Boolean
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
@@ -362,7 +363,8 @@ object LeoPubsubMessage {
                                     cloudContext: CloudContext,
                                     workspaceId: Option[WorkspaceId],
                                     googleProject: Option[GoogleProject],
-                                    traceId: Option[TraceId]
+                                    traceId: Option[TraceId],
+                                    mountWorkspaceBucketEnabled: Boolean
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateApp
   }

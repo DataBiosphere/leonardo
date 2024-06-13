@@ -4155,6 +4155,9 @@ components:
           description: Whether to turn on autodelete
         autopilot:
           $ref: '#/components/schemas/Autopilot'
+        mountWorkspaceBucketEnabled:
+          type: boolean
+          description: Whether to mount workspace bucket on this app.
 
     UpdateAppRequest:
       description: A request to update the configuration of an app
