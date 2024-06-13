@@ -82,8 +82,7 @@ class RuntimeGceSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  // TODO: Add back before merging!!! taggedAs ExcludeFromPRCommit
-  "should be able to create a VM with GPU enabled" in { project =>
+  "should be able to create a VM with GPU enabled" taggedAs ExcludeFromPRCommit in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
 
