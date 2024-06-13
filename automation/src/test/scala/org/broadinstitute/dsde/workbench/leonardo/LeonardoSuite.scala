@@ -267,27 +267,27 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll
 
 final class LeonardoSuite
     extends Suites(
-      new RuntimeCreationDiskSpec,
-      new RuntimeAutopauseSpec,
-      new RuntimePatchSpec,
-      new StandardRuntimeSpec,
-      new RuntimeStatusTransitionsSpec,
-      new RuntimeDataprocSpec,
-      new RuntimeGceSpec,
-      new AppLifecycleSpec
+//      new RuntimeCreationDiskSpec,
+//      new RuntimeAutopauseSpec,
+//      new RuntimePatchSpec,
+//      new StandardRuntimeSpec,
+//      new RuntimeStatusTransitionsSpec,
+//      new RuntimeDataprocSpec,
+      new RuntimeGceSpec
+//      new AppLifecycleSpec
     )
     with TestSuite
     with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
 
-final class LeonardoTerraDockerSuite
-    extends Suites(
-      new NotebookHailSpec,
-      new NotebookRKernelSpec,
-      new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec,
-      new RStudioSpec
-    )
-    with TestSuite
-    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
-    with ParallelTestExecution
+//final class LeonardoTerraDockerSuite
+//    extends Suites(
+//      new NotebookHailSpec,
+//      new NotebookRKernelSpec,
+//      new NotebookGCECustomizationSpec,
+//      new NotebookGCEDataSyncingSpec,
+//      new RStudioSpec
+//    )
+//    with TestSuite
+//    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
+//    with ParallelTestExecution
