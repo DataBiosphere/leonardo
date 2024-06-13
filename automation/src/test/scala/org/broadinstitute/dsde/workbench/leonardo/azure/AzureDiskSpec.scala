@@ -1,24 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo.azure
 
-import org.scalatest.prop.TableDrivenPropertyChecks
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.GeneratedLeonardoClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.client.leonardo.model.{
-  AzureDiskConfig,
-  ClusterStatus,
-  CreateAzureRuntimeRequest,
-  DiskStatus,
-  GetRuntimeResponse
-}
+import org.broadinstitute.dsde.workbench.client.leonardo.model._
+import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, CloudProvider, LeonardoConfig, LeonardoTestUtils, SSH}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AzureBilling,
+  CloudProvider,
+  LeonardoConfig,
+  LeonardoTestUtils,
+  RuntimeName,
+  SSH
+}
+import org.scalatest.prop.TableDrivenPropertyChecks
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
 
@@ -97,29 +99,28 @@ class AzureDiskSpec
           )
           _ = monitorCreateResult.getStatus() shouldBe ClusterStatus.RUNNING
 
-          // TODO: re-enable once ssh issues are resolved: https://broadworkbench.atlassian.net/browse/IA-4889
-//          _ <- loggerIO.info("SSHing into first vm to add a file to the disk")
-//          (output1, output2) <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult.getRuntimeName())).use {
-//            t =>
-//              for {
-//                _ <- loggerIO.info("executing first command to create file for first runtime")
-//                output1 <- SSH.startSessionAndExecuteCommand(
-//                  t.hostName,
-//                  t.port,
-//                  s"echo ${LeonardoConfig.Azure.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\"",
-//                  SSHRuntimeInfo(None, CloudProvider.Azure)
-//                )
-//                _ <- loggerIO.info("executing second command to get file contents for first runtime")
-//                output2 <- SSH.startSessionAndExecuteCommand(t.hostName,
-//                                                             t.port,
-//                                                             s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
-//                                                             SSHRuntimeInfo(None, CloudProvider.Azure)
-//                )
-//              } yield (output1, output2)
-//          }
-//
-//          _ <- loggerIO.info(s"command result 1 and 2: \n\t1: ${output1}, \n\t2: ${output2}")
-//          _ = output2.outputLines.mkString shouldBe "{}"
+          _ <- loggerIO.info("SSHing into first vm to add a file to the disk")
+          (output1, output2) <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult.getRuntimeName())).use {
+            t =>
+              for {
+                _ <- loggerIO.info("executing first command to create file for first runtime")
+                output1 <- SSH.startSessionAndExecuteCommand(
+                  t.hostName,
+                  t.port,
+                  s"echo ${LeonardoConfig.Azure.vmPassword} | sudo -S bash -c \"echo '{}' > /home/jupyter/persistent_disk/test_disk.ipynb\"",
+                  SSHRuntimeInfo(None, CloudProvider.Azure)
+                )
+                _ <- loggerIO.info("executing second command to get file contents for first runtime")
+                output2 <- SSH.startSessionAndExecuteCommand(t.hostName,
+                                                             t.port,
+                                                             s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
+                                                             SSHRuntimeInfo(None, CloudProvider.Azure)
+                )
+              } yield (output1, output2)
+          }
+
+          _ <- loggerIO.info(s"command result 1 and 2: \n\t1: ${output1}, \n\t2: ${output2}")
+          _ = output2.outputLines.mkString shouldBe "{}"
 
           _ <- loggerIO.info(
             s"AzureDiskSpec: runtime ${workspaceId}/${runtimeName.asString} delete starting"
@@ -209,19 +210,18 @@ class AzureDiskSpec
           _ = disk2.getStatus() shouldBe DiskStatus.READY
           _ = disk2.getId() shouldBe monitorGetDisk.getId()
 
-          // TODO: re-enable once ssh issues are resolved: https://broadworkbench.atlassian.net/browse/IA-4889
-//          _ <- loggerIO.info("SSHing into second vm to verify disk contents")
-//          output <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
-//            for {
-//              output <- SSH.startSessionAndExecuteCommand(t.hostName,
-//                                                          t.port,
-//                                                          s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
-//                                                          SSHRuntimeInfo(None, CloudProvider.Azure)
-//              )
-//            } yield output
-//          }
-//
-//          _ = output.outputLines.mkString shouldBe "{}"
+          _ <- loggerIO.info("SSHing into second vm to verify disk contents")
+          output <- SSH.startAzureBastionTunnel(RuntimeName(monitorCreateResult2.getRuntimeName())).use { t =>
+            for {
+              output <- SSH.startSessionAndExecuteCommand(t.hostName,
+                                                          t.port,
+                                                          s"cat /home/jupyter/persistent_disk/test_disk.ipynb",
+                                                          SSHRuntimeInfo(None, CloudProvider.Azure)
+              )
+            } yield output
+          }
+
+          _ = output.outputLines.mkString shouldBe "{}"
         } yield ()
       res.unsafeRunSync()
   }

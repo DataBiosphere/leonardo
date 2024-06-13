@@ -74,17 +74,7 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
     println(s"withRawlsWorkspace: Rawls workspace get called, response: ${response}")
 
-    try
-      testCode(response)
-    finally
-      try
-        Rawls.workspaces.delete(projectName.value, workspaceName)
-      catch {
-        case e: Throwable =>
-          println(
-            s"withRawlsWorkspace: ignoring rawls workspace deletion error, not relevant to Leo tests. \n\tError: $e"
-          )
-      }
+    testCode(response)
   }
 
   private def workspaceResponse(projectName: String, workspaceName: String)(implicit

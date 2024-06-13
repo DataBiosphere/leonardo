@@ -80,6 +80,9 @@ class MockAppService extends AppService[IO] {
   ): IO[Unit] =
     IO.unit
 
+  override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
+    implicit as: Ask[IO, AppContext]
+  ): IO[Unit] = IO.unit
 }
 
 object MockAppService extends MockAppService

@@ -42,10 +42,11 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
 
   // TODO consider renaming this method and the KubernetesClusterId class
   // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
-  def getClusterId: KubernetesClusterId = cloudContext match {
-    case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
-    case CloudContext.Azure(_)   => throw new IllegalStateException("Can't get GCP ID for an Azure cluster")
-  }
+  def getClusterId: KubernetesClusterId =
+    cloudContext match {
+      case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
+      case CloudContext.Azure(_)   => throw new IllegalStateException("Can't get GCP ID for an Azure cluster")
+    }
 }
 
 final case class KubernetesClusterAsyncFields(loadBalancerIp: IP, apiServerIp: IP, networkInfo: NetworkFields)
@@ -437,7 +438,8 @@ final case class App(id: AppId,
                      sourceWorkspaceId: Option[WorkspaceId],
                      numOfReplicas: Option[Int],
                      autodeleteThreshold: Option[Int],
-                     autodeleteEnabled: Boolean
+                     autodeleteEnabled: Boolean,
+                     autopilot: Option[Autopilot]
 ) {
 
   def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =
@@ -571,3 +573,25 @@ final case class GalaxyOrchUrl(value: String) extends AnyVal
 final case class GalaxyDrsUrl(value: String) extends AnyVal
 final case class AppMachineType(memorySizeInGb: Int, numOfCpus: Int)
 final case class KsaName(value: String) extends AnyVal
+sealed trait ComputeClass extends Product with Serializable
+object ComputeClass {
+  final case object GeneralPurpose extends ComputeClass {
+    override def toString: String = "General-purpose"
+  }
+  final case object Accelerator extends ComputeClass {
+    override def toString: String = "Accelerator"
+  }
+  final case object Balanced extends ComputeClass {
+    override def toString: String = "Balanced"
+  }
+  final case object Performance extends ComputeClass {
+    override def toString: String = "Performance"
+  }
+  final case object ScaleOut extends ComputeClass {
+    override def toString: String = "Scale-Out"
+  }
+
+  private def values: Set[ComputeClass] = sealerate.values[ComputeClass]
+  val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
+}
+final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
