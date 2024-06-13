@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import org.broadinstitute.dsde.workbench.leonardo.{UpdateAppTableId, AppId, UpdateAppJobStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{AppId, UpdateAppJobStatus, UpdateAppTableId}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import slick.lifted.Tag
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -50,17 +50,16 @@ object updateAppLogQuery extends TableQuery(new UpdateAppLogTable(_)) {
              status: UpdateAppJobStatus,
              errorId: Option[KubernetesErrorId] = None,
              endTime: Option[Instant] = None
-  )(implicit ec: ExecutionContext): DBIO[Int] = {
+  )(implicit ec: ExecutionContext): DBIO[Int] =
     for {
       record <- get(appId, jobId)
       existingRecord = record.getOrElse(throw new SQLDataException(s"Cannot update a log record that does not exist"))
       int <- updateAppLogQuery
-      .filter(_.appId === appId)
-      .filter(_.jobId === jobId)
-      .map(x => (x.errorId, x.status, x.endTime, x.startTime))
-      .update((errorId, status, endTime, existingRecord.startTime))
+        .filter(_.appId === appId)
+        .filter(_.jobId === jobId)
+        .map(x => (x.errorId, x.status, x.endTime, x.startTime))
+        .update((errorId, status, endTime, existingRecord.startTime))
     } yield int
-  }
 
   def get(appId: AppId, jobId: UpdateAppJobId)(implicit ec: ExecutionContext): DBIO[Option[UpdateAppLogRecord]] =
     updateAppLogQuery
@@ -69,18 +68,6 @@ object updateAppLogQuery extends TableQuery(new UpdateAppLogTable(_)) {
       .result map { recs =>
       val logRecords = recs map { rec => unmarshalAppUpdateLogRecord(rec) }
       logRecords.toList.headOption
-    }
-
-  def getByAppId(appId: AppId)(implicit ec: ExecutionContext): DBIO[List[UpdateAppLogRecord]] =
-    updateAppLogQuery.filter(_.appId === appId).result map { recs =>
-      val logRecords = recs map { rec => unmarshalAppUpdateLogRecord(rec) }
-      logRecords.toList
-    }
-
-  def getByJobId(jobId: UpdateAppJobId)(implicit ec: ExecutionContext): DBIO[List[UpdateAppLogRecord]] =
-    updateAppLogQuery.filter(_.jobId === jobId).result map { recs =>
-      val logRecords = recs map { rec => unmarshalAppUpdateLogRecord(rec) }
-      logRecords.toList
     }
 
   def unmarshalAppUpdateLogRecord(appErrorRecord: UpdateAppLogRecord): UpdateAppLogRecord =
