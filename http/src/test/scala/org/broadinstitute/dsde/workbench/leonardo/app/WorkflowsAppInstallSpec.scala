@@ -53,7 +53,9 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName," +
       s"postgres.dbnames.cbas=$cbasAzureDbName," +
-      s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org"
+      s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org," +
+      s"bard.baseUri=https://terra-bard-dev.appspot.com," +
+      s"bard.enabled=false"
   }
 
   it should "fail if there is no storage container" in {

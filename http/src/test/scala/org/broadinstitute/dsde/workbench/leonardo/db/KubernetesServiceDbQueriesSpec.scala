@@ -445,7 +445,8 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       makeCluster2.status,
       makeCluster2.ingressChart,
       makeCluster2.auditInfo,
-      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get)
+      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get),
+      false
     )
     val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2, traceId))
     saveClusterResult shouldBe a[ClusterExists]
@@ -462,7 +463,8 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       makeCluster1.status,
       makeCluster1.ingressChart,
       makeCluster1.auditInfo,
-      DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get)
+      DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get),
+      false
     )
     val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1, traceId))
     saveResult shouldBe a[ClusterDoesNotExist]
@@ -480,7 +482,8 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       makeCluster2.status,
       makeCluster2.ingressChart,
       makeCluster2.auditInfo,
-      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get)
+      DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get),
+      false
     )
     val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2, traceId))
     saveResult shouldBe a[ClusterDoesNotExist]
@@ -499,7 +502,8 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         makeCluster1.status,
         makeCluster1.ingressChart,
         makeCluster1.auditInfo,
-        DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get)
+        DefaultNodepool.fromNodepool(makeCluster1.nodepools.headOption.get),
+        false
       )
     val saveCluster2 =
       SaveKubernetesCluster(
@@ -510,7 +514,8 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         makeCluster2.status,
         makeCluster2.ingressChart,
         makeCluster2.auditInfo,
-        DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get)
+        DefaultNodepool.fromNodepool(makeCluster2.nodepools.headOption.get),
+        false
       )
     val saveResult1IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1, traceId).transaction
     val saveResult2IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2, traceId).transaction

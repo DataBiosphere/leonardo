@@ -104,6 +104,10 @@ final class LeoPublisher[F[_]](
               KubernetesServiceDbQueries
                 .markPendingCreating(m.appId, None, None, Some(nodepoolId))
                 .transaction
+            case Some(ClusterNodepoolAction.CreateCluster(clusterId)) =>
+              KubernetesServiceDbQueries
+                .markPendingCreating(m.appId, Some(clusterId), None, None)
+                .transaction
             case None =>
               KubernetesServiceDbQueries
                 .markPendingCreating(m.appId, None, None, None)
