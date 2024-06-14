@@ -317,7 +317,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.autodeleteThreshold,
         saveApp.app.autodeleteEnabled,
         saveApp.app.autopilot,
-        saveApp.app.mountWorkspaceBucketName,
+        saveApp.app.mountWorkspaceBucketName
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
