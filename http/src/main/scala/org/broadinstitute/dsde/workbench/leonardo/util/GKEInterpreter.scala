@@ -520,7 +520,7 @@ class GKEInterpreter[F[_]](
             app.auditInfo.creator,
             app.customEnvironmentVariables,
             app.autopilot,
-            params.mountWorkspaceBucketEnabled
+            params.mountWorkspaceBucketName
           )
         case AppType.Custom =>
           installCustomApp(
@@ -756,7 +756,7 @@ class GKEInterpreter[F[_]](
               stagingBucketName,
               app.customEnvironmentVariables,
               app.autopilot,
-              params.mountWorkspaceBucketEnabled
+              params.mountWorkspaceBucketName
             )
 
             last <- streamFUntilDone(
@@ -1541,7 +1541,7 @@ class GKEInterpreter[F[_]](
     userEmail: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String],
     autopilot: Option[Autopilot],
-    mountWorkspaceBucketEnabled,
+    mountWorkspaceBucketName: Option[String]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1568,19 +1568,20 @@ class GKEInterpreter[F[_]](
         new RuntimeException(s"invalid chart name for ALLOWED app: ${chart.name}")
       )
 
-      chartValues = buildAllowedAppChartOverrideValuesString(config,
-                                                             allowedChart,
-                                                             appName,
-                                                             cluster,
-                                                             nodepoolName,
-                                                             namespaceName,
-                                                             disk,
-                                                             ksaName,
-                                                             userEmail,
-                                                             stagingBucketName,
-                                                             customEnvironmentVariables,
-                                                             autopilot,
-        params.mountWorkspaceBucketEnabled
+      chartValues = buildAllowedAppChartOverrideValuesString(
+        config,
+        allowedChart,
+        appName,
+        cluster,
+        nodepoolName,
+        namespaceName,
+        disk,
+        ksaName,
+        userEmail,
+        stagingBucketName,
+        customEnvironmentVariables,
+        autopilot,
+        mountWorkspaceBucketName
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 

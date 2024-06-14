@@ -301,7 +301,7 @@ private[leonardo] object BuildHelmChartValues {
                                                stagingBucket: GcsBucketName,
                                                customEnvironmentVariables: Map[String, String],
                                                autopilot: Option[Autopilot],
-                                               mountWorkspaceBucketEnabled: Boolean
+                                               mountWorkspaceBucketName: Option[String]
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
@@ -320,7 +320,7 @@ private[leonardo] object BuildHelmChartValues {
       ingressPath,
       k8sProxyHost,
       autopilot,
-      mountWorkspaceBucketEnabled
+      mountWorkspaceBucketName
     )
 
     allowedChartName match {
@@ -358,8 +358,7 @@ private[leonardo] object BuildHelmChartValues {
                                                            ingressPath: String,
                                                            k8sProxyHost: akka.http.scaladsl.model.Uri.Host,
                                                            autopilot: Option[Autopilot],
-                                                           mountWorkspaceBucketEnabled: Boolean,
-
+                                                           mountWorkspaceBucketName: Option[String]
   ): List[String] = {
     val k8sProxyHostString = k8sProxyHost.address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -408,11 +407,17 @@ private[leonardo] object BuildHelmChartValues {
       case None => List.empty
     }
 
-    val gcsBucket = customEnvironmentVariables.getOrElse("WORKSPACE_BUCKET", "<no workspace bucket defined>")
-    val gcsfuse = List(
-      raw"""gcsfuse.enabled=${mountWorkspaceBucketEnabled.toString}""",
-      raw"""gcsfuse.bucket=${gcsBucket}""",
-    )
+    val gcsfuse = mountWorkspaceBucketName match {
+      case Some(bucketName) =>
+        List(
+          raw"""gcsfuse.enabled=true""",
+          raw"""gcsfuse.bucket=${bucketName}"""
+        )
+      case None =>
+        List(
+          raw"""gcsfuse.enabled=false"""
+        )
+    }
 
     val welder = List(
       raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",

@@ -126,7 +126,7 @@ final case class CreateAppParams(appId: AppId,
                                  googleProject: GoogleProject,
                                  appName: AppName,
                                  appMachineType: Option[AppMachineType],
-                                 mountWorkspaceBucketEnabled: Boolean
+                                 mountWorkspaceBucketName: Option[String]
 )
 
 final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googleProject: GoogleProject)
@@ -151,5 +151,5 @@ final case class UpdateAppParams(appId: AppId,
                                  appName: AppName,
                                  appChartVersion: ChartVersion,
                                  googleProject: Option[GoogleProject],
-                                 mountWorkspaceBucketEnabled: Boolean
+                                 mountWorkspaceBucketName: Boolean
 )

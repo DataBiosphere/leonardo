@@ -4155,9 +4155,10 @@ components:
           description: Whether to turn on autodelete
         autopilot:
           $ref: '#/components/schemas/Autopilot'
-        mountWorkspaceBucketEnabled:
-          type: boolean
-          description: Whether to mount workspace bucket on this app.
+        mountWorkspaceBucketName:
+          type: string
+          description: >
+            The GCS bucket name (without gs://) that will be mounted in the app if present. 
 
     UpdateAppRequest:
       description: A request to update the configuration of an app
