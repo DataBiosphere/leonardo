@@ -127,7 +127,6 @@ object CommonTestData {
   val stagingBucketName = GcsBucketName("staging-bucket-name")
   val autopause = true
   val autopauseThreshold = 30
-  val autopauseThreshold = 30
   val defaultScopes = Set(
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
