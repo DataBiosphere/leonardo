@@ -59,7 +59,7 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
       appUpdateLogRecordOpt <- updateAppLogQuery.get(savedApp.id, jobId1)
     } yield {
       appUpdateLogRecordOpt.isDefined shouldBe true
-      appUpdateLogRecordOpt.map(_.startTime) shouldBe Some(startTime)
+      appUpdateLogRecordOpt.map(_.startTime.toEpochMilli) shouldBe Some(startTime.toEpochMilli)
       appUpdateLogRecordOpt.map(_.errorId) shouldBe Some(Some(errorId))
       appUpdateLogRecordOpt.map(_.endTime) shouldBe Some(Some(endTime))
       appUpdateLogRecordOpt.map(_.jobId) shouldBe Some(jobId1)
