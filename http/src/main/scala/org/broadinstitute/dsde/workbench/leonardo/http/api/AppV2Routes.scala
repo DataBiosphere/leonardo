@@ -177,6 +177,7 @@ object AppV2Routes {
         adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
         adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
         autopilot <- x.downField("autopilot").as[Option[Autopilot]]
+        mountBucketName <- x.downField("mountWorkspaceBucketName").as[Option[String]]
 
         optStr <- x.downField("appType").as[Option[String]]
         cn <- x.downField("allowedChartName").as[Option[AllowedChartName]]
@@ -208,7 +209,8 @@ object AppV2Routes {
         swi,
         adtm,
         adte,
-        autopilot
+        autopilot,
+        mountBucketName
       )
     }
 
