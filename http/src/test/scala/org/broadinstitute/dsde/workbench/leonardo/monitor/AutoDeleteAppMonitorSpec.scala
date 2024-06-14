@@ -5,7 +5,7 @@ import cats.effect.{Deferred, IO}
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, AutodeleteThreshold, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
@@ -28,10 +28,11 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
       now <- IO.realTimeInstant
       runningApp <- IO(
         makeApp(1, savedNodepool1.id)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
-                status = AppStatus.Running,
-                autodeleteThreshold = Some(1),
-                autodeleteEnabled = true
+          .copy(
+            auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
+            status = AppStatus.Running,
+            autodeleteThreshold = Some(AutodeleteThreshold(1)),
+            autodeleteEnabled = true
           )
           .save()
       )
@@ -55,10 +56,11 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
       now <- IO.realTimeInstant
       runningApp <- IO(
         makeApp(2, savedNodepool1.id)
-          .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
-                status = AppStatus.Running,
-                autodeleteThreshold = Some(6),
-                autodeleteEnabled = true
+          .copy(
+            auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
+            status = AppStatus.Running,
+            autodeleteThreshold = Some(AutodeleteThreshold(6)),
+            autodeleteEnabled = true
           )
           .save()
       )

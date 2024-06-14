@@ -174,8 +174,8 @@ object AppV2Routes {
         ea <- x.downField("extraArgs").as[Option[List[String]]]
         wsi <- x.downField("workspaceId").as[Option[WorkspaceId]]
         swi <- x.downField("sourceWorkspaceId").as[Option[WorkspaceId]]
-        adtm <- x.downField("autodeleteThreshold").as[Option[Int]]
         adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
+        adtm <- x.downField("autodeleteThreshold").as[Option[AutodeleteThreshold]]
         autopilot <- x.downField("autopilot").as[Option[Autopilot]]
         mountBucketName <- x.downField("mountWorkspaceBucketName").as[Option[String]]
 
@@ -207,10 +207,14 @@ object AppV2Routes {
         ea.getOrElse(List.empty),
         wsi,
         swi,
-        adtm,
         adte,
+<<<<<<< HEAD
         autopilot,
         mountBucketName
+=======
+        adtm,
+        autopilot
+>>>>>>> origin
       )
     }
 

@@ -4146,13 +4146,15 @@ components:
         sourceWorkspaceId:
           type: string
           description: Optional id of source workspace if app is a clone.
-        autodeleteThreshold:
-          type: integer
-          description: The number of minutes of idle time to elapse before the app is
-            deleted. When autodeleteEnabled is true, a positive integer is required
         autodeleteEnabled:
           type: boolean
           description: Whether to turn on autodelete
+        autodeleteThreshold:
+          type: integer
+          description: >
+            Optional: The number of minutes of idle time to elapse before the app is deleted.  This must be a positive
+            integer.  Note: deletion timing is not exact.  The app will be deleted a short period of time after this
+            threshold time has elapsed.
         autopilot:
           $ref: '#/components/schemas/Autopilot'
         mountWorkspaceBucketName:
