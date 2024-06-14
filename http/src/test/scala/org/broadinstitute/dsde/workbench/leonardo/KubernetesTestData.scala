@@ -129,6 +129,7 @@ object KubernetesTestData {
       None,
       None,
       None,
+      None,
       None
     )
 
@@ -249,7 +250,7 @@ object KubernetesTestData {
       Some(1),
       Some(autodeleteThreshold),
       autodeleteEnabled,
-      None
+      None, None
     )
   }
 
