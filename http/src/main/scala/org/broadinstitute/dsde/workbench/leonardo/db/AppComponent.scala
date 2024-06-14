@@ -43,7 +43,8 @@ final case class AppRecord(id: AppId,
                            numOfReplicas: Option[Int],
                            autodeleteThreshold: Option[Int],
                            autodeleteEnabled: Boolean,
-                           autopilot: Option[Autopilot]
+                           autopilot: Option[Autopilot],
+                           mountWorkspaceBucketName: Option[String]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -78,6 +79,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def cpu = column[Option[Int]]("cpu")
   def memory = column[Option[Int]]("memory")
   def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
+  def mountWorkspaceBucketName = column[Option[String]]("mountWorkspaceBucketName")
 
   def * =
     (
@@ -102,7 +104,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       sourceWorkspaceId,
       numOfReplicas,
       (autodeleteThreshold, autodeleteEnabled),
-      (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage)
+      (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage),
+      mountWorkspaceBucketName
     ) <> ({
       case (
             id,
@@ -126,7 +129,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             sourceWorkspaceId,
             numOfReplicas,
             autoDelete,
-            autopilot
+            autopilot,
+            mountWorkspaceBucketName
           ) =>
         AppRecord(
           id,
@@ -163,7 +167,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
               memory <- autopilot._4
               ephemeralStorage <- autopilot._5
             } yield Autopilot(computeClass, cpu, memory, ephemeralStorage)
-          else None
+          else None,
+          mountWorkspaceBucketName
         )
     }, { r: AppRecord =>
       val autopilotComputeClass = r.autopilot.map(_.computeClass)
@@ -197,7 +202,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.sourceWorkspaceId,
           r.numOfReplicas,
           (r.autodeleteThreshold, r.autodeleteEnabled),
-          (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage)
+          (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage),
+          r.mountWorkspaceBucketName
         )
       )
     })
@@ -239,7 +245,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.numOfReplicas,
       app.autodeleteThreshold,
       app.autodeleteEnabled,
-      app.autopilot
+      app.autopilot,
+      app.mountWorkspaceBucketName
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -309,7 +316,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.numOfReplicas,
         saveApp.app.autodeleteThreshold,
         saveApp.app.autodeleteEnabled,
-        saveApp.app.autopilot
+        saveApp.app.autopilot,
+        saveApp.app.mountWorkspaceBucketName,
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
