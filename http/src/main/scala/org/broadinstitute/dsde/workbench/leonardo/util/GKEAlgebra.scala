@@ -151,5 +151,5 @@ final case class UpdateAppParams(appId: AppId,
                                  appName: AppName,
                                  appChartVersion: ChartVersion,
                                  googleProject: Option[GoogleProject],
-                                 mountWorkspaceBucketName: Boolean
+                                 mountWorkspaceBucketName: Option[String]
 )
