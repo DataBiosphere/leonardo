@@ -503,7 +503,7 @@ class MockSamDAO extends SamDAO[IO] {
   override def getAzureActionManagedIdentity(authHeader: Authorization,
                                              resource: PrivateAzureStorageAccountSamResourceId,
                                              action: PrivateAzureStorageAccountAction
-  )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = ???
+  )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = IO(None)
 }
 
 object MockSamDAO {
