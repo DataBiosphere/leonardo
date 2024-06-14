@@ -37,6 +37,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   implicit val system: ActorSystem = ActorSystem("leotests")
 
   val mockOpenIDConnectConfiguration: OpenIDConnectConfiguration = mock[OpenIDConnectConfiguration]
+  val mockHelloService: HelloService = mock[HelloService]
   val mockStatusService: StatusService = mock[StatusService]
   val mockProxyService: ProxyService = mock[ProxyService]
   val mockRuntimeService: RuntimeService[IO] = mock[RuntimeService[IO]]
@@ -63,6 +64,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
   val routes =
     new HttpRoutes(
       mockOpenIDConnectConfiguration,
+      mockHelloService,
       mockStatusService,
       gcpOnlyServicesRegistry,
       mockDiskV2Service,
