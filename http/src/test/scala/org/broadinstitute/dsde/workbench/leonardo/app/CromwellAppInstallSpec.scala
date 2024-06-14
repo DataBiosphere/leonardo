@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.{ManagedIdentityName, PostgresServer, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
@@ -78,6 +78,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       app,
       workspaceId,
       cloudContext,
+      billingProfileId,
       lzResources.copy(postgresServer = Some(PostgresServer("postgres", false))),
       Some(storageContainer),
       Uri.unsafeFromString("https://relay.com/app"),
