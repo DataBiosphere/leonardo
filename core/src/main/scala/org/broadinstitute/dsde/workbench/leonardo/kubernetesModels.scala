@@ -595,4 +595,5 @@ object ComputeClass {
   private def values: Set[ComputeClass] = sealerate.values[ComputeClass]
   val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
 }
+final case class Autodelete(autodelete: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
 final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
