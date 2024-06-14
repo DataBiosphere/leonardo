@@ -149,11 +149,11 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
     val message2 = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     message1.messageType shouldBe LeoPubsubMessageType.UpdateApp
     val updateMsg1 = message1.asInstanceOf[UpdateAppMessage]
-    updateMsg1.appName shouldBe app1.appName
-    updateMsg1.jobId shouldBe jobId
     val updateMsg2 = message2.asInstanceOf[UpdateAppMessage]
-    updateMsg2.appName shouldBe app2.appName
-    updateMsg2.jobId shouldBe jobId
+    // Use a list because the order of messages is not guaranteed
+    val msgList = List(updateMsg1, updateMsg2)
+    msgList.map(_.appName.value).sorted shouldBe List(app1, app2).map(_.appName.value).sorted
+    msgList.map(_.jobId).distinct shouldBe List(jobId)
 
     // Verify database has log records for update
     val dbTest = for {
