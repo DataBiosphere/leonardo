@@ -363,8 +363,7 @@ object LeoPubsubMessage {
                                     cloudContext: CloudContext,
                                     workspaceId: Option[WorkspaceId],
                                     googleProject: Option[GoogleProject],
-                                    traceId: Option[TraceId],
-                                    mountWorkspaceBucketName: Option[String]
+                                    traceId: Option[TraceId]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateApp
   }
@@ -544,7 +543,7 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppMessageDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct11(
+    Decoder.forProduct12(
       "project",
       "clusterNodepoolAction",
       "appId",
@@ -555,7 +554,8 @@ object LeoPubsubCodec {
       "namespaceName",
       "machineType",
       "traceId",
-      "enableIntraNodeVisibility"
+      "enableIntraNodeVisibility",
+      "mountWorkspaceBucketName"
     )(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =

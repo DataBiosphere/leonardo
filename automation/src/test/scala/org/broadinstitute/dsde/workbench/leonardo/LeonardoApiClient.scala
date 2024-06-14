@@ -131,6 +131,7 @@ object LeonardoApiClient {
     None,
     None,
     None,
+    None,
     None
   )
 
