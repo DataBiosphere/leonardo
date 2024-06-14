@@ -295,7 +295,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
-      None
+      None,
+      Some("fc-bucket")
     )
 
     res.mkString(",") shouldBe
@@ -329,7 +330,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1""" +
+      """gcsfuse.enabled=true""" +
+      """gcsfuse.bucket=fc-bucket"""
   }
 
   it should "build SAS override values string" in {
@@ -348,7 +351,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
-      None
+      None,
+      Some("fc-bucket")
     )
 
     res.mkString(",") shouldBe
@@ -386,7 +390,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1""" +
+      """gcsfuse.enabled=true""" +
+      """gcsfuse.bucket=fc-bucket"""
   }
 
   it should "build SAS override values string in autopilot mode" in {
@@ -405,7 +411,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
-      Some(Autopilot(ComputeClass.Balanced, 500, 1, 2))
+      Some(Autopilot(ComputeClass.Balanced, 500, 1, 2)),
+      Some("fc-bucket")
     )
 
     res.mkString(",") shouldBe
@@ -450,7 +457,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """autopilot.welder.ephemeral\-storage=1Gi,""" +
       """autopilot.wondershaper.cpu=500m,""" +
       """autopilot.wondershaper.memory=3Gi,""" +
-      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin
+      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin +
+      """gcsfuse.enabled=true""" +
+      """gcsfuse.bucket=fc-bucket"""
   }
 
   it should "build SAS override values string in autopilot mode without compute-class when it's General-purpose" in {
@@ -469,7 +478,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
-      Some(Autopilot(ComputeClass.GeneralPurpose, 500, 1, 2))
+      Some(Autopilot(ComputeClass.GeneralPurpose, 500, 1, 2)),
+      Some("fc-bucket")
     )
 
     res.mkString(",") shouldBe
@@ -513,7 +523,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """autopilot.welder.ephemeral\-storage=1Gi,""" +
       """autopilot.wondershaper.cpu=500m,""" +
       """autopilot.wondershaper.memory=3Gi,""" +
-      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin
+      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin +
+      """gcsfuse.enabled=true""" +
+      """gcsfuse.bucket=fc-bucket"""
   }
 
   it should "build relay listener override values string" in {
