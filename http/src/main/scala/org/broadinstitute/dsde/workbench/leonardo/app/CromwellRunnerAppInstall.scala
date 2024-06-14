@@ -131,7 +131,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
         // Sam configs
         raw"sam.baseUri=${samConfig.server}",
-        raw"sam.acrPullActionIdentityResourceId=${params.billingProfileId}"
+        raw"sam.acrPullActionIdentityResourceId=${params.billingProfileId.value}"
       )
     } yield Values(values.mkString(","))
 
