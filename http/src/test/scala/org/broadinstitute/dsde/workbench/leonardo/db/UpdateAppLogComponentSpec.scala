@@ -33,7 +33,7 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
       appUpdateLogRecordOpt.map(_.jobId) shouldBe Some(jobId1)
       appUpdateLogRecordOpt.map(_.appId) shouldBe Some(savedApp.id)
       appUpdateLogRecordOpt.map(_.status) shouldBe Some(UpdateAppJobStatus.Running)
-      appUpdateLogRecordOpt.map(_.startTime) shouldBe Some(startTime)
+      appUpdateLogRecordOpt.map(_.startTime.toEpochMilli) shouldBe Some(startTime.toEpochMilli)
     }
     test.transaction.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -61,7 +61,7 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
       appUpdateLogRecordOpt.isDefined shouldBe true
       appUpdateLogRecordOpt.map(_.startTime.toEpochMilli) shouldBe Some(startTime.toEpochMilli)
       appUpdateLogRecordOpt.map(_.errorId) shouldBe Some(Some(errorId))
-      appUpdateLogRecordOpt.map(_.endTime) shouldBe Some(Some(endTime))
+      appUpdateLogRecordOpt.map(_.endTime.map(_.toEpochMilli)) shouldBe Some(Some(endTime.toEpochMilli))
       appUpdateLogRecordOpt.map(_.jobId) shouldBe Some(jobId1)
       appUpdateLogRecordOpt.map(_.appId) shouldBe Some(savedApp.id)
       appUpdateLogRecordOpt.map(_.status) shouldBe Some(UpdateAppJobStatus.Error)
@@ -86,9 +86,9 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
       appUpdateLogRecordOpt <- updateAppLogQuery.get(savedApp.id, jobId1)
     } yield {
       appUpdateLogRecordOpt.isDefined shouldBe true
-      appUpdateLogRecordOpt.map(_.startTime) shouldBe Some(startTime)
+      appUpdateLogRecordOpt.map(_.startTime.toEpochMilli) shouldBe Some(startTime.toEpochMilli)
       appUpdateLogRecordOpt.map(_.errorId) shouldBe Some(None)
-      appUpdateLogRecordOpt.map(_.endTime) shouldBe Some(Some(endTime))
+      appUpdateLogRecordOpt.map(_.endTime.map(_.toEpochMilli)) shouldBe Some(Some(endTime.toEpochMilli))
       appUpdateLogRecordOpt.map(_.jobId) shouldBe Some(jobId1)
       appUpdateLogRecordOpt.map(_.appId) shouldBe Some(savedApp.id)
       appUpdateLogRecordOpt.map(_.status) shouldBe Some(UpdateAppJobStatus.Success)
@@ -132,7 +132,7 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
     val app1ErrorTime = Instant.now()
     val app1Error = AppError("error msg", app1ErrorTime, ErrorAction.UpdateApp, ErrorSource.App, None, None)
     val app3ErrorTime = Instant.now()
-    val app3Error = AppError("error msg", app1ErrorTime, ErrorAction.UpdateApp, ErrorSource.App, None, None)
+    val app3Error = AppError("error msg", app3ErrorTime, ErrorAction.UpdateApp, ErrorSource.App, None, None)
 
     val test = for {
       error1Id <- appErrorQuery.save(savedApp1.id, app1Error)
@@ -151,25 +151,25 @@ class UpdateAppLogComponentSpec extends AnyFlatSpecLike with TestComponent {
       appUpdateLogRecordOpt3 <- updateAppLogQuery.get(savedApp3.id, jobId1)
     } yield {
       appUpdateLogRecordOpt1.isDefined shouldBe true
-      appUpdateLogRecordOpt1.map(_.startTime) shouldBe Some(startTime)
+      appUpdateLogRecordOpt1.map(_.startTime.toEpochMilli) shouldBe Some(startTime.toEpochMilli)
       appUpdateLogRecordOpt1.map(_.errorId) shouldBe Some(Some(error1Id))
-      appUpdateLogRecordOpt1.map(_.endTime) shouldBe Some(Some(endTime1))
+      appUpdateLogRecordOpt1.map(_.endTime.map(_.toEpochMilli)) shouldBe Some(Some(endTime1.toEpochMilli))
       appUpdateLogRecordOpt1.map(_.jobId) shouldBe Some(jobId1)
       appUpdateLogRecordOpt1.map(_.appId) shouldBe Some(savedApp1.id)
       appUpdateLogRecordOpt1.map(_.status) shouldBe Some(UpdateAppJobStatus.Error)
 
       appUpdateLogRecordOpt2.isDefined shouldBe true
-      appUpdateLogRecordOpt2.map(_.startTime) shouldBe Some(startTime)
+      appUpdateLogRecordOpt2.map(_.startTime.toEpochMilli) shouldBe Some(startTime.toEpochMilli)
       appUpdateLogRecordOpt2.map(_.errorId) shouldBe Some(None)
-      appUpdateLogRecordOpt2.map(_.endTime) shouldBe Some(Some(endTime2))
+      appUpdateLogRecordOpt2.map(_.endTime.map(_.toEpochMilli)) shouldBe Some(Some(endTime2.toEpochMilli))
       appUpdateLogRecordOpt2.map(_.jobId) shouldBe Some(jobId1)
       appUpdateLogRecordOpt2.map(_.appId) shouldBe Some(savedApp2.id)
       appUpdateLogRecordOpt2.map(_.status) shouldBe Some(UpdateAppJobStatus.Success)
 
       appUpdateLogRecordOpt3.isDefined shouldBe true
-      appUpdateLogRecordOpt3.map(_.startTime) shouldBe Some(startTime)
+      appUpdateLogRecordOpt3.map(_.startTime.toEpochMilli) shouldBe Some(startTime.toEpochMilli)
       appUpdateLogRecordOpt3.map(_.errorId) shouldBe Some(Some(error3Id))
-      appUpdateLogRecordOpt3.map(_.endTime) shouldBe Some(Some(endTime3))
+      appUpdateLogRecordOpt3.map(_.endTime.map(_.toEpochMilli)) shouldBe Some(Some(endTime3.toEpochMilli))
       appUpdateLogRecordOpt3.map(_.jobId) shouldBe Some(jobId1)
       appUpdateLogRecordOpt3.map(_.appId) shouldBe Some(savedApp3.id)
       appUpdateLogRecordOpt3.map(_.status) shouldBe Some(UpdateAppJobStatus.Error)

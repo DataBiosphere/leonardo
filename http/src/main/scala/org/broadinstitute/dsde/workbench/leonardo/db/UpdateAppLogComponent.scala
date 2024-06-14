@@ -53,7 +53,9 @@ object updateAppLogQuery extends TableQuery(new UpdateAppLogTable(_)) {
   )(implicit ec: ExecutionContext): DBIO[Int] =
     for {
       record <- get(appId, jobId)
-      existingRecord = record.getOrElse(throw new SQLDataException(s"Cannot update a log record that does not exist"))
+      existingRecord = record.getOrElse(
+        throw new SQLDataException(s"Cannot update a log record that does not exist. App id: $appId, job id: $jobId")
+      )
       int <- updateAppLogQuery
         .filter(_.appId === appId)
         .filter(_.jobId === jobId)
