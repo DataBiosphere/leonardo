@@ -249,8 +249,7 @@ object KubernetesTestData {
       List.empty,
       None,
       Some(1),
-      autodeleteEnabled,
-      autodeleteThreshold,
+      Autodelete(autodeleteEnabled, autodeleteThreshold),
       None,
       None
     )

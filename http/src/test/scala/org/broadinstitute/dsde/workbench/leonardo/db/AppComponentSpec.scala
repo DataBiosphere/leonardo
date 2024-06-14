@@ -175,9 +175,8 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThreshold = Some(AutodeleteThreshold(1)),
-        samResourceId = samResourceId1,
-        autodeleteEnabled = true
+        autodelete = Autodelete(true, Some(AutodeleteThreshold(1))),
+        samResourceId = samResourceId1
       )
       .save()
     // App2, Not ready to delete:  Last accessed 5 minutes ago, auto delete threshold is 10 minute.
@@ -185,8 +184,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThreshold = Some(AutodeleteThreshold(10)),
-        autodeleteEnabled = true
+        autodelete = Autodelete(true, Some(AutodeleteThreshold(10)))
       )
       .save()
 
@@ -195,8 +193,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Deleting,
-        autodeleteThreshold = Some(AutodeleteThreshold(1)),
-        autodeleteEnabled = true
+        autodelete = Autodelete(true, Some(AutodeleteThreshold(1)))
       )
       .save()
 
@@ -205,9 +202,8 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThreshold = Some(AutodeleteThreshold(1)),
-        samResourceId = samResourceId1,
-        autodeleteEnabled = false
+        autodelete = Autodelete(false, Some(AutodeleteThreshold(1))),
+        samResourceId = samResourceId1
       )
       .save()
 
@@ -216,7 +212,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodeleteThreshold = Some(AutodeleteThreshold(1)),
+        autodelete = Autodelete(true, Some(AutodeleteThreshold(1))),
         samResourceId = samResourceId1
       )
       .save()
