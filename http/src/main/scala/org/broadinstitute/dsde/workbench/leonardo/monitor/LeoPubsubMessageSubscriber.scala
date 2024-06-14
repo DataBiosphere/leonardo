@@ -1527,12 +1527,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         case CloudContext.Gcp(_) =>
           getGkeAlgFromRegistry()
             .updateAndPollApp(
-              UpdateAppParams(msg.appId,
-                              msg.appName,
-                              latestAppChartVersion,
-                              msg.googleProject,
-                              msg.mountWorkspaceBucketName
-              )
+              UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject)
             )
         case CloudContext.Azure(azureContext) =>
           azurePubsubHandler

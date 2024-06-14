@@ -150,6 +150,5 @@ final case class StartAppParams(appId: AppId, appName: AppName, googleProject: G
 final case class UpdateAppParams(appId: AppId,
                                  appName: AppName,
                                  appChartVersion: ChartVersion,
-                                 googleProject: Option[GoogleProject],
-                                 mountWorkspaceBucketName: Option[String]
+                                 googleProject: Option[GoogleProject]
 )
