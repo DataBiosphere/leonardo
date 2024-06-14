@@ -439,8 +439,7 @@ final case class App(id: AppId,
                      extraArgs: List[String],
                      sourceWorkspaceId: Option[WorkspaceId],
                      numOfReplicas: Option[Int],
-                     autodeleteEnabled: Boolean,
-                     autodeleteThreshold: Option[AutodeleteThreshold],
+                     autodelete: Autodelete,
                      autopilot: Option[Autopilot],
                      mountWorkspaceBucketName: Option[String]
 ) {
@@ -597,5 +596,5 @@ object ComputeClass {
   private def values: Set[ComputeClass] = sealerate.values[ComputeClass]
   val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
 }
-final case class Autodelete(autodelete: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
+final case class Autodelete(autodeleteEnabled: Boolean, autodeleteThreshold: Option[AutodeleteThreshold])
 final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)

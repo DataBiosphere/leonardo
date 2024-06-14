@@ -108,8 +108,8 @@ object ListAppResponse {
           a.auditInfo,
           a.appAccessScope,
           a.labels.filter(l => labelsToReturn.contains(l._1)),
-          a.autodeleteEnabled,
-          a.autodeleteThreshold
+          a.autodelete.autodeleteEnabled,
+          a.autodelete.autodeleteThreshold
         )
       }
     )
@@ -137,7 +137,7 @@ object GetAppResponse {
       appResult.app.chart.name,
       appResult.app.appAccessScope,
       appResult.app.labels,
-      appResult.app.autodeleteEnabled,
-      appResult.app.autodeleteThreshold
+      appResult.app.autodelete.autodeleteEnabled,
+      appResult.app.autodelete.autodeleteThreshold
     )
 }

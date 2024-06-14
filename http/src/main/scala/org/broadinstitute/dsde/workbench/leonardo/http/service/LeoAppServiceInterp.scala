@@ -1532,13 +1532,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.sourceWorkspaceId,
         numOfReplicas,
         autodeleteEnabled,
-<<<<<<< HEAD
-        autopilot,
+        <<<<<<< HEAD
+          autopilot,
         req.mountWorkspaceBucketName
-=======
-        req.autodeleteThreshold,
+          =======
+            req.autodeleteThreshold,
         autopilot
->>>>>>> origin
+          >>>>>>> origin
       )
     )
   }

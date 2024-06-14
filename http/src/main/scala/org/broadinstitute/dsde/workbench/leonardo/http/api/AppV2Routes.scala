@@ -208,13 +208,9 @@ object AppV2Routes {
         wsi,
         swi,
         adte,
-<<<<<<< HEAD
+        adtm,
         autopilot,
         mountBucketName
-=======
-        adtm,
-        autopilot
->>>>>>> origin
       )
     }
 

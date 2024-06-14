@@ -41,10 +41,9 @@ final case class AppRecord(id: AppId,
                            extraArgs: Option[List[String]],
                            sourceWorkspaceId: Option[WorkspaceId],
                            numOfReplicas: Option[Int],
-                           autodeleteEnabled: Boolean,
-                           autodeleteThreshold: Option[AutodeleteThreshold],
+                           autodelete: Autodelete,
                            autopilot: Option[Autopilot],
-                          mountWorkspaceBucketName: Option[String]
+                           mountWorkspaceBucketName: Option[String]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -93,8 +92,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       chart,
       release,
       samResourceId,
-      googleServiceAccount,
-      kubernetesServiceAccount,
+      (googleServiceAccount, kubernetesServiceAccount),
       (creator, createdDate, destroyedDate, dateAccessed),
       namespaceName,
       diskId,
@@ -104,7 +102,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       sourceWorkspaceId,
       numOfReplicas,
       // combine these values to allow tuple creation; longer than 22 elements is not allowed
-      (autodeleteThreshold, autodeleteEnabled),
+      (autodeleteEnabled, autodeleteThreshold),
       (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage),
       mountWorkspaceBucketName
     ) <> ({
@@ -119,8 +117,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             chart,
             release,
             samResourceId,
-            googleServiceAccount,
-            kubernetesServiceAccount,
+            serviceAccounts,
             auditInfoRaw,
             namespaceName,
             diskId,
@@ -144,8 +141,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           chart,
           release,
           samResourceId,
-          googleServiceAccount,
-          kubernetesServiceAccount,
+          serviceAccounts._1,
+          serviceAccounts._2,
           AuditInfo(
             auditInfoRaw._1,
             auditInfoRaw._2,
@@ -159,8 +156,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           extraArgs,
           sourceWorkspaceId,
           numOfReplicas,
-          autodelete._1,
-          autodelete._2,
+          Autodelete(autodelete._1, autodelete._2),
           if (autopilot._1)
             for {
               computeClass <- autopilot._2
@@ -188,8 +184,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.chart,
           r.release,
           r.samResourceId,
-          r.googleServiceAccount,
-          r.kubernetesServiceAccount,
+          (r.googleServiceAccount, r.kubernetesServiceAccount),
           (r.auditInfo.creator,
            r.auditInfo.createdDate,
            r.auditInfo.destroyedDate.getOrElse(dummyDate),
@@ -203,7 +198,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.sourceWorkspaceId,
           r.numOfReplicas,
           // combine these values to allow tuple creation; longer than 22 elements is not allowed
-          (r.autodeleteEnabled, r.autodeleteThreshold),
+          r.autodelete,
           (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage),
           r.mountWorkspaceBucketName
         )
@@ -245,8 +240,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.extraArgs.getOrElse(List.empty),
       app.sourceWorkspaceId,
       app.numOfReplicas,
-      app.autodeleteEnabled,
-      app.autodeleteThreshold,
+      app.autodelete,
       app.autopilot,
       app.mountWorkspaceBucketName
     )
@@ -316,8 +310,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
         saveApp.app.sourceWorkspaceId,
         saveApp.app.numOfReplicas,
-        saveApp.app.autodeleteEnabled,
-        saveApp.app.autodeleteThreshold,
+        saveApp.app.autodelete,
         saveApp.app.autopilot,
         saveApp.app.mountWorkspaceBucketName
       )
