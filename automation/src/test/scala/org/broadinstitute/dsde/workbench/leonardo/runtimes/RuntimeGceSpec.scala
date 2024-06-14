@@ -114,15 +114,14 @@ class RuntimeGceSpec
         implicit0(authToken: AuthToken) <- Ron.authToken()
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
+            notebookPage.executeCell("import tensorflow as tf")
             val deviceNameOutput =
-              """
-                |import tensorflow as tf
-                |gpus = tf.config.experimental.list_physical_devices('GPU')
+              """gpus = tf.config.experimental.list_physical_devices('GPU')
                 |print(gpus)
                 |""".stripMargin
             val output = notebookPage.executeCell(deviceNameOutput).get
-            output.contains("GPU:0") shouldBe true
-            output.contains("GPU:1") shouldBe true
+            output should include("GPU:0")
+            output should include("GPU:1")
           }
         })
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
