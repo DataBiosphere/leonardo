@@ -119,7 +119,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       None,
       Some(traceId),
       false,
-      Some("mountBucketName")
+      None
     )
 
     val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))
