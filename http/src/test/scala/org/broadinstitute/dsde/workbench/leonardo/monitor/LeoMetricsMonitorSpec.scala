@@ -694,7 +694,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def setUpMockAppDAO: AppDAO[IO] = {
     val app = mock[AppDAO[IO]]
     when {
-      app.isProxyAvailable(any, any[String].asInstanceOf[AppName], any)
+      app.isProxyAvailable(any, any[String].asInstanceOf[AppName], any, any)
     } thenReturn IO.pure(true)
     app
   }

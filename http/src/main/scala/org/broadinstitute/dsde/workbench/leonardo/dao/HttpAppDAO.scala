@@ -9,7 +9,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCache
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
-import org.http4s.{Method, Request, Uri}
+import org.http4s.{Header, Headers, Method, Request, Uri}
+import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
 class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client: Client[F])(implicit
@@ -33,7 +34,8 @@ class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client:
           .status(
             Request[F](
               method = Method.GET,
-              uri = Uri.unsafeFromString(serviceUrl)
+              uri = Uri.unsafeFromString(serviceUrl),
+              headers = Headers(Header.Raw(CIString("X-Request-ID"), traceId.asString))
             )
           )
           .map(status => status.code < 400) // consider redirect also as success

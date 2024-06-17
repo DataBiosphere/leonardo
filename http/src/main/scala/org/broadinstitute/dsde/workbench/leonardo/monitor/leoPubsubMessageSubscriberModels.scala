@@ -1165,10 +1165,10 @@ final case class PollMonitorConfig(initialDelay: FiniteDuration, maxAttempts: In
   def totalDuration: FiniteDuration = initialDelay + interval * maxAttempts
 }
 
-final case class InterruptablePollMonitorConfig(initialDelay: FiniteDuration,
-                                                maxAttempts: Int,
-                                                interval: FiniteDuration,
-                                                interruptAfter: FiniteDuration
+final case class InterruptablePollMonitorConfig(
+  maxAttempts: Int,
+  interval: FiniteDuration,
+  interruptAfter: FiniteDuration
 )
 
 final case class CreateDiskTimeout(defaultInMinutes: Int, sourceDiskCopyInMinutes: Int)
