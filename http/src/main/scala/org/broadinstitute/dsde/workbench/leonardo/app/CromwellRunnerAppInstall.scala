@@ -89,7 +89,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
         raw"config.region=${params.landingZoneResources.region}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
-        raw"config.limit=true",
 
         // relay configs
         raw"relay.path=${params.relayPath.renderString}",
