@@ -212,7 +212,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
         status = AppStatus.Running,
-        autodelete = Autodelete(true, Some(AutodeleteThreshold(1))),
+        autodelete = Autodelete(false, Some(AutodeleteThreshold(1))),
         samResourceId = samResourceId1
       )
       .save()
