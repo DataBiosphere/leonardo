@@ -191,7 +191,7 @@ echo "Y"| /anaconda/envs/py38_default/bin/python3 -m ipykernel install
 
 # Start Jupyter server with custom parameters
 sudo runuser -l $VM_JUP_USER -c "mkdir -p /home/$VM_JUP_USER/.jupyter"
-sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/ea519ef899de28e27e2a37ba368433da9fd03b7f/http/src/main/resources/init-resources/jupyter_server_config.py"
+sudo runuser -l $VM_JUP_USER -c "wget -qP /home/$VM_JUP_USER/.jupyter https://raw.githubusercontent.com/DataBiosphere/leonardo/486e8f99a047c09b2b135f27a997d8322c9a640f/http/src/main/resources/init-resources/jupyter_server_config.py"
 # We pull the jupyter_delocalize.py file from the base terra-docker python image, but it was designed for notebooks and we need to make a couple of changes to make it work with server instead
 sudo runuser -l $VM_JUP_USER -c "wget -qP /anaconda/lib/python3.10/site-packages https://raw.githubusercontent.com/DataBiosphere/terra-docker/0ea6d2ebd7fcae7072e01e1c2f2d178390a276b0/terra-jupyter-base/custom/jupyter_delocalize.py"
 sudo runuser -l $VM_JUP_USER -c "sed -i 's/notebook.services/jupyter_server.services/g' /anaconda/lib/python3.10/site-packages/jupyter_delocalize.py"
