@@ -193,7 +193,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Some(defaultFakeAppMachineType),
         None,
         false,
-        None,
+        None
       )
       (msg eqv Some(expected)) shouldBe true
     }
