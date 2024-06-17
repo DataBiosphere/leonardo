@@ -86,7 +86,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("cromwell-helm/cromwell-on-azure"),
-          ChartVersion("0.2.502"),
+          ChartVersion("0.2.506"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -148,7 +148,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.145.0"),
+          ChartVersion("0.150.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -165,7 +165,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.215.0"),
+          ChartVersion("0.226.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -180,11 +180,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           enabled = true,
           dockstoreBaseUrl = new URL("https://staging.dockstore.org/"),
           chartVersionsToExcludeFromUpdates = List.empty,
-          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
+          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org"),
+          bardBaseUri = new URL("https://terra-bard-dev.appspot.com"),
+          bardEnabled = false
         ),
         WdsAppConfig(
           ChartName("terra-helm/wds"),
-          ChartVersion("0.80.0"),
+          ChartVersion("0.84.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),

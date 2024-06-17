@@ -11,6 +11,8 @@ import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.autodeleteThresholdDecoder
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppRequestDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes.{
   createAppDecoder,
   getAppResponseEncoder,
@@ -20,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes.updateAppDecoder
 
 class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
   metrics: OpenTelemetryMetrics[IO]
@@ -226,11 +227,11 @@ object AppRoutes {
     }
   )
 
-  implicit val updateAppDecoder: Decoder[UpdateAppRequest] =
+  implicit val updateAppRequestDecoder: Decoder[UpdateAppRequest] =
     Decoder.instance { x =>
       for {
         enabled <- x.downField("autodeleteEnabled").as[Option[Boolean]]
-        threshold <- x.downField("autodeleteThreshold").as[Option[Int]]
+        threshold <- x.downField("autodeleteThreshold").as[Option[AutodeleteThreshold]]
       } yield UpdateAppRequest(enabled, threshold)
     }
 }

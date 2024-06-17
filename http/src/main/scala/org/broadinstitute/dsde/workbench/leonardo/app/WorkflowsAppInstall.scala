@@ -119,7 +119,11 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           raw"postgres.dbnames.cbas=${dbNames.cbas}",
 
           // ECM configs
-          raw"ecm.baseUri=${config.ecmBaseUri}"
+          raw"ecm.baseUri=${config.ecmBaseUri}",
+
+          // Bard configs
+          raw"bard.baseUri=${config.bardBaseUri}",
+          raw"bard.enabled=${config.bardEnabled}"
         )
     } yield Values(values.mkString(","))
 
