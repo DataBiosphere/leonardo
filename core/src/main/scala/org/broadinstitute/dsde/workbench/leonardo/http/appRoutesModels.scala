@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppStatus,
   AppType,
   AuditInfo,
+  AutodeleteThreshold,
   Autopilot,
   CloudContext,
   KubernetesCluster,
@@ -36,12 +37,12 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   extraArgs: List[String],
                                   workspaceId: Option[WorkspaceId],
                                   sourceWorkspaceId: Option[WorkspaceId],
-                                  autodeleteThreshold: Option[Int],
                                   autodeleteEnabled: Option[Boolean],
+                                  autodeleteThreshold: Option[AutodeleteThreshold],
                                   autopilot: Option[Autopilot]
 )
 
-final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[Int])
+final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[AutodeleteThreshold])
 
 final case class GetAppResponse(
   workspaceId: Option[WorkspaceId],
@@ -60,7 +61,7 @@ final case class GetAppResponse(
   accessScope: Option[AppAccessScope],
   labels: LabelMap,
   autodeleteEnabled: Boolean,
-  autodeleteThreshold: Option[Int]
+  autodeleteThreshold: Option[AutodeleteThreshold]
 )
 
 final case class ListAppResponse(workspaceId: Option[WorkspaceId],
@@ -78,7 +79,7 @@ final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  accessScope: Option[AppAccessScope],
                                  labels: LabelMap,
                                  autodeleteEnabled: Boolean,
-                                 autodeleteThreshold: Option[Int]
+                                 autodeleteThreshold: Option[AutodeleteThreshold]
 )
 
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
