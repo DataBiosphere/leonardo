@@ -30,8 +30,10 @@
         <createIndex indexName="FK_UPDATE_APP_LOG_ID" tableName="UPDATE_APP_LOG">
             <column name="id"/>
         </createIndex>
+        <createIndex indexName="FK_UPDATE_APP_LOG_JOB_ID" tableName="UPDATE_APP_LOG">
+            <column name="jobId"/>
+        </createIndex>
         <addUniqueConstraint columnNames="jobId, appId" constraintName="IDX_APP_ID_PER_JOB_UNIQUE" tableName="UPDATE_APP_LOG"/>
-        <addUniqueConstraint columnNames="appErrorId" constraintName="IDX_APP_ERROR_UNIQUE" tableName="UPDATE_APP_LOG"/>
         <addForeignKeyConstraint baseColumnNames="appId" baseTableName="UPDATE_APP_LOG" constraintName="FK_UPDATE_APP_LOG_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
         <addForeignKeyConstraint baseColumnNames="appErrorId" baseTableName="UPDATE_APP_LOG" constraintName="FK_UPDATE_APP_LOG_APP_ERROR_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP_ERROR"/>
     </changeSet>

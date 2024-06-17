@@ -68,11 +68,11 @@ object updateAppLogQuery extends TableQuery(new UpdateAppLogTable(_)) {
       .filter(_.appId === appId)
       .filter(_.jobId === jobId)
       .result map { recs =>
-      val logRecords = recs map { rec => unmarshalAppUpdateLogRecord(rec) }
+      val logRecords = recs map { rec => unmarshalUpdateAppLogRecord(rec) }
       logRecords.toList.headOption
     }
 
-  def unmarshalAppUpdateLogRecord(appErrorRecord: UpdateAppLogRecord): UpdateAppLogRecord =
+  def unmarshalUpdateAppLogRecord(appErrorRecord: UpdateAppLogRecord): UpdateAppLogRecord =
     UpdateAppLogRecord(
       appErrorRecord.id,
       appErrorRecord.jobId,
