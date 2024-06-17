@@ -198,7 +198,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.sourceWorkspaceId,
           r.numOfReplicas,
           // combine these values to allow tuple creation; longer than 22 elements is not allowed
-          r.autodelete,
+          (r.autodelete.autodeleteEnabled, r.autodelete.autodeleteThreshold),
           (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage),
           r.mountWorkspaceBucketName
         )

@@ -756,7 +756,7 @@ class GKEInterpreter[F[_]](
               stagingBucketName,
               app.customEnvironmentVariables,
               app.autopilot,
-              params.mountWorkspaceBucketName
+              app.mountWorkspaceBucketName
             )
 
             last <- streamFUntilDone(

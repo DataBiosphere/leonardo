@@ -139,7 +139,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         savedApp.appResources.namespace,
         Some(defaultFakeAppMachineType),
         None,
-        false
+        false,
+        Some("mountBucketName")
       )
       (msg eqv Some(expected)) shouldBe true
     }
@@ -243,7 +244,8 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         savedApp.appResources.namespace,
         Some(defaultFakeAppMachineType),
         None,
-        false
+        false,
+        Some("mountBucketName")
       )
       (msg eqv Some(expected)) shouldBe true
     }
