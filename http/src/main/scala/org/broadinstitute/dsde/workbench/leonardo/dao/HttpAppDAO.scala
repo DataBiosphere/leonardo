@@ -6,13 +6,21 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCache
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
+import org.typelevel.log4cats.StructuredLogger
 
-class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], client: Client[F]) extends AppDAO[F] {
+class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client: Client[F])(implicit
+  logger: StructuredLogger[F]
+) extends AppDAO[F] {
 
-  def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean] =
+  def isProxyAvailable(googleProject: GoogleProject,
+                       appName: AppName,
+                       serviceName: ServiceName,
+                       traceId: TraceId
+  ): F[Boolean] =
     Proxy.getAppTargetHost[F](kubernetesDnsCache, CloudContext.Gcp(googleProject), appName) flatMap {
       case HostReady(targetHost, _, _) =>
         val serviceUrl = serviceName match {
@@ -29,10 +37,17 @@ class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], cli
             )
           )
           .map(status => status.code < 400) // consider redirect also as success
+          .handleErrorWith(t =>
+            logger.error(Map("traceId" -> traceId.asString), t)("Fail to check if app is up").as(false)
+          )
       case _ => Async[F].pure(false) // Update once we support Relay for apps
     }
 }
 
 trait AppDAO[F[_]] {
-  def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject,
+                       appName: AppName,
+                       serviceName: ServiceName,
+                       traceId: TraceId
+  ): F[Boolean]
 }

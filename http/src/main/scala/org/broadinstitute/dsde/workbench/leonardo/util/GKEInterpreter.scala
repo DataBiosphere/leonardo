@@ -1599,6 +1599,8 @@ class GKEInterpreter[F[_]](
         s"helm install for ALLOWED app ${appName.value} in project ${cluster.cloudContext.asString}"
       ).compile.lastOrError
 
+      _ <- F.delay(config.monitorConfig.createApp.initialDelay)
+
       // Poll the app until it starts up
       last <- streamFUntilDone(
         config.allowedAppConfig.services

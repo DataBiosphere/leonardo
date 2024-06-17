@@ -313,6 +313,7 @@ object Config {
   implicit private val interruptablePollMonitorConfigReader: ValueReader[InterruptablePollMonitorConfig] =
     ValueReader.relative { config =>
       InterruptablePollMonitorConfig(
+        config.as[FiniteDuration]("initial-delay"),
         config.as[Int]("max-attempts"),
         config.as[FiniteDuration]("interval"),
         config.as[FiniteDuration]("interruptAfter")
