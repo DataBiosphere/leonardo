@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppStatus,
   AppType,
   AuditInfo,
+  AutodeleteThreshold,
   CloudContext,
   KubernetesRuntimeConfig,
   NumNodes,
@@ -57,7 +58,7 @@ object AppStateManager {
     None,
     Map.empty[String, String],
     autodeleteEnabled = true,
-    autodeleteThreshold = Some(30)
+    autodeleteThreshold = Some(AutodeleteThreshold(30))
   )
   private val mockedAppNotFoundException =
     AppNotFoundException(mockedGetAppResponse.cloudContext,
@@ -81,7 +82,7 @@ object AppStateManager {
     Some(AppAccessScope.UserPrivate),
     Map.empty[String, String],
     autodeleteEnabled = true,
-    autodeleteThreshold = Some(30)
+    autodeleteThreshold = Some(AutodeleteThreshold(30))
   )
 
   private def mockGetApp(mockAppService: AppService[IO],

@@ -416,6 +416,8 @@ object Chart {
   }
 }
 
+final case class AutodeleteThreshold(value: Int) extends AnyVal
+
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
@@ -437,8 +439,8 @@ final case class App(id: AppId,
                      extraArgs: List[String],
                      sourceWorkspaceId: Option[WorkspaceId],
                      numOfReplicas: Option[Int],
-                     autodeleteThreshold: Option[Int],
                      autodeleteEnabled: Boolean,
+                     autodeleteThreshold: Option[AutodeleteThreshold],
                      autopilot: Option[Autopilot]
 ) {
 

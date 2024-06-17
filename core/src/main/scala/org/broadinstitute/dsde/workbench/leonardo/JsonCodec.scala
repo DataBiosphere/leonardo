@@ -820,4 +820,11 @@ object JsonCodec {
      x.postgresServer
     )
   )
+
+  implicit val autodeleteThresholdEncoder: Encoder[AutodeleteThreshold] = Encoder.encodeInt.contramap(_.value)
+
+  implicit val autodeleteThresholdDecoder: Decoder[AutodeleteThreshold] = Decoder.decodeInt.emap {
+    case n if n <= 0 => Left("autodeleteThreshold must be a positive number of minutes")
+    case n           => Right(AutodeleteThreshold.apply(n))
+  }
 }
