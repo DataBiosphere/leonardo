@@ -906,7 +906,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct12(
+    Encoder.forProduct13(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -918,7 +918,8 @@ object LeoPubsubCodec {
       "namespaceName",
       "machineType",
       "traceId",
-      "enableIntraNodeVisibility"
+      "enableIntraNodeVisibility",
+      "mountWorkspaceBucketName"
     )(x =>
       (x.messageType,
        x.project,
@@ -931,7 +932,8 @@ object LeoPubsubCodec {
        x.namespaceName,
        x.machineType,
        x.traceId,
-       x.enableIntraNodeVisibility
+       x.enableIntraNodeVisibility,
+       x.mountWorkspaceBucketName
       )
     )
 
