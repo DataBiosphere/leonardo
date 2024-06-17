@@ -391,11 +391,9 @@ class GKEInterpreter[F[_]](
         s"Begin App(${app.appName.value}) Creation."
       )
 
-
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin App~~~~~ bucket is (${params.mountWorkspaceBucketName}) !!!!!!."
       )
-
 
       // Create KSA
       ksaName <- F.fromOption(
