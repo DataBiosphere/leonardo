@@ -76,7 +76,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/788e53e22dab4f0cee6e7b7cdbfd271a0b43450d/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:76d982c",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:474f157",
             VMCredential(username = "username", password = "password")
           ),
           PollMonitorConfig(1 seconds, 10, 1 seconds),
