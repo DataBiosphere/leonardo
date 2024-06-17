@@ -177,14 +177,13 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
   done
 
 # Install updated R version
-#echo "Installing R version ${R_VERSION}"
+echo "Installing R version ${R_VERSION}"
 ## Add the CRAN repository to the sources list
 #echo "deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/" | sudo tee /etc/apt/sources.list -a
 ## Update package list
 sudo apt-get update
 ## Install new R version
-#sudo apt-get install --no-install-recommends -y r-base=${R_VERSION}
-R --version
+sudo apt-get install --no-install-recommends -y r-base=${R_VERSION}
 
 #Update kernel list
 
