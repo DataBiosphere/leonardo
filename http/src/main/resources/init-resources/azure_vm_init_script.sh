@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#set -e
+set -e
 # Log output is saved at /var/log/azure_vm_init_script.log
 
 # If you update this file, please update azure.custom-script-extension.file-uris in reference.conf so that Leonardo can adopt the new script
