@@ -136,13 +136,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         s"[AzurePubsubHandler/createAndPollRuntime] getting workspace storage container from WSM for runtime ${msg.runtimeId}"
       )
       // Get the optional storage container for the workspace
-      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-      workspaceStorageContainerOpt <- tokenOpt.flatTraverse { token =>
-        wsmDao.getWorkspaceStorageContainer(
+      workspaceStorageContainerOpt <- wsmDao.getWorkspaceStorageContainer(
           msg.workspaceId,
-          org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
+          leoAuth
         )
-      }
+
       workspaceStorageContainer <- F.fromOption(
         workspaceStorageContainerOpt,
         AzureRuntimeCreationError(
