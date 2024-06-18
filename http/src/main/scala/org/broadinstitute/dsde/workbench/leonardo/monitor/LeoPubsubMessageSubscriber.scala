@@ -1073,7 +1073,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         // create and monitor app
         _ <- getGkeAlgFromRegistry()
           .createAndPollApp(
-            CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType, msg.mountWorkspaceBucketName)
+            CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType, msg.bucketNameToMount)
           )
           .onError { case e =>
             cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk, e)

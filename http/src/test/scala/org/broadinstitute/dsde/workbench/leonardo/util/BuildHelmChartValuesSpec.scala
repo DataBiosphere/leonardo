@@ -296,7 +296,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
       None,
-      Some("fc-bucket")
+      Some(GcsBucketName("fc-bucket"))
     )
 
     res.mkString(",") shouldBe
@@ -352,7 +352,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
       None,
-      Some("fc-bucket")
+      Some(GcsBucketName("fc-bucket"))
     )
 
     res.mkString(",") shouldBe
@@ -412,7 +412,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
       Some(Autopilot(ComputeClass.Balanced, 500, 1, 2)),
-      Some("fc-bucket")
+      Some(GcsBucketName("fc-bucket"))
     )
 
     res.mkString(",") shouldBe
@@ -479,7 +479,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
       Some(Autopilot(ComputeClass.GeneralPurpose, 500, 1, 2)),
-      Some("fc-bucket")
+      Some(GcsBucketName("fc-bucket"))
     )
 
     res.mkString(",") shouldBe

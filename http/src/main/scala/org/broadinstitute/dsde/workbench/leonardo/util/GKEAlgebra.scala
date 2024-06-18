@@ -126,7 +126,7 @@ final case class CreateAppParams(appId: AppId,
                                  googleProject: GoogleProject,
                                  appName: AppName,
                                  appMachineType: Option[AppMachineType],
-                                 mountWorkspaceBucketName: Option[String]
+                                 bucketNameToMount: Option[GcsBucketName]
 )
 
 final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googleProject: GoogleProject)

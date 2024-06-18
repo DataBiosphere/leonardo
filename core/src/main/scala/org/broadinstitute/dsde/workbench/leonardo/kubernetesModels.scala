@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
@@ -441,7 +442,7 @@ final case class App(id: AppId,
                      numOfReplicas: Option[Int],
                      autodelete: Autodelete,
                      autopilot: Option[Autopilot],
-                     mountWorkspaceBucketName: Option[String]
+                     bucketNameToMount: Option[GcsBucketName]
 ) {
 
   def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =

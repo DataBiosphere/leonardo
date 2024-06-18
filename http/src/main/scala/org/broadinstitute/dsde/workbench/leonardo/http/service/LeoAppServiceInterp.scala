@@ -300,7 +300,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           appMachineType,
           Some(ctx.traceId),
           enableIntraNodeVisibility,
-          req.mountWorkspaceBucketName
+          req.bucketNameToMount
         )
         _ <- publisherQueue.offer(createAppMessage)
       } yield ()
@@ -1533,7 +1533,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         numOfReplicas,
         Autodelete(autodeleteEnabled, req.autodeleteThreshold),
         autopilot,
-        req.mountWorkspaceBucketName
+        req.bucketNameToMount
       )
     )
   }

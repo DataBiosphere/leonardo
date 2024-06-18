@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.google2.RegionName
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
@@ -40,7 +41,7 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   autodeleteEnabled: Option[Boolean],
                                   autodeleteThreshold: Option[AutodeleteThreshold],
                                   autopilot: Option[Autopilot],
-                                  mountWorkspaceBucketName: Option[String]
+                                  bucketNameToMount: Option[GcsBucketName]
 )
 
 final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[AutodeleteThreshold])

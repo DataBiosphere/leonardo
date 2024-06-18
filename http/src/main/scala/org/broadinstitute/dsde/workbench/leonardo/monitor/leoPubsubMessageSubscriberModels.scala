@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
   CreateNodepool
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
 
 import scala.concurrent.duration.FiniteDuration
@@ -276,7 +276,7 @@ object LeoPubsubMessage {
     ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
     traceId: Option[TraceId],
     enableIntraNodeVisibility: Boolean,
-    mountWorkspaceBucketName: Option[String]
+    bucketNameToMount: Option[GcsBucketName]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
@@ -555,7 +555,7 @@ object LeoPubsubCodec {
       "machineType",
       "traceId",
       "enableIntraNodeVisibility",
-      "mountWorkspaceBucketName"
+      "bucketNameToMount"
     )(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -919,7 +919,7 @@ object LeoPubsubCodec {
       "machineType",
       "traceId",
       "enableIntraNodeVisibility",
-      "mountWorkspaceBucketName"
+      "bucketNameToMount"
     )(x =>
       (x.messageType,
        x.project,
@@ -933,7 +933,7 @@ object LeoPubsubCodec {
        x.machineType,
        x.traceId,
        x.enableIntraNodeVisibility,
-       x.mountWorkspaceBucketName
+       x.bucketNameToMount
       )
     )
 

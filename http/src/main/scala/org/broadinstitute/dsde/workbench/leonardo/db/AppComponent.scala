@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImpl
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.AppToAutoDelete
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.Release
 import org.http4s.Uri
@@ -43,7 +44,7 @@ final case class AppRecord(id: AppId,
                            numOfReplicas: Option[Int],
                            autodelete: Autodelete,
                            autopilot: Option[Autopilot],
-                           mountWorkspaceBucketName: Option[String]
+                           bucketNameToMount: Option[GcsBucketName]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -78,7 +79,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def cpu = column[Option[Int]]("cpu")
   def memory = column[Option[Int]]("memory")
   def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
-  def mountWorkspaceBucketName = column[Option[String]]("mountWorkspaceBucketName")
+  def bucketNameToMount = column[Option[String]]("bucketNameToMount")
 
   def * =
     (
@@ -104,7 +105,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       // combine these values to allow tuple creation; longer than 22 elements is not allowed
       (autodeleteEnabled, autodeleteThreshold),
       (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage),
-      mountWorkspaceBucketName
+      bucketNameToMount
     ) <> ({
       case (
             id,
@@ -128,7 +129,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             numOfReplicas,
             autodelete,
             autopilot,
-            mountWorkspaceBucketName
+            bucketNameToMount
           ) =>
         AppRecord(
           id,
@@ -165,7 +166,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
               ephemeralStorage <- autopilot._5
             } yield Autopilot(computeClass, cpu, memory, ephemeralStorage)
           else None,
-          mountWorkspaceBucketName
+          bucketNameToMount
         )
     }, { r: AppRecord =>
       val autopilotComputeClass = r.autopilot.map(_.computeClass)
@@ -200,7 +201,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           // combine these values to allow tuple creation; longer than 22 elements is not allowed
           (r.autodelete.autodeleteEnabled, r.autodelete.autodeleteThreshold),
           (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage),
-          r.mountWorkspaceBucketName
+          r.bucketNameToMount
         )
       )
     })
@@ -242,7 +243,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.numOfReplicas,
       app.autodelete,
       app.autopilot,
-      app.mountWorkspaceBucketName
+      app.bucketNameToMount
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -312,7 +313,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.numOfReplicas,
         saveApp.app.autodelete,
         saveApp.app.autopilot,
-        saveApp.app.mountWorkspaceBucketName
+        saveApp.app.bucketNameToMount
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)

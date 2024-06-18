@@ -4157,7 +4157,7 @@ components:
             threshold time has elapsed.
         autopilot:
           $ref: '#/components/schemas/Autopilot'
-        mountWorkspaceBucketName:
+        bucketNameToMount:
           type: string
           description: >
             The GCS bucket name (without gs://) that will be mounted in the app if present. 

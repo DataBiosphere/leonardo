@@ -301,7 +301,7 @@ private[leonardo] object BuildHelmChartValues {
                                                stagingBucket: GcsBucketName,
                                                customEnvironmentVariables: Map[String, String],
                                                autopilot: Option[Autopilot],
-                                               mountWorkspaceBucketName: Option[String]
+                                               bucketNameToMount: Option[GcsBucketName]
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
@@ -320,7 +320,7 @@ private[leonardo] object BuildHelmChartValues {
       ingressPath,
       k8sProxyHost,
       autopilot,
-      mountWorkspaceBucketName
+      bucketNameToMount
     )
 
     allowedChartName match {
@@ -358,7 +358,7 @@ private[leonardo] object BuildHelmChartValues {
                                                            ingressPath: String,
                                                            k8sProxyHost: akka.http.scaladsl.model.Uri.Host,
                                                            autopilot: Option[Autopilot],
-                                                           mountWorkspaceBucketName: Option[String]
+                                                           bucketNameToMount: Option[GcsBucketName]
   ): List[String] = {
     val k8sProxyHostString = k8sProxyHost.address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -407,11 +407,11 @@ private[leonardo] object BuildHelmChartValues {
       case None => List.empty
     }
 
-    val gcsfuse = mountWorkspaceBucketName match {
+    val gcsfuse = bucketNameToMount match {
       case Some(bucketName) =>
         List(
           raw"""gcsfuse.enabled=true""",
-          raw"""gcsfuse.bucket=${bucketName}"""
+          raw"""gcsfuse.bucket=${bucketName.value}"""
         )
       case None =>
         List(
