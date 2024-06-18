@@ -375,7 +375,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val appDao = new MockAppDAO {
       override def isProxyAvailable(googleProject: GoogleProject,
                                     appName: AppName,
-                                    serviceName: ServiceName
+                                    serviceName: ServiceName,
+                                    traceId: TraceId
       ): IO[Boolean] = IO(false)
     }
     val gkeInterp =
