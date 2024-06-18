@@ -138,9 +138,6 @@ RUNTIME_NAME="${19:-dummy}"
 VALID_HOSTS="${20:-dummy}"
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
-# R version
-R_VERSION="4.4.0-1.2004.0"
-
 # Log in script output for debugging purposes.
 echo "RELAY_NAME = ${RELAY_NAME}"
 echo "RELAY_CONNECTION_NAME = ${RELAY_CONNECTION_NAME}"
@@ -166,7 +163,6 @@ echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}"
 echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
-echo "R-VERSION = ${R_VERSION}"
 
 # Wait for lock to resolve before any installs, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
 
@@ -177,13 +173,11 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
   done
 
 # Install updated R version
-echo "Installing R version ${R_VERSION}"
-# Add the CRAN repository to the sources list
-echo "deb https://cloud.r-project.org/bin/linux/ubuntu focal-cran40/" | sudo tee /etc/apt/sources.list -a
+echo "Installing R"
 # Update package list
 sudo apt-get update
-# Install new R version
-sudo apt-get install --no-install-recommends -y r-base=${R_VERSION}
+# Install most recent R version
+sudo apt-get install --no-install-recommends -y r-base
 
 #Update kernel list
 
