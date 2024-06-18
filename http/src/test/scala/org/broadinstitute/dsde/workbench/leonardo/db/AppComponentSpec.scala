@@ -207,7 +207,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
       )
       .save()
 
-    // App5, Not ready to delete:  AutodeleteEnabled is null (default value)
+    // App5, Not ready to delete:  AutodeleteEnabled is false eventhrough it has AutodeleteThreshold
     makeApp(5, savedNodepool.id)
       .copy(
         auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
