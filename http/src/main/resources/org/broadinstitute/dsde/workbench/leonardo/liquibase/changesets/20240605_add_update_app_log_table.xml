@@ -1,0 +1,40 @@
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="jcanas" id="add_update_app_log_table">
+
+        <createTable tableName="UPDATE_APP_LOG">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="jobid" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="appId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="appErrorId" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="status" type="ENUM('ERROR', 'RUNNING', 'SUCCESS')" defaultValue="RUNNING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="startTime" type="TIMESTAMP(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="endTime" type="TIMESTAMP(6)">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+        <createIndex indexName="FK_UPDATE_APP_LOG_APP_ID" tableName="UPDATE_APP_LOG">
+            <column name="appId"/>
+        </createIndex>
+        <createIndex indexName="FK_UPDATE_APP_LOG_ID" tableName="UPDATE_APP_LOG">
+            <column name="id"/>
+        </createIndex>
+        <createIndex indexName="FK_UPDATE_APP_LOG_JOB_ID" tableName="UPDATE_APP_LOG">
+            <column name="jobId"/>
+        </createIndex>
+        <addUniqueConstraint columnNames="jobId, appId" constraintName="IDX_APP_ID_PER_JOB_UNIQUE" tableName="UPDATE_APP_LOG"/>
+        <addForeignKeyConstraint baseColumnNames="appId" baseTableName="UPDATE_APP_LOG" constraintName="FK_UPDATE_APP_LOG_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
+        <addForeignKeyConstraint baseColumnNames="appErrorId" baseTableName="UPDATE_APP_LOG" constraintName="FK_UPDATE_APP_LOG_APP_ERROR_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP_ERROR"/>
+    </changeSet>
+</databaseChangeLog>

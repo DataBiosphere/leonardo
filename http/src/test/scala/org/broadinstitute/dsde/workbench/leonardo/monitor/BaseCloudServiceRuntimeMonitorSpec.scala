@@ -131,8 +131,9 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     val customcheckToolsInterruptAfter = Some(5 seconds)
     val customCheckTools =
-      runtimeMonitor.getCustomInterruptablePollMonitorConfig(InterruptablePollMonitorConfig(5, 5 seconds, 25 seconds),
-                                                             customcheckToolsInterruptAfter
+      runtimeMonitor.getCustomInterruptablePollMonitorConfig(
+        InterruptablePollMonitorConfig(5, 5 seconds, 25 seconds),
+        customcheckToolsInterruptAfter
       )
     val customInterval = customCheckTools.interval
 

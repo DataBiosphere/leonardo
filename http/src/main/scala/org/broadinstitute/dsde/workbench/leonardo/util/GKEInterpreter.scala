@@ -701,7 +701,7 @@ class GKEInterpreter[F[_]](
             )
 
             last <- streamFUntilDone(
-              appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy")),
+              appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy"), ctx.traceId),
               config.monitorConfig.updateApp.maxAttempts,
               config.monitorConfig.updateApp.interval
             ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError
@@ -713,7 +713,7 @@ class GKEInterpreter[F[_]](
             last <- streamFUntilDone(
               config.cromwellAppConfig.services
                 .map(_.name)
-                .traverse(s => appDao.isProxyAvailable(googleProject, app.appName, s)),
+                .traverse(s => appDao.isProxyAvailable(googleProject, app.appName, s, ctx.traceId)),
               config.monitorConfig.createApp.maxAttempts,
               config.monitorConfig.createApp.interval
             ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
@@ -763,7 +763,7 @@ class GKEInterpreter[F[_]](
             last <- streamFUntilDone(
               config.allowedAppConfig.services
                 .map(_.name)
-                .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s)),
+                .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s, ctx.traceId)),
               config.monitorConfig.updateApp.maxAttempts,
               config.monitorConfig.updateApp.interval
             ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
@@ -799,7 +799,7 @@ class GKEInterpreter[F[_]](
 
             last <- streamFUntilDone(
               descriptor.services.keys.toList.traverse(s =>
-                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s))
+                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s), ctx.traceId)
               ),
               config.monitorConfig.updateApp.maxAttempts,
               config.monitorConfig.updateApp.interval
@@ -1177,7 +1177,7 @@ class GKEInterpreter[F[_]](
       isUp <- dbApp.app.appType match {
         case AppType.Galaxy =>
           streamFUntilDone(
-            appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, ServiceName("galaxy")),
+            appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, ServiceName("galaxy"), ctx.traceId),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
@@ -1185,7 +1185,7 @@ class GKEInterpreter[F[_]](
           streamFUntilDone(
             config.cromwellAppConfig.services
               .map(_.name)
-              .traverse(s => appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, s)),
+              .traverse(s => appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, s, ctx.traceId)),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
@@ -1193,7 +1193,7 @@ class GKEInterpreter[F[_]](
           streamFUntilDone(
             config.allowedAppConfig.services
               .map(_.name)
-              .traverse(s => appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, s)),
+              .traverse(s => appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, s, ctx.traceId)),
             config.monitorConfig.startApp.maxAttempts,
             config.monitorConfig.startApp.interval
           ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
@@ -1207,7 +1207,7 @@ class GKEInterpreter[F[_]](
             }
             last <- streamFUntilDone(
               descriptor.services.keys.toList.traverse(s =>
-                appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, ServiceName(s))
+                appDao.isProxyAvailable(params.googleProject, dbApp.app.appName, ServiceName(s), ctx.traceId)
               ),
               config.monitorConfig.startApp.maxAttempts,
               config.monitorConfig.startApp.interval
@@ -1435,7 +1435,7 @@ class GKEInterpreter[F[_]](
       // This seems to only impact galaxy, See https://broadworkbench.atlassian.net/browse/IA-4551
       _ <- F.sleep(60 seconds)
       isDone <- streamFUntilDone(
-        appDao.isProxyAvailable(googleProject, appName, ServiceName("galaxy")),
+        appDao.isProxyAvailable(googleProject, appName, ServiceName("galaxy"), ctx.traceId),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1511,7 +1511,7 @@ class GKEInterpreter[F[_]](
       last <- streamFUntilDone(
         config.cromwellAppConfig.services
           .map(_.name)
-          .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
+          .traverse(s => appDao.isProxyAvailable(googleProject, appName, s, ctx.traceId)),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1609,7 +1609,7 @@ class GKEInterpreter[F[_]](
       last <- streamFUntilDone(
         config.allowedAppConfig.services
           .map(_.name)
-          .traverse(s => appDao.isProxyAvailable(googleProject, appName, s)),
+          .traverse(s => appDao.isProxyAvailable(googleProject, appName, s, ctx.traceId)),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
@@ -1723,7 +1723,9 @@ class GKEInterpreter[F[_]](
       )
       // Poll app until it starts up
       last <- streamFUntilDone(
-        descriptor.services.keys.toList.traverse(s => appDao.isProxyAvailable(googleProject, appName, ServiceName(s))),
+        descriptor.services.keys.toList.traverse(s =>
+          appDao.isProxyAvailable(googleProject, appName, ServiceName(s), ctx.traceId)
+        ),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
