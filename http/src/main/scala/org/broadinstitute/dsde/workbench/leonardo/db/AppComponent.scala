@@ -79,7 +79,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def cpu = column[Option[Int]]("cpu")
   def memory = column[Option[Int]]("memory")
   def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
-  def bucketNameToMount = column[Option[String]]("bucketNameToMount")
+  def bucketNameToMount = column[Option[GcsBucketName]]("bucketNameToMount")
 
   def * =
     (
