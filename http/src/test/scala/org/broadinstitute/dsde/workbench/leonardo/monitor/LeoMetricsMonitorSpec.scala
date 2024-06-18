@@ -46,9 +46,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   ServiceId,
   WorkspaceId
 }
-import org.broadinstitute.dsde.workbench.model.IP
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
@@ -694,7 +694,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   private def setUpMockAppDAO: AppDAO[IO] = {
     val app = mock[AppDAO[IO]]
     when {
-      app.isProxyAvailable(any, any[String].asInstanceOf[AppName], any, any)
+      app.isProxyAvailable(any, any[String].asInstanceOf[AppName], any, TraceId(anyString()))
     } thenReturn IO.pure(true)
     app
   }
