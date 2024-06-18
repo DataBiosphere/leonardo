@@ -9,6 +9,12 @@ import cats.syntax.all._
 import com.google.cloud.Identity
 import fs2._
 import fs2.io.file.Files
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.{
+  standardGoogleRetryConfig,
+  standardGoogleRetryPredicate,
+  whenStatusCode
+}
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoInternalServerError, ServiceAccountProvider}
@@ -78,7 +84,15 @@ class BucketHelper[F[_]](
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList(leoEntity, bucketSAs))
 
       _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx))
-      _ <- google2StorageDAO.setIamPolicy(bucketName, (readerAcl ++ ownerAcl).toMap, traceId = Some(ctx))
+      // sometimes GCP will throw 404 when setIamPolicy happens too soon
+      retryConfig = RetryPredicates.retryConfigWithPredicates(
+        RetryPredicates.combine(List(standardGoogleRetryPredicate, whenStatusCode(404)))
+      )
+      _ <- google2StorageDAO.setIamPolicy(bucketName,
+                                          (readerAcl ++ ownerAcl).toMap,
+                                          retryConfig = retryConfig,
+                                          traceId = Some(ctx)
+      )
     } yield ()
 
   def deleteInitBucket(googleProject: GoogleProject, initBucketName: GcsBucketName)(implicit
