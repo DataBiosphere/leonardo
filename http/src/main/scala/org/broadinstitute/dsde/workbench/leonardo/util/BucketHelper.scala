@@ -10,11 +10,7 @@ import com.google.cloud.Identity
 import fs2._
 import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.{
-  standardGoogleRetryConfig,
-  standardGoogleRetryPredicate,
-  whenStatusCode
-}
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.{standardGoogleRetryPredicate, whenStatusCode}
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoInternalServerError, ServiceAccountProvider}
