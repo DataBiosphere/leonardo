@@ -149,6 +149,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
 
       // Get optional action managed identities from Sam
+      // Identities must be passed to WSM for application-managed resources
       tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
       actionIdentityOpt <- tokenOpt.flatTraverse { token =>
         samDAO.getAzureActionManagedIdentity(
