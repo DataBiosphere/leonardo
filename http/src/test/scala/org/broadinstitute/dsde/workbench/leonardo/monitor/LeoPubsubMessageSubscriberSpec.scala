@@ -2165,11 +2165,22 @@ class LeoPubsubMessageSubscriberSpec
       val savedCluster1 = makeAzureCluster(index).save()
       val savedNodepool1 = makeNodepool(index, savedCluster1.id).save()
       val savedApp1 = makeApp(index, savedNodepool1.id, appType = AppType.Cromwell).save()
+      val jobId = UpdateAppJobId(UUID.randomUUID())
       val msg =
-        UpdateAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext, savedApp1.workspaceId, None, None)
+        UpdateAppMessage(jobId,
+                         savedApp1.id,
+                         savedApp1.appName,
+                         savedCluster1.cloudContext,
+                         savedApp1.workspaceId,
+                         None,
+                         None
+        )
+
+      val startTime = Instant.now()
 
       val res =
         for {
+          _ <- updateAppLogQuery.save(jobId, savedApp1.id, startTime).transaction
           _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
 
           assertions = for {
@@ -2177,12 +2188,25 @@ class LeoPubsubMessageSubscriberSpec
               .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
               .transaction
             getApp = getAppOpt.get
+
+            getUpdateLogOpt <- updateAppLogQuery.get(savedApp1.id, jobId).transaction
+            getUpdateLog = getUpdateLogOpt.get
+
+            appErrorList <- appErrorQuery.get(getApp.app.id).transaction
           } yield {
             getApp.app.errors.size shouldBe 1
             getApp.app.errors.map(_.action) should contain(ErrorAction.UpdateApp)
             getApp.app.errors.map(_.source) should contain(ErrorSource.App)
             getApp.app.errors.head.errorMessage should include(exception.getMessage)
             getApp.app.status shouldBe AppStatus.Error
+
+            appErrorList.size shouldBe 1
+            getUpdateLog.errorId.isDefined shouldBe true
+            getUpdateLog.status shouldBe UpdateAppJobStatus.Error
+            getUpdateLog.endTime.isDefined shouldBe true
+            getUpdateLog.startTime.toEpochMilli shouldBe startTime.toEpochMilli
+            // We cant verify before/after because tests don't use the same application ctx that the app does
+            getUpdateLog.endTime.get.toEpochMilli == getUpdateLog.startTime.toEpochMilli shouldBe false
           }
           asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
           _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -2211,11 +2235,22 @@ class LeoPubsubMessageSubscriberSpec
     val savedCluster1 = makeAzureCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
+    val jobId = UpdateAppJobId(UUID.randomUUID())
     val msg =
-      UpdateAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.cloudContext, savedApp1.workspaceId, None, None)
+      UpdateAppMessage(jobId,
+                       savedApp1.id,
+                       savedApp1.appName,
+                       savedCluster1.cloudContext,
+                       savedApp1.workspaceId,
+                       None,
+                       None
+      )
+
+    val startTime = Instant.now()
 
     val res =
       for {
+        _ <- updateAppLogQuery.save(jobId, savedApp1.id, startTime).transaction
         _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
 
         assertions = for {
@@ -2223,15 +2258,88 @@ class LeoPubsubMessageSubscriberSpec
             .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
             .transaction
           getApp = getAppOpt.get
+          getUpdateLogOpt <- updateAppLogQuery.get(savedApp1.id, jobId).transaction
+          getUpdateLog = getUpdateLogOpt.get
+
+          appErrorList <- appErrorQuery.get(getApp.app.id).transaction
         } yield {
           getApp.app.errors.size shouldBe 1
           getApp.app.errors.map(_.action) should contain(ErrorAction.UpdateApp)
           getApp.app.errors.map(_.source) should contain(ErrorSource.App)
           getApp.app.errors.head.errorMessage should include("test")
           getApp.app.status shouldBe AppStatus.Running
+
+          appErrorList.size shouldBe 1
+          getUpdateLog.errorId.isDefined shouldBe true
+          getUpdateLog.status shouldBe UpdateAppJobStatus.Error
+          getUpdateLog.endTime.isDefined shouldBe true
+          getUpdateLog.startTime.toEpochMilli shouldBe startTime.toEpochMilli
+          // We cant verify before/after because tests don't use the same application ctx that the app does
+          getUpdateLog.endTime.get.toEpochMilli == getUpdateLog.startTime.toEpochMilli shouldBe false
         }
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, 20)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    verify(mockAckConsumer, times(1)).ack()
+  }
+
+  it should "properly update app log after successful update" in isolatedDbTest {
+    val queue = makeTaskQueue()
+    val mockAckConsumer = mock[AckHandler]
+
+    val mockAksInterp = new MockAKSInterp {}
+
+    val leoSubscriber = makeLeoSubscriber(
+      azureInterp = makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm, mockAksInterp = mockAksInterp),
+      asyncTaskQueue = queue
+    )
+
+    val savedCluster1 = makeAzureCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
+    val jobId = UpdateAppJobId(UUID.randomUUID())
+    val msg =
+      UpdateAppMessage(jobId,
+                       savedApp1.id,
+                       savedApp1.appName,
+                       savedCluster1.cloudContext,
+                       savedApp1.workspaceId,
+                       None,
+                       None
+      )
+
+    val startTime = Instant.now()
+
+    val res =
+      for {
+        _ <- updateAppLogQuery.save(jobId, savedApp1.id, startTime).transaction
+        _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
+
+        assertions = for {
+          getAppOpt <- KubernetesServiceDbQueries
+            .getActiveFullAppByName(savedCluster1.cloudContext, savedApp1.appName)
+            .transaction
+          getApp = getAppOpt.get
+          getUpdateLogOpt <- updateAppLogQuery.get(savedApp1.id, jobId).transaction
+          getUpdateLog = getUpdateLogOpt.get
+
+          appErrorList <- appErrorQuery.get(getApp.app.id).transaction
+        } yield {
+          getApp.app.errors.size shouldBe 0
+          getApp.app.status shouldBe savedApp1.status
+
+          appErrorList.size shouldBe 0
+          getUpdateLog.errorId.isDefined shouldBe false
+          getUpdateLog.status shouldBe UpdateAppJobStatus.Success
+          getUpdateLog.endTime.isDefined shouldBe true
+          getUpdateLog.startTime.toEpochMilli shouldBe startTime.toEpochMilli
+          // We cant verify before/after because tests don't use the same application ctx that the app does
+          getUpdateLog.endTime.get.toEpochMilli == getUpdateLog.startTime.toEpochMilli shouldBe false
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 20)
       } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
