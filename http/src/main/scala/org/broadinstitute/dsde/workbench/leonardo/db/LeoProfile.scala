@@ -326,6 +326,20 @@ private[leonardo] object LeoProfile extends MySQLProfile {
 
     implicit val autodeleteThresholdColumnType: BaseColumnType[AutodeleteThreshold] =
       MappedColumnType.base[AutodeleteThreshold, Int](_.value, AutodeleteThreshold.apply)
+
+    implicit val updateAppTableIdColumnType: BaseColumnType[UpdateAppTableId] =
+      MappedColumnType.base[UpdateAppTableId, Long](_.value, UpdateAppTableId.apply)
+
+    implicit val updateAppJobIdColumnType: BaseColumnType[UpdateAppJobId] =
+      MappedColumnType.base[UpdateAppJobId, UUID](_.value, UpdateAppJobId.apply)
+
+    implicit val updateAppJobStatusColumnType: BaseColumnType[UpdateAppJobStatus] =
+      MappedColumnType.base[UpdateAppJobStatus, String](
+        _.toString,
+        s =>
+          UpdateAppJobStatus.stringToObject
+            .getOrElse(s, throw ColumnDecodingException(s"invalid app update job status ${s}"))
+      )
   }
 
   case class ColumnDecodingException(message: String) extends Exception
