@@ -73,7 +73,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/f54556501b9ec88c970b140887df850379e47b39/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/8390d25ccd761fb206cf388560a571be77a42bbd/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:474f157",
@@ -165,7 +165,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.226.0"),
+          ChartVersion("0.234.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
