@@ -4183,6 +4183,10 @@ components:
         - cloudProvider
       type: object
       properties:
+        jobId:
+          type: string
+          format: uuid
+          description: If provided, each app upgraded with this request will have a log associated with this job id saved for a report in the database
         appType:
           $ref: '#/components/schemas/AppType'
         cloudProvider:
