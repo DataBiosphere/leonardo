@@ -93,7 +93,7 @@ object AdminRoutes {
       "labels"
     )(x =>
       (x.jobId,
-        x.workspaceId,
+       x.workspaceId,
        x.cloudContext,
        x.status,
        x.appId,
