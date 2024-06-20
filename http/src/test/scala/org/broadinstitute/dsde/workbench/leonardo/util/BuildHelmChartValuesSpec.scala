@@ -352,7 +352,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
       None,
-      Some(GcsBucketName("fc-bucket"))
+      None
     )
 
     res.mkString(",") shouldBe
@@ -391,8 +391,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
       """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
-      """gcsfuse.enabled=true,""" +
-      """gcsfuse.bucket=fc-bucket"""
+      """gcsfuse.enabled=false"""
   }
 
   it should "build SAS override values string in autopilot mode" in {
