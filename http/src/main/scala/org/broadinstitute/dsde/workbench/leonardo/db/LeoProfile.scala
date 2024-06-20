@@ -331,7 +331,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[UpdateAppTableId, Long](_.value, UpdateAppTableId.apply)
 
     implicit val updateAppJobIdColumnType: BaseColumnType[UpdateAppJobId] =
-      MappedColumnType.base[UpdateAppJobId, String](_.toString, x => UpdateAppJobId(UUID.fromString(x)))
+      MappedColumnType.base[UpdateAppJobId, String](_.value.toString, x => UpdateAppJobId(UUID.fromString(x)))
 
     implicit val updateAppJobStatusColumnType: BaseColumnType[UpdateAppJobStatus] =
       MappedColumnType.base[UpdateAppJobStatus, String](
