@@ -597,3 +597,25 @@ object ComputeClass {
   val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
 }
 final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
+
+final case class UpdateAppTableId(value: Long) extends AnyVal
+final case class UpdateAppJobId(value: UUID) extends AnyVal
+
+sealed abstract class UpdateAppJobStatus
+object UpdateAppJobStatus {
+
+  case object Running extends UpdateAppJobStatus {
+    override def toString: String = "RUNNING"
+  }
+
+  case object Error extends UpdateAppJobStatus {
+    override def toString: String = "ERROR"
+  }
+
+  final case object Success extends UpdateAppJobStatus {
+    override def toString: String = "SUCCESS"
+  }
+
+  def values: Set[UpdateAppJobStatus] = sealerate.values[UpdateAppJobStatus]
+  def stringToObject: Map[String, UpdateAppJobStatus] = values.map(v => v.toString -> v).toMap
+}

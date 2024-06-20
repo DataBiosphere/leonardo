@@ -163,7 +163,6 @@ echo "RELAY_CONNECTIONSTRING = ${RELAY_CONNECTIONSTRING}"
 echo "LEONARDO_URL = ${LEONARDO_URL}"
 echo "RUNTIME_NAME = ${RUNTIME_NAME}"
 echo "VALID_HOSTS = ${VALID_HOSTS}"
-echo "R-VERSION = ${R_VERSION}"
 
 # Wait for lock to resolve before any installs, to resolve this error: https://broadworkbench.atlassian.net/browse/IA-4645
 
@@ -172,6 +171,13 @@ while sudo fuser /var/lib/dpkg/lock-frontend > /dev/null 2>&1
     echo "Waiting to get lock /var/lib/dpkg/lock-frontend..."
     sleep 5
   done
+
+# Install updated R version
+echo "Installing R"
+# Update package list
+sudo apt-get update
+# Install most recent R version
+sudo apt-get install --no-install-recommends -y r-base
 
 #Update kernel list
 
