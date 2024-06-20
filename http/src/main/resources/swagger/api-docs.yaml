@@ -4329,6 +4329,10 @@ components:
       description: out-of-date app properties
       type: object
       properties:
+        jobId:
+          type: string
+          format: uuid
+          description: Job id to find logs of update
         workspaceId:
           type: string
           description: workspaceId
