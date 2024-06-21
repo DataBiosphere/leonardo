@@ -827,4 +827,7 @@ object JsonCodec {
     case n if n <= 0 => Left("autodeleteThreshold must be a positive number of minutes")
     case n           => Right(AutodeleteThreshold.apply(n))
   }
+
+  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeUUID.map(UpdateAppJobId)
+  implicit val updateAppJobIdEncoder: Encoder[UpdateAppJobId] = Encoder.encodeUUID.contramap(_.value)
 }

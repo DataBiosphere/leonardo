@@ -42,8 +42,8 @@ class AppErrorTable(tag: Tag) extends Table[AppErrorRecord](tag, "APP_ERROR") {
 
 object appErrorQuery extends TableQuery(new AppErrorTable(_)) {
 
-  def save(appId: AppId, error: AppError): DBIO[Int] =
-    appErrorQuery += AppErrorRecord(
+  def save(appId: AppId, error: AppError)(implicit ec: ExecutionContext): DBIO[KubernetesErrorId] = {
+    val record = AppErrorRecord(
       KubernetesErrorId(0),
       appId,
       Option(error.errorMessage).map(_.take(1024)).getOrElse("null"),
@@ -53,6 +53,11 @@ object appErrorQuery extends TableQuery(new AppErrorTable(_)) {
       error.googleErrorCode,
       error.traceId
     )
+
+    for {
+      id <- appErrorQuery returning appErrorQuery.map(_.id) += record
+    } yield id
+  }
 
   def get(appId: AppId)(implicit ec: ExecutionContext): DBIO[List[AppError]] =
     appErrorQuery.filter(_.appId === appId).result map { recs =>

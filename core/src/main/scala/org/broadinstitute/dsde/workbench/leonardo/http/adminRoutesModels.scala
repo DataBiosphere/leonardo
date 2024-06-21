@@ -4,7 +4,8 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.ChartVersion
 
-final case class UpdateAppsRequest(appType: AppType,
+final case class UpdateAppsRequest(jobId: Option[UpdateAppJobId],
+                                   appType: AppType,
                                    cloudProvider: CloudProvider,
                                    appVersionsInclude: List[ChartVersion],
                                    appVersionsExclude: List[ChartVersion],
@@ -14,7 +15,8 @@ final case class UpdateAppsRequest(appType: AppType,
                                    dryRun: Boolean
 )
 
-final case class ListUpdateableAppResponse(workspaceId: Option[WorkspaceId],
+final case class ListUpdateableAppResponse(jobId: UpdateAppJobId,
+                                           workspaceId: Option[WorkspaceId],
                                            cloudContext: CloudContext,
                                            status: AppStatus,
                                            appId: AppId,
@@ -27,11 +29,12 @@ final case class ListUpdateableAppResponse(workspaceId: Option[WorkspaceId],
 )
 
 object ListUpdateableAppResponse {
-  def fromClusters(clusters: List[KubernetesCluster]): List[ListUpdateableAppResponse] = for {
+  def fromClusters(clusters: List[KubernetesCluster], jobId: UpdateAppJobId): List[ListUpdateableAppResponse] = for {
     cluster <- clusters
     nodepool <- cluster.nodepools
     app <- nodepool.apps
     resp = ListUpdateableAppResponse(
+      jobId,
       app.workspaceId,
       cluster.cloudContext,
       app.status,
