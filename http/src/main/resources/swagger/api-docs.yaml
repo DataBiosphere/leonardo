@@ -4190,6 +4190,10 @@ components:
         - cloudProvider
       type: object
       properties:
+        jobId:
+          type: string
+          format: uuid
+          description: If provided, each app upgraded with this request will have a log associated with this job id saved for a report in the database
         appType:
           $ref: '#/components/schemas/AppType'
         cloudProvider:
@@ -4332,6 +4336,10 @@ components:
       description: out-of-date app properties
       type: object
       properties:
+        jobId:
+          type: string
+          format: uuid
+          description: Job id to find logs of update
         workspaceId:
           type: string
           description: workspaceId
