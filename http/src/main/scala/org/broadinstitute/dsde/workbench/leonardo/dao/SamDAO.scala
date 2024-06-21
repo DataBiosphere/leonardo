@@ -4,6 +4,7 @@ package dao
 import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -160,6 +161,13 @@ trait SamDAO[F[_]] {
   def isAdminUser(userInfo: UserInfo)(implicit
     ev: Ask[F, TraceId]
   ): F[Boolean]
+
+  /** Gets an action managed identity from Sam as the calling user for the given resource type,
+   * resource ID, and action. Returns the managed identity object ID. */
+  def getAzureActionManagedIdentity(authHeader: Authorization,
+                                    resource: PrivateAzureStorageAccountSamResourceId,
+                                    action: PrivateAzureStorageAccountAction
+  )(implicit ev: Ask[F, TraceId]): F[Option[String]]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal
