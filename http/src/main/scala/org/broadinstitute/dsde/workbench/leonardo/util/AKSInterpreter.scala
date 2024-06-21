@@ -246,6 +246,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(
         s"App values for app ${params.appName.value} are ${values.asString}"
       )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"App release = ${app.release}, chart name = ${app.chart.name}, app.chart.version = ${app.chart.version}"
+      )
       // Install app chart
       _ <- childSpan("helmInstallApp").use { _ =>
         helmClient
