@@ -394,6 +394,63 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """gcsfuse.enabled=false"""
   }
 
+  it should "build OfficeSuite override values string" in {
+    val savedCluster1 = makeKubeCluster(1)
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
+    val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
+    val res = buildAllowedAppChartOverrideValuesString(
+      Config.gkeInterpConfig,
+      AllowedChartName.OfficeSuite,
+      appName = AppName("app1"),
+      cluster = savedCluster1,
+      nodepoolName = Some(NodepoolName("pool1")),
+      namespaceName = NamespaceName("ns"),
+      disk = savedDisk1,
+      ksaName = ServiceAccountName("app1-officesuite-ksa"),
+      userEmail = userEmail2,
+      stagingBucket = GcsBucketName("test-staging-bucket"),
+      envVariables,
+      None,
+      Some(GcsBucketName("fc-bucket"))
+    )
+
+    res.mkString(",") shouldBe
+      """ingress.officesuite.path=/proxy/google/v1/apps/dsp-leo-test1/app1/app(/|$)(.*),""" +
+        """ingress.welder.path=/proxy/google/v1/apps/dsp-leo-test1/app1/welder-service(/|$)(.*),""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
+        """fullnameOverride=app1,""" +
+        """persistence.size=250G,""" +
+        """persistence.gcePersistentDisk=disk1,""" +
+        """serviceAccount.name=app1-officesuite-ksa,""" +
+        """ingress.enabled=true,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+        """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
+        """ingress.host=1455694897.jupyter.firecloud.org,""" +
+        """ingress.tls[0].secretName=tls-secret,""" +
+        """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
+        """welder.extraEnv[0].name=GOOGLE_PROJECT,""" +
+        """welder.extraEnv[0].value=dsp-leo-test1,""" +
+        """welder.extraEnv[1].name=STAGING_BUCKET,""" +
+        """welder.extraEnv[1].value=test-staging-bucket,""" +
+        """welder.extraEnv[2].name=CLUSTER_NAME,""" +
+        """welder.extraEnv[2].value=app1,""" +
+        """welder.extraEnv[3].name=OWNER_EMAIL,""" +
+        """welder.extraEnv[3].value=user2@example.com,""" +
+        """welder.extraEnv[4].name=WORKSPACE_ID,""" +
+        """welder.extraEnv[4].value=dummy,""" +
+        """welder.extraEnv[5].name=WSM_URL,""" +
+        """welder.extraEnv[5].value=dummy,""" +
+        """extraEnv[0].name=WORKSPACE_NAME,""" +
+        """extraEnv[0].value=test-workspace-name,""" +
+        """replicaCount=1,""" +
+        """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
+        """gcsfuse.enabled=true,""" +
+        """gcsfuse.bucket=fc-bucket"""
+        """proxySubpath=proxy/google/v1/apps/dsp-leo-test1/app1/app"""
+  }
+
   it should "build SAS override values string in autopilot mode" in {
     val savedCluster1 = makeKubeCluster(1)
     val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))

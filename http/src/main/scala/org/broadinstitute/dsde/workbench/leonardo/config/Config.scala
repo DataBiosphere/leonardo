@@ -730,6 +730,7 @@ object Config {
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("rstudioChartVersion"),
       config.as[ChartVersion]("sasChartVersion"),
+      config.as[ChartVersion]("officeSuiteChartVersion"),
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[List[ServiceConfig]]("services"),

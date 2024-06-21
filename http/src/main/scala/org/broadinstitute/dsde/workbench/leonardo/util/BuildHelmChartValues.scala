@@ -342,6 +342,17 @@ private[leonardo] object BuildHelmChartValues {
           raw"""imageCredentials.username=${config.allowedAppConfig.sasContainerRegistryCredentials.username.asString}""",
           raw"""imageCredentials.password=${config.allowedAppConfig.sasContainerRegistryCredentials.password.asString}"""
         ) ++ common
+
+      case AllowedChartName.OfficeSuite =>
+        List(
+          raw"""ingress.officesuite.path=${ingressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",
+          raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${
+            k8sProxyHost
+              .address()
+          }""",
+          raw"""proxySubpath=${ingressPath.drop(1)}""",
+        ) ++ common
     }
   }
 

@@ -2993,6 +2993,7 @@ components:
       enum:
         - rstudio
         - sas
+        - officesuite
     AppStatus:
       type: string
       enum:
