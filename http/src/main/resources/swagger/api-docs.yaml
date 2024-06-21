@@ -27,8 +27,7 @@ tags:
   - name: service_info
     description: Service Info API
 security:
-  - oidc:
-      - openid
+  - oidc: []
 
 ##########################################################################################
 ## PATHS
@@ -2970,9 +2969,13 @@ components:
 
   securitySchemes:
     oidc:
-      type: openIdConnect
-      openIdConnectUrl: OPEN_ID_CONNECT_URL
+      type: oauth2
       x-tokenName: id_token
+      flows:
+        authorizationCode:
+          authorizationUrl: OAUTH_AUTHORIZATION_URL
+          scopes: {}
+          tokenUrl: OAUTH_TOKEN_URL
   schemas:
     AppType:
       type: string
@@ -4183,6 +4186,10 @@ components:
         - cloudProvider
       type: object
       properties:
+        jobId:
+          type: string
+          format: uuid
+          description: If provided, each app upgraded with this request will have a log associated with this job id saved for a report in the database
         appType:
           $ref: '#/components/schemas/AppType'
         cloudProvider:
@@ -4325,6 +4332,10 @@ components:
       description: out-of-date app properties
       type: object
       properties:
+        jobId:
+          type: string
+          format: uuid
+          description: Job id to find logs of update
         workspaceId:
           type: string
           description: workspaceId
