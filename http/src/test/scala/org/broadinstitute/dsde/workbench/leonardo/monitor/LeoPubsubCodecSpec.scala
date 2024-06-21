@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   CreateRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -118,7 +118,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       NamespaceName("ns"),
       None,
       Some(traceId),
-      false
+      false,
+      Some(GcsBucketName("bucketName"))
     )
 
     val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))

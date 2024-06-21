@@ -300,7 +300,8 @@ private[leonardo] object BuildHelmChartValues {
                                                userEmail: WorkbenchEmail,
                                                stagingBucket: GcsBucketName,
                                                customEnvironmentVariables: Map[String, String],
-                                               autopilot: Option[Autopilot]
+                                               autopilot: Option[Autopilot],
+                                               bucketNameToMount: Option[GcsBucketName]
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
@@ -318,7 +319,8 @@ private[leonardo] object BuildHelmChartValues {
       customEnvironmentVariables,
       ingressPath,
       k8sProxyHost,
-      autopilot
+      autopilot,
+      bucketNameToMount
     )
 
     allowedChartName match {
@@ -355,7 +357,8 @@ private[leonardo] object BuildHelmChartValues {
                                                            customEnvironmentVariables: Map[String, String],
                                                            ingressPath: String,
                                                            k8sProxyHost: akka.http.scaladsl.model.Uri.Host,
-                                                           autopilot: Option[Autopilot]
+                                                           autopilot: Option[Autopilot],
+                                                           bucketNameToMount: Option[GcsBucketName]
   ): List[String] = {
     val k8sProxyHostString = k8sProxyHost.address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -404,6 +407,18 @@ private[leonardo] object BuildHelmChartValues {
       case None => List.empty
     }
 
+    val gcsfuse = bucketNameToMount match {
+      case Some(bucketName) =>
+        List(
+          raw"""gcsfuse.enabled=true""",
+          raw"""gcsfuse.bucket=${bucketName.value}"""
+        )
+      case None =>
+        List(
+          raw"""gcsfuse.enabled=false"""
+        )
+    }
+
     val welder = List(
       raw"""welder.extraEnv[0].name=GOOGLE_PROJECT""",
       raw"""welder.extraEnv[0].value=${cluster.cloudContext.asString}""",
@@ -435,6 +450,6 @@ private[leonardo] object BuildHelmChartValues {
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder ++ configs ++ nodepoolSelector ++ autopilotParams
+    ) ++ ingress ++ welder ++ configs ++ nodepoolSelector ++ autopilotParams ++ gcsfuse
   }
 }

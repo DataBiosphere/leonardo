@@ -349,6 +349,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         CreateAppParams(savedApp1.id,
                         savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                         savedApp1.appName,
+                        None,
                         None
         )
       )
@@ -440,6 +441,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           CreateAppParams(AppId(-1),
                           savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                           AppName("non-existent"),
+                          None,
                           None
           )
         )

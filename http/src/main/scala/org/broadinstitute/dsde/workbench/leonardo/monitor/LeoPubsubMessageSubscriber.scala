@@ -1073,7 +1073,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         // create and monitor app
         _ <- getGkeAlgFromRegistry()
           .createAndPollApp(
-            CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType)
+            CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType, msg.bucketNameToMount)
           )
           .onError { case e =>
             cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk, e)
@@ -1526,7 +1526,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       updateApp = (msg.cloudContext match {
         case CloudContext.Gcp(_) =>
           getGkeAlgFromRegistry()
-            .updateAndPollApp(UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject))
+            .updateAndPollApp(
+              UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject)
+            )
         case CloudContext.Azure(azureContext) =>
           azurePubsubHandler
             .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
