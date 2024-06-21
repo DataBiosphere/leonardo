@@ -79,7 +79,8 @@ object AdminRoutes {
   implicit val chartEncoder: Encoder[Chart] = Encoder.encodeString.contramap(_.toString)
 
   implicit val listUpdateableAppsResponseEncoder: Encoder[ListUpdateableAppResponse] =
-    Encoder.forProduct10(
+    Encoder.forProduct11(
+      "jobId",
       "workspaceId",
       "cloudContext",
       "status",
@@ -91,7 +92,8 @@ object AdminRoutes {
       "accessScope",
       "labels"
     )(x =>
-      (x.workspaceId,
+      (x.jobId,
+       x.workspaceId,
        x.cloudContext,
        x.status,
        x.appId,
