@@ -106,6 +106,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case Some(cn) =>
               cn match {
                 case AllowedChartName.RStudio => F.unit
+                case AllowedChartName.OfficeSuite => F.unit
                 case AllowedChartName.Sas =>
                   if (config.enableSasApp) {
                     if (enableIntraNodeVisibility) {
