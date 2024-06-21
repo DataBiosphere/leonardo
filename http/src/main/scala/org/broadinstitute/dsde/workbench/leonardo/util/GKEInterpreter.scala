@@ -48,13 +48,14 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
 import org.http4s.Uri
 import org.broadinstitute.dsde.workbench.leonardo.Autopilot
 import com.google.api.services.container.model.WorkloadPolicyConfig
+
 import java.net.URL
 import java.util.Base64
 import scala.concurrent.ExecutionContext
@@ -519,7 +520,8 @@ class GKEInterpreter[F[_]](
             gsa,
             app.auditInfo.creator,
             app.customEnvironmentVariables,
-            app.autopilot
+            app.autopilot,
+            params.bucketNameToMount
           )
         case AppType.Custom =>
           installCustomApp(
@@ -754,7 +756,8 @@ class GKEInterpreter[F[_]](
               userEmail,
               stagingBucketName,
               app.customEnvironmentVariables,
-              app.autopilot
+              app.autopilot,
+              app.bucketNameToMount
             )
 
             last <- streamFUntilDone(
@@ -1538,7 +1541,8 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     userEmail: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String],
-    autopilot: Option[Autopilot]
+    autopilot: Option[Autopilot],
+    bucketNameToMount: Option[GcsBucketName]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1565,18 +1569,20 @@ class GKEInterpreter[F[_]](
         new RuntimeException(s"invalid chart name for ALLOWED app: ${chart.name}")
       )
 
-      chartValues = buildAllowedAppChartOverrideValuesString(config,
-                                                             allowedChart,
-                                                             appName,
-                                                             cluster,
-                                                             nodepoolName,
-                                                             namespaceName,
-                                                             disk,
-                                                             ksaName,
-                                                             userEmail,
-                                                             stagingBucketName,
-                                                             customEnvironmentVariables,
-                                                             autopilot
+      chartValues = buildAllowedAppChartOverrideValuesString(
+        config,
+        allowedChart,
+        appName,
+        cluster,
+        nodepoolName,
+        namespaceName,
+        disk,
+        ksaName,
+        userEmail,
+        stagingBucketName,
+        customEnvironmentVariables,
+        autopilot,
+        bucketNameToMount
       )
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 

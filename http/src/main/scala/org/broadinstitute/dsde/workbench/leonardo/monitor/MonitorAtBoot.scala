@@ -209,7 +209,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                     app.appResources.namespace,
                     Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
                     Some(appContext.traceId),
-                    enableIntraNodeVisibility
+                    enableIntraNodeVisibility,
+                    app.bucketNameToMount
                   )
                 } yield msg
 

@@ -52,7 +52,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerInterp, _}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{AckHandler, CloudSubscriber, ReceivedMessage}
@@ -923,7 +923,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -981,7 +982,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           None,
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1079,7 +1081,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         msg2 = CreateAppMessage(
           savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
@@ -1092,7 +1095,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp2.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg1)
@@ -1135,7 +1139,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           None,
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
@@ -1380,7 +1385,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1491,7 +1497,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           None,
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1561,7 +1568,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           None,
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1642,7 +1650,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           None,
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))
@@ -1830,7 +1839,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           Some(AppMachineType(5, 4)),
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         // send message twice
@@ -2485,7 +2495,8 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appResources.namespace,
           None,
           Some(tr),
-          false
+          false,
+          Some(GcsBucketName("fc-bucket"))
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- leoSubscriber.messageHandler(ReceivedMessage(msg, None, instantTimestamp, mockAckConsumer))

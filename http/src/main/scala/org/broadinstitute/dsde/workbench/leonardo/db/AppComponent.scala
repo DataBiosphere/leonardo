@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImpl
 import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.AppToAutoDelete
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.Release
 import org.http4s.Uri
@@ -41,9 +42,9 @@ final case class AppRecord(id: AppId,
                            extraArgs: Option[List[String]],
                            sourceWorkspaceId: Option[WorkspaceId],
                            numOfReplicas: Option[Int],
-                           autodeleteEnabled: Boolean,
-                           autodeleteThreshold: Option[AutodeleteThreshold],
-                           autopilot: Option[Autopilot]
+                           autodelete: Autodelete,
+                           autopilot: Option[Autopilot],
+                           bucketNameToMount: Option[GcsBucketName]
 )
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -78,6 +79,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def cpu = column[Option[Int]]("cpu")
   def memory = column[Option[Int]]("memory")
   def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
+  def bucketNameToMount = column[Option[GcsBucketName]]("bucketNameToMount")
 
   def * =
     (
@@ -91,8 +93,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       chart,
       release,
       samResourceId,
-      googleServiceAccount,
-      kubernetesServiceAccount,
+      (googleServiceAccount, kubernetesServiceAccount),
       (creator, createdDate, destroyedDate, dateAccessed),
       namespaceName,
       diskId,
@@ -103,7 +104,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       numOfReplicas,
       // combine these values to allow tuple creation; longer than 22 elements is not allowed
       (autodeleteEnabled, autodeleteThreshold),
-      (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage)
+      (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage),
+      bucketNameToMount
     ) <> ({
       case (
             id,
@@ -116,8 +118,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             chart,
             release,
             samResourceId,
-            googleServiceAccount,
-            kubernetesServiceAccount,
+            serviceAccounts,
             auditInfoRaw,
             namespaceName,
             diskId,
@@ -127,7 +128,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             sourceWorkspaceId,
             numOfReplicas,
             autodelete,
-            autopilot
+            autopilot,
+            bucketNameToMount
           ) =>
         AppRecord(
           id,
@@ -140,8 +142,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           chart,
           release,
           samResourceId,
-          googleServiceAccount,
-          kubernetesServiceAccount,
+          serviceAccounts._1,
+          serviceAccounts._2,
           AuditInfo(
             auditInfoRaw._1,
             auditInfoRaw._2,
@@ -155,8 +157,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           extraArgs,
           sourceWorkspaceId,
           numOfReplicas,
-          autodelete._1,
-          autodelete._2,
+          Autodelete(autodelete._1, autodelete._2),
           if (autopilot._1)
             for {
               computeClass <- autopilot._2
@@ -164,7 +165,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
               memory <- autopilot._4
               ephemeralStorage <- autopilot._5
             } yield Autopilot(computeClass, cpu, memory, ephemeralStorage)
-          else None
+          else None,
+          bucketNameToMount
         )
     }, { r: AppRecord =>
       val autopilotComputeClass = r.autopilot.map(_.computeClass)
@@ -183,8 +185,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.chart,
           r.release,
           r.samResourceId,
-          r.googleServiceAccount,
-          r.kubernetesServiceAccount,
+          (r.googleServiceAccount, r.kubernetesServiceAccount),
           (r.auditInfo.creator,
            r.auditInfo.createdDate,
            r.auditInfo.destroyedDate.getOrElse(dummyDate),
@@ -198,8 +199,9 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.sourceWorkspaceId,
           r.numOfReplicas,
           // combine these values to allow tuple creation; longer than 22 elements is not allowed
-          (r.autodeleteEnabled, r.autodeleteThreshold),
-          (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage)
+          (r.autodelete.autodeleteEnabled, r.autodelete.autodeleteThreshold),
+          (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage),
+          r.bucketNameToMount
         )
       )
     })
@@ -239,9 +241,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.extraArgs.getOrElse(List.empty),
       app.sourceWorkspaceId,
       app.numOfReplicas,
-      app.autodeleteEnabled,
-      app.autodeleteThreshold,
-      app.autopilot
+      app.autodelete,
+      app.autopilot,
+      app.bucketNameToMount
     )
 
   def save(saveApp: SaveApp, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[App] = {
@@ -309,9 +311,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
         saveApp.app.sourceWorkspaceId,
         saveApp.app.numOfReplicas,
-        saveApp.app.autodeleteEnabled,
-        saveApp.app.autodeleteThreshold,
-        saveApp.app.autopilot
+        saveApp.app.autodelete,
+        saveApp.app.autopilot,
+        saveApp.app.bucketNameToMount
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
