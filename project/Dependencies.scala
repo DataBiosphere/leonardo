@@ -17,7 +17,7 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "a6ad7dc"
+  private val workbenchLibsHash = "b57a1ca"
   val serviceTestV = s"4.4-$workbenchLibsHash"
   val workbenchModelV = s"0.19-$workbenchLibsHash"
   val workbenchGoogleV = s"0.32-$workbenchLibsHash"
@@ -133,7 +133,7 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val workSpaceManagerV = "0.254.1093-SNAPSHOT"
+  val workSpaceManagerV = "0.254.1127-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
@@ -223,7 +223,7 @@ object Dependencies {
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.3" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.17.1" % "test",
     logbackClassic % "test",
     leonardoClient,
     ssh,

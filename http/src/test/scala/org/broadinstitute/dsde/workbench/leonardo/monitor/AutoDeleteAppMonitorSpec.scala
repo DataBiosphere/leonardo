@@ -5,7 +5,7 @@ import cats.effect.{Deferred, IO}
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, AutodeleteThreshold, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, Autodelete, AutodeleteThreshold, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
@@ -31,8 +31,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
           .copy(
             auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
             status = AppStatus.Running,
-            autodeleteThreshold = Some(AutodeleteThreshold(1)),
-            autodeleteEnabled = true
+            autodelete = Autodelete(true, Some(AutodeleteThreshold(1)))
           )
           .save()
       )
@@ -59,8 +58,7 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
           .copy(
             auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
             status = AppStatus.Running,
-            autodeleteThreshold = Some(AutodeleteThreshold(6)),
-            autodeleteEnabled = true
+            autodelete = Autodelete(true, Some(AutodeleteThreshold(6)))
           )
           .save()
       )

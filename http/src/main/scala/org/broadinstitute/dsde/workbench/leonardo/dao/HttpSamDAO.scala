@@ -553,6 +553,25 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     } yield isAdmin
   }
 
+  override def getAzureActionManagedIdentity(authHeader: Authorization,
+                                             resource: SamResourceId.PrivateAzureStorageAccountSamResourceId,
+                                             action: PrivateAzureStorageAccountAction
+  )(implicit ev: Ask[F, TraceId]): F[Option[String]] =
+    for {
+      _ <- metrics.incrementCounter("sam/getActionManagedIdentity")
+      resp <- httpClient.expectOptionOr[GetActionManagedIdentityResponse](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            Uri.Path.unsafeFromString(
+              s"/api/azure/v1/actionManagedIdentity/${resource.resourceType.asString}/${resource.resourceId}/${action.asString}"
+            )
+          ),
+          headers = Headers(authHeader)
+        )
+      )(onError)
+    } yield resp.map(_.objectId)
+
   private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[Json]] =
@@ -736,6 +755,13 @@ object HttpSamDAO {
     Decoder.forProduct1("enabled")(RegisterInfoResponse.apply)
   implicit val samUserInfoDecoder: Decoder[SamUserInfo] =
     Decoder.forProduct3("userSubjectId", "userEmail", "enabled")(SamUserInfo.apply)
+
+  implicit val getActionManagedIdentityResponseDecoder: Decoder[GetActionManagedIdentityResponse] = Decoder.instance {
+    c =>
+      for {
+        objectId <- c.downField("objectId").as[String]
+      } yield GetActionManagedIdentityResponse(objectId)
+  }
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R,
@@ -783,3 +809,5 @@ final case class AuthProviderException(traceId: TraceId, msg: String, code: Stat
     with NoStackTrace
 
 final case class RegisterInfoResponse(enabled: Boolean)
+
+final case class GetActionManagedIdentityResponse(objectId: String)

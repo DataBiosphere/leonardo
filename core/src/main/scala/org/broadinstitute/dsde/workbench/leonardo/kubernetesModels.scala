@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
@@ -439,9 +440,9 @@ final case class App(id: AppId,
                      extraArgs: List[String],
                      sourceWorkspaceId: Option[WorkspaceId],
                      numOfReplicas: Option[Int],
-                     autodeleteEnabled: Boolean,
-                     autodeleteThreshold: Option[AutodeleteThreshold],
-                     autopilot: Option[Autopilot]
+                     autodelete: Autodelete,
+                     autopilot: Option[Autopilot],
+                     bucketNameToMount: Option[GcsBucketName]
 ) {
 
   def getProxyUrls(cluster: KubernetesCluster, proxyUrlBase: String): Map[ServiceName, URL] =
@@ -596,6 +597,7 @@ object ComputeClass {
   private def values: Set[ComputeClass] = sealerate.values[ComputeClass]
   val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
 }
+final case class Autodelete(autodeleteEnabled: Boolean, autodeleteThreshold: Option[AutodeleteThreshold])
 final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
 
 final case class UpdateAppTableId(value: Long) extends AnyVal
