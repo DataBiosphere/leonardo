@@ -66,7 +66,9 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName," +
       s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org," +
       s"sam.baseUri=https://sam.test.org:443," +
-      s"sam.acrPullActionIdentityResourceId=spend-profile"
+      s"sam.acrPullActionIdentityResourceId=spend-profile," +
+      "bard.baseUri=https://bard.dsde-dev.broadinstitute.org," +
+      "bard.enabled=true"
   }
 
   it should "fail if there is no storage container" in {
