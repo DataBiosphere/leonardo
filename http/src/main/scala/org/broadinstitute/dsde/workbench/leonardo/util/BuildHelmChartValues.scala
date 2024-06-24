@@ -385,9 +385,18 @@ private[leonardo] object BuildHelmChartValues {
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHostString}"""
     )
 
+    // a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
+    // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'),
+    // spec.template.spec.tolerations[0].operator: Invalid value: "xxx": a valid label must be an empty string or
+    // consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
+    // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')], string=
+    val nodeSelectorGroupValue = s"a${userEmail.value.split("@")(0)}"
     val autopilotParams = autopilot match {
       case Some(v) =>
         val ls = List(
+          raw"""tolerations.enabled=true""",
+          raw"""tolerations.keyValue=${nodeSelectorGroupValue}""",
+          raw"""nodeSelector.group=${nodeSelectorGroupValue}""",
           raw"""autopilot.enabled=true""",
           raw"""autopilot.app.cpu=${v.cpuInMillicores}m""",
           raw"""autopilot.app.memory=${v.memoryInGb}Gi""",
