@@ -68,7 +68,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"sam.baseUri=https://sam.test.org:443," +
       s"sam.acrPullActionIdentityResourceId=spend-profile," +
       "bard.baseUri=https://terra-bard-dev.appspot.com," +
-      "bard.enabled=true"
+      "bard.enabled=false"
   }
 
   it should "fail if there is no storage container" in {

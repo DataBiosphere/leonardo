@@ -148,7 +148,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.156.0"),
+          ChartVersion("0.157.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -163,7 +163,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List.empty,
           ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org"),
           bardBaseUri = new URL("https://terra-bard-dev.appspot.com"),
-          bardEnabled = true
+          bardEnabled = false
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
