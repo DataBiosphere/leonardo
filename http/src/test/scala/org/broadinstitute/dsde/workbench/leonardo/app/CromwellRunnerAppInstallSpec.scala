@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, l
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledDatabaseResource
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.samConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 
 class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
@@ -12,6 +13,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
   val cromwellRunnerAppInstall = new CromwellRunnerAppInstall[IO](
     ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
     ConfigReader.appConfig.drs,
+    samConfig,
     mockSamDAO,
     mockCromwellDAO,
     mockAzureBatchService,
@@ -62,7 +64,9 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
       s"postgres.dbnames.tes=$tesAzureDbName," +
       s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName," +
-      s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org"
+      s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org," +
+      s"sam.baseUri=https://sam.test.org:443," +
+      s"sam.acrPullActionIdentityResourceId=spend-profile"
   }
 
   it should "fail if there is no storage container" in {
