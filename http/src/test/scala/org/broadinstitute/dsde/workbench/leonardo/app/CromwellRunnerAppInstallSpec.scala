@@ -67,7 +67,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org," +
       s"sam.baseUri=https://sam.test.org:443," +
       s"sam.acrPullActionIdentityResourceId=spend-profile," +
-      "bard.baseUri=https://bard.dsde-dev.broadinstitute.org," +
+      "bard.baseUri=https://terra-bard-dev.appspot.com," +
       "bard.enabled=true"
   }
 
