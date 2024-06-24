@@ -323,10 +323,15 @@ object AllowedChartName {
     def asString: String = "sas"
   }
 
+  final case object Officesuite extends AllowedChartName {
+    def asString: String = "Officesuite"
+  }
+
   // We used to have different chart names for RStudio and SAS. This is to handle the old names for backwards-compatibility
   private val deprecatedName: Map[String, AllowedChartName] = Map(
     "aou-rstudio-chart" -> RStudio,
-    "aou-sas-chart" -> Sas
+    "aou-sas-chart" -> Sas,
+    "aou-officesuite-chart" -> Officesuite
   )
 
   def stringToObject: Map[String, AllowedChartName] =

@@ -206,6 +206,7 @@ final case class ContainerRegistryCredentials(username: ContainerRegistryUsernam
 final case class AllowedAppConfig(chartName: ChartName,
                                   rstudioChartVersion: ChartVersion,
                                   sasChartVersion: ChartVersion,
+                                  officeSuiteChartVersion: ChartVersion,
                                   namespaceNameSuffix: NamespaceNameSuffix,
                                   releaseNameSuffix: ReleaseNameSuffix,
                                   services: List[ServiceConfig],

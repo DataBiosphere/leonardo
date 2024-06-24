@@ -106,6 +106,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case Some(cn) =>
               cn match {
                 case AllowedChartName.RStudio => F.unit
+                case AllowedChartName.Officesuite => F.unit
                 case AllowedChartName.Sas =>
                   if (config.enableSasApp) {
                     if (enableIntraNodeVisibility) {
@@ -1464,6 +1465,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           val chartVersion = req.allowedChartName.get match {
             case AllowedChartName.RStudio => config.leoKubernetesConfig.allowedAppConfig.rstudioChartVersion
             case AllowedChartName.Sas     => config.leoKubernetesConfig.allowedAppConfig.sasChartVersion
+            case AllowedChartName.Officesuite     => config.leoKubernetesConfig.allowedAppConfig.officeSuiteChartVersion
           }
           gkeAppConfig.chart
             .lens(_.name)
