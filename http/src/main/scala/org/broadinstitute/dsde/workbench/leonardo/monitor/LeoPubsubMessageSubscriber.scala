@@ -1505,7 +1505,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       latestAppChartVersion <- KubernetesAppConfig.configForTypeAndCloud(appResult.app.appType,
                                                                          msg.cloudContext.cloudProvider
       ) match {
-        case Some(AllowedAppConfig(_, rstudioChartVersion, sasChartVersion, _, _, _, _, _, _, _)) =>
+        case Some(AllowedAppConfig(_, rstudioChartVersion, sasChartVersion, officesuiteChartVersion, _, _, _, _, _, _, _)) =>
           AllowedChartName.fromChartName(appResult.app.chart.name) match {
             case Some(AllowedChartName.RStudio) =>
               F.pure(rstudioChartVersion)

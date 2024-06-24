@@ -400,7 +400,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val envVariables = Map("WORKSPACE_NAME" -> "test-workspace-name")
     val res = buildAllowedAppChartOverrideValuesString(
       Config.gkeInterpConfig,
-      AllowedChartName.OfficeSuite,
+      AllowedChartName.Officesuite,
       appName = AppName("app1"),
       cluster = savedCluster1,
       nodepoolName = Some(NodepoolName("pool1")),

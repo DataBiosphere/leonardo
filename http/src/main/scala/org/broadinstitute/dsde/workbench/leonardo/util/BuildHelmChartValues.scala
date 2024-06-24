@@ -343,7 +343,7 @@ private[leonardo] object BuildHelmChartValues {
           raw"""imageCredentials.password=${config.allowedAppConfig.sasContainerRegistryCredentials.password.asString}"""
         ) ++ common
 
-      case AllowedChartName.OfficeSuite =>
+      case AllowedChartName.Officesuite =>
         List(
           raw"""ingress.officesuite.path=${ingressPath}${"(/|$)(.*)"}""",
           raw"""ingress.welder.path=${welderIngressPath}${"(/|$)(.*)"}""",

@@ -323,7 +323,7 @@ object AllowedChartName {
     def asString: String = "sas"
   }
 
-  final case object OfficeSuite extends AllowedChartName {
+  final case object Officesuite extends AllowedChartName {
     def asString: String = "Officesuite"
   }
 
@@ -331,7 +331,7 @@ object AllowedChartName {
   private val deprecatedName: Map[String, AllowedChartName] = Map(
     "aou-rstudio-chart" -> RStudio,
     "aou-sas-chart" -> Sas,
-    "aou-officesuite-chart" -> OfficeSuite
+    "aou-officesuite-chart" -> Officesuite
   )
 
   def stringToObject: Map[String, AllowedChartName] =
