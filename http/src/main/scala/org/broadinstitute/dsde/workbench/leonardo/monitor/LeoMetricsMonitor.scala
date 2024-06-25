@@ -164,7 +164,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           // For Azure impersonate the user and call the app's status endpoint via Azure Relay.
           isUp <- cloudContext match {
             case CloudContext.Gcp(project) =>
-              appDAO.isProxyAvailable(project, app.appName, serviceName).handleError(_ => false)
+              appDAO.isProxyAvailable(project, app.appName, serviceName, ctx.traceId)
             case CloudContext.Azure(_) =>
               for {
                 tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)

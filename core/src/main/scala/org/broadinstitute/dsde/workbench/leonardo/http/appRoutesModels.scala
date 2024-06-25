@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.google2.RegionName
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
@@ -39,7 +40,8 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   sourceWorkspaceId: Option[WorkspaceId],
                                   autodeleteEnabled: Option[Boolean],
                                   autodeleteThreshold: Option[AutodeleteThreshold],
-                                  autopilot: Option[Autopilot]
+                                  autopilot: Option[Autopilot],
+                                  bucketNameToMount: Option[GcsBucketName]
 )
 
 final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[AutodeleteThreshold])
@@ -107,8 +109,8 @@ object ListAppResponse {
           a.auditInfo,
           a.appAccessScope,
           a.labels.filter(l => labelsToReturn.contains(l._1)),
-          a.autodeleteEnabled,
-          a.autodeleteThreshold
+          a.autodelete.autodeleteEnabled,
+          a.autodelete.autodeleteThreshold
         )
       }
     )
@@ -136,7 +138,7 @@ object GetAppResponse {
       appResult.app.chart.name,
       appResult.app.appAccessScope,
       appResult.app.labels,
-      appResult.app.autodeleteEnabled,
-      appResult.app.autodeleteThreshold
+      appResult.app.autodelete.autodeleteEnabled,
+      appResult.app.autodelete.autodeleteThreshold
     )
 }

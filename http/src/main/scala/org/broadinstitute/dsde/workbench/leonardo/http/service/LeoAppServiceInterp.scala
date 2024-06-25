@@ -299,7 +299,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           app.appResources.namespace,
           appMachineType,
           Some(ctx.traceId),
-          enableIntraNodeVisibility
+          enableIntraNodeVisibility,
+          req.bucketNameToMount
         )
         _ <- publisherQueue.offer(createAppMessage)
       } yield ()
@@ -724,8 +725,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseWhen(!hasPermission)(AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied"))
 
       // confirm that the combination of the request and the existing DB values result in a valid configuration
-      resolvedAutodeleteEnabled = req.autodeleteEnabled.getOrElse(appResult.app.autodeleteEnabled)
-      resolvedAutodeleteThreshold = req.autodeleteThreshold.orElse(appResult.app.autodeleteThreshold)
+      resolvedAutodeleteEnabled = req.autodeleteEnabled.getOrElse(appResult.app.autodelete.autodeleteEnabled)
+      resolvedAutodeleteThreshold = req.autodeleteThreshold.orElse(appResult.app.autodelete.autodeleteThreshold)
       _ <- F.fromEither(validateAutodelete(resolvedAutodeleteEnabled, resolvedAutodeleteThreshold, ctx.traceId))
       _ <- getUpdateAppTransaction(appResult.app.id, req)
     } yield ()
@@ -1530,9 +1531,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.extraArgs,
         req.sourceWorkspaceId,
         numOfReplicas,
-        autodeleteEnabled,
-        req.autodeleteThreshold,
-        autopilot
+        Autodelete(autodeleteEnabled, req.autodeleteThreshold),
+        autopilot,
+        req.bucketNameToMount
       )
     )
   }

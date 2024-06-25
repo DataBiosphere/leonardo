@@ -40,6 +40,7 @@ class AppV2RouteSpec extends AnyFlatSpec with LeonardoTestSuite {
       None,
       None,
       None,
+      None,
       None
     )
     res shouldBe (Right(expected))

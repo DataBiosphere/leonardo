@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
   CreateNodepool
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
 
 import scala.concurrent.duration.FiniteDuration
@@ -275,7 +275,8 @@ object LeoPubsubMessage {
       AppMachineType
     ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
     traceId: Option[TraceId],
-    enableIntraNodeVisibility: Boolean
+    enableIntraNodeVisibility: Boolean,
+    bucketNameToMount: Option[GcsBucketName]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
@@ -357,7 +358,8 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
 
-  final case class UpdateAppMessage(appId: AppId,
+  final case class UpdateAppMessage(jobId: UpdateAppJobId,
+                                    appId: AppId,
                                     appName: AppName,
                                     cloudContext: CloudContext,
                                     workspaceId: Option[WorkspaceId],
@@ -542,7 +544,7 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppMessageDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct11(
+    Decoder.forProduct12(
       "project",
       "clusterNodepoolAction",
       "appId",
@@ -553,7 +555,8 @@ object LeoPubsubCodec {
       "namespaceName",
       "machineType",
       "traceId",
-      "enableIntraNodeVisibility"
+      "enableIntraNodeVisibility",
+      "bucketNameToMount"
     )(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -566,7 +569,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
-    Decoder.forProduct6("appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
+    Decoder.forProduct7("jobId", "appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
       UpdateAppMessage.apply
     )
 
@@ -904,7 +907,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct12(
+    Encoder.forProduct13(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -916,7 +919,8 @@ object LeoPubsubCodec {
       "namespaceName",
       "machineType",
       "traceId",
-      "enableIntraNodeVisibility"
+      "enableIntraNodeVisibility",
+      "bucketNameToMount"
     )(x =>
       (x.messageType,
        x.project,
@@ -929,7 +933,8 @@ object LeoPubsubCodec {
        x.namespaceName,
        x.machineType,
        x.traceId,
-       x.enableIntraNodeVisibility
+       x.enableIntraNodeVisibility,
+       x.bucketNameToMount
       )
     )
 
@@ -949,9 +954,15 @@ object LeoPubsubCodec {
     )
 
   implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
-    Encoder.forProduct7("messageType", "appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
-      x => (x.messageType, x.appId, x.appName, x.cloudContext, x.workspaceId, x.googleProject, x.traceId)
-    )
+    Encoder.forProduct8("messageType",
+                        "jobId",
+                        "appId",
+                        "appName",
+                        "cloudContext",
+                        "workspaceId",
+                        "googleProject",
+                        "traceId"
+    )(x => (x.messageType, x.jobId, x.appId, x.appName, x.cloudContext, x.workspaceId, x.googleProject, x.traceId))
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
     Encoder.forProduct7(
@@ -1165,9 +1176,10 @@ final case class PollMonitorConfig(initialDelay: FiniteDuration, maxAttempts: In
   def totalDuration: FiniteDuration = initialDelay + interval * maxAttempts
 }
 
-final case class InterruptablePollMonitorConfig(maxAttempts: Int,
-                                                interval: FiniteDuration,
-                                                interruptAfter: FiniteDuration
+final case class InterruptablePollMonitorConfig(
+  maxAttempts: Int,
+  interval: FiniteDuration,
+  interruptAfter: FiniteDuration
 )
 
 final case class CreateDiskTimeout(defaultInMinutes: Int, sourceDiskCopyInMinutes: Int)

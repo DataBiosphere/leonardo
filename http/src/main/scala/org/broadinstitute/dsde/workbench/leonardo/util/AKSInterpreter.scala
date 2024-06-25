@@ -233,6 +233,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app,
         params.workspaceId,
         params.cloudContext,
+        params.billingProfileId,
         landingZoneResources,
         storageContainerOpt,
         relayPath,
@@ -333,8 +334,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       )
 
       // Query the Landing Zone service for the landing zone resources
+      billingProfileId = BillingProfileId(workspaceDesc.spendProfile)
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
-        legacyWsmDao.getLandingZoneResources(BillingProfileId(workspaceDesc.spendProfile), leoAuth)
+        legacyWsmDao.getLandingZoneResources(billingProfileId, leoAuth)
       }
 
       // Get the optional storage container for the workspace
@@ -467,6 +469,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app,
         workspaceId,
         params.cloudContext,
+        billingProfileId,
         landingZoneResources,
         storageContainerOpt,
         relayPath,

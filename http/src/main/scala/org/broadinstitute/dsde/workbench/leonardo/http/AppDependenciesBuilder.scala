@@ -204,6 +204,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       new CromwellRunnerAppInstall[IO](
         ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
         ConfigReader.appConfig.drs,
+        samConfig,
         baselineDependencies.samDAO,
         baselineDependencies.cromwellDAO,
         baselineDependencies.azureBatchService,

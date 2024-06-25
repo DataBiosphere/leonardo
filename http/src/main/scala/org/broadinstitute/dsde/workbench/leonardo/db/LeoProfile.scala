@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release
 import org.http4s.Uri
 import slick.jdbc.{MySQLProfile, SetParameter}
@@ -326,6 +326,23 @@ private[leonardo] object LeoProfile extends MySQLProfile {
 
     implicit val autodeleteThresholdColumnType: BaseColumnType[AutodeleteThreshold] =
       MappedColumnType.base[AutodeleteThreshold, Int](_.value, AutodeleteThreshold.apply)
+
+    implicit val bucketNameToMountColumnType: BaseColumnType[GcsBucketName] =
+      MappedColumnType.base[GcsBucketName, String](_.value, GcsBucketName.apply)
+
+    implicit val updateAppTableIdColumnType: BaseColumnType[UpdateAppTableId] =
+      MappedColumnType.base[UpdateAppTableId, Long](_.value, UpdateAppTableId.apply)
+
+    implicit val updateAppJobIdColumnType: BaseColumnType[UpdateAppJobId] =
+      MappedColumnType.base[UpdateAppJobId, String](_.value.toString, x => UpdateAppJobId(UUID.fromString(x)))
+
+    implicit val updateAppJobStatusColumnType: BaseColumnType[UpdateAppJobStatus] =
+      MappedColumnType.base[UpdateAppJobStatus, String](
+        _.toString,
+        s =>
+          UpdateAppJobStatus.stringToObject
+            .getOrElse(s, throw ColumnDecodingException(s"invalid app update job status ${s}"))
+      )
   }
 
   case class ColumnDecodingException(message: String) extends Exception

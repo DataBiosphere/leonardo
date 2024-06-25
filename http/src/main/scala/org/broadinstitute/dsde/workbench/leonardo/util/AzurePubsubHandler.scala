@@ -10,6 +10,7 @@ import bio.terra.workspace.model.{
   AzureVmCustomScriptExtension,
   AzureVmCustomScriptExtensionSetting,
   AzureVmUser,
+  AzureVmUserAssignedIdentities,
   CloningInstructionsEnum,
   ControlledResourceCommonFields,
   CreateControlledAzureDiskRequestV2Body,
@@ -29,6 +30,7 @@ import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, Vir
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -48,10 +50,10 @@ import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
-import scala.jdk.CollectionConverters._
 import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters._
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
@@ -146,6 +148,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         CreateAzureDiskParams(msg.workspaceId, runtime, msg.useExistingDisk, azureConfig)
       )
 
+      // Get optional action managed identity from Sam for the private_azure_storage_account/read action.
+      // Identities must be passed to WSM for application-managed resources.
+      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+      actionIdentityOpt <- tokenOpt.flatTraverse { token =>
+        samDAO.getAzureActionManagedIdentity(
+          org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token)),
+          PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
+          PrivateAzureStorageAccountAction.Read
+        )
+      }
+
       // all other resources (hybrid connection, storage container, vm)
       // are created within the async task
       _ <- monitorCreateRuntime(
@@ -159,7 +172,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.image,
           workspaceStorageContainer,
           msg.workspaceName,
-          cloudContext
+          cloudContext,
+          List(actionIdentityOpt).flatten
         )
       )
     } yield ()
@@ -232,6 +246,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                                  config.runtimeDefaults.vmCredential.password
     )
 
+    val userAssignedIdentities = new AzureVmUserAssignedIdentities()
+    userAssignedIdentities.addAll(params.userAssignedIdentities.asJava)
+
     val creationParams = new AzureVmCreationParameters()
       .customScriptExtension(customScriptExtension)
       .diskId(params.createDiskResult.resourceId.value)
@@ -243,6 +260,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .name(config.runtimeDefaults.vmCredential.username)
           .password(vmPassword)
       )
+      .userAssignedIdentities(userAssignedIdentities)
 
     new CreateControlledAzureVmRequestBody()
       .azureVm(creationParams)
