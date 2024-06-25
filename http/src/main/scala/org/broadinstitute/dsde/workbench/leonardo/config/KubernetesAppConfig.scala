@@ -156,7 +156,9 @@ final case class CromwellRunnerAppConfig(chartName: ChartName,
                                          instrumentationEnabled: Boolean,
                                          enabled: Boolean,
                                          chartVersionsToExcludeFromUpdates: List[ChartVersion],
-                                         ecmBaseUri: URL
+                                         ecmBaseUri: URL,
+                                         bardBaseUri: URL,
+                                         bardEnabled: Boolean
 ) extends KubernetesAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
   override val serviceAccountName = ServiceAccountName(ksaName.value)
