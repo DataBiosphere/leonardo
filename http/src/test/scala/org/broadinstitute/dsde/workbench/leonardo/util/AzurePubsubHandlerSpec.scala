@@ -739,10 +739,12 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.length shouldBe 1
           error.map(_.errorMessage).head should include(exceptionMsg)
+          diskStatus shouldBe DiskStatus.Deleted
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId2, false, None, "WorkspaceName", billingProfileId)
@@ -784,10 +786,12 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.length shouldBe 1
           error.map(_.errorMessage).head should include(exceptionMsg)
+          diskStatus shouldBe DiskStatus.Deleted
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
@@ -930,9 +934,11 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.map(_.errorMessage).head should include("WSM delete VM job failed due")
+          diskStatus shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -985,9 +991,11 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.map(_.errorMessage).head should include(exceptionMsg)
+          diskStatus shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -1097,10 +1105,12 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           getRuntime.auditInfo.destroyedDate shouldBe None
           error.map(_.errorMessage).head should include(exceptionMsg)
+          diskStatus shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -1157,10 +1167,12 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           getRuntime.auditInfo.destroyedDate shouldBe None
           error.map(_.errorMessage).head should include(exceptionMsg)
+          diskStatus shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
