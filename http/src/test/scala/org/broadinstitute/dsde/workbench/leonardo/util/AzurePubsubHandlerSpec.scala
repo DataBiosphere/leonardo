@@ -400,12 +400,10 @@ class AzurePubsubHandlerSpec
 
         assertions = for {
           runtimeStatus <- clusterQuery.getClusterStatus(runtime.id).transaction
-          diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
-          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
-          getDisk = getDiskOpt.get
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           runtimeStatus shouldBe Some(RuntimeStatus.Error)
-          getDisk.status shouldBe (Some(DiskStatus.Deleted))
+          diskStatus shouldBe Some(DiskStatus.Deleted)
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
