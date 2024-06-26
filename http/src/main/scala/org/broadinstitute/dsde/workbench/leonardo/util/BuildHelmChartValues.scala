@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.{Release, Values}
 
-import java.util.Base64
 import java.net.URL
 import java.nio.charset.StandardCharsets
 
@@ -395,9 +394,8 @@ private[leonardo] object BuildHelmChartValues {
     // spec.template.spec.tolerations[0].operator: Invalid value: "xxx": a valid label must be an empty string or
     // consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
     // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')], string=
-    val base64EncodedEmail =
-      Base64.getEncoder.encodeToString(userEmail.value.getBytes(StandardCharsets.UTF_8)).replace("=", "")
-    val nodeSelectorGroupValue = s"leonardo_${base64EncodedEmail}"
+    val hashedEmail = com.google.common.hash.Hashing.sha256().hashString(userEmail.value, StandardCharsets.UTF_8)
+    val nodeSelectorGroupValue = s"leonardo_${hashedEmail}"
     val autopilotParams = autopilot match {
       case Some(v) =>
         val ls = List(
