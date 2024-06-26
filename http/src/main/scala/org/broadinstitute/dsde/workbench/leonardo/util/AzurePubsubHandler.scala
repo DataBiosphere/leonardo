@@ -728,7 +728,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           logger.error(s"Wsm deleteVm job failed due to ${resp.getErrorReport.getMessage}") >> F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
-              None,
+              params.diskId,
               params.workspaceId,
               s"WSM delete VM job failed due to ${resp.getErrorReport.getMessage}"
             )
@@ -737,7 +737,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
-              None,
+              params.diskId,
               params.workspaceId,
               s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
             )
@@ -778,7 +778,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .raiseError[Unit](
               AzureRuntimeDeletionError(
                 params.runtime.id,
-                None,
+                params.diskId,
                 params.workspaceId,
                 s"WSM storage container delete job failed due to ${resp.getErrorReport.getMessage} for runtime ${params.runtime.id}"
               )
@@ -787,7 +787,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
-              None,
+              params.diskId,
               params.workspaceId,
               s"WSM delete storage container job was not completed within ${config.deleteStorageContainerPollConfig.maxAttempts} attempts with ${config.deleteStorageContainerPollConfig.interval} delay"
             )
@@ -985,7 +985,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           )
           .map(_ =>
-            Some(PollStorageContainerParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime))
+            Some(
+              PollStorageContainerParams(msg.workspaceId,
+                                         WsmJobId(deleteJobControl.getJobControl.getId),
+                                         runtime,
+                                         msg.diskIdToDelete
+              )
+            )
           )
       }
 
@@ -1051,7 +1057,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         for {
           deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
           _ <- F.delay(wsmApi.deleteAzureVm(deleteJobControl, msg.workspaceId.value, resourceId.value))
-        } yield Some(PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime))
+        } yield Some(
+          PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime, msg.diskIdToDelete)
+        )
       }
 
       // Delete and poll on all associated resources in WSM, and then mark the runtime as deleted
