@@ -385,6 +385,8 @@ private[leonardo] object BuildHelmChartValues {
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHostString}"""
     )
 
+    // Support workload identity following https://cloud.google.com/kubernetes-engine/docs/how-to/workload-separation#separate-workloads-autopilot.
+    // nodeSelector.group value has the following restrictions:
     // a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
     // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'),
     // spec.template.spec.tolerations[0].operator: Invalid value: "xxx": a valid label must be an empty string or
