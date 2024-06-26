@@ -83,6 +83,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           PollMonitorConfig(1 seconds, 10, 1 seconds)
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
+        BpmConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("cromwell-helm/cromwell-on-azure"),
