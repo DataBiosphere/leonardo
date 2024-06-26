@@ -1134,8 +1134,11 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeDeletionError(runtimeId: Long, workspaceId: WorkspaceId, errorMsg: String)
-      extends PubsubHandleMessageError {
+  final case class AzureRuntimeDeletionError(runtimeId: Long,
+                                             diskId: Option[DiskId],
+                                             workspaceId: WorkspaceId,
+                                             errorMsg: String
+  ) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false
