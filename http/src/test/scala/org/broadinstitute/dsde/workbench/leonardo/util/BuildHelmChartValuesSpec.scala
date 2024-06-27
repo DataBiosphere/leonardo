@@ -450,6 +450,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
       """nodeSelector.cloud\.google\.com/compute-class=Balanced,""" +
+      """tolerations.enabled=true,""" +
+      """tolerations.keyValue=auser2,""" +
+      """nodeSelector.group=auser2,""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
@@ -516,6 +519,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
+      """tolerations.enabled=true,""" +
+      """tolerations.keyValue=auser2,""" +
+      """nodeSelector.group=auser2,""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
