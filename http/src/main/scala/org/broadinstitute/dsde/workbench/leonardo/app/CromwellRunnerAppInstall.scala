@@ -88,16 +88,13 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         case Success(uuid) => bpmClient.getProfile(userToken, uuid)
         case _             => F.pure(None)
       }
-//      billingProfile <- F.fromOption(
-//        profileOpt,
-//        AppCreationException(s"Unable to find billing profile ${params.billingProfileId.value}", Some(ctx.traceId))
-//      )
+
       maybeLimits <- maybeProfile match {
         case Some(billingProfile) =>
           Option(billingProfile.getOrganization.getLimits) match {
             case Some(limits) if !limits.isEmpty =>
               val scalaLimits = limits.asScala
-              val value = scalaLimits.get("maxConcurrentWorkflows")
+              val value = scalaLimits.get("maxconcurrentworkflows")
               value match {
                 case Some(v) => F.pure(Some(raw"config.maxConcurrentWorkflows=${v}"))
                 case None    => F.pure(None)
