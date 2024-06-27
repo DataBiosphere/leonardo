@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.leonardo.util.WithSpanFilter
 import org.glassfish.jersey.client.ClientConfig
 import org.http4s.Uri
-import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
 
@@ -19,8 +18,7 @@ trait BpmApiClientProvider[F[_]] {
   def getProfileApi(token: String)(implicit ev: Ask[F, AppContext]): F[ProfileApi]
 
   def getProfile(token: String, profileId: UUID)(implicit
-    ev: Ask[F, AppContext],
-    log: StructuredLogger[F]
+    ev: Ask[F, AppContext]
   ): F[Option[ProfileModel]]
 
 }
@@ -45,8 +43,7 @@ class HttpBpmClientProvider[F[_]](baseBpmUrl: Uri)(implicit F: Async[F]) extends
     getApiClient(token).map(apiClient => new ProfileApi(apiClient))
 
   override def getProfile(token: String, profileId: UUID)(implicit
-    ev: Ask[F, AppContext],
-    log: StructuredLogger[F]
+    ev: Ask[F, AppContext]
   ): F[Option[ProfileModel]] = for {
     bpmApi <- getProfileApi(token)
     attempt <- F.delay(bpmApi.getProfile(profileId)).attempt

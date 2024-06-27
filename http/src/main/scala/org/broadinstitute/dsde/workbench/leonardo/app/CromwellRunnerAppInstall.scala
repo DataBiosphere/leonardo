@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
+import scala.jdk.CollectionConverters._
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -8,12 +9,15 @@ import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledData
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.config.{CromwellRunnerAppConfig, SamConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{BpmApiClientProvider, CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
+
+import java.util.UUID
+import scala.util.{Success, Try}
 
 /**
  * Cromwell runner app type.
@@ -25,7 +29,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
                                      samDao: SamDAO[F],
                                      cromwellDao: CromwellDAO[F],
                                      azureBatchService: AzureBatchService[F],
-                                     azureApplicationInsightsService: AzureApplicationInsightsService[F]
+                                     azureApplicationInsightsService: AzureApplicationInsightsService[F],
+                                     bpmClient: BpmApiClientProvider[F]
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
@@ -79,6 +84,29 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
+      maybeProfile <- stringToUUID(params.billingProfileId.value) match {
+        case Success(uuid) => bpmClient.getProfile(userToken, uuid)
+        case _             => F.pure(None)
+      }
+//      billingProfile <- F.fromOption(
+//        profileOpt,
+//        AppCreationException(s"Unable to find billing profile ${params.billingProfileId.value}", Some(ctx.traceId))
+//      )
+      maybeLimits <- maybeProfile match {
+        case Some(billingProfile) =>
+          Option(billingProfile.getOrganization.getLimits) match {
+            case Some(limits) if !limits.isEmpty =>
+              val scalaLimits = limits.asScala
+              val value = scalaLimits.get("maxConcurrentWorkflows")
+              value match {
+                case Some(v) => F.pure(Some(raw"config.maxConcurrentWorkflows=${v}"))
+                case None    => F.pure(None)
+              }
+            case _ => F.pure(None)
+          }
+        case _ => F.pure(None)
+      }
+
       values = List(
         // azure resources configs
         raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
@@ -90,7 +118,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
         raw"config.region=${params.landingZoneResources.region}",
         raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
-        raw"config.limit=100",
 
         // relay configs
         raw"relay.path=${params.relayPath.renderString}",
@@ -134,7 +161,13 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"sam.baseUri=${samConfig.server}",
         raw"sam.acrPullActionIdentityResourceId=${params.billingProfileId.value}"
       )
-    } yield Values(values.mkString(","))
+
+      finalList = maybeLimits match {
+        case Some(str) => values ++ List(str)
+        case _         => values
+      }
+
+    } yield Values(finalList.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false)
@@ -148,6 +181,9 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
      getAzureDatabaseName(dbResources, "tes"),
      getAzureDatabaseName(dbResources, "cromwellmetadata")
     ).mapN(CromwellRunnerAppDatabaseNames)
+
+  def stringToUUID(s: String): Try[UUID] =
+    Try(UUID.fromString(s))
 }
 
 final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellMetadata: String)

@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
+import bio.terra.profile.model.{Organization, ProfileModel}
 import cats.effect.IO
 import com.azure.resourcemanager.applicationinsights.models.ApplicationInsightsComponent
 import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
@@ -31,6 +32,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
+import scala.jdk.CollectionConverters._
 
 import java.net.URL
 import java.util.UUID
@@ -42,6 +44,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
   val mockCbasDAO = setUpMockCbasDAO
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
+  val mockBpmClientProvider = setUpMockBpmProvider
 
   val cloudContext = AzureCloudContext(
     TenantId("tenant"),
@@ -121,6 +124,20 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
       cbas.getStatus(any, any)(any)
     } thenReturn IO.pure(true)
     cbas
+  }
+
+  private def setUpMockBpmProvider: BpmApiClientProvider[IO] = {
+    val bpm = mock[BpmApiClientProvider[IO]]
+    when {
+      bpm.getProfile(any, any)(any)
+    } thenReturn IO.pure(
+      Some(
+        new ProfileModel()
+          .id(UUID.randomUUID())
+          .organization(new Organization().limits(Map("autopause" -> "30").asJava))
+      )
+    )
+    bpm
   }
 
   private def setUpMockAzureApplicationInsightsService: AzureApplicationInsightsService[IO] = {
