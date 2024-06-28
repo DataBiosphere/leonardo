@@ -288,24 +288,16 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
-
-      hasPermission <-
-        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
-        else
-          authProvider
-            .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
-      _ <- F
-        .raiseError[Unit](RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied"))
-        .whenA(!hasPermission)
+      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
+      hasVmDeletePermission <- checkSamPermission(
+        WsmResourceSamResourceId(wsmResourceId),
+        userInfo,
+        WsmResourceAction.Delete
+      ).map(_._1)
+      _ <- F.raiseUnless(hasVmDeletePermission)(
+        ForbiddenError(userInfo.userEmail)
+      )
 
       diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
       diskId <- diskIdOpt match {
@@ -317,7 +309,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       }
 
       // check if the VM is deletable in WSM
-      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
       wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
                                                 workspaceId,
                                                 wsmResourceId,
@@ -337,9 +328,18 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
           diskIdToDelete <-
             if (disk.wsmResourceId.isDefined && disk.status.isDeletable) {
               for {
+                hasDiskDeletePermission <- checkSamPermission(
+                  WsmResourceSamResourceId(disk.wsmResourceId.get),
+                  userInfo,
+                  WsmResourceAction.Delete
+                ).map(_._1)
+                _ <- F.raiseUnless(hasDiskDeletePermission)(
+                  ForbiddenError(userInfo.userEmail)
+                )
+
                 wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
                                                           workspaceId,
-                                                          wsmResourceId,
+                                                          disk.wsmResourceId.get,
                                                           WsmResourceType.AzureDisk
                 )
                 _ <- F
