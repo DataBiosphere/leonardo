@@ -451,8 +451,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """replicaCount=1,""" +
       """nodeSelector.cloud\.google\.com/compute-class=Balanced,""" +
       """tolerations.enabled=true,""" +
-      """tolerations.keyValue=leo_2b3b2b9ce842ab8b6a6c614cb1f9604bb8a0d502d1af49c526b72b10,""" +
-      """nodeSelector.group=leo_2b3b2b9ce842ab8b6a6c614cb1f9604bb8a0d502d1af49c526b72b10,""" +
+      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
+      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
@@ -520,8 +520,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
       """tolerations.enabled=true,""" +
-      """tolerations.keyValue=leo_2b3b2b9ce842ab8b6a6c614cb1f9604bb8a0d502d1af49c526b72b10,""" +
-      """nodeSelector.group=leo_2b3b2b9ce842ab8b6a6c614cb1f9604bb8a0d502d1af49c526b72b10,""" +
+      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
+      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +

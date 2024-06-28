@@ -388,20 +388,7 @@ private[leonardo] object BuildHelmChartValues {
     )
 
     // Support workload identity following https://cloud.google.com/kubernetes-engine/docs/how-to/workload-separation#separate-workloads-autopilot.
-    // nodeSelector.group value has the following restrictions:
-    // a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
-    // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'),
-    // spec.template.spec.tolerations[0].operator: Invalid value: "xxx": a valid label must be an empty string or
-    // consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
-    // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')], string=
-    //
-    // Use sha256 of the user email here so that the group value will always satisfy the naming restrictions
-    val hashedEmail = com.google.common.hash.Hashing
-      .sha256()
-      .hashString(userEmail.value, StandardCharsets.UTF_8)
-      .toString
-
-    val nodeSelectorGroupValue = s"leo_${hashedEmail}".substring(0, 60)
+    val nodeSelectorGroupValue = getNodeSelectorGroupValue(userEmail)
     val autopilotParams = autopilot match {
       case Some(v) =>
         val ls = List(
@@ -471,5 +458,22 @@ private[leonardo] object BuildHelmChartValues {
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
     ) ++ ingress ++ welder ++ configs ++ nodepoolSelector ++ autopilotParams ++ gcsfuse
+  }
+
+  // nodeSelector.group value has the following restrictions:
+  // a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
+  // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'),
+  // spec.template.spec.tolerations[0].operator: Invalid value: "xxx": a valid label must be an empty string or
+  // consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
+  // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')], string=
+  //
+  // Use sha256 of the user email here so that the group value will always satisfy the naming restrictions
+  private[leonardo] def getNodeSelectorGroupValue(userEmail: WorkbenchEmail): String = {
+    val hashedEmail = com.google.common.hash.Hashing
+      .sha256()
+      .hashString(userEmail.value, StandardCharsets.UTF_8)
+      .toString
+
+    s"leo_${hashedEmail}".substring(0, 60)
   }
 }
