@@ -451,8 +451,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """replicaCount=1,""" +
       """nodeSelector.cloud\.google\.com/compute-class=Balanced,""" +
       """tolerations.enabled=true,""" +
-      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
-      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
+      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
+      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
@@ -520,8 +520,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
       """tolerations.enabled=true,""" +
-      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
-      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail)},""" +
+      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
+      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
