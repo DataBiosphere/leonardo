@@ -1,24 +1,28 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.Async
+import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
-import org.http4s.{Header, Headers, Method, Request}
+import org.http4s.headers.Authorization
+import org.http4s.{Header, Headers, Method, Request, Uri}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
 class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F], samDAO: SamDAO[F])(implicit
   F: Async[F],
-  logger: Logger[F]
+  logger: Logger[F],
+  metrics: OpenTelemetryMetrics[F]
 ) extends JupyterDAO[F] {
   private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header.Raw =
     Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
@@ -108,13 +112,6 @@ object HttpJupyterDAO {
     Decoder.decodeString.map(s => if (s == Idle.toString) Idle else OtherState(s))
   implicit val kernalDecoder: Decoder[Kernel] = Decoder.forProduct1("execution_state")(Kernel)
   implicit val sessionDecoder: Decoder[Session] = Decoder.forProduct1("kernel")(Session)
-}
-
-trait JupyterDAO[F[_]] {
-  def isAllKernelsIdle(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
-  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
-  def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit]
-  def terminalExists(googleProject: GoogleProject, runtimeName: RuntimeName, terminalName: TerminalName): F[Boolean]
 }
 
 sealed abstract class ExecutionState

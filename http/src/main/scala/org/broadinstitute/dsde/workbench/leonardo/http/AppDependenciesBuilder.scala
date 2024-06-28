@@ -184,6 +184,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.cbasDAO,
       baselineDependencies.cromwellDAO,
       baselineDependencies.hailBatchDAO,
+      baselineDependencies.jupyterDAO,
       baselineDependencies.listenerDAO,
       baselineDependencies.samDAO,
       kubeAlg,
@@ -219,6 +220,9 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.wdsDAO,
       baselineDependencies.azureApplicationInsightsService
     )
+    val jupyterAppInstall =
+      new JupyterAppInstall[IO](ConfigReader.appConfig.azure.jupyterAppConfig, baselineDependencies.jupyterDAO)
+
     val workflowsAppInstall =
       new WorkflowsAppInstall[IO](
         ConfigReader.appConfig.azure.workflowsAppConfig,

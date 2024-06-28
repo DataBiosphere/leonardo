@@ -364,6 +364,10 @@ object AppType {
     override def toString: String = "HAIL_BATCH"
   }
 
+  case object Jupyter extends AppType {
+    override def toString: String = "JUPYTER"
+  }
+
   // See more context in https://docs.google.com/document/d/1RaQRMqAx7ymoygP6f7QVdBbZC-iD9oY_XLNMe_oz_cs/edit
   case object Allowed extends AppType {
     override def toString: String = "ALLOWED"
@@ -384,9 +388,11 @@ object AppType {
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
       case Galaxy                                                        => FormattedBy.Galaxy
+      case Jupyter                                                       => FormattedBy.Jupyter
       case Custom                                                        => FormattedBy.Custom
       case Allowed                                                       => FormattedBy.Allowed
       case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp => FormattedBy.Cromwell
+
     }
 }
 

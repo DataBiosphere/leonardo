@@ -47,6 +47,7 @@ object KubernetesAppConfig {
       case (CromwellRunnerApp, CloudProvider.Azure) => Some(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
       case (Wds, CloudProvider.Azure)               => Some(ConfigReader.appConfig.azure.wdsAppConfig)
       case (HailBatch, CloudProvider.Azure)         => Some(ConfigReader.appConfig.azure.hailBatchAppConfig)
+      case (Jupyter, CloudProvider.Azure)           => Some(ConfigReader.appConfig.azure.jupyterAppConfig)
       case _                                        => None
     }
 }
@@ -200,6 +201,22 @@ final case class HailBatchAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Azure
   val appType: AppType = AppType.HailBatch
+}
+
+final case class JupyterAppConfig(chartName: ChartName,
+                                  chartVersion: ChartVersion,
+                                  releaseNameSuffix: ReleaseNameSuffix,
+                                  namespaceNameSuffix: NamespaceNameSuffix,
+                                  ksaName: KsaName,
+                                  services: List[ServiceConfig],
+                                  enabled: Boolean,
+                                  chartVersionsToExcludeFromUpdates: List[ChartVersion]
+) extends KubernetesAppConfig {
+  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
+  override val serviceAccountName = ServiceAccountName(ksaName.value)
+
+  val cloudProvider: CloudProvider = CloudProvider.Azure
+  val appType: AppType = AppType.Jupyter
 }
 
 final case class ContainerRegistryUsername(asString: String) extends AnyVal

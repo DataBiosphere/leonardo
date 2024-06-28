@@ -12,8 +12,10 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   AppType,
   BillingProfileId,
+  CloudContext,
   LandingZoneResources,
   ManagedIdentityName,
+  RuntimeName,
   WorkspaceId,
   WsmControlledDatabaseResource
 }
@@ -34,6 +36,10 @@ trait AppInstall[F[_]] {
 
   /** Checks status of the app. */
   def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean]
+
+//  /** Checks status of the app. */
+//  def checkStatus(cloudContext: CloudContext, runtimeName: RuntimeName)(implicit ev: Ask[F, AppContext]): F[Boolean]
+
 }
 
 object AppInstall {
