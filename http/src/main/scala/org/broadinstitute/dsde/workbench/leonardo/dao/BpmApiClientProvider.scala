@@ -7,15 +7,13 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.util.WithSpanFilter
-import org.glassfish.jersey.client.ClientConfig
 import org.http4s.Uri
 
 import java.util.UUID
 
 trait BpmApiClientProvider[F[_]] {
 
-  def getProfileApi(token: String)(implicit ev: Ask[F, AppContext]): F[ProfileApi]
+  def getProfileApi(token: String): F[ProfileApi]
 
   def getProfile(token: String, profileId: UUID)(implicit
     ev: Ask[F, AppContext]
@@ -24,7 +22,7 @@ trait BpmApiClientProvider[F[_]] {
 }
 
 class HttpBpmClientProvider[F[_]](baseBpmUrl: Uri)(implicit F: Async[F]) extends BpmApiClientProvider[F] {
-  private def getApiClient(token: String)(implicit ev: Ask[F, AppContext]): F[ApiClient] = {
+  private def getApiClient(token: String): F[ApiClient] = {
     val client = new ApiClient()
     client.setBasePath(baseBpmUrl.renderString)
     client.setAccessToken(token)
@@ -46,7 +44,7 @@ class HttpBpmClientProvider[F[_]](baseBpmUrl: Uri)(implicit F: Async[F]) extends
 //      _ = client.setAccessToken(token)
 //    } yield client
 
-  override def getProfileApi(token: String)(implicit ev: Ask[F, AppContext]): F[ProfileApi] =
+  override def getProfileApi(token: String): F[ProfileApi] =
     getApiClient(token).map(apiClient => new ProfileApi(apiClient))
 
   override def getProfile(token: String, profileId: UUID)(implicit

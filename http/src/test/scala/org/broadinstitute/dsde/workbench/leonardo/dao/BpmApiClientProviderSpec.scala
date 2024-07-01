@@ -22,9 +22,7 @@ class BpmApiClientProviderSpec extends AnyFlatSpec with LeonardoTestSuite with B
 
   def newBpmProvider() =
     new HttpBpmClientProvider[IO](baseBpmUrl = Uri.unsafeFromString("test")) {
-      override def getProfileApi(token: String)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[ProfileApi] = IO.pure(setUpMockProfileApi)
+      override def getProfileApi(token: String): IO[ProfileApi] = IO.pure(setUpMockProfileApi)
     }
 
   val bpmProvider = newBpmProvider()
