@@ -24,20 +24,27 @@ trait BpmApiClientProvider[F[_]] {
 }
 
 class HttpBpmClientProvider[F[_]](baseBpmUrl: Uri)(implicit F: Async[F]) extends BpmApiClientProvider[F] {
-  private def getApiClient(token: String)(implicit ev: Ask[F, AppContext]): F[ApiClient] =
-    for {
-      ctx <- ev.ask
-      client = new ApiClient() {
-        override def performAdditionalClientConfiguration(clientConfig: ClientConfig): Unit = {
-          super.performAdditionalClientConfiguration(clientConfig)
-          ctx.span.foreach { span =>
-            clientConfig.register(new WithSpanFilter(span))
-          }
-        }
-      }
-      _ = client.setBasePath(baseBpmUrl.renderString)
-      _ = client.setAccessToken(token)
-    } yield client
+  private def getApiClient(token: String)(implicit ev: Ask[F, AppContext]): F[ApiClient] = {
+    val client = new ApiClient()
+    client.setBasePath(baseBpmUrl.renderString)
+    client.setAccessToken(token)
+    F.pure(client)
+  }
+
+  //    for {
+//      ctx <- ev.ask
+////      client = new ApiClient()
+////    {
+////        override def performAdditionalClientConfiguration(clientConfig: ClientConfig): Unit = {
+////          super.performAdditionalClientConfiguration(clientConfig)
+////          ctx.span.foreach { span =>
+////            clientConfig.register(new WithSpanFilter(span))
+////          }
+////        }
+////      }
+//      _ = client.setBasePath(baseBpmUrl.renderString)
+//      _ = client.setAccessToken(token)
+//    } yield client
 
   override def getProfileApi(token: String)(implicit ev: Ask[F, AppContext]): F[ProfileApi] =
     getApiClient(token).map(apiClient => new ProfileApi(apiClient))
