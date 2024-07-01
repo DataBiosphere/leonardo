@@ -74,7 +74,9 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
       s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName," +
       s"ecm.baseUri=https://externalcreds.dsde-dev.broadinstitute.org," +
       s"sam.baseUri=https://sam.test.org:443," +
-      s"sam.acrPullActionIdentityResourceId=spend-profile"
+      s"sam.acrPullActionIdentityResourceId=spend-profile," +
+      "bard.baseUri=https://terra-bard-dev.appspot.com," +
+      "bard.enabled=false"
   }
 
   it should "build cromwell-runner override values for a limited bp" in {
