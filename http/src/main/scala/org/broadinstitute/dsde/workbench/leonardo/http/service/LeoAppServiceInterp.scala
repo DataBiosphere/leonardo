@@ -91,7 +91,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
-            AppType.CromwellRunnerApp =>
+            AppType.CromwellRunnerApp | AppType.Jupyter =>
           F.unit
         case AppType.Allowed =>
           req.allowedChartName match {

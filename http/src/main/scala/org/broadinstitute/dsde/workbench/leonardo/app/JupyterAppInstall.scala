@@ -49,10 +49,5 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, JupyterDao: JupyterDAO[F
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
-    F.pure(true) // TODO (LM)
-
-  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Boolean] =
-    JupyterDao.isProxyAvailable(cloudContext, runtimeName)
+    JupyterDao.getStatus(baseUri, authHeader)
 }

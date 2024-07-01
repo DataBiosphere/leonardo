@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
+import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
 import org.http4s.{Header, Headers, Method, Request, Uri}
 import org.typelevel.ci.CIString
@@ -23,9 +24,23 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   F: Async[F],
   logger: Logger[F],
   metrics: OpenTelemetryMetrics[F]
-) extends JupyterDAO[F] {
+) extends JupyterDAO[F]
+    with Http4sClientDsl[F] {
   private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header.Raw =
     Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
+
+  def getStatus(baseUri: Uri, authHeader: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] = for {
+    _ <- metrics.incrementCounter("jupyter/status")
+    res <- client.status(
+      Request[F](
+        method = Method.GET,
+        uri = baseUri / "api" / "status", // TODO (LM) this may need to change
+        headers = Headers(authHeader)
+      )
+    )
+  } yield res.isSuccess
 
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {

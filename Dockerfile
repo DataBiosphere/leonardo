@@ -34,6 +34,7 @@ ENV CROMWELL_CHART_VERSION 0.2.506
 ENV HAIL_BATCH_CHART_VERSION 0.2.0
 ENV RSTUDIO_CHART_VERSION 0.12.0
 ENV SAS_CHART_VERSION 0.17.0
+ENV JUPYTER_CHART_VERSION 0.1.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -68,6 +69,7 @@ RUN cd /leonardo && \
     helm pull terra-helm/rstudio --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull terra-helm/sas --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
+    helm pull oci://terradevacrpublic.azurecr.io/jupyter-server:test --version $JUPYTER_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
