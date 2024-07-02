@@ -90,7 +90,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
     overrides.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).asString shouldBe expectedOverrides.replace(
       "spend-profile",
       bpid
-    ) + s",config.maxConcurrentWorkflows=100"
+    ) + s",config.concurrentJobLimit=100"
   }
 
   it should "fail if there is no storage container" in {

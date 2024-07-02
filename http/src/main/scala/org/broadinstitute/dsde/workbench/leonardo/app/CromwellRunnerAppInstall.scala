@@ -91,8 +91,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
       maybeLimits = maybeProfile.flatMap(
         _.getOrganization.getLimits.asScala
-          .get("maxconcurrentworkflows")
-          .map(v => raw"config.maxConcurrentWorkflows=${v}")
+          .get("concurrentjoblimit")
+          .map(v => raw"config.concurrentJobLimit=${v}")
       )
 
       values = List(
