@@ -3,17 +3,16 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import bio.terra.profile.api.ProfileApi
 import bio.terra.profile.model.{Organization, ProfileModel}
 import cats.effect.IO
-import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.tokenValue
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestSuite
 import org.http4s._
 import org.mockito.Mockito.when
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import scala.jdk.CollectionConverters._
-
+import cats.effect.unsafe.implicits.global
 import java.util.UUID
 
 class BpmApiClientProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll with MockitoSugar {
@@ -28,9 +27,10 @@ class BpmApiClientProviderSpec extends AnyFlatSpec with LeonardoTestSuite with B
   val bpmProvider = newBpmProvider()
 
   it should "return a profile" in {
-    val res = for {
-      bp <- bpmProvider.getProfile(tokenValue, profileId)
-    } yield bp
+    val resIO = bpmProvider.getProfile(tokenValue, profileId)
+    val res = resIO.unsafeRunSync()
+    res.get.getId shouldBe profileId
+    res.get.getOrganization.getLimits shouldBe Map("autopause" -> "30").asJava
   }
 
   private def setUpMockProfileApi: ProfileApi = {

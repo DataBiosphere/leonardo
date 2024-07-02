@@ -1,12 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
-  azureRegion,
-  billingProfileId,
-  landingZoneResources,
-  petUserInfo
-}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.{BillingProfileId, WsmControlledDatabaseResource}
