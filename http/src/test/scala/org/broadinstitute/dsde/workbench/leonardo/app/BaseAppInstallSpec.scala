@@ -134,7 +134,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
       Some(
         new ProfileModel()
           .id(UUID.randomUUID())
-          .organization(new Organization().limits(Map("maxConcurrentWorkflows" -> "100").asJava))
+          .organization(new Organization().limits(Map("maxconcurrentworkflows" -> "100").asJava))
       )
     )
     bpm

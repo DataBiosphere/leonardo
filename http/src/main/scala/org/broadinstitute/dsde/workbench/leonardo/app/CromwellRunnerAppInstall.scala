@@ -84,25 +84,31 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
-      maybeProfile <- stringToUUID(params.billingProfileId.value) match {
+      maybeProfile <- Try(UUID.fromString(params.billingProfileId.value)) match {
         case Success(uuid) => bpmClient.getProfile(userToken, uuid)
         case _             => F.pure(None)
       }
 
-      maybeLimits <- maybeProfile match {
-        case Some(billingProfile) =>
-          Option(billingProfile.getOrganization.getLimits) match {
-            case Some(limits) if !limits.isEmpty =>
-              val scalaLimits = limits.asScala
-              val value = scalaLimits.get("maxconcurrentworkflows")
-              value match {
-                case Some(v) => F.pure(Some(raw"config.maxConcurrentWorkflows=${v}"))
-                case None    => F.pure(None)
-              }
-            case _ => F.pure(None)
-          }
-        case _ => F.pure(None)
-      }
+      maybeLimits = maybeProfile.flatMap(
+        _.getOrganization.getLimits.asScala
+          .get("maxconcurrentworkflows")
+          .map(v => raw"config.maxConcurrentWorkflows=${v}")
+      )
+
+//      maybeLimits <- maybeProfile match {
+//        case Some(billingProfile) =>
+//          Option(billingProfile.getOrganization.getLimits) match {
+//            case Some(limits) if !limits.isEmpty =>
+//              val scalaLimits = limits.asScala
+//              val value = scalaLimits.get("maxconcurrentworkflows")
+//              value match {
+//                case Some(v) => F.pure(Some(raw"config.maxConcurrentWorkflows=${v}"))
+//                case None    => F.pure(None)
+//              }
+//            case _ => F.pure(None)
+//          }
+//        case _ => F.pure(None)
+//      }
 
       values = List(
         // azure resources configs
@@ -164,7 +170,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
       )
 
       finalList = maybeLimits match {
-        case Some(str) => values ++ List(str)
+        case Some(str) => values :+ str
         case _         => values
       }
 
