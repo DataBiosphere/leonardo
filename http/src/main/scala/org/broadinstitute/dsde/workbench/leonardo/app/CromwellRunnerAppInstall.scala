@@ -95,21 +95,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
           .map(v => raw"config.maxConcurrentWorkflows=${v}")
       )
 
-//      maybeLimits <- maybeProfile match {
-//        case Some(billingProfile) =>
-//          Option(billingProfile.getOrganization.getLimits) match {
-//            case Some(limits) if !limits.isEmpty =>
-//              val scalaLimits = limits.asScala
-//              val value = scalaLimits.get("maxconcurrentworkflows")
-//              value match {
-//                case Some(v) => F.pure(Some(raw"config.maxConcurrentWorkflows=${v}"))
-//                case None    => F.pure(None)
-//              }
-//            case _ => F.pure(None)
-//          }
-//        case _ => F.pure(None)
-//      }
-
       values = List(
         // azure resources configs
         raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
@@ -189,8 +174,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
      getAzureDatabaseName(dbResources, "cromwellmetadata")
     ).mapN(CromwellRunnerAppDatabaseNames)
 
-  def stringToUUID(s: String): Try[UUID] =
-    Try(UUID.fromString(s))
 }
 
 final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellMetadata: String)
