@@ -1085,9 +1085,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               Some(msg.appId),
               false,
               None,
-              disk.map(
-                _.id
-              ), // If App creation fails, we're going to mark the newly created disk as `FAILED`. `disk` is only populated if there's a new disk created for this request
+              None, // we're not specifying diskId here because cleanUpAfterCreateAppError a few lines above will clean up Disk properly
               None
             )
           }
@@ -1263,7 +1261,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 Some(msg.appId),
                 false,
                 None,
-                None,
+                Some(diskId),
                 None
               )
             }
