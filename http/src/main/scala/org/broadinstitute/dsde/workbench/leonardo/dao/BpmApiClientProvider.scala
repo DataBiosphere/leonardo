@@ -29,21 +29,6 @@ class HttpBpmClientProvider[F[_]](baseBpmUrl: Uri)(implicit F: Async[F]) extends
     F.pure(client)
   }
 
-  //    for {
-//      ctx <- ev.ask
-////      client = new ApiClient()
-////    {
-////        override def performAdditionalClientConfiguration(clientConfig: ClientConfig): Unit = {
-////          super.performAdditionalClientConfiguration(clientConfig)
-////          ctx.span.foreach { span =>
-////            clientConfig.register(new WithSpanFilter(span))
-////          }
-////        }
-////      }
-//      _ = client.setBasePath(baseBpmUrl.renderString)
-//      _ = client.setAccessToken(token)
-//    } yield client
-
   override def getProfileApi(token: String): F[ProfileApi] =
     getApiClient(token).map(apiClient => new ProfileApi(apiClient))
 
