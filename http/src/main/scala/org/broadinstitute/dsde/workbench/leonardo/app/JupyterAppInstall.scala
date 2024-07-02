@@ -1,8 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
-
 import cats.effect.Async
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, RuntimeName}
+import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.leonardo.config.JupyterAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -13,7 +13,7 @@ import org.http4s.headers.Authorization
 /**
  * Jupyter app.
  */
-class JupyterAppInstall[F[_]](config: JupyterAppConfig, JupyterDao: JupyterDAO[F])(implicit F: Async[F])
+class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F])(implicit F: Async[F])
     extends AppInstall[F] {
   override def databases: List[Database] = List.empty
 
@@ -25,29 +25,35 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, JupyterDao: JupyterDAO[F
       // Storage container is required for Cromwell app
       storageContainer <- F.fromOption(
         params.storageContainer,
-        AppCreationException("Storage container required for Hail Batch app", Some(ctx.traceId))
+        AppCreationException("Storage container required for Jupyter app", Some(ctx.traceId))
       )
+
+      disk <- F.fromOption(
+        params.app.appResources.disk,
+        AppCreationException("Disk required for Jupyter app", Some(ctx.traceId))
+      )
+
       values =
         List(
-          raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
-          raw"persistence.blobContainer=${storageContainer.name.value}",
-          raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
-          raw"persistence.workspaceManager.workspaceId=${params.workspaceId.value}",
-          raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
-          raw"persistence.workspaceManager.storageContainerUrl=https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
-          raw"persistence.leoAppName=${params.app.appName.value}",
+          // workspace configs
+          raw"workspace.id=${params.workspaceId.value.toString}",
+          raw"workspace.name=${params.workspaceName}",
+          raw"workspace.storageContainer.url=https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
+          raw"workspace.storageContainer.resourceId=${storageContainer.resourceId.value.toString}",
+          raw"workspace.cloudProvider=Azure",
 
-          // identity configs
-          raw"workloadIdentity.serviceAccountName=${params.ksaName.value}",
+          // persistent disk configs
+          raw"persistence.diskName=${disk.name}",
+          raw"persistence.diskSize=${disk.size}",
 
-          // relay configs
-          raw"relay.domain=${params.relayPath.authority.getOrElse("none")}",
-          raw"relay.subpath=/${params.relayPath.path.segments.last.toString}"
+          // misc
+          raw"serviceAccount.name=${params.ksaName.value}",
+          raw"relay.connectionName=${params.app.appName.value}"
         )
     } yield Values(values.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
-    JupyterDao.getStatus(baseUri, authHeader)
+    jupyterDao.getStatus(baseUri, authHeader)
 }

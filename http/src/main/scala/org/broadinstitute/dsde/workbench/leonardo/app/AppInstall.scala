@@ -12,10 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   AppType,
   BillingProfileId,
-  CloudContext,
   LandingZoneResources,
   ManagedIdentityName,
-  RuntimeName,
   WorkspaceId,
   WsmControlledDatabaseResource
 }
@@ -81,6 +79,7 @@ object Database {
 
 final case class BuildHelmOverrideValuesParams(app: App,
                                                workspaceId: WorkspaceId,
+                                               workspaceName: String,
                                                cloudContext: AzureCloudContext,
                                                billingProfileId: BillingProfileId,
                                                landingZoneResources: LandingZoneResources,

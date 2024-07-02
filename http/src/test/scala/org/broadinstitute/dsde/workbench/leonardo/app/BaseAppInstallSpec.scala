@@ -73,6 +73,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
   )
 
   val workspaceId = WorkspaceId(UUID.randomUUID)
+  val workspaceName = "workspaceName"
   val workspaceCreatedDate = java.time.OffsetDateTime.parse("1970-01-01T12:15:30-07:00")
 
   val aksInterpConfig = AKSInterpreterConfig(
@@ -88,6 +89,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
     BuildHelmOverrideValuesParams(
       app,
       workspaceId,
+      workspaceName,
       cloudContext,
       billingProfileId,
       lzResources,

@@ -57,13 +57,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 ) extends AKSAlgebra[F] {
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
 
-  implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
-
   private[util] def isPodDone(podStatus: PodStatus): Boolean =
     podStatus == PodStatus.Failed || podStatus == PodStatus.Succeeded
-
-  implicit private def podDoneCheckable: DoneCheckable[List[PodStatus]] =
-    (ps: List[PodStatus]) => ps.forall(isPodDone)
 
   implicit private def createDatabaseDoneCheckable: DoneCheckable[CreatedControlledAzureDatabaseResult] =
     _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
@@ -74,6 +69,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   implicit private def deleteWsmResourceDoneCheckable: DoneCheckable[DeleteControlledAzureResourceResult] =
     _.getJobReport.getStatus != JobReport.StatusEnum.RUNNING
+
+  implicit private def wsmCreateAzureResourceResultDoneCheckable: DoneCheckable[CreateControlledAzureResourceResult] =
+    (v: CreateControlledAzureResourceResult) =>
+      v.getJobReport.getStatus.equals(JobReport.StatusEnum.SUCCEEDED) || v.getJobReport.getStatus
+        .equals(JobReport.StatusEnum.FAILED)
 
   private def getListenerReleaseName(appReleaseName: Release): Release =
     Release(s"${appReleaseName.asString}-listener-rls")
@@ -118,6 +118,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         }
       }
 
+      wsmWorkspaceApi <- buildWsmWorkspaceApiClient
+
+      // Resolve the workspace in WSM
+      workspace <- F.blocking(wsmWorkspaceApi.getWorkspace(params.workspaceId.value, IamRole.READER))
+
       wsmResourceApi <- buildWsmResourceApiClient
 
       // Create or fetch WSM managed identity (if shared app)
@@ -145,6 +150,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           params.workspaceId,
           landingZoneResources,
           wsmResourceApi
+        )
+      }
+
+      // Create or fetch WSM disk (only for Jupyter apps)
+      _ <- childSpan("createWsmDisk").use { implicit ev =>
+        createOrFetchWsmDiskResource(
+          app,
+          params.workspaceId
         )
       }
 
@@ -232,6 +245,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         params.workspaceId,
+        workspace.getDisplayName,
         params.cloudContext,
         params.billingProfileId,
         landingZoneResources,
@@ -468,6 +482,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       helmOverrideValueParams = BuildHelmOverrideValuesParams(
         app,
         workspaceId,
+        workspaceDesc.displayName,
         params.cloudContext,
         billingProfileId,
         landingZoneResources,
@@ -884,6 +899,86 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           }
         }
     } yield wsmControlledDBResources
+
+  private[util] def createOrFetchWsmDiskResource(app: App, workspaceId: WorkspaceId)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      _ <-
+        app.appResources.disk match {
+          case Some(disk) =>
+            for {
+
+              _ <- logger.info(ctx.loggingCtx)(
+                s"Creating WSM disk for app ${app.appName.value} in cloud workspace ${workspaceId.value}"
+              )
+
+              wsmResourceApi <- buildWsmControlledResourceApiClient
+
+              common = getWsmCommonFields(disk.name.value,
+                                          s"Disk for Leo app ${app.appName.value}",
+                                          app,
+                                          CloningInstructionsEnum.NOTHING
+              )
+
+              createDiskJobId = UUID.randomUUID().toString
+              jobControl = new JobControl()
+                .id(createDiskJobId)
+
+              azureDisk = new AzureDiskCreationParameters()
+                .name(disk.name.value)
+                .size(disk.size.gb)
+
+              request = new CreateControlledAzureDiskRequestV2Body()
+                .common(common)
+                .azureDisk(azureDisk)
+                .jobControl(jobControl)
+
+              _ <- logger.info(ctx.loggingCtx)(s"WSM create disk request: ${request}")
+
+              // Execute WSM call
+              createDiskResponse <- F.blocking(
+                wsmResourceApi.createAzureDiskV2(request, workspaceId.value)
+              )
+
+              op = F.blocking(wsmResourceApi.getCreateAzureDiskResult(workspaceId.value, createDiskJobId))
+              result <- streamFUntilDone(
+                op,
+                config.appMonitorConfig.createApp.maxAttempts,
+                config.appMonitorConfig.createApp.interval
+              ).interruptAfter(config.appMonitorConfig.createApp.interruptAfter).compile.lastOrError
+
+              _ <- logger.info(ctx.loggingCtx)(s"WSM create database job result: ${result}")
+
+              _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
+                AppCreationException(
+                  s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
+                  Some(ctx.traceId)
+                )
+              )
+
+              _ <- logger.info(ctx.loggingCtx)(s"WSM create disk response: ${createDiskResponse}")
+
+              // Save record in APP_CONTROLLED_RESOURCE table
+              _ <- appControlledResourceQuery
+                .insert(
+                  app.id.id,
+                  WsmControlledResourceId(common.getResourceId),
+                  WsmResourceType.AzureDisk,
+                  AppControlledResourceStatus.Created
+                )
+                .transaction
+
+              // Update disk status
+              _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
+
+            } yield result
+
+          case None => F.pure(None)
+        }
+    } yield ()
 
   private[util] def createMissingAppControlledResources(app: App,
                                                         appInstall: AppInstall[F],
