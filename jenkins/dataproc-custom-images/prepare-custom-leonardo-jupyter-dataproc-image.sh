@@ -150,7 +150,7 @@ log 'Installing Docker Compose...'
 
 # Install docker-compose
 # https://docs.docker.com/compose/install/#install-compose
-docker_compose_version_number="1.22.0"
+docker_compose_version_number="2.28.1"
 docker_compose_kernel_name="$(uname -s)"
 docker_compose_machine_hardware_name="$(uname -m)"
 docker_compose_binary_download_url="https://github.com/docker/compose/releases/download/${docker_compose_version_number:?}/docker-compose-${docker_compose_kernel_name:?}-${docker_compose_machine_hardware_name:?}"
