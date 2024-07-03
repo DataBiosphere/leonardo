@@ -129,7 +129,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case FormattedBy.Galaxy =>
               (galaxyPvcId, lastUsedBy).mapN((gp, lb) => GalaxyRestore(gp, lb))
             case FormattedBy.Cromwell                 => lastUsedBy.map(Other)
-            case FormattedBy.Jupyter                  => lastUsedBy.map(Other) // TODO (LM)
+            case FormattedBy.Jupyter                  => lastUsedBy.map(Other)
             case FormattedBy.Allowed                  => lastUsedBy.map(Other)
             case FormattedBy.GCE | FormattedBy.Custom => None
           },

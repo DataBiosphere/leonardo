@@ -260,7 +260,7 @@ private[leonardo] object BuildHelmChartValues {
       case AppType.HailBatch         => "http://batch:8080"
       case AppType.WorkflowsApp      => s"http://wfa-${release.asString}-reverse-proxy-service:8000/"
       case AppType.Jupyter =>
-        s"http://jupyter-${release.asString}:8000/" // TODO (LM) may need to switch order http://jupyter:8000%{REQUEST_URI}
+        s"http://jupyter-${release.asString}-reverse-proxy-service:8000/" // TODO (LM) may need to alter order http://jupyter:8000%{REQUEST_URI}
       case _ => "unknown"
     }
 
