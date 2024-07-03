@@ -69,7 +69,7 @@ RUN cd /leonardo && \
     helm pull terra-helm/rstudio --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull terra-helm/sas --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
-    helm pull oci://terradevacrpublic.azurecr.io/jupyter-server:test --version $JUPYTER_CHART_VERSION --untar && \
+    helm pull terra-helm/jupyter --version $JUPYTER_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
