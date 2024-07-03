@@ -146,6 +146,10 @@ dpkg --configure -a
 # The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
 # NOTE: If it fails with another legitimate error, this `|| true` could mask it. It was used as a last resort after a lot of attempts to fix.
 # apt-get install -y -q docker-ce || true
+
+# start docker
+systemctl start docker
+
 log 'Installing Docker Compose...'
 
 # Install docker-compose
