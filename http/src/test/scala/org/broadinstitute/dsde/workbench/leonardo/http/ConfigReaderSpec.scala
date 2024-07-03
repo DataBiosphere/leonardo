@@ -235,13 +235,15 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           chartVersionsToExcludeFromUpdates = List()
         ),
         JupyterAppConfig(
-          ChartName("jupyter"),
+          ChartName("terra-helm/jupyter"),
           ChartVersion("0.1.0"),
           ReleaseNameSuffix("jupyter-rls"),
           NamespaceNameSuffix("jupyter-ns"),
           KsaName("jupyter-ksa"),
-          List(), // TOD0 (LM)
-          enabled = false,
+          List(
+            ServiceConfig(ServiceName("jupyter"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          enabled = true,
           chartVersionsToExcludeFromUpdates = List()
         ),
         List(AppType.Wds, AppType.WorkflowsApp),
