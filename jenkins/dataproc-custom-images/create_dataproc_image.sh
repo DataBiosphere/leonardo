@@ -27,7 +27,7 @@ TEST_BUCKET="gs://leo-dataproc-image-creation-logs"
 pushd $WORK_DIR
 
 DATAPROC_BASE_NAME="leo-dataproc-image"
-DP_VERSION_FORMATTED="2-2-5-debian21"
+DP_VERSION_FORMATTED="2-2-21-debian12"
 # This needs to be unique for each run
 IMAGE_ID=$(date +"%Y-%m-%d-%H-%M-%S")
 OUTPUT_IMAGE_NAME="$DATAPROC_BASE_NAME-$DP_VERSION_FORMATTED-$IMAGE_ID"
@@ -36,7 +36,7 @@ gcloud config set dataproc/region us-central1
 
 python generate_custom_image.py \
     --image-name "$OUTPUT_IMAGE_NAME" \
-    --dataproc-version "2.2.5-debian21" \
+    --dataproc-version "2.2.21-debian12" \
     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
     --zone $ZONE \
     --gcs-bucket $DATAPROC_IMAGE_BUCKET \
