@@ -57,8 +57,11 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart. As a result we need to pull all GKE
-# charts locally as well so they can acess the local cert files during the helm install step, see https://helm.sh/docs/chart_template_guide/accessing_files/
+# charts locally as well so they can access the local cert files during the helm install step, see https://helm.sh/docs/chart_template_guide/accessing_files/
 # Helm does not seem to support the direct installation of a chart located in OCI so let's pull it to a local directory for now.
+COPY ./jupyter-0.1.0.tgz /leonardo
+RUN tar -xzf /leonardo/jupyter-0.1.0.tgz -C /leonardo
+
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
@@ -69,7 +72,7 @@ RUN cd /leonardo && \
     helm pull terra-helm/rstudio --version $RSTUDIO_CHART_VERSION --untar && \
     helm pull terra-helm/sas --version $SAS_CHART_VERSION --untar && \
     helm pull oci://terradevacrpublic.azurecr.io/hail/hail-batch-terra-azure --version $HAIL_BATCH_CHART_VERSION --untar && \
-    helm pull terra-helm/jupyter --version $JUPYTER_CHART_VERSION --untar && \
+#     helm pull terra-helm/jupyter --version $JUPYTER_CHART_VERSION --untar && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
