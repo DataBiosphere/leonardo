@@ -145,7 +145,7 @@ dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
 # The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
 # NOTE: If it fails with another legitimate error, this `|| true` could mask it. It was used as a last resort after a lot of attempts to fix.
-apt-get install -y -q docker-ce || true
+# apt-get install -y -q docker-ce || true
 log 'Installing Docker Compose...'
 
 # Install docker-compose
