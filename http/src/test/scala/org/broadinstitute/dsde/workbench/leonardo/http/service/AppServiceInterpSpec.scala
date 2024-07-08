@@ -705,7 +705,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe "Existing disk found, but no restore info found in DB"
+    res.swap.toOption.get.getMessage shouldBe s"Existing ${disk.id} found, but no restore info found in DB"
   }
 
   it should "error on creation of a galaxy app without a disk" in isolatedDbTest {
@@ -736,7 +736,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe "Existing disk found, but no restore info found in DB"
+    res.swap.toOption.get.getMessage shouldBe s"Existing ${disk.id} found, but no restore info found in DB"
   }
 
   it should "error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
