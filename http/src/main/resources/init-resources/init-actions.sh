@@ -232,6 +232,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch auth_openidc.conf
 
     # Add stack driver configuration for welder
+    touch /etc/google-fluentd/config.d/welder.conf
     tee /etc/google-fluentd/config.d/welder.conf << END
 <source>
  @type tail
