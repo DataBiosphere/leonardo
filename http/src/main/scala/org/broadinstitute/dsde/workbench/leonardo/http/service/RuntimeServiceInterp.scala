@@ -1331,6 +1331,8 @@ object RuntimeServiceInterp {
               WorkspaceAction.CreateControlledApplicationResource,
               userInfo
             ) // TODO: Correct check?
+            _ <- log.info(s"has permission: ${hasPermission.toString}")
+            _ <- log.info(s"workspace: ${workspaceId.toString}")
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             // Look up the original email in case this API was called by a pet SA
