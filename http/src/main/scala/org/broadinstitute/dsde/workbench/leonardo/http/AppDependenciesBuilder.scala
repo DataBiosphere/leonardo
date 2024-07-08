@@ -238,7 +238,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
                                                                       cromwellAppInstall,
                                                                       workflowsAppInstall,
                                                                       hailBatchAppInstall,
-                                                                      cromwellRunnerAppInstall
+                                                                      cromwellRunnerAppInstall,
+                                                                      jupyterAppInstall
     )
 
     val aksAlg = new AKSInterpreter[IO](
