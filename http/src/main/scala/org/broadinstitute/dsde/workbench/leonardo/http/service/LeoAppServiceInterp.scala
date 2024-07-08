@@ -1414,11 +1414,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Validate disk.
       // Apps on GCP require a disk.
-      // Apps on Azure require _no_ disk.
-      _ <- (cloudContext.cloudProvider, diskOpt) match {
-        case (CloudProvider.Gcp, None) =>
+      // Apps on Azure require _no_ disk. !!except Jupyter apps!!
+      _ <- (cloudContext.cloudProvider, diskOpt, req.appType == AppType.Jupyter) match {
+        case (CloudProvider.Gcp, None, _) =>
           Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
-        case (CloudProvider.Azure, Some(_)) =>
+        case (CloudProvider.Azure, None, true) =>
+          Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
+        case (CloudProvider.Azure, Some(_), false) =>
           Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
         case _ => Right(())
       }
