@@ -47,13 +47,15 @@ object AppInstall {
                                 cromwellAppInstall: CromwellAppInstall[F],
                                 workflowsAppInstall: WorkflowsAppInstall[F],
                                 hailBatchAppInstall: HailBatchAppInstall[F],
-                                cromwellRunnerAppInstall: CromwellRunnerAppInstall[F]
+                                cromwellRunnerAppInstall: CromwellRunnerAppInstall[F],
+                                jupyterAppInstall: JupyterAppInstall[F]
   ): AppType => AppInstall[F] = _ match {
     case AppType.Wds               => wdsAppInstall
     case AppType.Cromwell          => cromwellAppInstall
     case AppType.WorkflowsApp      => workflowsAppInstall
     case AppType.HailBatch         => hailBatchAppInstall
     case AppType.CromwellRunnerApp => cromwellRunnerAppInstall
+    case AppType.Jupyter           => jupyterAppInstall
     case e                         => throw new IllegalArgumentException(s"Unexpected app type: ${e}")
   }
 
