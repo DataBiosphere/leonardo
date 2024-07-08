@@ -74,6 +74,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
             .info(Map("traceId" -> traceId.asString), e)(s"$action is not allowed for resource $samResource")
             .as(false)
       }
+      _ <- logger.info(s"result of hasPermission($samResource, $action): $res")
     } yield res
 
   override def hasPermissionWithProjectFallback[R, A](
