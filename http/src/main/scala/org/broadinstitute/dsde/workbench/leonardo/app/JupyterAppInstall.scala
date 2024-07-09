@@ -45,6 +45,7 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F
           // persistent disk configs
           raw"persistence.diskName=${disk.name.value}",
           raw"persistence.diskSize=${disk.size.gb}",
+          raw"persistence.diskResourceId=${disk.wsmResourceId.toString}",
 
           // misc
           raw"serviceAccount.name=${params.ksaName.value}",
