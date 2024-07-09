@@ -1232,7 +1232,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
                 (Some(FormattedBy.Allowed), None) =>
               F.raiseError[Option[LastUsedApp]](
-                new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
+                new LeoException(s"Existing ${diskResult.disk.id} found, but no restore info found in DB",
+                                 traceId = Some(ctx.traceId)
+                )
               )
             case (Some(FormattedBy.Custom), _) =>
               F.raiseError[Option[LastUsedApp]](

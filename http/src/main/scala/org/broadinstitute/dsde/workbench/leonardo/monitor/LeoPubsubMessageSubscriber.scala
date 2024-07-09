@@ -1085,7 +1085,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               Some(msg.appId),
               false,
               None,
-              None,
+              None, // we're not specifying diskId here because cleanUpAfterCreateAppError a few lines above will clean up Disk properly
               None
             )
           }
@@ -1261,7 +1261,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 Some(msg.appId),
                 false,
                 None,
-                None,
+                Some(diskId),
                 None
               )
             }
