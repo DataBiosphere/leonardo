@@ -43,8 +43,8 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F
           raw"workspace.cloudProvider=Azure",
 
           // persistent disk configs
-          raw"persistence.diskName=${disk.name}",
-          raw"persistence.diskSize=${disk.size}",
+          raw"persistence.diskName=${disk.name.value}",
+          raw"persistence.diskSize=${disk.size.gb}",
 
           // misc
           raw"serviceAccount.name=${params.ksaName.value}",
