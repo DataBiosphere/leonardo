@@ -91,7 +91,8 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       ServiceAccountName("ksa-1"),
       ManagedIdentityName("mi-1"),
       cromwellOnAzureDatabases,
-      aksInterpConfig
+      aksInterpConfig,
+      None
     )
 
     val overrides = cromwellAppInstall.buildHelmOverrideValues(params)

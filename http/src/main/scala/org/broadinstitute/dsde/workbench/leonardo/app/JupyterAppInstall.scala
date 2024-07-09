@@ -33,6 +33,11 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F
         AppCreationException("Disk required for Jupyter app", Some(ctx.traceId))
       )
 
+//      diskResourceId <- F.fromOption(
+//        params.diskWsmResourceId,
+//        AppCreationException("Disk required for Jupyter app", Some(ctx.traceId))
+//      )
+
       values =
         List(
           // workspace configs
@@ -45,7 +50,9 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F
           // persistent disk configs
           raw"persistence.diskName=${disk.name.value}",
           raw"persistence.diskSize=${disk.size.gb}",
-          raw"persistence.diskResourceId=${disk.wsmResourceId.toString}",
+          // raw"persistence.diskResourceId=${diskResourceId.value.toString}",
+          raw"persistence.subscriptionId=${params.cloudContext.subscriptionId.value}",
+          raw"persistence.resourceGroupName=${params.cloudContext.managedResourceGroupName.value}",
 
           // misc
           raw"serviceAccount.name=${params.ksaName.value}",

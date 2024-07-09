@@ -154,7 +154,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Create or fetch WSM disk (only for Jupyter apps)
-      _ <- childSpan("createWsmDisk").use { implicit ev =>
+      diskResourceId <- childSpan("createWsmDisk").use { implicit ev =>
         createOrFetchWsmDiskResource(
           app,
           params.workspaceId
@@ -254,7 +254,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         namespace.serviceAccountName,
         managedIdentityName,
         wsmDatabases ++ referenceDatabases,
-        config
+        config,
+        diskResourceId
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
 
@@ -495,7 +496,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         ksaName,
         managedIdentityName,
         wsmDatabases ++ referenceDatabases,
-        config
+        config,
+        app.appResources.disk.flatMap(_.wsmResourceId)
       )
       values <- app.appType.buildHelmOverrideValues(helmOverrideValueParams)
 
@@ -906,11 +908,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
   private[util] def createOrFetchWsmDiskResource(app: App, workspaceId: WorkspaceId)(implicit
     ev: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[Option[WsmControlledResourceId]] =
     for {
       ctx <- ev.ask
 
-      _ <-
+      diskResourceId <-
         app.appResources.disk match {
           case Some(disk) =>
             for {
@@ -946,6 +948,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               createDiskResponse <- F.blocking(
                 wsmResourceApi.createAzureDiskV2(request, workspaceId.value)
               )
+              _ <- logger.info(ctx.loggingCtx)(s"WSM create disk response: ${createDiskResponse}")
 
               op = F.blocking(wsmResourceApi.getCreateAzureDiskResult(workspaceId.value, createDiskJobId))
               result <- streamFUntilDone(
@@ -958,12 +961,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
               _ <- F.raiseWhen(result.getJobReport.getStatus != JobReport.StatusEnum.SUCCEEDED)(
                 AppCreationException(
-                  s"WSM database creation failed for app ${app.appName.value}. WSM response: ${result}",
+                  s"WSM disk creation failed for app ${app.appName.value}. WSM response: ${result}",
                   Some(ctx.traceId)
                 )
               )
-
-              _ <- logger.info(ctx.loggingCtx)(s"WSM create disk response: ${createDiskResponse}")
 
               // Save record in APP_CONTROLLED_RESOURCE table
               _ <- appControlledResourceQuery
@@ -978,11 +979,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
               // Update disk status
               _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, ctx.now).transaction
 
-            } yield result
+            } yield Some(WsmControlledResourceId(common.getResourceId))
 
           case None => F.pure(None)
         }
-    } yield ()
+    } yield diskResourceId
 
   private[util] def createMissingAppControlledResources(app: App,
                                                         appInstall: AppInstall[F],

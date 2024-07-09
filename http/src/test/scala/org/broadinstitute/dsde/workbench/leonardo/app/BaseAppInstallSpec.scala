@@ -6,7 +6,7 @@ import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, wsmResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.makeApp
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
@@ -98,7 +98,8 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
       ServiceAccountName("ksa-1"),
       ManagedIdentityName("mi-1"),
       databases,
-      aksInterpConfig
+      aksInterpConfig,
+      None
     )
 
   private def setUpMockSamDAO: SamDAO[IO] = {

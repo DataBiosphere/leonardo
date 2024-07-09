@@ -15,7 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   LandingZoneResources,
   ManagedIdentityName,
   WorkspaceId,
-  WsmControlledDatabaseResource
+  WsmControlledDatabaseResource,
+  WsmControlledResourceId
 }
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
@@ -90,5 +91,6 @@ final case class BuildHelmOverrideValuesParams(app: App,
                                                ksaName: ServiceAccountName,
                                                managedIdentityName: ManagedIdentityName,
                                                databaseNames: List[WsmControlledDatabaseResource],
-                                               config: AKSInterpreterConfig
+                                               config: AKSInterpreterConfig,
+                                               diskWsmResourceId: Option[WsmControlledResourceId]
 )
