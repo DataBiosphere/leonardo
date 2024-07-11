@@ -63,5 +63,5 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
-    jupyterDao.getStatus(baseUri, authHeader)
+    jupyterDao.getStatus(baseUri, authHeader).handleError(_ => false)
 }

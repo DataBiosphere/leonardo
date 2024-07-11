@@ -440,6 +440,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
+
       relayPrimaryKey <- azureRelayService.getRelayHybridConnectionKey(landingZoneResources.relayNamespace,
                                                                        hcName,
                                                                        params.cloudContext

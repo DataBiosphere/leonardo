@@ -40,6 +40,9 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
         headers = Headers(authHeader)
       )
     )
+    _ <- logger.info(s"(LM) Jupyter endpoint: ${baseUri / "api" / "status"}")
+    _ <- logger.info(s"(LM) Jupyter status result: $res")
+
   } yield res.isSuccess
 
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
@@ -56,7 +59,8 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
           client
             .successful(
               Request[F](
-                method = Method.GET,
+                method =
+                  Method.GET, //    private def azureUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/${path}")
                 uri = x.toNotebooksUri / "api" / "status",
                 headers = headers
               )
