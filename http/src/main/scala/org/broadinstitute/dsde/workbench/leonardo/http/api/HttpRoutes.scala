@@ -133,7 +133,8 @@ class HttpRoutes(
             oidcConfig
               .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
               pathPrefix("api") {
-                runtimeV2Routes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes
+                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
+                  diskRoutes.get.routes ~ diskV2Routes.routes ~ appV2Routes.routes ~ adminRoutes.routes
               }
           )
       }
