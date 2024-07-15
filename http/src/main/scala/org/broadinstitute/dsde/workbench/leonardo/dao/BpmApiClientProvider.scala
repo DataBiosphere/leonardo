@@ -38,10 +38,6 @@ class HttpBpmClientProvider[F[_]](baseBpmUrl: Uri)(implicit F: Async[F]) extends
       _ = client.setBasePath(baseBpmUrl.renderString)
       _ = client.setAccessToken(token)
     } yield client
-//    val client = new ApiClient()
-//    client.setBasePath(baseBpmUrl.renderString)
-//    client.setAccessToken(token)
-//    F.pure(client)
 
   override def getProfileApi(token: String)(implicit ev: Ask[F, AppContext]): F[ProfileApi] =
     getApiClient(token).map(apiClient => new ProfileApi(apiClient))

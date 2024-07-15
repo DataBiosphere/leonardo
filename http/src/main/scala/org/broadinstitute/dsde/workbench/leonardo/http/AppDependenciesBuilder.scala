@@ -209,7 +209,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
         baselineDependencies.cromwellDAO,
         baselineDependencies.azureBatchService,
         baselineDependencies.azureApplicationInsightsService,
-        baselineDependencies.bpmClientProvider
+        baselineDependencies.bpmClientProvider,
+        baselineDependencies.authProvider
       )
     val hailBatchAppInstall =
       new HailBatchAppInstall[IO](ConfigReader.appConfig.azure.hailBatchAppConfig, baselineDependencies.hailBatchDAO)

@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService,
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{CromwellRunnerAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{BpmApiClientProvider, CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -30,7 +31,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
                                      cromwellDao: CromwellDAO[F],
                                      azureBatchService: AzureBatchService[F],
                                      azureApplicationInsightsService: AzureApplicationInsightsService[F],
-                                     bpmClient: BpmApiClientProvider[F]
+                                     bpmClient: BpmApiClientProvider[F],
+                                     authProvider: SamAuthProvider[F]
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
@@ -84,8 +86,10 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
+      leoAuth <- authProvider.getLeoAuthToken
+
       maybeProfile <- Try(UUID.fromString(params.billingProfileId.value)) match {
-        case Success(uuid) => bpmClient.getProfile(userToken, uuid)
+        case Success(uuid) => bpmClient.getProfile(leoAuth, uuid)
         case _             => F.pure(None)
       }
 

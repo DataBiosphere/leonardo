@@ -7,8 +7,9 @@ import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, tokenValue}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.makeApp
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -32,8 +33,8 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatestplus.mockito.MockitoSugar
-import scala.jdk.CollectionConverters._
 
+import scala.jdk.CollectionConverters._
 import java.net.URL
 import java.util.UUID
 
@@ -45,6 +46,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
   val mockAzureApplicationInsightsService = setUpMockAzureApplicationInsightsService
   val mockAzureBatchService = setUpMockAzureBatchService
   val mockBpmClientProvider = setUpMockBpmProvider
+  val mockSamAuthProvider = setUpMockSamAuthProvider
 
   val cloudContext = AzureCloudContext(
     TenantId("tenant"),
@@ -168,5 +170,14 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
       batchAccountKeys.primary()
     } thenReturn "batchKey"
     service
+  }
+
+  private def setUpMockSamAuthProvider: SamAuthProvider[IO] = {
+    val mockSamAuth = mock[SamAuthProvider[IO]]
+
+    when {
+      mockSamAuth.getLeoAuthToken
+    } thenReturn IO.pure(tokenValue)
+    mockSamAuth
   }
 }
