@@ -38,8 +38,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
                                         serviceAccountProvider: ServiceAccountProvider[F],
                                         publisherQueue: Queue[F, LeoPubsubMessage],
-                                        googleDiskService: GoogleDiskService[F],
-                                        googleProjectDAO: GoogleProjectDAO
+                                        googleDiskService: Option[GoogleDiskService[F]],
+                                        googleProjectDAO: Option[GoogleProjectDAO]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
