@@ -18,7 +18,7 @@ import org.http4s.Uri
 import org.http4s.headers.Authorization
 
 import java.util.UUID
-import scala.util.{Success, Try}
+import scala.util.Either
 
 /**
  * Cromwell runner app type.
@@ -88,16 +88,18 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
       leoAuth <- authProvider.getLeoAuthToken
 
-      maybeProfile <- Try(UUID.fromString(params.billingProfileId.value)) match {
-        case Success(uuid) => bpmClient.getProfile(leoAuth, uuid)
-        case _             => F.pure(None)
+      parsedUUID <- F.delay(Either.catchNonFatal(UUID.fromString(params.billingProfileId.value)))
+      profileAttempt <- parsedUUID.traverse { uuid =>
+        bpmClient.getProfile(leoAuth, uuid)
       }
 
-      maybeLimits = maybeProfile.flatMap(
-        _.getOrganization.getLimits.asScala
-          .get("concurrentjoblimit")
-          .map(v => raw"config.concurrentJobLimit=${v}")
-      )
+      maybeLimits = profileAttempt match {
+        case Right(Some(profile)) =>
+          profile.getOrganization.getLimits.asScala
+            .get("concurrentjoblimit")
+            .map(v => raw"config.concurrentJobLimit=${v}")
+        case _ => None
+      }
 
       values = List(
         // azure resources configs
