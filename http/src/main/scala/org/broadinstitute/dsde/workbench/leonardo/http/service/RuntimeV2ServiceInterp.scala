@@ -301,7 +301,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else
           authProvider
-            .hasPermission[WsmResourceSamResourceId, WsmResourceAction](WsmResourceSamResourceId(wsmResourceId), WsmResourceAction.Delete, userInfo)
+            .hasPermission[WsmResourceSamResourceId, WsmResourceAction](WsmResourceSamResourceId(wsmResourceId),
+                                                                        WsmResourceAction.Delete,
+                                                                        userInfo
+            )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
