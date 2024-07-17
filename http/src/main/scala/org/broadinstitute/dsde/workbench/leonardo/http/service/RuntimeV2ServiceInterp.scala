@@ -295,12 +295,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
 
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
+      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
 
       hasPermission <-
         if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
         else
           authProvider
-            .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
+            .hasPermission[WsmResourceSamResourceId, WsmResourceAction](WsmResourceSamResourceId(wsmResourceId), WsmResourceAction.Delete, userInfo)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
@@ -317,7 +318,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       }
 
       // check if the VM is deletable in WSM
-      wsmResourceId = WsmControlledResourceId(UUID.fromString(runtime.internalId))
       wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
                                                 workspaceId,
                                                 wsmResourceId,

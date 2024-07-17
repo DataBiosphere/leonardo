@@ -239,6 +239,9 @@ object WsmResourceAction {
   final case object Read extends WsmResourceAction {
     val asString = "read"
   }
+  final case object Delete extends WsmResourceAction {
+    val asString = "delete"
+  }
   val allActions = sealerate.values[WsmResourceAction]
   val stringToAction: Map[String, WsmResourceAction] =
     sealerate.collect[WsmResourceAction].map(a => (a.asString, a)).toMap
