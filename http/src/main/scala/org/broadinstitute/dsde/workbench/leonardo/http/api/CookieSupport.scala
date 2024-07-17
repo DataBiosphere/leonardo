@@ -8,18 +8,19 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 object CookieSupport {
   val tokenCookieName = "LeoToken"
+  val proxyTokenCookieName = "LeoProxyToken"
 
   /**
    * Sets a token cookie in the HTTP response.
    */
   def setTokenCookie(userInfo: UserInfo): Directive0 =
-    respondWithHeaders(buildRawCookie(userInfo))
+    respondWithHeaders(buildRawCookie(userInfo), buildRawProxyCookie(userInfo))
 
   /**
    * Unsets a token cookie in the HTTP response.
    */
   def unsetTokenCookie(): Directive0 =
-    respondWithHeaders(buildRawUnsetCookie())
+    respondWithHeaders(buildRawUnsetCookie(), buildRawUnsetProxyCookie())
 
   private def buildRawCookie(userInfo: UserInfo) =
     RawHeader(
@@ -32,7 +33,20 @@ object CookieSupport {
     RawHeader(
       name = "Set-Cookie",
       value =
-        s"$tokenCookieName=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
+        s"$tokenCookieName=unset; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
     )
 
+  private def buildRawProxyCookie(userInfo: UserInfo) =
+    RawHeader(
+      name = "Set-Cookie",
+      value =
+        s"$proxyTokenCookieName=${userInfo.accessToken.token}; Domain=leonardo.dsde-dev.broadinstitute.org; Max-Age=${userInfo.tokenExpiresIn.toString}; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
+    )
+
+  private def buildRawUnsetProxyCookie(): RawHeader =
+    RawHeader(
+      name = "Set-Cookie",
+      value =
+        s"$proxyTokenCookieName=unset; Domain=leonardo.dsde-dev.broadinstitute.org; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
+    )
 }
