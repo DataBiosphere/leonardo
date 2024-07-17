@@ -3,7 +3,7 @@ import akka.actor.ActorSystem
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appServiceConfig, gkeCustomAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskService, DiskServiceInterp, LeoAppServiceInterp}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskService, DiskServiceInterp, LeoAppServiceInterp, RuntimeService}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorAtBoot
 import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -92,6 +92,17 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       baselineDependencies.publisherQueue,
       None,
       None
+    )
+
+    val runtimeService = RuntimeService(
+      baselineDependencies.runtimeServicesConfig,
+      ConfigReader.appConfig.persistentDisk,
+      baselineDependencies.authProvider,
+      baselineDependencies.serviceAccountProvider,
+      baselineDependencies.dockerDAO,
+      None,
+      None,
+      baselineDependencies.publisherQueue
     )
 
     var servicesRegistry = ServicesRegistry()
