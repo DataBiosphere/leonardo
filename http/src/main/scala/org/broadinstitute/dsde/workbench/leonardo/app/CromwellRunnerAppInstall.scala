@@ -93,12 +93,10 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         bpmClient.getProfile(leoAuth, uuid)
       }
 
-      maybeLimits = profileAttempt match {
-        case Right(Some(profile)) =>
-          profile.getOrganization.getLimits.asScala
-            .get("concurrentjoblimit")
-            .map(v => raw"config.concurrentJobLimit=${v}")
-        case _ => None
+      maybeLimits = profileAttempt.toOption.flatten.flatMap { profile =>
+        profile.getOrganization.getLimits.asScala
+          .get("concurrentjoblimit")
+          .map(v => raw"config.concurrentJobLimit=${v}")
       }
 
       values = List(
