@@ -111,6 +111,7 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
 
     // From GCP
     servicesRegistry.register[DiskService[IO]](diskService)
+    servicesRegistry.register[RuntimeService[IO]](runtimeService)
 
     Resource.make(IO(servicesRegistry))(_ => IO.unit)
   }
