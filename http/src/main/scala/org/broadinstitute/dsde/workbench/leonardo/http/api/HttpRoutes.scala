@@ -135,7 +135,7 @@ class HttpRoutes(
               pathPrefix("api") {
                 runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
                   diskRoutes.get.routes ~ diskV2Routes.routes ~
-                  kubernetesRoutes.routes ~ appV2Routes.routes ~
+                  appV2Routes.routes ~
                   adminRoutes.routes
               }
           )
