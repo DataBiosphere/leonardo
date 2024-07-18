@@ -14,18 +14,25 @@ object CookieSupport {
   val partitionedTokenCookieName = "TerraToken"
   val partitionedProxyTokenCookieName = "LeoProxyToken"
   val proxyUrl = new URL(Config.proxyConfig.proxyUrlBase)
+  val isPartitioned = Config.proxyConfig.isProxyCookiePartitioned
 
   /**
    * Sets a token cookie in the HTTP response.
    */
   def setTokenCookie(userInfo: UserInfo): Directive0 =
-    respondWithHeaders(buildRawCookie(userInfo), buildRawTerraCookie(userInfo), buildRawProxyCookie(userInfo))
+    if (isPartitioned)
+      respondWithHeaders(buildRawCookie(userInfo), buildRawTerraCookie(userInfo), buildRawProxyCookie(userInfo))
+    else
+      respondWithHeaders(buildRawCookie(userInfo))
 
   /**
    * Unsets a token cookie in the HTTP response.
    */
   def unsetTokenCookie(): Directive0 =
-    respondWithHeaders(buildRawUnsetCookie(), buildRawUnsetTerraCookie(), buildRawUnsetProxyCookie())
+    if (isPartitioned)
+      respondWithHeaders(buildRawUnsetCookie(), buildRawUnsetTerraCookie(), buildRawUnsetProxyCookie())
+    else
+      respondWithHeaders(buildRawUnsetCookie())
 
   private def buildRawCookie(userInfo: UserInfo) =
     RawHeader(
@@ -37,8 +44,7 @@ object CookieSupport {
   private def buildRawUnsetCookie(): RawHeader =
     RawHeader(
       name = "Set-Cookie",
-      value =
-        s"$tokenCookieName=unset; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly"
+      value = s"$tokenCookieName=unset; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly"
     )
 
   private def buildRawTerraCookie(userInfo: UserInfo) =
