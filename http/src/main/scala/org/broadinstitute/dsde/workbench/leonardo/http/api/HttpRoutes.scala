@@ -44,6 +44,7 @@ class HttpRoutes(
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
+  private val appRoutes = createAppRoutesUsingServicesRegistry
   private val appV2Routes = new AppV2Routes(kubernetesService, userInfoDirectives)
   private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
   private val diskV2Routes = new DiskV2Routes(diskV2Service, userInfoDirectives)
@@ -135,7 +136,7 @@ class HttpRoutes(
               pathPrefix("api") {
                 runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
                   diskRoutes.get.routes ~ diskV2Routes.routes ~
-                  kubernetesRoutes.routes ~ appV2Routes.routes ~
+                  appRoutes.get.routes ~ appV2Routes.routes ~
                   adminRoutes.routes
               }
           )
@@ -155,6 +156,11 @@ class HttpRoutes(
     gcpOnlyServicesRegistry
       .lookup[RuntimeService[IO]]
       .map(runtimeService => new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives))
+
+  private def createAppRoutesUsingServicesRegistry =
+    gcpOnlyServicesRegistry
+      .lookup[LeoAppServiceInterp[IO]]
+      .map(appService => new AppRoutes(appService, userInfoDirectives))
 
   private def createProxyRoutesUsingServicesRegistry =
     gcpOnlyServicesRegistry
