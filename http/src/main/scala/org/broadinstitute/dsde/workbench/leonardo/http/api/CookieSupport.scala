@@ -9,7 +9,6 @@ import java.net.URL
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
-
 object CookieSupport {
   val tokenCookieName = "LeoToken"
   val proxyTokenCookieName = "LeoProxyToken"
