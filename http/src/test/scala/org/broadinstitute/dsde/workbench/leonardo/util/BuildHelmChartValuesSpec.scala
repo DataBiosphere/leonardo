@@ -311,7 +311,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
@@ -371,7 +372,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
@@ -430,7 +432,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
@@ -500,7 +503,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
       """ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,""" +
