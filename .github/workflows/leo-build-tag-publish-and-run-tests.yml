@@ -48,7 +48,7 @@ jobs:
 
   init-github-context:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' | github.event.workflow_run.conclusion == 'success' }}
     outputs:
     # automation-branch: the git branch automation test application to be used, running on the gha runner
     # build-branch: the git branch to checkout to build a new app-version
