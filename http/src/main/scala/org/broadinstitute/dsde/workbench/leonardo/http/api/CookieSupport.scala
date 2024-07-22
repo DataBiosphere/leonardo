@@ -1,41 +1,38 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 package api
 
-import akka.http.scaladsl.model.headers.{HttpCookie, RawHeader}
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.server.Directive0
 import akka.http.scaladsl.server.directives.RespondWithDirectives.respondWithHeaders
+import java.net.URL
+
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 object CookieSupport {
   val tokenCookieName = "LeoToken"
-
-  // TODO: in the below 2 methods we set a cookie by building a RawHeader because the cookie
-  // SameSite attribute is not natively supported in akka-http. Support is tentatively
-  // slated for version 10.2.0, after which we can switch back to using HttpCookie.
-  // See https://github.com/akka/akka-http/issues/1354
+  val partitionedTokenCookieName = "TerraToken"
+  val partitionedProxyTokenCookieName = "LeoProxyToken"
+  val proxyUrl = new URL(Config.proxyConfig.proxyUrlBase)
+  val isPartitioned = Config.proxyConfig.isProxyCookiePartitioned
 
   /**
    * Sets a token cookie in the HTTP response.
    */
   def setTokenCookie(userInfo: UserInfo): Directive0 =
-    // setCookie(buildCookie(userInfo, cookieName))
-    respondWithHeaders(buildRawCookie(userInfo))
+    if (isPartitioned)
+      respondWithHeaders(buildRawCookie(userInfo), buildRawTerraCookie(userInfo), buildRawProxyCookie(userInfo))
+    else
+      respondWithHeaders(buildRawCookie(userInfo))
 
   /**
    * Unsets a token cookie in the HTTP response.
    */
   def unsetTokenCookie(): Directive0 =
-    respondWithHeaders(buildRawUnsetCookie())
-
-  private def buildCookie(userInfo: UserInfo, cookieName: String): HttpCookie =
-    HttpCookie(
-      name = cookieName,
-      value = userInfo.accessToken.token,
-      secure = true, // cookie is only sent for SSL requests
-      domain = None, // Do not specify domain, making it default to Leo's domain
-      maxAge = Option(userInfo.tokenExpiresIn), // cookie expiry is tied to the token expiry
-      path = Some("/") // needed so it works for AJAX requests
-    )
+    if (isPartitioned)
+      respondWithHeaders(buildRawUnsetCookie(), buildRawUnsetTerraCookie(), buildRawUnsetProxyCookie())
+    else
+      respondWithHeaders(buildRawUnsetCookie())
 
   private def buildRawCookie(userInfo: UserInfo) =
     RawHeader(
@@ -47,7 +44,34 @@ object CookieSupport {
   private def buildRawUnsetCookie(): RawHeader =
     RawHeader(
       name = "Set-Cookie",
-      value = s"$tokenCookieName=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly"
+      value = s"$tokenCookieName=unset; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly"
     )
 
+  private def buildRawTerraCookie(userInfo: UserInfo) =
+    RawHeader(
+      name = "Set-Cookie",
+      value =
+        s"$partitionedTokenCookieName=${userInfo.accessToken.token}; Max-Age=${userInfo.tokenExpiresIn.toString}; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
+    )
+
+  private def buildRawUnsetTerraCookie(): RawHeader =
+    RawHeader(
+      name = "Set-Cookie",
+      value =
+        s"$partitionedTokenCookieName=unset; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
+    )
+
+  private def buildRawProxyCookie(userInfo: UserInfo) =
+    RawHeader(
+      name = "Set-Cookie",
+      value =
+        s"$partitionedProxyTokenCookieName=${userInfo.accessToken.token}; Domain=${proxyUrl.getHost}; Max-Age=${userInfo.tokenExpiresIn.toString}; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
+    )
+
+  private def buildRawUnsetProxyCookie(): RawHeader =
+    RawHeader(
+      name = "Set-Cookie",
+      value =
+        s"$partitionedProxyTokenCookieName=unset; Domain=${proxyUrl.getHost}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None; HttpOnly; Partitioned"
+    )
 }
