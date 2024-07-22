@@ -135,6 +135,7 @@ object Dependencies {
 
   val workSpaceManagerV = "0.254.1127-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
+  val bpmV = "0.1.548-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
@@ -152,6 +153,7 @@ object Dependencies {
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
   def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText)
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+  val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
 
   val coreDependencies = List(
@@ -183,6 +185,7 @@ object Dependencies {
     workbenchAzureTest,
     logbackClassic,
     workspaceManager,
+    bpm,
     terraCommonLib
   )
 

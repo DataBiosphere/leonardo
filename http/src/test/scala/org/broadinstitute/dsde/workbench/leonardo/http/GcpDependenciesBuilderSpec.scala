@@ -142,6 +142,7 @@ class GcpDependenciesBuilderSpec
       mock[HailBatchDAO[IO]],
       mock[ListenerDAO[IO]],
       mock[HttpWsmClientProvider[IO]],
+      mock[HttpBpmClientProvider[IO]],
       mock[AzureContainerService[IO]],
       mock[RuntimeServiceConfig],
       mock[KubernetesDnsCache[IO]],
