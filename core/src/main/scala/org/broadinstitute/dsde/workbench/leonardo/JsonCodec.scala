@@ -571,6 +571,13 @@ object JsonCodec {
     "blockSize"
   )(x => (x.name, x.size, x.diskType, x.blockSize))
 
+  implicit val autopilotEncoder: Encoder[Autopilot] = Encoder.forProduct4(
+    "computeClass",
+    "cpuInMillicores",
+    "memoryInGb",
+    "ephemeralStorageInGb"
+  )(x => Autopilot.unapply(x).get)
+
   // can't use Encoder.forProductX because there are 23 fields
   implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.instance { x =>
     Json.obj(
