@@ -52,6 +52,7 @@ final case class GetAppResponse(
   cloudContext: CloudContext,
   region: RegionName,
   kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+  autopilot: Option[Autopilot],
   errors: List[AppError],
   status: AppStatus, // TODO: do we need some sort of aggregate status?
   proxyUrls: Map[ServiceName, URL],
@@ -70,6 +71,7 @@ final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  cloudContext: CloudContext,
                                  region: RegionName,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+                                 autopilot: Option[Autopilot],
                                  errors: List[AppError],
                                  status: AppStatus, // TODO: do we need some sort of aggregate status?
                                  proxyUrls: Map[ServiceName, URL],
@@ -99,6 +101,7 @@ object ListAppResponse {
             n.machineType,
             n.autoscalingEnabled
           ),
+          a.autopilot,
           a.errors,
           a.status,
           a.getProxyUrls(c, proxyUrlBase),
@@ -128,6 +131,7 @@ object GetAppResponse {
         appResult.nodepool.machineType,
         appResult.nodepool.autoscalingEnabled
       ),
+      appResult.app.autopilot,
       appResult.app.errors,
       appResult.app.status,
       appResult.app.getProxyUrls(appResult.cluster, proxyUrlBase),
