@@ -21,6 +21,7 @@ object ConfigReader {
 final case class AzureConfig(
   pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
+  bpm: BpmConfig,
   appRegistration: AzureAppRegistrationConfig,
   coaAppConfig: CoaAppConfig,
   cromwellRunnerAppConfig: CromwellRunnerAppConfig,
