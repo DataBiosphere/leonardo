@@ -50,9 +50,12 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F
           // persistent disk configs
           raw"persistence.diskName=${disk.name.value}",
           raw"persistence.diskSize=${disk.size.gb}",
-          // raw"persistence.diskResourceId=${diskResourceId.value.toString}",
           raw"persistence.subscriptionId=${params.cloudContext.subscriptionId.value}",
           raw"persistence.resourceGroupName=${params.cloudContext.managedResourceGroupName.value}",
+
+          // app resource requests
+          raw"resources.cpu=100", //${params.app.appResources}",
+          raw"resources.memory=128", //${disk.size.gb}",
 
           // misc
           raw"serviceAccount.name=${params.ksaName.value}",
