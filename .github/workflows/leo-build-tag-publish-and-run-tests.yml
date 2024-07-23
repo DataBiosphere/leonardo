@@ -48,7 +48,7 @@ jobs:
 
   init-github-context:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_run' | github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
     # automation-branch: the git branch automation test application to be used, running on the gha runner
     # build-branch: the git branch to checkout to build a new app-version
@@ -93,7 +93,7 @@ jobs:
       - name: Extract branch
         id: extract-branch
         run: |
-          if [[ '${{ github.event_name }}' == 'push' ]]; then
+          if [[ '${{ github.event_name }}' == 'push' || '${{ github.event_name }}' == 'workflow_run']]; then
             BRANCH_NAME=${{ github.ref_name }}
           elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
             BRANCH_NAME=${{ github.head_ref }}
