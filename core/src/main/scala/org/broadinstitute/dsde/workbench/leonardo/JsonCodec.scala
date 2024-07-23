@@ -571,6 +571,7 @@ object JsonCodec {
     "blockSize"
   )(x => (x.name, x.size, x.diskType, x.blockSize))
 
+  implicit val computeClassEncoder: Encoder[ComputeClass] = Encoder.encodeString.contramap(_.toString)
   implicit val autopilotEncoder: Encoder[Autopilot] = Encoder.forProduct4(
     "computeClass",
     "cpuInMillicores",
