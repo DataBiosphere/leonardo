@@ -54,8 +54,8 @@ class JupyterAppInstall[F[_]](config: JupyterAppConfig, jupyterDao: JupyterDAO[F
           raw"persistence.resourceGroupName=${params.cloudContext.managedResourceGroupName.value}",
 
           // app resource requests
-          raw"resources.cpu=100", //${params.app.appResources}",
-          raw"resources.memory=128", //${disk.size.gb}",
+          raw"resources.cpu=100", // ${params.app.appResources}",
+          raw"resources.memory=128", // ${disk.size.gb}",
 
           // misc
           raw"serviceAccount.name=${params.ksaName.value}",
