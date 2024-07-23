@@ -4385,7 +4385,7 @@ components:
           description: Cloud resource name. Google project if cloud provider is GCP OR Azure's tenantId/subscriptionId/managedResourceGroupId if in Azure
 
     Autopilot:
-      description: Defines app's Autopilot configuration
+      description: Defines app's Autopilot configuration. See https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview for more info.
       type: object
       properties:
         computeClass:
