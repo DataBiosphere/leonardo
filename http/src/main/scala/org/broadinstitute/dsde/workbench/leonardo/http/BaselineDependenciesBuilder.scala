@@ -166,6 +166,8 @@ class BaselineDependenciesBuilder {
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
 
+      bpmClientProvider = new HttpBpmClientProvider(ConfigReader.appConfig.azure.bpm.uri)
+
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
 
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
@@ -317,6 +319,7 @@ class BaselineDependenciesBuilder {
       hailBatchDao,
       listenerDao,
       wsmClientProvider,
+      bpmClientProvider,
       azureContainerService,
       runtimeServiceConfig,
       kubernetesDnsCache,
@@ -452,6 +455,7 @@ final case class BaselineDependencies[F[_]](
   hailBatchDAO: HailBatchDAO[F],
   listenerDAO: ListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider[F],
+  bpmClientProvider: HttpBpmClientProvider[F],
   azureContainerService: AzureContainerService[F],
   runtimeServicesConfig: RuntimeServiceConfig,
   kubernetesDnsCache: KubernetesDnsCache[F],

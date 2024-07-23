@@ -223,6 +223,9 @@ object WorkspaceAction {
   final case object CreateControlledUserResource extends WorkspaceAction {
     val asString = "create_controlled_user_private"
   }
+  final case object Delete extends WorkspaceAction {
+    val asString = "delete"
+  }
 
   val allActions = sealerate.values[WorkspaceAction]
   val stringToAction: Map[String, WorkspaceAction] =

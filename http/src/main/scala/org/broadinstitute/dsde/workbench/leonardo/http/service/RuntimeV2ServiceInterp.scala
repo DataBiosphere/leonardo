@@ -298,9 +298,14 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       hasPermission <-
         if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
-        else
+        else {
+          // users who have workspace level delete privileges should be able to delete all resources in the workspace
           authProvider
-            .isUserWorkspaceOwner(WorkspaceResourceSamResourceId(workspaceId), userInfo)
+            .hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](WorkspaceResourceSamResourceId(workspaceId),
+                                                                            WorkspaceAction.Delete,
+                                                                            userInfo
+            )
+        }
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F

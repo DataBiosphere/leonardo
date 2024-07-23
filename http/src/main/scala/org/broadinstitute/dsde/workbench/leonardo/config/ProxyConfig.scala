@@ -11,7 +11,8 @@ case class ProxyConfig(proxyDomain: String,
                        tokenCacheExpiryTime: FiniteDuration,
                        tokenCacheMaxSize: Int,
                        internalIdCacheExpiryTime: FiniteDuration,
-                       internalIdCacheMaxSize: Int
+                       internalIdCacheMaxSize: Int,
+                       isProxyCookiePartitioned: Boolean
 ) {
   def getProxyServerHostName: String = {
     val url = new URL(proxyUrlBase)

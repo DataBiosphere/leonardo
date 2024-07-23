@@ -48,6 +48,10 @@ object LeonardoConfig extends CommonConfig {
     val wsmUri: String = "https://workspace.dsde-dev.broadinstitute.org"
   }
 
+  object BPM {
+    val bpmUri: String = "https://bpm.dsde-dev.broadinstitute.org"
+  }
+
   object LeonardoClient {
     val writeTimeout = leonardoClient.getInt("writeTimeout")
     val readTimeout = leonardoClient.getInt("readTimeout")
