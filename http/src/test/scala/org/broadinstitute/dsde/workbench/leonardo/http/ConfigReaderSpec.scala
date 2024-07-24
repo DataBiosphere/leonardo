@@ -76,6 +76,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/8390d25ccd761fb206cf388560a571be77a42bbd/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
+            // [IA-4997] to support CHIPS by setting partitioned cookies
+            // "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:474f157",
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:76d982c",
             VMCredential(username = "username", password = "password")
           ),
@@ -87,7 +89,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("cromwell-helm/cromwell-on-azure"),
-          ChartVersion("0.2.520"),
+          ChartVersion("0.2.523"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
