@@ -26,7 +26,7 @@ object Dependencies {
   val workbenchOauth2V = s"0.7-$workbenchLibsHash"
   val workbenchAzureV = s"0.7-$workbenchLibsHash"
 
-  val helmScalaSdkV = "0.0.8.5"
+  val helmScalaSdkV = "0.0.9.0"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
