@@ -19,6 +19,11 @@ services:
     volumes:
       # shared with welder
       - "/mnt/disks/work:${NOTEBOOKS_DIR}"
+      # workaround to specify the shm_size for docker shared memory: https://stackoverflow.com/questions/58952478/changing-shared-memory-size-in-docker-compose
+      - type: tmpfs
+          target: /dev/shm
+          tmpfs:
+            size: 1000000000 # ~1gb
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
