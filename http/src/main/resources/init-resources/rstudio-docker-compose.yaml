@@ -20,13 +20,9 @@ services:
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
       - ${WORK_DIRECTORY}:/home/rstudio
-      # workaround to specify the shm_size for docker shared memory: https://stackoverflow.com/questions/58952478/changing-shared-memory-size-in-docker-compose
-      - type: tmpfs
-          target: /dev/shm
-          tmpfs:
-            size: 1000000000 # ~1gb
     env_file:
       - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
     memswap_limit: ${MEM_LIMIT}
+    shm_size: 256m
