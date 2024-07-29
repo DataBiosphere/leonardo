@@ -151,7 +151,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.168.0"),
+          ChartVersion("0.169.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -170,7 +170,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.253.0"),
+          ChartVersion("0.254.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
