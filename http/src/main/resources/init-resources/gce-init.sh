@@ -102,7 +102,7 @@ export PROXY_SERVER_NAME=$(proxyServerName)
 export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
 export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
 export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
-export SHM_SIZE=$(memLimit)
+export MEM_LIMIT=$(memLimit)
 # Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
 BYTES_TO_MB=1048576
 MEM_LIMIT_B=$(echo "$MEM_LIMIT" | grep -o '[0-9]*')
