@@ -68,6 +68,11 @@ export START_USER_SCRIPT_URI=$(startUserScriptUri)
 export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
+# Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
+BYTES_TO_MB=1048576
+MEM_LIMIT_B=$(echo "$MEM_LIMIT" | grep -o '[0-9]*')
+SHM_SIZE_MB=$(echo "scale=0; 0.5 * $MEM_LIMIT_B / $BYTES_TO_MB" | bc)
+export SHM_SIZE="${SHM_SIZE_MB}m"
 export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
@@ -158,6 +163,7 @@ OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
 WELDER_ENABLED=${WELDER_ENABLED}
 MEM_LIMIT=${MEM_LIMIT}
+SHM_SIZE=${SHM_SIZE}
 END
 
           ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop

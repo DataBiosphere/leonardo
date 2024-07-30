@@ -176,6 +176,11 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export WELDER_ENABLED=$(welderEnabled)
     export NOTEBOOKS_DIR=$(notebooksDir)
     export MEM_LIMIT=$(memLimit)
+    # Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
+    BYTES_TO_MB=1048576
+    MEM_LIMIT_B=$(echo "$MEM_LIMIT" | grep -o '[0-9]*')
+    SHM_SIZE_MB=$(echo "scale=0; 0.5 * $MEM_LIMIT_B / $BYTES_TO_MB" | bc)
+    export SHM_SIZE="${SHM_SIZE_MB}m"
     export WELDER_MEM_LIMIT=$(welderMemLimit)
     export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
     export CERT_DIRECTORY='/certs'
