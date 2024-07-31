@@ -300,6 +300,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     for {
       ctx <- ev.ask
 
+      // Build WSM client
+      wsmControlledResourceApi <- buildWsmControlledResourceApiClient
+      wsmResourceApi <- buildWsmResourceApiClient
+
       workspaceId <- F.fromOption(
         params.workspaceId,
         AppUpdateException(
@@ -323,16 +327,15 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
 
       app = dbApp.app
-
-      // Resolve the workspace in WSM
       leoAuth <- samDao.getLeoAuthToken
+      token <- authProvider.getLeoAuthToken
+
       workspaceDescOpt <- childSpan("getWorkspace").use { implicit ev =>
-        legacyWsmDao.getWorkspace(workspaceId, leoAuth)
+        wsmClientProvider.getWorkspace(token, workspaceId)
       }
       workspaceDesc <- F.fromOption(workspaceDescOpt,
-                                    AppUpdateException(s"Workspace ${workspaceId} not found in WSM", Some(ctx.traceId))
+                                    AppUpdateException(s"Workspace $workspaceId not found in WSM", Some(ctx.traceId))
       )
-
       // Query the Landing Zone service for the landing zone resources
       billingProfileId = BillingProfileId(workspaceDesc.spendProfile)
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
@@ -347,19 +350,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
-      // Build WSM client
-      wsmApi <- buildWsmControlledResourceApiClient
-
       // Call WSM to get the managed identity for the app.
       // This is optional because a WSM identity is only created for shared apps.
       wsmIdentities <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
         .transaction
       wsmIdentityOpt <- wsmIdentities.headOption.traverse { wsmIdentity =>
-        F.blocking(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
+        F.blocking(wsmControlledResourceApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
       }
-
-      wsmResourceApi <- buildWsmResourceApiClient
 
       // create any missing AppControlledResources
       _ <- createMissingAppControlledResources(
@@ -367,7 +365,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app.appType,
         workspaceId,
         landingZoneResources,
-        wsmResourceApi
+        wsmControlledResourceApi
       )
 
       // get list of APP_CONTROLLED_RESOURCES
@@ -376,7 +374,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
       // Call WSM to get more info about each database (by resourceId) that exists in APP_CONTROLLED_RESOURCE
       wsmDatabases <- controlledDatabases.traverse { controlledDatabase =>
-        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, controlledDatabase.resourceId.value))
+        F.blocking(wsmControlledResourceApi.getAzureDatabase(workspaceId.value, controlledDatabase.resourceId.value))
           .map(db =>
             WsmControlledDatabaseResource(db.getMetadata.getName,
                                           db.getAttributes.getDatabaseName,
@@ -397,7 +395,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
         .transaction
       wsmNamespaceOpt <- wsmNamespaces.headOption.traverse { wsmNamespace =>
-        F.blocking(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value))
+        F.blocking(
+          wsmControlledResourceApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value)
+        )
       }
       wsmNamespace <- F.fromOption(wsmNamespaceOpt,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
@@ -1056,14 +1056,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           }
         )
         .toList
-    )
-
-  private[util] def getWorkspaceDescription(workspaceApi: WorkspaceApi,
-                                            workspaceId: UUID
-  ): F[bio.terra.workspace.model.WorkspaceDescription] =
-    F.blocking(
-      workspaceApi
-        .getWorkspace(workspaceId, IamRole.READER)
     )
 
   private[util] def createOrFetchWsmManagedIdentity(app: App,

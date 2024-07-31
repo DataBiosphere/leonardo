@@ -12,6 +12,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import monocle.macros.syntax.lens._
 import org.apache.commons.lang3.RandomStringUtils
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, TenantId}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
@@ -29,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao, WsmGcpContext}
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -723,6 +724,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- getUpdateAppTransaction(appResult.app.id, req)
     } yield ()
 
+  import io.circe.syntax._
   override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
@@ -747,10 +749,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       // Resolve the workspace in WSM to get the cloud context
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
@@ -1746,17 +1745,6 @@ case class AppCannotBeDeletedException(cloudContext: CloudContext,
       extraMessageInLogging = extraMsg
     )
 
-case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
-                                                    appName: AppName,
-                                                    status: AppStatus,
-                                                    traceId: TraceId
-) extends LeoException(
-      s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
-        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-
 case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
     extends LeoException(
       s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
@@ -1836,12 +1824,6 @@ case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
 case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-case class AppWithoutWorkspaceIdException(appName: AppName, traceId: TraceId)
-    extends LeoException(
-      s"App ${appName.value} is missing a workspaceId. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

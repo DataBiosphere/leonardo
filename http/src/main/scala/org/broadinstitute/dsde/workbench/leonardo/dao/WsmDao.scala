@@ -8,6 +8,7 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.RegionName
+//TODO: prune
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
@@ -37,7 +38,7 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]]
 
-  //TODO: 2
+  // TODO: 2
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
@@ -46,8 +47,7 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[GetDeleteJobResult]
 
-  //TODO: 1
-
+  // TODO: 1
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
@@ -94,9 +94,8 @@ final case class LandingZoneResource(resourceId: Option[String],
 
 object LandingZoneResourcePurpose extends Enumeration {
   type LandingZoneResourcePurpose = Value
-  val SHARED_RESOURCE, WLZ_RESOURCE = Value
-  val WORKSPACE_COMPUTE_SUBNET, WORKSPACE_STORAGE_SUBNET, AKS_NODE_POOL_SUBNET, POSTGRESQL_SUBNET, POSTGRES_ADMIN,
-    WORKSPACE_BATCH_SUBNET = Value
+  val SHARED_RESOURCE = Value
+  val WORKSPACE_COMPUTE_SUBNET, AKS_NODE_POOL_SUBNET, POSTGRESQL_SUBNET, WORKSPACE_BATCH_SUBNET = Value
 }
 
 final case class LandingZoneResourcesByPurpose(purpose: LandingZoneResourcePurpose,

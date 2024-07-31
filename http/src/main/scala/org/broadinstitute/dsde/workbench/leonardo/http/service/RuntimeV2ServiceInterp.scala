@@ -64,11 +64,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
       // TODO: when we fully support google here, do something intelligent instead of defaulting to azure
@@ -362,10 +358,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       wsmVMResourceSamId = if (wsmState.isDeleted) None else Some(wsmResourceId)
 
       // Query WSM for Landing Zone resources
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
       // Update DB record to Deleting status

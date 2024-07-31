@@ -2,13 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.client.ApiClient
-import bio.terra.workspace.model.{ResourceMetadata, State}
+import bio.terra.workspace.model.{IamRole, ResourceMetadata, State}
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId, WsmControlledResourceId, WsmState}
 import org.broadinstitute.dsde.workbench.leonardo.util.WithSpanFilter
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.glassfish.jersey.client.ClientConfig
 import org.http4s.Uri
 import org.typelevel.log4cats.StructuredLogger
@@ -25,6 +27,10 @@ trait WsmApiClientProvider[F[_]] {
   // WSM state can be BROKEN, CREATING, READY, UPDATING or NONE, (deleted or doesn't exist)
   val possibleStatuses: Array[WsmState] =
     State.values().map(_.toString).map(Some(_)).map(WsmState(_)) :+ WsmState(Some("NONE"))
+
+  def getWorkspace(token: String, workspaceId: WorkspaceId, iamRole: IamRole = IamRole.READER)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[WorkspaceDescription]]
 
   def getControlledAzureResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ControlledAzureResourceApi]
   def getResourceApi(token: String)(implicit ev: Ask[F, AppContext]): F[ResourceApi]
@@ -66,6 +72,41 @@ trait WsmApiClientProvider[F[_]] {
 }
 
 class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Async[F]) extends WsmApiClientProvider[F] {
+
+  override def getWorkspace(token: String, workspaceId: WorkspaceId, iamRole: IamRole = IamRole.READER)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Option[WorkspaceDescription]] =
+    for {
+      workspaceApi <- getWorkspaceApi(token)
+      workspaceDescAttempt <- F.delay(workspaceApi.getWorkspace(workspaceId.value, iamRole)).attempt
+      workspaceDescUnchecked <- F.fromEither(workspaceDescAttempt)
+      workspaceDescOpt = workspaceDescUnchecked match {
+        case emptyWorkspace if emptyWorkspace == null => None
+        case workspace                                => Some(workspace)
+      }
+      workspaceDescResult = workspaceDescOpt.map(workspaceDesc =>
+        WorkspaceDescription(
+          workspaceId,
+          workspaceDesc.getDisplayName,
+          workspaceDesc.getSpendProfile,
+          workspaceDesc.getAzureContext match {
+            case emptyContext if emptyContext == null => None
+            case context =>
+              Some(
+                AzureCloudContext(TenantId(context.getTenantId),
+                                  SubscriptionId(context.getSubscriptionId),
+                                  ManagedResourceGroupName(context.getResourceGroupId)
+                )
+              )
+          },
+          workspaceDesc.getGcpContext match {
+            case emptyContext if emptyContext == null => None
+            case context                              => Some(GoogleProject(context.getProjectId))
+          }
+        )
+      )
+    } yield workspaceDescResult
+
   private def getApiClient(token: String)(implicit ev: Ask[F, AppContext]): F[ApiClient] =
     for {
       ctx <- ev.ask

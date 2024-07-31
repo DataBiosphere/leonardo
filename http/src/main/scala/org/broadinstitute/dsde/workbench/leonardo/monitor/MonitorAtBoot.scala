@@ -7,7 +7,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmApiClientProvider}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.http4s.AuthScheme
 import org.typelevel.log4cats.Logger
 
 import java.util.UUID
@@ -29,7 +28,7 @@ import scala.concurrent.ExecutionContext
 class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                           computeService: Option[GoogleComputeService[F]],
                           samDAO: SamDAO[F],
-                          wsmDao: WsmDao[F]
+                          wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   dbRef: DbReference[F],
@@ -225,10 +224,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   )
                   tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
                   workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-                    wsmDao.getWorkspace(
-                      workspaceId,
-                      org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-                    )
+                    wsmClientProvider.getWorkspace(token, workspaceId)
                   }
                   workspaceDesc <- F.fromOption(workspaceDescOpt,
                                                 WorkspaceNotFoundException(workspaceId, appContext.traceId)
@@ -270,10 +266,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                 )
                 tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
                 workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-                  wsmDao.getWorkspace(
-                    workspaceId,
-                    org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-                  )
+                  wsmClientProvider.getWorkspace(token, workspaceId)
                 }
                 workspaceDesc <- F.fromOption(workspaceDescOpt,
                                               WorkspaceNotFoundException(workspaceId, appContext.traceId)
@@ -403,10 +396,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
           tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
           workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-            wsmDao.getWorkspace(
-              wid,
-              org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-            )
+            wsmClientProvider.getWorkspace(token, wid)
           }
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
@@ -434,10 +424,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           )
           tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
           workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-            wsmDao.getWorkspace(
-              wid,
-              org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-            )
+            wsmClientProvider.getWorkspace(token, wid)
           }
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(

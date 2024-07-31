@@ -40,7 +40,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
 
-
   override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]] =
