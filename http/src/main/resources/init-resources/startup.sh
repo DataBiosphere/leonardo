@@ -132,6 +132,26 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+
+tee /var/variables.env << END
+JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
+JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
+NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
+GOOGLE_PROJECT=${GOOGLE_PROJECT}
+RUNTIME_NAME=${RUNTIME_NAME}
+OWNER_EMAIL=${OWNER_EMAIL}
+PET_SA_EMAIL=${PET_SA_EMAIL}
+WELDER_ENABLED=${WELDER_ENABLED}
+MEM_LIMIT=${MEM_LIMIT}
+SHM_SIZE=${SHM_SIZE}
+END
+
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+
         if [ "${GPU_ENABLED}" == "true" ] ; then
           # Containers will usually restart just fine. But when gpu is enabled,
           # jupyter container will fail to start until the appropriate volume/device exists.
@@ -149,26 +169,6 @@ then
 
         if [ "$NEED_MIGRATE" == "true" ] ; then
           docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
-
-          # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
-          $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
-
-          tee /var/variables.env << END
-JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
-JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
-NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
-GOOGLE_PROJECT=${GOOGLE_PROJECT}
-RUNTIME_NAME=${RUNTIME_NAME}
-OWNER_EMAIL=${OWNER_EMAIL}
-PET_SA_EMAIL=${PET_SA_EMAIL}
-WELDER_ENABLED=${WELDER_ENABLED}
-MEM_LIMIT=${MEM_LIMIT}
-SHM_SIZE=${SHM_SIZE}
-END
-
-          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-          ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
 
           log 'Copy Jupyter frontend notebook config...'
           $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
