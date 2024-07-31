@@ -40,67 +40,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
 
-  override def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateDiskResponse] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateDiskResponse](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
-
-  override def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateVmResult] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[CreateVmResult](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm"
-                )
-            ),
-          entity = request,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
-
-  def createStorageContainer(request: CreateStorageContainerRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateStorageContainerResult] = for {
-    ctx <- ev.ask
-    res <- httpClient.expectOr[CreateStorageContainerResult](
-      Request[F](
-        method = Method.POST,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(
-                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/storageContainer"
-              )
-          ),
-        entity = request,
-        headers = headers(authorization, ctx.traceId, true)
-      )
-    )(onError)
-  } yield res
 
   override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
@@ -332,21 +271,12 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield resOpt.fold(List.empty[LandingZoneResourcesByPurpose])(res => res.resources)
 
-  override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "vm")
-
-  override def deleteStorageContainer(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "storageContainer")
-
   override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "disks")
 
+  // TODO: 1
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =
@@ -360,26 +290,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
               Uri.Path
                 .unsafeFromString(
                   s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}"
-                )
-            ),
-          headers = headers(authorization, ctx.traceId, false)
-        )
-      )(onError)
-    } yield res
-
-  override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[GetDeleteJobResult] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[GetDeleteJobResult](
-        Request[F](
-          method = Method.GET,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/delete-result/${request.jobId.value}"
                 )
             ),
           headers = headers(authorization, ctx.traceId, false)
