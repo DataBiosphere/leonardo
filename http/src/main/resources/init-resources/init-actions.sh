@@ -179,7 +179,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
     BYTES_TO_MB=1048576
     MEM_LIMIT_B=$(echo "$MEM_LIMIT" | grep -o '[0-9]*')
-    SHM_SIZE_MB=$(echo "scale=0; 0.5 * $MEM_LIMIT_B / $BYTES_TO_MB" | bc)
+    SHM_SIZE_MB=$(awk -v a="$MEM_LIMIT_B" -v b="$BYTES_TO_MB" 'BEGIN { printf "%.0f\n", 0.5 * a / b }')
     export SHM_SIZE="${SHM_SIZE_MB}m"
     export WELDER_MEM_LIMIT=$(welderMemLimit)
     export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
