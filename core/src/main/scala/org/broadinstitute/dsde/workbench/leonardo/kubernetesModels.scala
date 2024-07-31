@@ -445,9 +445,9 @@ final case class App(id: AppId,
                      descriptorPath: Option[Uri],
                      extraArgs: List[String],
                      sourceWorkspaceId: Option[WorkspaceId],
-                     numOfReplicas: Option[Int],
                      autodelete: Autodelete,
-                     autopilot: Option[Autopilot],
+                     autopilot: Boolean,
+                     computeProfile: ComputeProfile,
                      bucketNameToMount: Option[GcsBucketName]
 ) {
 
@@ -604,7 +604,13 @@ object ComputeClass {
   val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
 }
 final case class Autodelete(autodeleteEnabled: Boolean, autodeleteThreshold: Option[AutodeleteThreshold])
-final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
+
+final case class ComputeProfile(numOfReplicas: Option[Int],
+                                cpuInMi: Option[Int],
+                                memoryInGb: Option[Int],
+                                computeClass: Option[ComputeClass],
+                                ephemeralStorageInGb: Option[Int]
+)
 
 final case class UpdateAppTableId(value: Long) extends AnyVal
 final case class UpdateAppJobId(value: UUID) extends AnyVal

@@ -661,7 +661,7 @@ object JsonCodec {
     ComputeClass.stringToObject.get(s.toLowerCase).toRight(s"Invalid compute class ${s}")
   )
   implicit val autopilotDecoder: Decoder[Autopilot] =
-    Decoder.forProduct4("computeClass", "cpuInMillicores", "memoryInGb", "ephemeralStorageInGb")(Autopilot.apply)
+    Decoder.forProduct2("computeClass", "ephemeralStorageInGb")(Autopilot.apply)
 
   implicit val locationDecoder: Decoder[Location] = Decoder.decodeString.map(Location)
   implicit val kubeClusterIdDecoder: Decoder[KubernetesClusterLeoId] = Decoder.decodeLong.map(KubernetesClusterLeoId)

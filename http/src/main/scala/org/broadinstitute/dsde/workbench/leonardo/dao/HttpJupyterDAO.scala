@@ -61,6 +61,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
               Request[F](
                 method =
                   Method.GET, //    private def azureUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/${path}")
+                // https://hostIp/runtimeName/api/status
                 uri = x.toNotebooksUri / "api" / "status",
                 headers = headers
               )
