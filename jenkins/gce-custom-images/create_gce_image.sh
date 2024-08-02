@@ -39,6 +39,7 @@ fi
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="release"
 
+
 # When updating, to find the resource path:
 #    1. run `gcloud compute images list --no-standard-images --project=cos-cloud | grep lts` to get the list of available container-optimized OS images
 #    2. select the image of interest, say, `cos-89-16108-403-22`
