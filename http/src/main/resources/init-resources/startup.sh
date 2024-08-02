@@ -170,6 +170,15 @@ END
         fi
     fi
 
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+        echo "Restarting Rstudio Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        # the docker containers need to be restarted or the jupyter container
+        # will fail to start until the appropriate volume/device exists
+        docker restart $RSTUDIO_SERVER_NAME
+
+    fi
+
     if [ "$UPDATE_WELDER" == "true" ] ; then
         echo "Upgrading welder..."
 
