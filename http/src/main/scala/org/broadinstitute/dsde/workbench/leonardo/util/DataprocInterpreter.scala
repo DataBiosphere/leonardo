@@ -809,7 +809,7 @@ class DataprocInterpreter[F[_]: Parallel](
         sparkDriverMemory.bytes + minRuntimeMemoryGb.bytes
       )
       // Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
-      val shmSize = MemorySizeMegaBytes.fromB(0.5 * runtimeAllocatedMemory)
+      val shmSize = MemorySizeMegaBytes.fromB(0.5 * runtimeAllocatedMemory.bytes)
       RuntimeResourceConstraints(runtimeAllocatedMemory, shmSize, MemorySizeBytes(total.bytes), Some(sparkDriverMemory))
     }
 
@@ -905,7 +905,9 @@ class DataprocInterpreter[F[_]: Parallel](
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     } else Map.empty[String, String]
 
-    val driverMemoryProp = Map("spark:spark.driver.memory" -> s"${sparkDriverMemory.bytes / MemorySizeBytes.mbInBytes}m")
+    val driverMemoryProp = Map(
+      "spark:spark.driver.memory" -> s"${sparkDriverMemory.bytes / MemorySizeBytes.mbInBytes}m"
+    )
 
     val yarnProps = Map(
       // Helps with debugging

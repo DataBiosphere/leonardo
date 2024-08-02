@@ -545,7 +545,7 @@ class GceInterpreter[F[_]](
       welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
       result = MemorySizeBytes(total.bytes - gceAllocated - welderAllocated)
       // Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
-      shmSize = MemorySizeMegaBytes.fromB(0.5 * result)
+      shmSize = MemorySizeMegaBytes.fromB(0.5 * result.bytes)
     } yield RuntimeResourceConstraints(result, shmSize, total, None)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,

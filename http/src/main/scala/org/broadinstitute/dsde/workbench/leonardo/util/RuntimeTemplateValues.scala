@@ -279,6 +279,7 @@ object RuntimeTemplateValues {
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
         .getOrElse(""),
       config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse(""),
+      config.clusterResourceConstraints.map(_.shmSize.toString).getOrElse(""),
       config.welderConfig.welderReservedMemory.map(_.toString).getOrElse(""),
       config.runtimeOperation.asString,
       (config.welderAction == Some(UpdateWelder)).toString,
