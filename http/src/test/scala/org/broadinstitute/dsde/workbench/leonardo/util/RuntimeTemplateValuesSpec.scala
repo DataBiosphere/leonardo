@@ -68,6 +68,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.userScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")).toUri
       result.loginHint shouldBe CommonTestData.auditInfo.creator.value
       result.memLimit shouldBe "3758096384b" // 3.5 GB
+      result.shmSize shouldBe "1024m" // 1 GB
       result.notebooksDir shouldBe "/home/jupyter"
       result.proxyDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                  GcsObjectName("test-proxy-docker-compose.yaml")

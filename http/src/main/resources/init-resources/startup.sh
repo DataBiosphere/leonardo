@@ -68,11 +68,7 @@ export START_USER_SCRIPT_URI=$(startUserScriptUri)
 export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
-# Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
-BYTES_TO_MB=1048576
-MEM_LIMIT_B=$(echo "$MEM_LIMIT" | grep -o '[0-9]*')
-SHM_SIZE_MB=$(awk -v a="$MEM_LIMIT_B" -v b="$BYTES_TO_MB" 'BEGIN { printf "%.0f\n", 0.5 * a / b }')
-export SHM_SIZE="${SHM_SIZE_MB}m"
+export SHM_SIZE=$(shmSize)
 export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
