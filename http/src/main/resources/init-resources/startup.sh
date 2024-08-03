@@ -129,8 +129,8 @@ then
 
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
-        docker restart jupyter-server
-        docker restart welder-server
+        docker restart $JUPYTER_SERVER_NAME
+        docker restart $WELDER_SERVER_NAME
 
         # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
         # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
@@ -176,6 +176,7 @@ END
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
         docker restart $RSTUDIO_SERVER_NAME
+        docker restart $WELDER_SERVER_NAME
 
     fi
 
