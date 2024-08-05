@@ -365,7 +365,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         app.appType,
         workspaceId,
         landingZoneResources,
-        wsmControlledResourceApi
+        wsmResourceApi
       )
 
       // get list of APP_CONTROLLED_RESOURCES

@@ -47,11 +47,6 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[GetDeleteJobResult]
 
-  // TODO: 1
-  def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[WorkspaceDescription]]
-
   def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources]

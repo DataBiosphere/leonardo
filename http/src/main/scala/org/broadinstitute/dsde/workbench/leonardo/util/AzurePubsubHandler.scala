@@ -976,7 +976,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
           .map(_ => none[PollStorageContainerParams])
       } { storageContainerResourceRecord =>
-        val deleteJobControl = getDeleteControlledResourceRequest
+        val deleteJobControl = getDeleteControlledResourceRequest()
         F
           .delay(
             wsmApi.deleteAzureStorageContainer(deleteJobControl,
@@ -1026,7 +1026,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .map(_ => none[PollDeleteDiskParams])
       } { wsmDiskRecord =>
         for {
-          deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
+          deleteJobControl <- F.delay(getDeleteControlledResourceRequest())
           _ <- F.delay(
             wsmApi.deleteAzureDisk(deleteJobControl, msg.workspaceId.value, wsmDiskRecord.resourceId.value)
           )
@@ -1055,7 +1055,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .map(_ => none[PollVmParams])
       } { resourceId =>
         for {
-          deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
+          deleteJobControl <- F.delay(getDeleteControlledResourceRequest())
           _ <- F.delay(wsmApi.deleteAzureVm(deleteJobControl, msg.workspaceId.value, resourceId.value))
         } yield Some(
           PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime, msg.diskIdToDelete)
@@ -1282,7 +1282,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   private def deleteDiskInWSM(diskId: DiskId,
                               wsmResourceId: WsmControlledResourceId,
                               workspaceId: WorkspaceId,
-                              auth: Authorization,
                               runtimeId: Option[Long]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -1291,17 +1290,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       jobId = getWsmJobId("delete-disk", wsmResourceId)
 
       _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${wsmResourceId.value}")
-      _ <- wsmDao
-        .deleteDisk(
-          DeleteWsmResourceRequest(
-            workspaceId,
-            wsmResourceId,
-            WsmDaoDeleteControlledAzureResourceRequest(
-              WsmJobControl(jobId)
-            )
-          ),
-          auth
-        )
+      wsmControlledResourceClient <- buildWsmControlledResourceApiClient
+      deleteDiskBody = getDeleteControlledResourceRequest(jobId.value)
+      _ <- F
+        .delay(wsmControlledResourceClient.deleteAzureDisk(deleteDiskBody, workspaceId.value, wsmResourceId.value))
         .void
         .adaptError(e =>
           AzureDiskDeletionError(
@@ -1312,10 +1304,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         )
 
-      getDeleteJobResult = wsmDao.getDeleteDiskJobResult(
-        GetJobResultRequest(workspaceId, jobId),
-        auth
-      )
+      getDeleteJobResult = F.delay(wsmControlledResourceClient.getDeleteAzureDiskResult(workspaceId.value, jobId.value))
 
       // We need to wait until WSM deletion job to be done to update the database
       taskToRun = for {
@@ -1325,8 +1314,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.deleteDiskPollConfig.interval
         ).compile.lastOrError
 
-        _ <- resp.jobReport.status match {
-          case WsmJobStatus.Succeeded =>
+        _ <- resp.getJobReport.getStatus match {
+          case JobReport.StatusEnum.SUCCEEDED =>
             for {
               _ <- logger.info(ctx.loggingCtx)(s"disk ${diskId.value} is deleted successfully")
               _ <- runtimeId match {
@@ -1334,16 +1323,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 case _               => dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now)).void
               }
             } yield ()
-          case WsmJobStatus.Failed =>
+          case JobReport.StatusEnum.FAILED =>
             F.raiseError[Unit](
               AzureDiskDeletionError(
                 diskId,
                 wsmResourceId,
                 workspaceId,
-                s"WSM deleteDisk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                s"WSM deleteDisk job failed due to ${resp.getErrorReport.getMessage}"
               )
             )
-          case WsmJobStatus.Running =>
+          case JobReport.StatusEnum.RUNNING =>
             F.raiseError[Unit](
               AzureDiskDeletionError(
                 diskId,
@@ -1409,12 +1398,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       wsmControlledResourceClient <- wsmClientProvider.getControlledAzureResourceApi(token)
     } yield wsmControlledResourceClient
 
-  private def getDeleteControlledResourceRequest: bio.terra.workspace.model.DeleteControlledAzureResourceRequest = {
-    val deleteStorageContainerJobId = WsmJobId(UUID.randomUUID().toString)
+  private def getDeleteControlledResourceRequest(
+    jobId: String = UUID.randomUUID().toString
+  ): bio.terra.workspace.model.DeleteControlledAzureResourceRequest = {
     val jobControl = new JobControl()
-      .id(deleteStorageContainerJobId.value)
+      .id(jobId)
     val deleteControlledResource = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest()
       .jobControl(jobControl)
+
     deleteControlledResource
   }
 }
