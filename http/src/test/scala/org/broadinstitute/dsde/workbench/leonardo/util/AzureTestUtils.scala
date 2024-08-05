@@ -17,10 +17,9 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine}
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureVmService
-import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDaoDeleteControlledAzureResourceRequest}
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util2.InstanceName
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
 

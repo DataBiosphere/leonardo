@@ -14,8 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceServic
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
@@ -74,22 +73,7 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     IO.pure(workspaceApi)
   }
 
-  val gcpWsmDao = new MockWsmDAO {
-    override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-      ev: Ask[IO, AppContext]
-    ): IO[Option[WorkspaceDescription]] =
-      IO.pure(
-        Some(
-          WorkspaceDescription(
-            workspaceId,
-            "someWorkspaceName" + workspaceId,
-            "9f3434cb-8f18-4595-95a9-d9b1ec9731d4",
-            None,
-            Some(GoogleProject(workspaceId.toString))
-          )
-        )
-      )
-  }
+  val gcpWsmDao = new MockWsmDAO
 
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
   val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), authProvider = allowListAuthProvider2)
