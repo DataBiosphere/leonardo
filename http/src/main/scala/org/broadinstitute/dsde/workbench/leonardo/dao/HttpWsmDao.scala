@@ -40,24 +40,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
 
-  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[WorkspaceDescription]] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOptionOr[WorkspaceDescription](
-        Request[F](
-          method = Method.GET,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(s"/api/workspaces/v1/${workspaceId.value.toString}")
-            ),
-          headers = headers(authorization, ctx.traceId, false)
-        )
-      )(onError)
-    } yield res
-
   override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources] =
