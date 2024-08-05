@@ -46,7 +46,6 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.ChartVersion
 import org.http4s.AuthScheme
-import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
@@ -1186,7 +1185,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               // if there is a disk record, the disk finished creating, so it must be deleted in WSM
               case Some(diskRecord) =>
                 for {
-                  _ <- deleteDiskInWSM(diskId, diskRecord.resourceId, e.workspaceId, auth, Some(e.runtimeId))
+                  _ <- deleteDiskInWSM(diskId, diskRecord.resourceId, e.workspaceId, Some(e.runtimeId))
                 } yield ()
               case _ =>
                 for {
@@ -1366,7 +1365,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       _ <- msg.wsmResourceId match {
         case Some(wsmResourceId) =>
-          deleteDiskInWSM(msg.diskId, wsmResourceId, msg.workspaceId, auth, None)
+          deleteDiskInWSM(msg.diskId, wsmResourceId, msg.workspaceId, None)
         case None =>
           for {
             _ <- logger.info(s"No WSM resource found for Azure disk ${msg.diskId}, skipping deletion in WSM")
