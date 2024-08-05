@@ -17,7 +17,8 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine}
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureVmService
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmClientProvider, WsmApiClientProvider}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatestplus.mockito.MockitoSugar
@@ -26,6 +27,9 @@ import reactor.core.publisher.Mono
 import java.util.UUID
 
 object AzureTestUtils extends MockitoSugar {
+  implicit val appContext: Ask[IO, AppContext] = AppContext
+    .lift[IO](None, "")
+    .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   def setUpMockWsmApiClientProvider(
     diskJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED,
@@ -36,6 +40,12 @@ object AzureTestUtils extends MockitoSugar {
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
     val disksByJob = mutable.Map.empty[String, CreateControlledAzureDiskRequestV2Body]
+
+    when {
+      wsm.getWorkspace(any, any, any)
+    } thenReturn {
+      new MockWsmClientProvider().getWorkspace("token", WorkspaceId(UUID.randomUUID()))
+    }
 
     // Create disk
     when {
