@@ -93,7 +93,7 @@ jobs:
       - name: Extract branch
         id: extract-branch
         run: |
-          if [[ '${{ github.event_name }}' == 'push' ]]; then
+          if [[ '${{ github.event_name }}' == 'push' || '${{ github.event_name }}' == 'workflow_run' ]]; then
             BRANCH_NAME=${{ github.ref_name }}
           elif [[ '${{ github.event_name }}' == 'pull_request' ]]; then
             BRANCH_NAME=${{ github.head_ref }}

@@ -254,7 +254,8 @@ object Config {
       toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
       config.getInt("tokenCacheMaxSize"),
       toScalaDuration(config.getDuration("internalIdCacheExpiryTime")),
-      config.getInt("internalIdCacheMaxSize")
+      config.getInt("internalIdCacheMaxSize"),
+      config.getBoolean("isProxyCookiePartitioned")
     )
   }
 
