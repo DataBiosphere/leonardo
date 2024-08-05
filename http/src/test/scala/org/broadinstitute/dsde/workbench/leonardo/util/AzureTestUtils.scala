@@ -42,12 +42,11 @@ object AzureTestUtils extends MockitoSugar {
     val resourceApi = mock[ResourceApi]
     val disksByJob = mutable.Map.empty[String, CreateControlledAzureDiskRequestV2Body]
 
-    val workspaceIdCaptor =
-      ArgumentCaptor.forClass(classOf[WorkspaceId])
     when {
-      wsm.getWorkspace(any, workspaceIdCaptor.capture(), any)
-    } thenReturn {
-      new MockWsmClientProvider().getWorkspace("token", workspaceIdCaptor.getValue.asInstanceOf[WorkspaceId])
+      wsm.getWorkspace(any, any, any)
+    } thenAnswer { invocation =>
+      val workspaceId = invocation.getArgument[WorkspaceId](1)
+      new MockWsmClientProvider().getWorkspace("token", workspaceId)
     }
 
     // Create disk
