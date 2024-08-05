@@ -1067,10 +1067,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
     val namespacesByJob = mutable.Map.empty[String, CreateControlledAzureKubernetesNamespaceRequestBody]
 
+    val workspaceIdCaptor =
+      ArgumentCaptor.forClass(classOf[WorkspaceId])
     when {
-      wsm.getWorkspace(any, any, any)
+      wsm.getWorkspace(any, workspaceIdCaptor.capture(), any)
     } thenReturn {
-      new MockWsmClientProvider().getWorkspace("string", WorkspaceId(UUID.randomUUID()))
+      new MockWsmClientProvider().getWorkspace("string", workspaceIdCaptor.getValue.asInstanceOf[WorkspaceId])
     }
     // Create managed identity
     when {

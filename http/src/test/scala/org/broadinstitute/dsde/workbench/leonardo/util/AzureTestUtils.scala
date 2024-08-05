@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmClientProvider, WsmApiClientProvider}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.mockito.ArgumentCaptor
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
 
@@ -41,10 +42,12 @@ object AzureTestUtils extends MockitoSugar {
     val resourceApi = mock[ResourceApi]
     val disksByJob = mutable.Map.empty[String, CreateControlledAzureDiskRequestV2Body]
 
+    val workspaceIdCaptor =
+      ArgumentCaptor.forClass(classOf[WorkspaceId])
     when {
-      wsm.getWorkspace(any, any, any)
+      wsm.getWorkspace(any, workspaceIdCaptor.capture(), any)
     } thenReturn {
-      new MockWsmClientProvider().getWorkspace("token", WorkspaceId(UUID.randomUUID()))
+      new MockWsmClientProvider().getWorkspace("token", workspaceIdCaptor.getValue.asInstanceOf[WorkspaceId])
     }
 
     // Create disk

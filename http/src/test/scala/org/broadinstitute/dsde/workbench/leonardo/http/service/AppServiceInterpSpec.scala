@@ -39,7 +39,7 @@ import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.http4s.headers.Authorization
-import org.mockito.ArgumentMatchers
+import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
@@ -48,7 +48,9 @@ import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
+
 import java.time.Instant
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
@@ -72,10 +74,12 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   } thenReturn {
     IO.pure(workspaceApi)
   }
+  val workspaceIdCaptor =
+    ArgumentCaptor.forClass(classOf[WorkspaceId])
   when {
-    wsmClientProvider.getWorkspace(any, any, any)
+    wsmClientProvider.getWorkspace(any, workspaceIdCaptor.capture(), any)
   } thenReturn {
-    IO.pure(Some(wsmWorkspaceDesc))
+    new MockWsmClientProvider().getWorkspace("token", workspaceIdCaptor.getValue.asInstanceOf[WorkspaceId])
   }
 
   val gcpWsmDao = new MockWsmDAO
