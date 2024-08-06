@@ -108,8 +108,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
     var servicesRegistry = ServicesRegistry()
 
     servicesRegistry.register[LeoAppServiceInterp[IO]](leoKubernetesService)
-
-    // From GCP
     servicesRegistry.register[DiskService[IO]](diskService)
     servicesRegistry.register[RuntimeService[IO]](runtimeService)
 
