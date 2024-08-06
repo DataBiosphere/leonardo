@@ -27,8 +27,9 @@ services:
     env_file:
       - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
-    mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
+    mem_limit: ${MEM_LIMIT}   # hard limit in byte on memory consumption by the container
     memswap_limit: ${MEM_LIMIT}
+    shm_size: ${SHM_SIZE}
 networks:
   app_network:
     external: true

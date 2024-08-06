@@ -59,3 +59,4 @@ services:
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
     memswap_limit: ${MEM_LIMIT}
+    shm_size: ${SHM_SIZE}
