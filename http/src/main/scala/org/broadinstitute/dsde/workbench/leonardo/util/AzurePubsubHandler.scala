@@ -46,6 +46,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.ChartVersion
 import org.http4s.headers.Authorization
+import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
