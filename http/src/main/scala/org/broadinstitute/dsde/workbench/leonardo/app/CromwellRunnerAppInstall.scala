@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.app
 
+import scala.jdk.CollectionConverters._
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -7,13 +8,17 @@ import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService,
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
-import org.broadinstitute.dsde.workbench.leonardo.config.CromwellRunnerAppConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CromwellDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.config.{CromwellRunnerAppConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{BpmApiClientProvider, CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
 import org.http4s.headers.Authorization
+
+import java.util.UUID
+import scala.util.Either
 
 /**
  * Cromwell runner app type.
@@ -21,10 +26,13 @@ import org.http4s.headers.Authorization
  */
 class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
                                      drsConfig: DrsConfig,
+                                     samConfig: SamConfig,
                                      samDao: SamDAO[F],
                                      cromwellDao: CromwellDAO[F],
                                      azureBatchService: AzureBatchService[F],
-                                     azureApplicationInsightsService: AzureApplicationInsightsService[F]
+                                     azureApplicationInsightsService: AzureApplicationInsightsService[F],
+                                     bpmClient: BpmApiClientProvider[F],
+                                     authProvider: SamAuthProvider[F]
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
@@ -78,6 +86,19 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
       )
 
+      leoAuth <- authProvider.getLeoAuthToken
+
+      parsedUUID <- F.delay(Either.catchNonFatal(UUID.fromString(params.billingProfileId.value)))
+      profileAttempt <- parsedUUID.traverse { uuid =>
+        bpmClient.getProfile(leoAuth, uuid)
+      }
+
+      maybeLimits = profileAttempt.toOption.flatten.flatMap { profile =>
+        profile.getOrganization.getLimits.asScala
+          .get("concurrentjoblimit")
+          .map(v => raw"config.concurrentJobLimit=${v}")
+      }
+
       values = List(
         // azure resources configs
         raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
@@ -126,9 +147,23 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"postgres.dbnames.cromwellMetadata=${dbNames.cromwellMetadata}",
 
         // ECM configs
-        raw"ecm.baseUri=${config.ecmBaseUri}"
+        raw"ecm.baseUri=${config.ecmBaseUri}",
+
+        // Sam configs
+        raw"sam.baseUri=${samConfig.server}",
+        raw"sam.acrPullActionIdentityResourceId=${params.billingProfileId.value}",
+
+        // Bard configs
+        raw"bard.bardUrl=${config.bardBaseUri}",
+        raw"bard.enabled=${config.bardEnabled}"
       )
-    } yield Values(values.mkString(","))
+
+      finalList = maybeLimits match {
+        case Some(str) => values :+ str
+        case _         => values
+      }
+
+    } yield Values(finalList.mkString(","))
 
   override def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean] =
     cromwellDao.getStatus(baseUri, authHeader).handleError(_ => false)
@@ -142,6 +177,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
      getAzureDatabaseName(dbResources, "tes"),
      getAzureDatabaseName(dbResources, "cromwellmetadata")
     ).mapN(CromwellRunnerAppDatabaseNames)
+
 }
 
 final case class CromwellRunnerAppDatabaseNames(cromwell: String, tes: String, cromwellMetadata: String)

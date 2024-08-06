@@ -16,6 +16,8 @@ import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.{Release, Values}
 
 import java.net.URL
+import java.nio.charset.StandardCharsets
+
 private[leonardo] object BuildHelmChartValues {
   def buildGalaxyChartOverrideValuesString(config: GKEInterpreterConfig,
                                            appName: AppName,
@@ -300,7 +302,8 @@ private[leonardo] object BuildHelmChartValues {
                                                userEmail: WorkbenchEmail,
                                                stagingBucket: GcsBucketName,
                                                customEnvironmentVariables: Map[String, String],
-                                               autopilot: Option[Autopilot]
+                                               autopilot: Option[Autopilot],
+                                               bucketNameToMount: Option[GcsBucketName]
   ): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/app"
     val welderIngressPath = s"/proxy/google/v1/apps/${cluster.cloudContext.asString}/${appName.value}/welder-service"
@@ -318,7 +321,8 @@ private[leonardo] object BuildHelmChartValues {
       customEnvironmentVariables,
       ingressPath,
       k8sProxyHost,
-      autopilot
+      autopilot,
+      bucketNameToMount
     )
 
     allowedChartName match {
@@ -355,7 +359,8 @@ private[leonardo] object BuildHelmChartValues {
                                                            customEnvironmentVariables: Map[String, String],
                                                            ingressPath: String,
                                                            k8sProxyHost: akka.http.scaladsl.model.Uri.Host,
-                                                           autopilot: Option[Autopilot]
+                                                           autopilot: Option[Autopilot],
+                                                           bucketNameToMount: Option[GcsBucketName]
   ): List[String] = {
     val k8sProxyHostString = k8sProxyHost.address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -376,15 +381,22 @@ private[leonardo] object BuildHelmChartValues {
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}${ingressPath}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
+      // [IA-4997] to support CHIPS by setting partitioned cookies
+      // raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned"""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly"""",
       raw"""ingress.host=${k8sProxyHostString}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHostString}"""
     )
 
+    // Support workload identity following https://cloud.google.com/kubernetes-engine/docs/how-to/workload-separation#separate-workloads-autopilot.
+    val nodeSelectorGroupValue = getNodeSelectorGroupValue(userEmail)
     val autopilotParams = autopilot match {
       case Some(v) =>
         val ls = List(
+          raw"""tolerations.enabled=true""",
+          raw"""tolerations.keyValue=${nodeSelectorGroupValue}""",
+          raw"""nodeSelector.group=${nodeSelectorGroupValue}""",
           raw"""autopilot.enabled=true""",
           raw"""autopilot.app.cpu=${v.cpuInMillicores}m""",
           raw"""autopilot.app.memory=${v.memoryInGb}Gi""",
@@ -402,6 +414,18 @@ private[leonardo] object BuildHelmChartValues {
           ls
         else raw"""nodeSelector.cloud\.google\.com/compute-class=${v.computeClass.toString}""" :: ls
       case None => List.empty
+    }
+
+    val gcsfuse = bucketNameToMount match {
+      case Some(bucketName) =>
+        List(
+          raw"""gcsfuse.enabled=true""",
+          raw"""gcsfuse.bucket=${bucketName.value}"""
+        )
+      case None =>
+        List(
+          raw"""gcsfuse.enabled=false"""
+        )
     }
 
     val welder = List(
@@ -435,6 +459,23 @@ private[leonardo] object BuildHelmChartValues {
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       // Service Account
       raw"""serviceAccount.name=${ksaName.value}"""
-    ) ++ ingress ++ welder ++ configs ++ nodepoolSelector ++ autopilotParams
+    ) ++ ingress ++ welder ++ configs ++ nodepoolSelector ++ autopilotParams ++ gcsfuse
+  }
+
+  // nodeSelector.group value has the following restrictions:
+  // a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
+  // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'),
+  // spec.template.spec.tolerations[0].operator: Invalid value: "xxx": a valid label must be an empty string or
+  // consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
+  // (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?')], string=
+  //
+  // Use sha256 of the user email here so that the group value will always satisfy the naming restrictions
+  private[leonardo] def getNodeSelectorGroupValue(userEmail: WorkbenchEmail): String = {
+    val hashedEmail = com.google.common.hash.Hashing
+      .sha256()
+      .hashString(userEmail.value, StandardCharsets.UTF_8)
+      .toString
+
+    s"leo_${hashedEmail}".substring(0, 60)
   }
 }

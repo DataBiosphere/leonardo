@@ -17,10 +17,10 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "3b2d0f4"
-  val serviceTestV = s"4.3-$workbenchLibsHash"
-  val workbenchModelV = s"0.19-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.30-$workbenchLibsHash"
+  private val workbenchLibsHash = "9138393"
+  val serviceTestV = s"5.0-$workbenchLibsHash"
+  val workbenchModelV = s"0.20-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.32-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.36-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
   val workbenchOauth2V = s"0.7-$workbenchLibsHash"
@@ -133,8 +133,9 @@ object Dependencies {
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val workSpaceManagerV = "0.254.1093-SNAPSHOT"
+  val workSpaceManagerV = "0.254.1127-SNAPSHOT"
   val terraCommonLibV = "0.0.94-SNAPSHOT"
+  val bpmV = "0.1.548-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
@@ -152,6 +153,7 @@ object Dependencies {
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
   def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText)
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+  val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
 
   val coreDependencies = List(
@@ -183,6 +185,7 @@ object Dependencies {
     workbenchAzureTest,
     logbackClassic,
     workspaceManager,
+    bpm,
     terraCommonLib
   )
 
@@ -223,7 +226,7 @@ object Dependencies {
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.15.3" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.17.1" % "test",
     logbackClassic % "test",
     leonardoClient,
     ssh,

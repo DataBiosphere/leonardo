@@ -21,7 +21,7 @@ case class UpdateAppLogRecord(id: UpdateAppTableId,
 
 class UpdateAppLogTable(tag: Tag) extends Table[UpdateAppLogRecord](tag, "UPDATE_APP_LOG") {
   def id = column[UpdateAppTableId]("id", O.PrimaryKey, O.AutoInc)
-  def jobId = column[UpdateAppJobId]("jobId")
+  def jobId = column[UpdateAppJobId]("jobId", O.Length(254))
   def appId = column[AppId]("appId")
   def errorId = column[Option[KubernetesErrorId]]("appErrorId")
   def status = column[UpdateAppJobStatus]("status", O.Length(254))

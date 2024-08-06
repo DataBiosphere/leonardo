@@ -115,4 +115,6 @@
     <include file="changesets/20240202_add_auto_delete_threshold_to_app_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20240202_add_autopilot_configs_to_app_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20240605_add_update_app_log_table.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20240620_add_mount_ws_bucket_to_app_table.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20240620_uuid_type.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

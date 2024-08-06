@@ -571,6 +571,14 @@ object JsonCodec {
     "blockSize"
   )(x => (x.name, x.size, x.diskType, x.blockSize))
 
+  implicit val computeClassEncoder: Encoder[ComputeClass] = Encoder.encodeString.contramap(_.toString)
+  implicit val autopilotEncoder: Encoder[Autopilot] = Encoder.forProduct4(
+    "computeClass",
+    "cpuInMillicores",
+    "memoryInGb",
+    "ephemeralStorageInGb"
+  )(x => Autopilot.unapply(x).get)
+
   // can't use Encoder.forProductX because there are 23 fields
   implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.instance { x =>
     Json.obj(
@@ -828,6 +836,10 @@ object JsonCodec {
     case n           => Right(AutodeleteThreshold.apply(n))
   }
 
-  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeUUID.map(UpdateAppJobId)
-  implicit val updateAppJobIdEncoder: Encoder[UpdateAppJobId] = Encoder.encodeUUID.contramap(_.value)
+  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeString.emap(x =>
+    Either
+      .catchNonFatal(UpdateAppJobId(UUID.fromString(x)))
+      .leftMap(_.getMessage)
+  )
+  implicit val updateAppJobIdEncoder: Encoder[UpdateAppJobId] = Encoder.encodeString.contramap(_.value.toString)
 }

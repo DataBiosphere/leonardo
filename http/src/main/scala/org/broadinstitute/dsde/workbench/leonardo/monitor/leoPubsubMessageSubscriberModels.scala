@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
   CreateNodepool
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
 
 import scala.concurrent.duration.FiniteDuration
@@ -275,7 +275,8 @@ object LeoPubsubMessage {
       AppMachineType
     ], // Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
     traceId: Option[TraceId],
-    enableIntraNodeVisibility: Boolean
+    enableIntraNodeVisibility: Boolean,
+    bucketNameToMount: Option[GcsBucketName]
   ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
@@ -543,7 +544,7 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppMessageDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct11(
+    Decoder.forProduct12(
       "project",
       "clusterNodepoolAction",
       "appId",
@@ -554,7 +555,8 @@ object LeoPubsubCodec {
       "namespaceName",
       "machineType",
       "traceId",
-      "enableIntraNodeVisibility"
+      "enableIntraNodeVisibility",
+      "bucketNameToMount"
     )(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -905,7 +907,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct12(
+    Encoder.forProduct13(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -917,7 +919,8 @@ object LeoPubsubCodec {
       "namespaceName",
       "machineType",
       "traceId",
-      "enableIntraNodeVisibility"
+      "enableIntraNodeVisibility",
+      "bucketNameToMount"
     )(x =>
       (x.messageType,
        x.project,
@@ -930,7 +933,8 @@ object LeoPubsubCodec {
        x.namespaceName,
        x.machineType,
        x.traceId,
-       x.enableIntraNodeVisibility
+       x.enableIntraNodeVisibility,
+       x.bucketNameToMount
       )
     )
 
@@ -1130,8 +1134,11 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeDeletionError(runtimeId: Long, workspaceId: WorkspaceId, errorMsg: String)
-      extends PubsubHandleMessageError {
+  final case class AzureRuntimeDeletionError(runtimeId: Long,
+                                             diskId: Option[DiskId],
+                                             workspaceId: WorkspaceId,
+                                             errorMsg: String
+  ) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false

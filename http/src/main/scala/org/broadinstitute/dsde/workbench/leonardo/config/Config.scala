@@ -137,7 +137,7 @@ object Config {
       config.as[GceCustomImage]("customGceImage"),
       config.as[DeviceName]("userDiskDeviceName"),
       config.getStringList("defaultScopes").asScala.toSet,
-      config.getAs[MemorySize]("gceReservedMemory"),
+      config.getAs[MemorySizeBytes]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults"),
       config.as[FiniteDuration]("setMetadataPollDelay"),
       config.as[Int]("setMetadataPollMaxAttempts")
@@ -192,7 +192,7 @@ object Config {
       config.getAs[String]("deployWelderLabel"),
       config.getAs[String]("updateWelderLabel"),
       config.getAs[String]("deployWelderCutoffDate"),
-      config.getAs[MemorySize]("welderReservedMemory")
+      config.getAs[MemorySizeBytes]("welderReservedMemory")
     )
   }
 
@@ -254,7 +254,8 @@ object Config {
       toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
       config.getInt("tokenCacheMaxSize"),
       toScalaDuration(config.getDuration("internalIdCacheExpiryTime")),
-      config.getInt("internalIdCacheMaxSize")
+      config.getInt("internalIdCacheMaxSize"),
+      config.getBoolean("isProxyCookiePartitioned")
     )
   }
 
@@ -419,8 +420,8 @@ object Config {
     ContainerImage.fromImageUrl(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )
   implicit private val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
-  implicit private val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
-    MemorySize(config.getBytes(path))
+  implicit private val memorySizeReader: ValueReader[MemorySizeBytes] = (config: TypeSafeConfig, path: String) =>
+    MemorySizeBytes(config.getBytes(path))
   implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
   implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
   implicit private val firewallAllowHttpsLabelKeyReader: ValueReader[FirewallAllowHttpsLabelKey] =

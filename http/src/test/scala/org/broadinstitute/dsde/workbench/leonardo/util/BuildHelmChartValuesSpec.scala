@@ -295,7 +295,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
-      None
+      None,
+      Some(GcsBucketName("fc-bucket"))
     )
 
     res.mkString(",") shouldBe
@@ -310,6 +311,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      // [IA-4997] to support CHIPS by setting partitioned cookies
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
@@ -329,7 +332,9 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
+      """gcsfuse.enabled=true,""" +
+      """gcsfuse.bucket=fc-bucket"""
   }
 
   it should "build SAS override values string" in {
@@ -348,6 +353,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
+      None,
       None
     )
 
@@ -367,6 +373,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      // [IA-4997] to support CHIPS by setting partitioned cookies
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
@@ -386,7 +394,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
-      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1"""
+      """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
+      """gcsfuse.enabled=false"""
   }
 
   it should "build SAS override values string in autopilot mode" in {
@@ -405,7 +414,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
-      Some(Autopilot(ComputeClass.Balanced, 500, 1, 2))
+      Some(Autopilot(ComputeClass.Balanced, 500, 1, 2)),
+      Some(GcsBucketName("fc-bucket"))
     )
 
     res.mkString(",") shouldBe
@@ -424,6 +434,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      // [IA-4997] to support CHIPS by setting partitioned cookies
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
@@ -444,13 +456,18 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
       """nodeSelector.cloud\.google\.com/compute-class=Balanced,""" +
+      """tolerations.enabled=true,""" +
+      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
+      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
       """autopilot.welder.ephemeral\-storage=1Gi,""" +
       """autopilot.wondershaper.cpu=500m,""" +
       """autopilot.wondershaper.memory=3Gi,""" +
-      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin
+      """autopilot.wondershaper.ephemeral\-storage=1Gi,""" +
+      """gcsfuse.enabled=true,""" +
+      """gcsfuse.bucket=fc-bucket""".stripMargin
   }
 
   it should "build SAS override values string in autopilot mode without compute-class when it's General-purpose" in {
@@ -469,7 +486,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       userEmail = userEmail2,
       stagingBucket = GcsBucketName("test-staging-bucket"),
       envVariables,
-      Some(Autopilot(ComputeClass.GeneralPurpose, 500, 1, 2))
+      Some(Autopilot(ComputeClass.GeneralPurpose, 500, 1, 2)),
+      Some(GcsBucketName("fc-bucket"))
     )
 
     res.mkString(",") shouldBe
@@ -488,6 +506,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo/proxy/google/v1/apps/dsp-leo-test1/app1/app,""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      // [IA-4997] to support CHIPS by setting partitioned cookies
+      // """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly; Partitioned",""" +
       """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-cookie-path=/ "/; Secure; SameSite=None; HttpOnly",""" +
       """ingress.host=1455694897.jupyter.firecloud.org,""" +
       """ingress.tls[0].secretName=tls-secret,""" +
@@ -507,13 +527,18 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """extraEnv[0].name=WORKSPACE_NAME,""" +
       """extraEnv[0].value=test-workspace-name,""" +
       """replicaCount=1,""" +
+      """tolerations.enabled=true,""" +
+      s"""tolerations.keyValue=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
+      s"""nodeSelector.group=${BuildHelmChartValues.getNodeSelectorGroupValue(userEmail2)},""" +
       """autopilot.enabled=true,autopilot.app.cpu=500m,""" +
       """autopilot.app.memory=1Gi,autopilot.app.ephemeral\-storage=2Gi,""" +
       """autopilot.welder.cpu=500m,autopilot.welder.memory=3Gi,""" +
       """autopilot.welder.ephemeral\-storage=1Gi,""" +
       """autopilot.wondershaper.cpu=500m,""" +
       """autopilot.wondershaper.memory=3Gi,""" +
-      """autopilot.wondershaper.ephemeral\-storage=1Gi""".stripMargin
+      """autopilot.wondershaper.ephemeral\-storage=1Gi,""" +
+      """gcsfuse.enabled=true,""" +
+      """gcsfuse.bucket=fc-bucket""".stripMargin
   }
 
   it should "build relay listener override values string" in {

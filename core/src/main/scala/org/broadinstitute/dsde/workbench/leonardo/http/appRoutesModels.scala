@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.google2.RegionName
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.ChartName
 import org.http4s.Uri
 
@@ -39,7 +40,8 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   sourceWorkspaceId: Option[WorkspaceId],
                                   autodeleteEnabled: Option[Boolean],
                                   autodeleteThreshold: Option[AutodeleteThreshold],
-                                  autopilot: Option[Autopilot]
+                                  autopilot: Option[Autopilot],
+                                  bucketNameToMount: Option[GcsBucketName]
 )
 
 final case class UpdateAppRequest(autodeleteEnabled: Option[Boolean], autodeleteThreshold: Option[AutodeleteThreshold])
@@ -50,6 +52,7 @@ final case class GetAppResponse(
   cloudContext: CloudContext,
   region: RegionName,
   kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+  autopilot: Option[Autopilot],
   errors: List[AppError],
   status: AppStatus, // TODO: do we need some sort of aggregate status?
   proxyUrls: Map[ServiceName, URL],
@@ -68,6 +71,7 @@ final case class ListAppResponse(workspaceId: Option[WorkspaceId],
                                  cloudContext: CloudContext,
                                  region: RegionName,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+                                 autopilot: Option[Autopilot],
                                  errors: List[AppError],
                                  status: AppStatus, // TODO: do we need some sort of aggregate status?
                                  proxyUrls: Map[ServiceName, URL],
@@ -97,6 +101,7 @@ object ListAppResponse {
             n.machineType,
             n.autoscalingEnabled
           ),
+          a.autopilot,
           a.errors,
           a.status,
           a.getProxyUrls(c, proxyUrlBase),
@@ -107,8 +112,8 @@ object ListAppResponse {
           a.auditInfo,
           a.appAccessScope,
           a.labels.filter(l => labelsToReturn.contains(l._1)),
-          a.autodeleteEnabled,
-          a.autodeleteThreshold
+          a.autodelete.autodeleteEnabled,
+          a.autodelete.autodeleteThreshold
         )
       }
     )
@@ -126,6 +131,7 @@ object GetAppResponse {
         appResult.nodepool.machineType,
         appResult.nodepool.autoscalingEnabled
       ),
+      appResult.app.autopilot,
       appResult.app.errors,
       appResult.app.status,
       appResult.app.getProxyUrls(appResult.cluster, proxyUrlBase),
@@ -136,7 +142,7 @@ object GetAppResponse {
       appResult.app.chart.name,
       appResult.app.appAccessScope,
       appResult.app.labels,
-      appResult.app.autodeleteEnabled,
-      appResult.app.autodeleteThreshold
+      appResult.app.autodelete.autodeleteEnabled,
+      appResult.app.autodelete.autodeleteThreshold
     )
 }

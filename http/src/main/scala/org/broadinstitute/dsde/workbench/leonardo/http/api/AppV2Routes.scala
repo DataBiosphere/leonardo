@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppV2Routes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Uri
 
@@ -177,6 +178,7 @@ object AppV2Routes {
         adte <- x.downField("autodeleteEnabled").as[Option[Boolean]]
         adtm <- x.downField("autodeleteThreshold").as[Option[AutodeleteThreshold]]
         autopilot <- x.downField("autopilot").as[Option[Autopilot]]
+        bucketNameToMount <- x.downField("bucketNameToMount").as[Option[GcsBucketName]]
 
         optStr <- x.downField("appType").as[Option[String]]
         cn <- x.downField("allowedChartName").as[Option[AllowedChartName]]
@@ -208,17 +210,20 @@ object AppV2Routes {
         swi,
         adte,
         adtm,
-        autopilot
+        autopilot,
+        bucketNameToMount
       )
     }
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
+
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct16(
+    Encoder.forProduct17(
       "workspaceId",
       "cloudContext",
       "region",
       "kubernetesRuntimeConfig",
+      "autopilot",
       "errors",
       "status",
       "proxyUrls",
@@ -236,6 +241,7 @@ object AppV2Routes {
        x.cloudContext,
        x.region,
        x.kubernetesRuntimeConfig,
+       x.autopilot,
        x.errors,
        x.status,
        x.proxyUrls,
@@ -252,12 +258,13 @@ object AppV2Routes {
     )
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct17(
+    Encoder.forProduct18(
       "workspaceId",
       "appName",
       "cloudContext",
       "region",
       "kubernetesRuntimeConfig",
+      "autopilot",
       "errors",
       "status",
       "proxyUrls",

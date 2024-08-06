@@ -89,14 +89,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
 
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
-      // We only allow autopilot mode for members of CUSTOM_APP_USERS group
-      // This is only needed while we're evaluating autopilot (6/3/2024).
-      _ <- req.autopilot.traverse { _ =>
-        authProvider.isCustomAppAllowed(userInfo.userEmail) map { res =>
-          if (res) Right(())
-          else Left("You don't have permission to create APP in autopilot mode")
-        }
-      }
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
             AppType.CromwellRunnerApp =>
@@ -299,7 +291,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           app.appResources.namespace,
           appMachineType,
           Some(ctx.traceId),
-          enableIntraNodeVisibility
+          enableIntraNodeVisibility,
+          req.bucketNameToMount
         )
         _ <- publisherQueue.offer(createAppMessage)
       } yield ()
@@ -724,8 +717,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.raiseWhen(!hasPermission)(AppNotFoundException(cloudContext, appName, ctx.traceId, "Permission Denied"))
 
       // confirm that the combination of the request and the existing DB values result in a valid configuration
-      resolvedAutodeleteEnabled = req.autodeleteEnabled.getOrElse(appResult.app.autodeleteEnabled)
-      resolvedAutodeleteThreshold = req.autodeleteThreshold.orElse(appResult.app.autodeleteThreshold)
+      resolvedAutodeleteEnabled = req.autodeleteEnabled.getOrElse(appResult.app.autodelete.autodeleteEnabled)
+      resolvedAutodeleteThreshold = req.autodeleteThreshold.orElse(appResult.app.autodelete.autodeleteThreshold)
       _ <- F.fromEither(validateAutodelete(resolvedAutodeleteEnabled, resolvedAutodeleteThreshold, ctx.traceId))
       _ <- getUpdateAppTransaction(appResult.app.id, req)
     } yield ()
@@ -1238,7 +1231,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
                 (Some(FormattedBy.Allowed), None) =>
               F.raiseError[Option[LastUsedApp]](
-                new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
+                new LeoException(s"Existing ${diskResult.disk.id} found, but no restore info found in DB",
+                                 traceId = Some(ctx.traceId)
+                )
               )
             case (Some(FormattedBy.Custom), _) =>
               F.raiseError[Option[LastUsedApp]](
@@ -1530,9 +1525,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         req.extraArgs,
         req.sourceWorkspaceId,
         numOfReplicas,
-        autodeleteEnabled,
-        req.autodeleteThreshold,
-        autopilot
+        Autodelete(autodeleteEnabled, req.autodeleteThreshold),
+        autopilot,
+        req.bucketNameToMount
       )
     )
   }

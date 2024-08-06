@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelaySer
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, _}
@@ -291,6 +292,71 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "create an azure vm properly with an action managed identity" in isolatedDbTest {
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
+            None
+          )
+        )
+    }
+    val mockSamDAO = new MockSamDAO {
+      override def getAzureActionManagedIdentity(authHeader: Authorization,
+                                                 resource: PrivateAzureStorageAccountSamResourceId,
+                                                 action: PrivateAzureStorageAccountAction
+      )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = IO(Some("awesome-identity"))
+    }
+    val azurePubsubHandler =
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO, samDAO = mockSamDAO)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       Some(disk.id),
+                                                       None
+        )
+        runtime = makeCluster(1)
+          .copy(
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          getRuntimeConfig <- RuntimeConfigQueries.getRuntimeConfig(getRuntime.runtimeConfigId).transaction
+        } yield {
+          getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
+          getRuntime.status shouldBe RuntimeStatus.Running
+          getRuntimeConfig shouldBe azureRuntimeConfig.copy(region = Some(RegionName("southcentralus")))
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- azurePubsubHandler.createAndPollRuntime(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+      } yield {
+        controlledResources.length shouldBe 2
+        val resourceTypes = controlledResources.map(_.resourceType)
+        resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
+        resourceTypes.contains(WsmResourceType.AzureStorageContainer) shouldBe true
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "handle azure vm creation failure properly" in isolatedDbTest {
     val vmReturn = mock[VirtualMachine]
     val ipReturn: PublicIpAddress = mock[PublicIpAddress]
@@ -334,11 +400,10 @@ class AzurePubsubHandlerSpec
 
         assertions = for {
           runtimeStatus <- clusterQuery.getClusterStatus(runtime.id).transaction
-          diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
-          diskStatus <- diskIdOpt.flatTraverse(id => persistentDiskQuery.getStatus(id).transaction)
+          diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
         } yield {
           runtimeStatus shouldBe Some(RuntimeStatus.Error)
-          diskStatus shouldBe (Some(DiskStatus.Deleted))
+          diskStatus shouldBe Some(DiskStatus.Deleted)
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
@@ -673,10 +738,13 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+          getDisk = getDiskOpt.get
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.length shouldBe 1
           error.map(_.errorMessage).head should include(exceptionMsg)
+          getDisk.status shouldBe DiskStatus.Deleted
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId2, false, None, "WorkspaceName", billingProfileId)
@@ -718,10 +786,13 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+          getDisk = getDiskOpt.get
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.length shouldBe 1
           error.map(_.errorMessage).head should include(exceptionMsg)
+          getDisk.status shouldBe DiskStatus.Deleted
         }
 
         msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, false, None, "WorkspaceName", billingProfileId)
@@ -864,9 +935,12 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+          getDisk = getDiskOpt.get
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.map(_.errorMessage).head should include("WSM delete VM job failed due")
+          getDisk.status shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -919,9 +993,12 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+          getDisk = getDiskOpt.get
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           error.map(_.errorMessage).head should include(exceptionMsg)
+          getDisk.status shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -1031,10 +1108,13 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+          getDisk = getDiskOpt.get
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           getRuntime.auditInfo.destroyedDate shouldBe None
           error.map(_.errorMessage).head should include(exceptionMsg)
+          getDisk.status shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -1091,10 +1171,13 @@ class AzurePubsubHandlerSpec
           getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
           getRuntime = getRuntimeOpt.get
           error <- clusterErrorQuery.get(runtime.id).transaction
+          getDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+          getDisk = getDiskOpt.get
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Error
           getRuntime.auditInfo.destroyedDate shouldBe None
           error.map(_.errorMessage).head should include(exceptionMsg)
+          getDisk.status shouldBe DiskStatus.Error
         }
 
         msg = DeleteAzureRuntimeMessage(runtime.id,
@@ -1658,7 +1741,8 @@ class AzurePubsubHandlerSpec
                              welderDao: WelderDAO[IO] = new MockWelderDAO(),
                              azureVmService: AzureVmService[IO] = FakeAzureVmService,
                              aksAlg: AKSAlgebra[IO] = new MockAKSInterp,
-                             wsmClient: WsmApiClientProvider[IO] = mockWsm
+                             wsmClient: WsmApiClientProvider[IO] = mockWsm,
+                             samDAO: SamDAO[IO] = new MockSamDAO()
   ): AzurePubsubHandlerAlgebra[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
@@ -1673,7 +1757,7 @@ class AzurePubsubHandlerSpec
       contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
-      new MockSamDAO(),
+      samDAO,
       welderDao,
       new MockJupyterDAO(),
       relayService,

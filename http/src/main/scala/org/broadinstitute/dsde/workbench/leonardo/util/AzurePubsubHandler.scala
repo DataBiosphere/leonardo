@@ -10,6 +10,7 @@ import bio.terra.workspace.model.{
   AzureVmCustomScriptExtension,
   AzureVmCustomScriptExtensionSetting,
   AzureVmUser,
+  AzureVmUserAssignedIdentities,
   CloningInstructionsEnum,
   ControlledResourceCommonFields,
   CreateControlledAzureDiskRequestV2Body,
@@ -29,6 +30,7 @@ import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, Vir
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -47,10 +49,10 @@ import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
-import scala.jdk.CollectionConverters._
 import java.time.{Duration, Instant}
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters._
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
@@ -143,6 +145,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         CreateAzureDiskParams(msg.workspaceId, runtime, msg.useExistingDisk, azureConfig)
       )
 
+      // Get optional action managed identity from Sam for the private_azure_storage_account/read action.
+      // Identities must be passed to WSM for application-managed resources.
+      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
+      actionIdentityOpt <- tokenOpt.flatTraverse { token =>
+        samDAO.getAzureActionManagedIdentity(
+          org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token)),
+          PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
+          PrivateAzureStorageAccountAction.Read
+        )
+      }
+
       // all other resources (hybrid connection, storage container, vm)
       // are created within the async task
       _ <- monitorCreateRuntime(
@@ -156,7 +169,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.image,
           workspaceStorageContainer,
           msg.workspaceName,
-          cloudContext
+          cloudContext,
+          List(actionIdentityOpt).flatten
         )
       )
     } yield ()
@@ -229,6 +243,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                                  config.runtimeDefaults.vmCredential.password
     )
 
+    val userAssignedIdentities = new AzureVmUserAssignedIdentities()
+    userAssignedIdentities.addAll(params.userAssignedIdentities.asJava)
+
     val creationParams = new AzureVmCreationParameters()
       .customScriptExtension(customScriptExtension)
       .diskId(params.createDiskResult.resourceId.value)
@@ -240,6 +257,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .name(config.runtimeDefaults.vmCredential.username)
           .password(vmPassword)
       )
+      .userAssignedIdentities(userAssignedIdentities)
 
     new CreateControlledAzureVmRequestBody()
       .azureVm(creationParams)
@@ -658,6 +676,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             _ <- F.raiseError[Unit](
               AzureRuntimeDeletionError(
                 params.runtime.id,
+                params.diskId,
                 params.workspaceId,
                 s"Wsm deleteDisk job failed due to ${resp.getErrorReport.getMessage}, disk resource id ${params.wsmResourceId}"
               )
@@ -669,6 +688,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           ) >> F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
+              params.diskId,
               params.workspaceId,
               s"Wsm deleteDisk was not completed within ${config.deleteDiskPollConfig.maxAttempts} attempts with ${config.deleteDiskPollConfig.interval} delay, disk resource id ${params.wsmResourceId}"
             )
@@ -705,6 +725,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           logger.error(s"Wsm deleteVm job failed due to ${resp.getErrorReport.getMessage}") >> F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
+              params.diskId,
               params.workspaceId,
               s"WSM delete VM job failed due to ${resp.getErrorReport.getMessage}"
             )
@@ -713,6 +734,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
+              params.diskId,
               params.workspaceId,
               s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
             )
@@ -753,6 +775,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .raiseError[Unit](
               AzureRuntimeDeletionError(
                 params.runtime.id,
+                params.diskId,
                 params.workspaceId,
                 s"WSM storage container delete job failed due to ${resp.getErrorReport.getMessage} for runtime ${params.runtime.id}"
               )
@@ -761,6 +784,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           F.raiseError[Unit](
             AzureRuntimeDeletionError(
               params.runtime.id,
+              params.diskId,
               params.workspaceId,
               s"WSM delete storage container job was not completed within ${config.deleteStorageContainerPollConfig.maxAttempts} attempts with ${config.deleteStorageContainerPollConfig.interval} delay"
             )
@@ -958,7 +982,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             )
           )
           .map(_ =>
-            Some(PollStorageContainerParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime))
+            Some(
+              PollStorageContainerParams(msg.workspaceId,
+                                         WsmJobId(deleteJobControl.getJobControl.getId),
+                                         runtime,
+                                         msg.diskIdToDelete
+              )
+            )
           )
       }
 
@@ -1024,7 +1054,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         for {
           deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
           _ <- F.delay(wsmApi.deleteAzureVm(deleteJobControl, msg.workspaceId.value, resourceId.value))
-        } yield Some(PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime))
+        } yield Some(
+          PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime, msg.diskIdToDelete)
+        )
       }
 
       // Delete and poll on all associated resources in WSM, and then mark the runtime as deleted
@@ -1076,6 +1108,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           Some { e =>
             handleAzureRuntimeDeletionError(
               AzureRuntimeDeletionError(msg.runtimeId,
+                                        msg.diskIdToDelete,
                                         msg.workspaceId,
                                         s"Fail to delete runtime due to ${e.getMessage}"
               )
@@ -1097,6 +1130,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, ctx.now, traceId = Some(ctx.traceId)))
       .transaction
     _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, ctx.now).transaction
+    _ <- e.diskId match {
+      case Some(diskId) => persistentDiskQuery.updateStatus(diskId, DiskStatus.Error, ctx.now).transaction
+      case None         => F.unit
+    }
   } yield ()
 
   def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit

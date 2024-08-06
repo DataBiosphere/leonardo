@@ -45,7 +45,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Uri.unsafeFromString("https://sam.test.org:443"),
           Uri.unsafeFromString("https://localhost:8000"),
           "terradevacrpublic.azurecr.io/welder-server",
-          "6648f5c",
+          "51ef0f4",
           PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           PollMonitorConfig(1 seconds, 10, 1 seconds),
@@ -73,9 +73,11 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/f54556501b9ec88c970b140887df850379e47b39/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/8390d25ccd761fb206cf388560a571be77a42bbd/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
+            // [IA-4997] to support CHIPS by setting partitioned cookies
+            // "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:474f157",
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:76d982c",
             VMCredential(username = "username", password = "password")
           ),
@@ -83,10 +85,11 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           PollMonitorConfig(1 seconds, 10, 1 seconds)
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
+        BpmConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         CoaAppConfig(
           ChartName("cromwell-helm/cromwell-on-azure"),
-          ChartVersion("0.2.506"),
+          ChartVersion("0.2.523"),
           ReleaseNameSuffix("coa-rls"),
           NamespaceNameSuffix("coa-ns"),
           KsaName("coa-ksa"),
@@ -148,7 +151,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.150.0"),
+          ChartVersion("0.168.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -161,11 +164,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           instrumentationEnabled = false,
           enabled = true,
           chartVersionsToExcludeFromUpdates = List.empty,
-          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org")
+          ecmBaseUri = new URL("https://externalcreds.dsde-dev.broadinstitute.org"),
+          bardBaseUri = new URL("https://terra-bard-dev.appspot.com"),
+          bardEnabled = false
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.233.0"),
+          ChartVersion("0.253.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -186,7 +191,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("terra-helm/wds"),
-          ChartVersion("0.85.0"),
+          ChartVersion("0.92.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
