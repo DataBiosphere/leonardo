@@ -136,8 +136,7 @@ class HttpRoutes(
               pathPrefix("api") {
                 runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
                   diskRoutes.get.routes ~ diskV2Routes.routes ~
-                  appRoutes.get.routes ~ appV2Routes.routes ~
-                  adminRoutes.routes
+                  appRoutes.get.routes ~ appV2Routes.routes ~ adminRoutes.routes
               }
           )
       }
