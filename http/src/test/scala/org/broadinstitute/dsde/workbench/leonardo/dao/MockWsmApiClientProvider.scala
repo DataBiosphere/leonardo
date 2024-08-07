@@ -21,12 +21,12 @@ class MockWsmClientProvider(controlledAzureResourceApi: ControlledAzureResourceA
     Some(
       WorkspaceDescription(
         workspaceId,
-        "workspaceName" + workspaceId,
+        "workspaceName" + workspaceId.value.toString,
         "spend-profile",
         Some(
-          AzureCloudContext(TenantId(workspaceId.toString),
-                            SubscriptionId(workspaceId.toString),
-                            ManagedResourceGroupName(workspaceId.toString)
+          AzureCloudContext(TenantId(workspaceId.value.toString),
+                            SubscriptionId(workspaceId.value.toString),
+                            ManagedResourceGroupName(workspaceId.value.toString)
           )
         ),
         None
