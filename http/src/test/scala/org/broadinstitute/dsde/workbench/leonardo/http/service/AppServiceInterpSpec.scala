@@ -73,12 +73,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   } thenReturn {
     IO.pure(workspaceApi)
   }
-  when {
-    wsmClientProvider.getWorkspace(any, any, any)
-  } thenAnswer { invocation =>
-    val workspaceId = invocation.getArgument[WorkspaceId](1)
-    new MockWsmClientProvider().getWorkspace("token", workspaceId)
-  }
 
   val gcpWsmDao = new MockWsmDAO
 
