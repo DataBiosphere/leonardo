@@ -90,6 +90,7 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
         baselineDependencies.wsmClientProvider
       )
 
+    // Needed for v1 APIs
     val diskService = new DiskServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
