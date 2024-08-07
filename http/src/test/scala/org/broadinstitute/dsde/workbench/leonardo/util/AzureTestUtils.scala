@@ -2,9 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import scala.collection.mutable
 import cats.effect.IO
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{doAnswer, doReturn, when}
 import org.mockito.ArgumentMatchers.any
-import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi}
+import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.model.{
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
@@ -36,18 +36,18 @@ object AzureTestUtils extends MockitoSugar {
     diskJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED,
     vmJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED,
     storageContainerJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED
-  ): (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi) = {
+  ): (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
     val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
+    val workspaceApi = mock[WorkspaceApi]
     val resourceApi = mock[ResourceApi]
     val disksByJob = mutable.Map.empty[String, CreateControlledAzureDiskRequestV2Body]
 
-    when {
-      wsm.getWorkspace(any, any, any)
-    } thenAnswer { invocation =>
-      val workspaceId = invocation.getArgument[WorkspaceId](1)
-      new MockWsmClientProvider().getWorkspace("token", workspaceId)
-    }
+//    doAnswer { invocation =>
+//      val workspaceId = invocation.getArgument[WorkspaceId](1)
+//      val token = invocation.getArgument[String](0)
+//      new MockWsmClientProvider().getWorkspace(token, workspaceId)
+//    } when wsm.getWorkspace(any, any)
 
     // Create disk
     when {
@@ -159,7 +159,12 @@ object AzureTestUtils extends MockitoSugar {
     when {
       wsm.getResourceApi(any)(any)
     } thenReturn IO.pure(resourceApi)
-    (wsm, api, resourceApi)
+
+    when {
+      wsm.getWorkspaceApi(any)(any)
+    } thenReturn IO.pure(workspaceApi)
+
+    (wsm, api, resourceApi, workspaceApi)
   }
 
   def setupFakeAzureVmService(startVm: Boolean = true,

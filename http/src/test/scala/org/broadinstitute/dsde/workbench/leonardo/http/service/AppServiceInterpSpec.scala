@@ -50,7 +50,6 @@ import org.typelevel.log4cats.StructuredLogger
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 
 import java.time.Instant
-import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {

@@ -52,7 +52,8 @@ class AzurePubsubHandlerSpec
     with LeonardoTestSuite {
   val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
-  val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
+  val (mockWsm, mockControlledResourceApi, mockResourceApi, workspaceApi) =
+    AzureTestUtils.setUpMockWsmApiClientProvider()
 
   it should "generate an Azure VM password properly" in {
     // Test this with a short password to make sure that the while loop works properly
@@ -419,7 +420,7 @@ class AzurePubsubHandlerSpec
   }
 
   it should "handle azure disk creation failure from wsm properly" in isolatedDbTest {
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
 
     val queue = QueueFactory.asyncTaskQueue()
 
@@ -589,7 +590,7 @@ class AzurePubsubHandlerSpec
       mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(landingZoneResources)
 
-    val (mockWsm, mockControlledResourceApi, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
+    val (mockWsm, mockControlledResourceApi, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao, wsmClient = mockWsm)
 
     val res =
@@ -651,7 +652,7 @@ class AzurePubsubHandlerSpec
     when {
       mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(landingZoneResources)
-    val (mockWsm, mockControlledResourceApi, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
+    val (mockWsm, mockControlledResourceApi, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
 
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao, wsmClient = mockWsm)
 
@@ -715,7 +716,7 @@ class AzurePubsubHandlerSpec
   it should "handle storage container creation error in async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "storage container failed to create"
-    val (mockWsm, _, _) =
+    val (mockWsm, _, _, _) =
       AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
 
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
@@ -905,7 +906,7 @@ class AzurePubsubHandlerSpec
 
   it should "handle error in delete azure vm async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
@@ -963,7 +964,7 @@ class AzurePubsubHandlerSpec
   it should "fail if WSM delete VM job doesn't complete in time" in isolatedDbTest {
     val exceptionMsg = "WSM delete VM job was not completed within"
     val queue = QueueFactory.asyncTaskQueue()
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.RUNNING)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.RUNNING)
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
@@ -1019,7 +1020,7 @@ class AzurePubsubHandlerSpec
 
   it should "update state correctly if WSM deleteDisk job fails during runtime deletion" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
@@ -1078,7 +1079,7 @@ class AzurePubsubHandlerSpec
   it should "update runtime correctly when wsm deleteDisk call errors on runtime deletion" in isolatedDbTest {
     val exceptionMsg = "Wsm deleteDisk job failed due to"
     val queue = QueueFactory.asyncTaskQueue()
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(diskJobStatus = JobReport.StatusEnum.FAILED)
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
@@ -1137,7 +1138,7 @@ class AzurePubsubHandlerSpec
   it should "update runtime correctly when wsm deleteStorageContainer call errors on runtime deletion" in isolatedDbTest {
     val exceptionMsg = "WSM storage container delete job failed due to"
     val queue = QueueFactory.asyncTaskQueue()
-    val (mockWsm, _, _) =
+    val (mockWsm, _, _, _) =
       AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
@@ -1622,7 +1623,7 @@ class AzurePubsubHandlerSpec
 
   it should "delete azure disk properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
-    val (mockWsm, mockControlledResourceApi, _) =
+    val (mockWsm, mockControlledResourceApi, _, _) =
       AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.SUCCEEDED)
 
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
@@ -1672,7 +1673,7 @@ class AzurePubsubHandlerSpec
   it should "not send delete to WSM without a disk record" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
 
-    val (mockWsm, mockControlledResourceApi, _) =
+    val (mockWsm, mockControlledResourceApi, _, _) =
       AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.FAILED)
 
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
