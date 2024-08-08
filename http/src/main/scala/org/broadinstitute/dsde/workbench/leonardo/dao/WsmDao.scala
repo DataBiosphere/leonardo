@@ -8,7 +8,7 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.RegionName
-//TODO: prune
+//TODO: IA-4175 prune
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
@@ -38,7 +38,7 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]]
 
-  // TODO: 2
+  // TODO: IA-4175 next up
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
