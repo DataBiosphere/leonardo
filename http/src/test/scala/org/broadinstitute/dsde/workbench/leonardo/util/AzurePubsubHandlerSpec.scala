@@ -524,6 +524,8 @@ class AzurePubsubHandlerSpec
   it should "delete azure vm properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val mockWsmDao = mock[WsmDao[IO]]
+    val (mockWsm, mockControlledResourceApi, _, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider()
     when {
       mockWsmDao.getLandingZoneResources(BillingProfileId(any[String]), any[Authorization])(any[Ask[IO, AppContext]])
     } thenReturn IO.pure(landingZoneResources)
