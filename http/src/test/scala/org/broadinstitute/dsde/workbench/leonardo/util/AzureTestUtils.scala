@@ -162,17 +162,7 @@ object AzureTestUtils extends MockitoSugar {
       wsmWorkspaceDesc.id(workspaceId)
     }
 
-    val wsm = new MockWsmClientProvider {
-      override def getControlledAzureResourceApi(token: String)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[ControlledAzureResourceApi] = IO.pure(api)
-
-      override def getResourceApi(token: String)(implicit ev: Ask[IO, AppContext]): IO[ResourceApi] =
-        IO.pure(resourceApi)
-
-      override def getWorkspaceApi(token: String)(implicit ev: Ask[IO, AppContext]): IO[WorkspaceApi] =
-        IO.pure(workspaceApi)
-
+    val wsm = new MockWsmClientProvider(api, resourceApi, workspaceApi) {
       override def getWorkspace(token: String, workspaceId: WorkspaceId, iamRole: IamRole)(implicit
         ev: Ask[IO, AppContext]
       ): IO[Option[WorkspaceDescription]] = {
