@@ -165,13 +165,13 @@ END
 
         if [ "$NEED_MIGRATE" == "true" ] ; then
           docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
-
-          log 'Copy Jupyter frontend notebook config...'
-          $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
-          JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
-          retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
-          docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
         fi
+
+        log 'Copy Jupyter frontend notebook config...'
+        $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
+        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
+        docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
     fi
 
     if [ "$UPDATE_WELDER" == "true" ] ; then
@@ -228,13 +228,14 @@ else
           ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
           ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
           ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d
-
-          log 'Copy Jupyter frontend notebook config...'
-          $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
-          JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
-          retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
-          docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
         fi
+
+        log 'Copy Jupyter frontend notebook config...'
+        $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
+        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
+        docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+
         # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
         # A better to do this might be to take welder host as an argument to the script
         docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
