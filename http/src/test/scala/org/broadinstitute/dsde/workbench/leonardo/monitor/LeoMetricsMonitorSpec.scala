@@ -772,7 +772,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       podList.getItems
     } thenReturn List(pod).asJava
     when {
-      client.listNamespacedPod(any, any, any, any, any, any, any, any, any, any, any, any)
+      client.listNamespacedPod(any).execute()
     } thenReturn podList
     when {
       kube.createAzureClient(any, any[String].asInstanceOf[AKSClusterName])(any)

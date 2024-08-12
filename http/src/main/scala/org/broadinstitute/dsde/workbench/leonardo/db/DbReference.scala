@@ -3,12 +3,13 @@ package db
 
 import _root_.liquibase.database.jvm.JdbcConnection
 import _root_.liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
-import _root_.liquibase.{Contexts, LabelExpression, Liquibase}
+import _root_.liquibase.Liquibase
 import cats.effect.std.Semaphore
 import cats.effect.{Async, Resource}
 import cats.syntax.all._
 import com.google.common.base.Throwables
 import com.typesafe.scalalogging.LazyLogging
+import _root_.liquibase.command.CommandScope
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.typelevel.log4cats.Logger
@@ -32,7 +33,9 @@ object DbReference extends LazyLogging {
 
       changelogParameters.foreach { case (key, value) => liquibase.setChangeLogParameter(key, value) }
 
-      liquibase.update(new Contexts(), new LabelExpression())
+      val updateCommand = new CommandScope("update").addArgumentValue("liquibase", liquibase)
+      updateCommand.execute()
+
     } catch {
       case e: SQLTimeoutException =>
         val isCertProblem = Throwables.getRootCause(e).isInstanceOf[SunCertPathBuilderException]
