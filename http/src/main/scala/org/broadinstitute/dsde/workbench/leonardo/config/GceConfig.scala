@@ -9,7 +9,7 @@ import scala.concurrent.duration.FiniteDuration
 case class GceConfig(sourceImage: GceCustomImage,
                      userDiskDeviceName: DeviceName,
                      defaultScopes: Set[String],
-                     gceReservedMemory: Option[MemorySize],
+                     gceReservedMemory: Option[MemorySizeBytes],
                      runtimeConfigDefaults: RuntimeConfig.GceConfig,
                      setMetadataPollDelay: FiniteDuration,
                      setMetadataPollMaxAttempts: Int

@@ -68,6 +68,7 @@ export START_USER_SCRIPT_URI=$(startUserScriptUri)
 export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
+export SHM_SIZE=$(shmSize)
 export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
@@ -127,6 +128,26 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+
+tee /var/variables.env << END
+JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
+JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
+NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
+GOOGLE_PROJECT=${GOOGLE_PROJECT}
+RUNTIME_NAME=${RUNTIME_NAME}
+OWNER_EMAIL=${OWNER_EMAIL}
+PET_SA_EMAIL=${PET_SA_EMAIL}
+WELDER_ENABLED=${WELDER_ENABLED}
+MEM_LIMIT=${MEM_LIMIT}
+SHM_SIZE=${SHM_SIZE}
+END
+
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+        
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
         docker restart $JUPYTER_SERVER_NAME
@@ -142,32 +163,13 @@ then
 
         if [ "$NEED_MIGRATE" == "true" ] ; then
           docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
-
-          # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
-          $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
-
-          tee /var/variables.env << END
-JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
-JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
-NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
-GOOGLE_PROJECT=${GOOGLE_PROJECT}
-RUNTIME_NAME=${RUNTIME_NAME}
-OWNER_EMAIL=${OWNER_EMAIL}
-PET_SA_EMAIL=${PET_SA_EMAIL}
-WELDER_ENABLED=${WELDER_ENABLED}
-MEM_LIMIT=${MEM_LIMIT}
-END
-
-          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-          ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
-
-          log 'Copy Jupyter frontend notebook config...'
-          $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
-          JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
-          retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
-          docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
         fi
+
+        log 'Copy Jupyter frontend notebook config...'
+        $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
+        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
+        docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
     fi
 
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
@@ -234,13 +236,14 @@ else
           ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
           ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
           ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d
-
-          log 'Copy Jupyter frontend notebook config...'
-          $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
-          JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
-          retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
-          docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
         fi
+
+        log 'Copy Jupyter frontend notebook config...'
+        $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
+        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
+        docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+
         # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
         # A better to do this might be to take welder host as an argument to the script
         docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
