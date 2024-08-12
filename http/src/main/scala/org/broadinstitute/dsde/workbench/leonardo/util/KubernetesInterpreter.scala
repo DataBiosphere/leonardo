@@ -157,7 +157,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       ctx <- ev.ask
       call =
         recoverF(
-          F.blocking(client.listNamespace().pretty("true").allowWatchBookmarks(true).watch(true).execute()),
+          F.blocking(client.listNamespace().pretty("true").allowWatchBookmarks(false).watch(false).execute()),
           whenStatusCode(409)
         )
       v1NamespaceList <- withLogging(
