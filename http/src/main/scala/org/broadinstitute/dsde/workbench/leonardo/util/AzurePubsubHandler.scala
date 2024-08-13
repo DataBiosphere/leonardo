@@ -94,6 +94,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
+      _ <- logger.info(s"[AzurePubsubHandler/createAndPollRuntime] beginning for runtime ${msg.runtimeId}")
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
@@ -124,6 +125,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .updateRegion(runtime.runtimeConfigId, Some(RegionName(landingZoneResources.region.name())))
         .transaction
 
+      _ <- logger.info(
+        s"[AzurePubsubHandler/createAndPollRuntime] getting workspace storage container from WSM for runtime ${msg.runtimeId}"
+      )
       // Get the optional storage container for the workspace
       tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
       workspaceStorageContainerOpt <- tokenOpt.flatTraverse { token =>
@@ -157,6 +161,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           PrivateAzureStorageAccountAction.Read
         )
       }
+
+      _ <- logger.info(
+        s"[AzurePubsubHandler/createAndPollRuntime] beginning to monitor runtime creation for runtime ${params.runtime.id}"
+      )
 
       // all other resources (hybrid connection, storage container, vm)
       // are created within the async task
@@ -575,6 +583,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .azureDisk(azureDisk)
             .jobControl(jobControl)
 
+          _ <- logger.info(
+            s"[AzurePubsubHandler/createAndPollRuntime] calling createAzureDiskV2 on WSM for runtime ${params.runtime.id}"
+          )
           wsmApi <- buildWsmControlledResourceApiClient
           _ <- F.delay(wsmApi.createAzureDiskV2(request, params.workspaceId.value))
 

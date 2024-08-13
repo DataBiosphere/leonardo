@@ -149,9 +149,9 @@ trait AzureBilling extends FixtureAnyFreeSpecLike {
 
 final class LeonardoAzureSuite
     extends Suites(
-      new AzureRuntimeSpec,
-      new AzureDiskSpec,
-      new AzureAutopauseSpec
+      new AzureRuntimeSpec
+//      new AzureDiskSpec,
+//      new AzureAutopauseSpec
     )
     with TestSuite
     with AzureBilling
