@@ -13,4 +13,3 @@ services:
     devices:
       - "/dev/nvidia-uvm:/dev/nvidia-uvm"
       - "/dev/nvidiactl:/dev/nvidiactl"
-    shm_size: ${SHM_SIZE}
