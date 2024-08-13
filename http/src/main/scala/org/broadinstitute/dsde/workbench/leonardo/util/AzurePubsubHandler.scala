@@ -163,7 +163,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
 
       _ <- logger.info(
-        s"[AzurePubsubHandler/createAndPollRuntime] beginning to monitor runtime creation for runtime ${params.runtime.id}"
+        s"[AzurePubsubHandler/createAndPollRuntime] beginning to monitor runtime creation for runtime ${msg.runtimeId}"
       )
 
       // all other resources (hybrid connection, storage container, vm)
