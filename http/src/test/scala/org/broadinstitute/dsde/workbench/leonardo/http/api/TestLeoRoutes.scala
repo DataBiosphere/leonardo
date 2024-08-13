@@ -191,8 +191,8 @@ trait TestLeoRoutes {
     allowListAuthProvider,
     serviceAccountProvider,
     new MockDockerDAO,
-    FakeGoogleStorageInterpreter,
-    FakeGoogleComputeService,
+    Some(FakeGoogleStorageInterpreter),
+    Some(FakeGoogleComputeService),
     QueueFactory.makePublisherQueue()
   )
 
