@@ -333,8 +333,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       workspaceDescOpt <- childSpan("getWorkspace").use { implicit ev =>
         wsmClientProvider.getWorkspace(token, workspaceId)
       }
-      workspaceDesc <- F.fromOption(workspaceDescOpt,
-                                    AppUpdateException(s"Workspace $workspaceId not found in WSM", Some(ctx.traceId))
+      workspaceDesc <- F.fromOption(
+        workspaceDescOpt,
+        AppUpdateException(s"Workspace ${workspaceId.value.toString} not found in WSM", Some(ctx.traceId))
       )
       // Query the Landing Zone service for the landing zone resources
       billingProfileId = BillingProfileId(workspaceDesc.spendProfile)
