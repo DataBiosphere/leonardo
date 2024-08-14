@@ -284,8 +284,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.authProvider,
       baselineDependencies.serviceAccountProvider,
       baselineDependencies.publisherQueue,
-      gcpDependencies.googleDiskService,
-      gcpDependencies.googleProjectDAO
+      Some(gcpDependencies.googleDiskService),
+      Some(gcpDependencies.googleProjectDAO)
     )
 
     val runtimeService = RuntimeService(
@@ -294,8 +294,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.authProvider,
       baselineDependencies.serviceAccountProvider,
       baselineDependencies.dockerDAO,
-      gcpDependencies.googleStorageService,
-      gcpDependencies.googleComputeService,
+      Some(gcpDependencies.googleStorageService),
+      Some(gcpDependencies.googleComputeService),
       baselineDependencies.publisherQueue
     )
 

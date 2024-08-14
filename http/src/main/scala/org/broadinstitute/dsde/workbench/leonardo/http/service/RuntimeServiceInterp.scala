@@ -68,8 +68,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
   authProvider: LeoAuthProvider[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   dockerDAO: DockerDAO[F],
-  googleStorageService: GoogleStorageService[F],
-  googleComputeService: GoogleComputeService[F],
+  googleStorageService: Option[GoogleStorageService[F]],
+  googleComputeService: Option[GoogleComputeService[F]],
   publisherQueue: Queue[F, LeoPubsubMessage]
 )(implicit
   F: Async[F],
@@ -369,7 +369,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
               disk <- F.fromEither(
                 diskOpt.toRight(new RuntimeException(s"Can't find ${diskId} in PERSISTENT_DISK table"))
               )
-              detachOp <- googleComputeService.detachDisk(
+              detachOp <- googleComputeService.get.detachDisk(
                 req.googleProject,
                 disk.zone,
                 InstanceName(runtime.runtimeName.asString),
@@ -765,7 +765,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
         )
 
         val res = for {
-          blob <- googleStorageService
+          blob <- googleStorageService.get
             .getBlob(
               gcsPath.bucketName,
               GcsBlobName(gcsPath.objectName.value),

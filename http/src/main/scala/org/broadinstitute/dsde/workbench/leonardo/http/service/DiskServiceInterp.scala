@@ -38,8 +38,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
                                         serviceAccountProvider: ServiceAccountProvider[F],
                                         publisherQueue: Queue[F, LeoPubsubMessage],
-                                        googleDiskService: GoogleDiskService[F],
-                                        googleProjectDAO: GoogleProjectDAO
+                                        googleDiskService: Option[GoogleDiskService[F]],
+                                        googleProjectDAO: Option[GoogleProjectDAO]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -122,10 +122,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      sourceAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(sourceGoogleProject.value)))
+      sourceAncestry <- F.fromFuture(F.delay(googleProjectDAO.get.getAncestry(sourceGoogleProject.value)))
       sourceAncestor <- immediateAncestor(sourceAncestry)
 
-      targetAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(targetGoogleProject.value)))
+      targetAncestry <- F.fromFuture(F.delay(googleProjectDAO.get.getAncestry(targetGoogleProject.value)))
       targetAncestor <- immediateAncestor(targetAncestry)
 
       _ <- F.raiseWhen(
@@ -160,7 +160,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         case _: DiskNotFoundException =>
           F.raiseError(BadRequestException("source disk does not exist", Option(ctx.traceId)))
       }
-      maybeGoogleDisk <- googleDiskService.getDisk(sourceDiskReq.googleProject, sourceDisk.zone, sourceDisk.name)
+      maybeGoogleDisk <- googleDiskService.get.getDisk(sourceDiskReq.googleProject, sourceDisk.zone, sourceDisk.name)
       googleDisk <- maybeGoogleDisk.toOptionT.getOrElseF(
         F.raiseError(
           LeoInternalServerError(s"Source disk $sourceDiskReq does not exist in google", Option(ctx.traceId))
