@@ -107,6 +107,7 @@ final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    vmImage: AzureImage,
                                    workspaceStorageContainer: StorageContainerResponse,
                                    workspaceName: String,
+                                   storageAccountUrlDomain: String,
                                    cloudContext: CloudContext.Azure,
                                    userAssignedIdentities: List[String]
 )
