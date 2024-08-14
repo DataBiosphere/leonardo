@@ -176,7 +176,7 @@ jobs:
           run-name: "${{ env.PUBLISH_CONTRACTS_RUN_NAME }}"
           workflow: .github/workflows/publish-contracts.yaml
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: emay-pact-broker-creds-gh-secrets
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
             "run-name": "${{ env.PUBLISH_CONTRACTS_RUN_NAME }}",
@@ -198,7 +198,7 @@ jobs:
           run-name: "${{ env.CAN_I_DEPLOY_RUN_NAME }}"
           workflow: .github/workflows/can-i-deploy.yaml
           repo: broadinstitute/terra-github-workflows
-          ref: refs/heads/main
+          ref: emay-pact-broker-creds-gh-secrets
           token: ${{ secrets.BROADBOT_TOKEN }} # github token for access to kick off a job in the private repo
           inputs: '{
             "run-name": "${{ env.CAN_I_DEPLOY_RUN_NAME }}",
