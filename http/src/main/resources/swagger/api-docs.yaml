@@ -4244,6 +4244,8 @@ components:
           description: region of app
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
+        autopilot:
+          $ref: '#/components/schemas/Autopilot'
         errors:
           type: array
           description: The list of errors that the app has encountered.
@@ -4297,6 +4299,8 @@ components:
           description: region of app
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
+        autopilot:
+          $ref: '#/components/schemas/Autopilot'
         errors:
           type: array
           description: The list of errors that the app has encountered.
@@ -4381,9 +4385,12 @@ components:
           description: Cloud resource name. Google project if cloud provider is GCP OR Azure's tenantId/subscriptionId/managedResourceGroupId if in Azure
 
     Autopilot:
-      description: Defines app's Autopilot configuration
+      description: Defines app's Autopilot configuration. See https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview for more info.
       type: object
       properties:
+        computeClass:
+          type: string
+          description: The compute class for the app. One of [General-purpose, Accelerator, Balanced, Performance, Scale-Out]
         cpuInMillicores:
           type: integer
           description: Number of CPUs in autopilot mode measured in millicores. For example, 500m refers to half a core of computing processing time. 2000m is 2 cores.
