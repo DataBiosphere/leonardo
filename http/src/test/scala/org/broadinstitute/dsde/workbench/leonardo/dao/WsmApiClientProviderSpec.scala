@@ -108,41 +108,6 @@ class WsmApiClientProviderSpec extends AnyFlatSpec with LeonardoTestSuite with B
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "get a workspace id1" in {
-    val workspaceApi = mock[WorkspaceApi]
-    val wsmProvider = new HttpWsmClientProvider[IO](baseWorkspaceManagerUrl = Uri.unsafeFromString("test")) {
-      override def getWorkspaceApi(token: String)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[WorkspaceApi] = IO.pure(workspaceApi)
-    }
-
-    when {
-      workspaceApi.getWorkspace(any(), any())
-    } thenAnswer { invocation =>
-      val workspaceId = invocation.getArgument[UUID](0)
-      wsmWorkspaceDesc.id(workspaceId)
-    }
-
-    val res = for {
-      workspace <- wsmProvider.getWorkspace(tokenValue, workspaceId, IamRole.WRITER)
-    } yield {
-      workspace.isDefined shouldBe true
-      workspace.map(_.spendProfile) shouldBe Some(wsmWorkspaceDesc.getSpendProfile)
-      workspace.map(_.id) shouldBe Some(workspaceId)
-      workspace.flatMap(_.azureContext) shouldBe Some(
-        AzureCloudContext(
-          TenantId(wsmWorkspaceDesc.getAzureContext.getTenantId),
-          SubscriptionId(wsmWorkspaceDesc.getAzureContext.getSubscriptionId),
-          ManagedResourceGroupName(wsmWorkspaceDesc.getAzureContext.getResourceGroupId)
-        )
-      )
-      workspace.flatMap(_.gcpContext.map(_.value)) shouldBe Some(wsmWorkspaceDesc.getGcpContext.getProjectId)
-      workspace.map(_.displayName) shouldBe Some(wsmWorkspaceDesc.getDisplayName)
-      verify(workspaceApi, times(1)).getWorkspace(mockitoEq(workspaceId.value), mockitoEq(IamRole.WRITER))
-    }
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "get a workspace" in {
     val workspaceApi = mock[WorkspaceApi]
     val wsmProvider = new HttpWsmClientProvider[IO](baseWorkspaceManagerUrl = Uri.unsafeFromString("test")) {

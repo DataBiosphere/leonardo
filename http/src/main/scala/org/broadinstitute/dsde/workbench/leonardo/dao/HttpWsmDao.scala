@@ -257,7 +257,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "disks")
 
-  // TODO: 1
+  // TODO: Next up for removal, IA-4175
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =

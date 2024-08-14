@@ -73,6 +73,10 @@ trait WsmApiClientProvider[F[_]] {
 
 class HttpWsmClientProvider[F[_]](baseWorkspaceManagerUrl: Uri)(implicit F: Async[F]) extends WsmApiClientProvider[F] {
 
+  /**
+   * This function wraps the wsm generated client getWorkspace
+   * The purpose of it is to sanitize the output into the same model our original custom DAO used to reduce the surface area of its removal
+   */
   override def getWorkspace(token: String, workspaceId: WorkspaceId, iamRole: IamRole = IamRole.READER)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]] =
