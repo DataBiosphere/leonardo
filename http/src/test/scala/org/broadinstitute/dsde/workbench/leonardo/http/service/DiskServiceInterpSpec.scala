@@ -67,8 +67,8 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       allowListAuthProvider,
       serviceAccountProvider,
       publisherQueue,
-      MockGoogleDiskService,
-      googleProjectDAO
+      Some(MockGoogleDiskService),
+      Some(googleProjectDAO)
     )
     (diskService, publisherQueue)
   }
@@ -166,13 +166,13 @@ class DiskServiceInterpTest
       allowListAuthProvider,
       serviceAccountProvider,
       publisherQueue,
-      new MockGoogleDiskService {
+      Some(new MockGoogleDiskService {
         override def getDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
           ev: Ask[IO, TraceId]
         ): IO[Option[Disk]] =
           IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build()))
-      },
-      new MockGoogleProjectDAOWithCustomAncestors(projectToFolder)
+      }),
+      Some(new MockGoogleProjectDAOWithCustomAncestors(projectToFolder))
     )
 
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -291,8 +291,8 @@ class DiskServiceInterpTest
       authProviderMock,
       serviceAccountProvider,
       publisherQueue,
-      googleDiskServiceMock,
-      new MockGoogleProjectDAO
+      Some(googleDiskServiceMock),
+      Some(new MockGoogleProjectDAO)
     )
     val userInfoCreator =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("creator"), WorkbenchEmail("creator@example.com"), 0)

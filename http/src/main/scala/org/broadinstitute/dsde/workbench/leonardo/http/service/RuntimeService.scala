@@ -71,8 +71,8 @@ object RuntimeService {
                             authProvider: LeoAuthProvider[F],
                             serviceAccountProvider: ServiceAccountProvider[F],
                             dockerDAO: DockerDAO[F],
-                            googleStorageService: GoogleStorageService[F],
-                            googleComputeService: GoogleComputeService[F],
+                            googleStorageService: Option[GoogleStorageService[F]],
+                            googleComputeService: Option[GoogleComputeService[F]],
                             publisherQueue: Queue[F, LeoPubsubMessage]
   )(implicit
     F: Async[F],
