@@ -24,7 +24,7 @@ lazy val pact4s = project.in(file("pact4s"))
   .dependsOn(http % "test->test;compile->compile")
 
 assembly / assemblyMergeStrategy := {
-  case PathList("META-INF", xs @ _*) => MergeStrategy.first
+  case PathList("META-INF", _*) => MergeStrategy.first
   case x =>
     val oldStrategy = (assemblyMergeStrategy in assembly).value
     oldStrategy(x)
