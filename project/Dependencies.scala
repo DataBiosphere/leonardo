@@ -53,6 +53,7 @@ object Dependencies {
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
+  val excludeOpenTelemetrySpringBoot = ExclusionRule("io.opentelemetry", "opentelemetry-exporter-otlp")
 
   val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.4"
 
@@ -109,6 +110,7 @@ object Dependencies {
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
     excludeGuava)
+
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
@@ -151,7 +153,7 @@ object Dependencies {
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText)
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeOpenTelemetrySpringBoot)
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
   val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
