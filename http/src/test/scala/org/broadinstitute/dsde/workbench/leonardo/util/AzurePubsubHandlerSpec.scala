@@ -11,13 +11,13 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.azure.mock.{FakeAzureRelayService, FakeAzureVmService}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureServiceBusPublisherConfig, AzureServiceBusSubscriberConfig, AzureVmService}
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, AzureRelayService, AzureVmService}
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, AzureHostingModeConfig, AzureManagedIdentityAuthConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, _}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
