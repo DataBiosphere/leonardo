@@ -17,7 +17,7 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "9138393"
+  private val workbenchLibsHash = "ad61f19"
   val serviceTestV = s"5.0-$workbenchLibsHash"
   val workbenchModelV = s"0.20-$workbenchLibsHash"
   val workbenchGoogleV = s"0.32-$workbenchLibsHash"
