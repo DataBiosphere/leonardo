@@ -30,7 +30,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   AutoDeleteAppMonitor,
   AutopauseMonitor,
   DateAccessedUpdater,
-  LeoMetricsMonitor,
   LeoPubsubMessageSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -177,7 +176,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.azureContainerService
     )
 
-    val metricsMonitor = new LeoMetricsMonitor(
+    /*val metricsMonitor = new LeoMetricsMonitor(
       ConfigReader.appConfig.metrics,
       baselineDependencies.appDAO,
       baselineDependencies.wdsDAO,
@@ -188,7 +187,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.samDAO,
       kubeAlg,
       baselineDependencies.azureContainerService
-    )
+    )*/
 
     val cromwellAppInstall = new CromwellAppInstall[IO](
       ConfigReader.appConfig.azure.coaAppConfig,
@@ -294,8 +293,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
           pubsubSubscriber.process,
           Stream.eval(baselineDependencies.subscriber.start),
           autopauseMonitorProcess,
-          autodeleteAppMonitorProcess,
-          metricsMonitor.process
+          autodeleteAppMonitorProcess
         ) ++ cloudSpecificProcessList
       case LeoExecutionModeConfig.FrontLeoOnly =>
         asyncTasks.process :: createFrontEndLeoProcesses(baselineDependencies)
@@ -305,8 +303,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
           pubsubSubscriber.process,
           Stream.eval(baselineDependencies.subscriber.start),
           autopauseMonitorProcess,
-          autodeleteAppMonitorProcess,
-          metricsMonitor.process
+          autodeleteAppMonitorProcess
         ) ++ cloudSpecificProcessList ++ createFrontEndLeoProcesses(baselineDependencies)
     }
 
