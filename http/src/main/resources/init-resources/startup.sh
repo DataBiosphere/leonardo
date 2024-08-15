@@ -259,6 +259,7 @@ else
     fi
 fi
 
+
 function failScriptIfError() {
   if [ $EXIT_CODE -ne 0 ]; then
     echo "Fail to docker-compose start container ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
