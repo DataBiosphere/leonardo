@@ -262,7 +262,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
     config shouldBe expectedConfig
   }
 
-  it should "convert AzureHostingMode strings to AzureEnvironements correctly" in {
+  it should "convert AzureHostingMode strings to AzureEnvironments correctly" in {
     val govEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureGov)
     val expectedGovEnv = AzureEnvironment.AZURE_US_GOVERNMENT
     govEnv shouldBe expectedGovEnv
