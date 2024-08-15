@@ -222,7 +222,22 @@ log 'Formatting and mounting persistent disk...'
 # Altho you some images, this cmd $(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 # can be used to find device name, this doesn't work for COS images
 USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
+
+## The PD should be the only `sd` disk that is not mounted yet
+AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
+FreesdDisks=()
+for Disk in "${AllsdDisks[@]}"; do
+    Mounts="$(lsblk -no MOUNTPOINT "${Disk}")"
+    if [ -z "$Mounts" ]; then
+        echo "Found our unmounted persistent disk!"
+        FreesdDisks="${Disk}"
+    else
+        echo "Not our persistent disk!"
+    fi
+done
+DISK_DEVICE_ID=${FreesdDisks}
+
+# DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
