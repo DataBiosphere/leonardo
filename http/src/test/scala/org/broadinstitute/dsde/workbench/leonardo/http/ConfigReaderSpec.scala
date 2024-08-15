@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import com.azure.core.management.AzureEnvironment
 import org.broadinstitute.dsde.workbench.azure.{
   AzureAppRegistrationConfig,
   AzureServiceBusPublisherConfig,
@@ -260,4 +261,15 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
 
     config shouldBe expectedConfig
   }
+
+  it should "convert AzureHostingMode strings to AzureEnvironements correctly" in {
+    val govEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureGov)
+    val expectedGovEnv = AzureEnvironment.AZURE_US_GOVERNMENT
+    govEnv shouldBe expectedGovEnv
+
+    val chinaEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureChina)
+    val expectedChinaEnv = AzureEnvironment.AZURE_CHINA
+    chinaEnv shouldBe expectedChinaEnv
+  }
+
 }
