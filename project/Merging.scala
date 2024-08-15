@@ -2,6 +2,7 @@ import sbtassembly.{MergeStrategy, PathList}
 
 object Merging {
   def customMergeStrategy(oldStrategy: (String) => MergeStrategy): (String => MergeStrategy) = {
+    case PathList("META-INF", "spring-configuration-metadata.json") => MergeStrategy.first
     // For the following error:
     // [error] Deduplicate found different file contents in the following:
     // [error]   Jar name = auto-value-1.10.1.jar, jar org = com.google.auto.value, entry target = META-INF/kotlin-stdlib.kotlin_module
