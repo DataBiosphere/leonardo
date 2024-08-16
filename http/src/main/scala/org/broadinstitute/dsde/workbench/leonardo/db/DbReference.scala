@@ -33,7 +33,9 @@ object DbReference extends LazyLogging {
 
       changelogParameters.foreach { case (key, value) => liquibase.setChangeLogParameter(key, value) }
 
-      val updateCommand = new CommandScope("update").addArgumentValue("liquibase", liquibase)
+      val updateCommand = new CommandScope("update")
+        .addArgumentValue("liquibase", liquibase)
+        .addArgumentValue("changelogFile", liquibaseConfig.changelog)
       updateCommand.execute()
 
     } catch {
