@@ -34,12 +34,6 @@ object DbReference extends LazyLogging {
 
       liquibase.update(new Contexts(), new LabelExpression())
 
-//      val updateCommand = new CommandScope("update")
-//        .addArgumentValue("changelogFile", liquibase.getChangeLogFile)
-//        .addArgumentValue("url", liquibaseConnection.getURL)
-//
-//      updateCommand.execute()
-
     } catch {
       case e: SQLTimeoutException =>
         val isCertProblem = Throwables.getRootCause(e).isInstanceOf[SunCertPathBuilderException]
