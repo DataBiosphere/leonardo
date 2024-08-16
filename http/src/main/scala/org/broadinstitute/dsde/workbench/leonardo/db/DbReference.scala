@@ -35,6 +35,8 @@ object DbReference extends LazyLogging {
 
       val updateCommand = new CommandScope("update")
         .addArgumentValue("changelogFile", liquibase.getChangeLogFile)
+        .addArgumentValue("url", liquibaseConnection.getURL)
+
       updateCommand.execute()
 
     } catch {
