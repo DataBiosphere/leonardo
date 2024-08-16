@@ -10,7 +10,6 @@ import cats.syntax.all._
 import com.google.common.base.Throwables
 import com.typesafe.scalalogging.LazyLogging
 import _root_.liquibase.command.CommandScope
-import liquibase.command.core.UpdateCommandStep
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.typelevel.log4cats.Logger
@@ -35,7 +34,7 @@ object DbReference extends LazyLogging {
       changelogParameters.foreach { case (key, value) => liquibase.setChangeLogParameter(key, value) }
 
       val updateCommand = new CommandScope("update")
-        .addArgumentValue(UpdateCommandStep.CHANGELOG_ARG.getName, liquibase.getChangeLogFile)
+        .addArgumentValue("changelogFile", liquibase.getChangeLogFile)
       updateCommand.execute()
 
     } catch {
