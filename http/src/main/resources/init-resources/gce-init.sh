@@ -221,7 +221,8 @@ log 'Formatting and mounting persistent disk...'
 # Fix this to `sdb`. We've never seen a device name that's not `sdb`,
 # Altho you some images, this cmd $(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 # can be used to find device name, this doesn't work for COS images
-USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+#USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+#DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
@@ -237,8 +238,6 @@ for Disk in "${AllsdDisks[@]}"; do
 done
 DISK_DEVICE_ID=${FreesdDisks}
 
-# DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
-
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   # It's likely that the persistent disk was previously mounted on another VM and wasn't properly unmounted
@@ -247,10 +246,10 @@ if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   # Passing -F -F to mkfs.ext4 should force the tool to ignore the state of the partition.
   # Note that there should be two instances command-line switch (-F -F) to override this check
 
-  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID} -F -F
+  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard ${DISK_DEVICE_ID} -F -F
 fi
 
-mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
@@ -595,7 +594,7 @@ fi
 # If it's GCE, we resize the PD. Dataproc doesn't have PD
 if [ -f "/var/certs/jupyter-server.crt" ]; then
   echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-  resize2fs /dev/${DISK_DEVICE_ID}
+  resize2fs ${DISK_DEVICE_ID}
 fi
 
 # Remove any unneeded cached images to save disk space.
