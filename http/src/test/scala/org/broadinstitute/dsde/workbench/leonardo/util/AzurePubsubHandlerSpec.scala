@@ -1639,10 +1639,12 @@ class AzurePubsubHandlerSpec
 
   it should "delete azure disk properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
+
     val (mockWsm, mockControlledResourceApi, _, _) =
       AzureTestUtils.setUpMockWsmApiClientProvider(storageContainerJobStatus = JobReport.StatusEnum.SUCCEEDED)
 
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
+
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
 
     val res =
@@ -1672,7 +1674,6 @@ class AzurePubsubHandlerSpec
                                                                       mockitoEq(workspaceId.value),
                                                                       mockitoEq(disk.wsmResourceId.get.value)
           )
-
           diskStatus shouldBe DiskStatus.Deleted
         }
         msg = DeleteDiskV2Message(disk.id, workspaceId, cloudContextAzure, disk.wsmResourceId, None)

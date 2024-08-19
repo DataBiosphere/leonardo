@@ -1304,12 +1304,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-
       jobId = getWsmJobId("delete-disk", wsmResourceId)
 
       _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${wsmResourceId.value}")
       wsmControlledResourceClient <- buildWsmControlledResourceApiClient
-      deleteDiskBody = getDeleteControlledResourceRequest(jobId.value)
+      deleteDiskBody = getDeleteControlledResourceRequest(jobId)
       _ <- F
         .delay(wsmControlledResourceClient.deleteAzureDisk(deleteDiskBody, workspaceId.value, wsmResourceId.value))
         .void
@@ -1321,7 +1320,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             s"${ctx.traceId.asString} | WSM call to delete disk failed due to ${e.getMessage}. Please retry delete again"
           )
         )
-
       getDeleteJobResult = F.delay(wsmControlledResourceClient.getDeleteAzureDiskResult(workspaceId.value, jobId.value))
 
       // We need to wait until WSM deletion job to be done to update the database
@@ -1417,10 +1415,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield wsmControlledResourceClient
 
   private def getDeleteControlledResourceRequest(
-    jobId: String = UUID.randomUUID().toString
+    jobId: WsmJobId = WsmJobId(UUID.randomUUID().toString)
   ): bio.terra.workspace.model.DeleteControlledAzureResourceRequest = {
     val jobControl = new JobControl()
-      .id(jobId)
+      .id(jobId.value)
     val deleteControlledResource = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest()
       .jobControl(jobControl)
 

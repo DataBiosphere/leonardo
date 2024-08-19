@@ -34,23 +34,15 @@ import java.time.ZonedDateTime
 import java.util.UUID
 
 trait WsmDao[F[_]] {
-  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]]
-
-  // TODO: IA-4175 next up
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
-
-  def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[GetDeleteJobResult]
 
   def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources]
 
+  // TODO: pt2
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]

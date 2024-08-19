@@ -252,12 +252,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield resOpt.fold(List.empty[LandingZoneResourcesByPurpose])(res => res.resources)
 
-  override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    deleteHelper(request, authorization, "disks")
-
-  // TODO: Next up for removal, IA-4175
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =
@@ -271,26 +265,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
               Uri.Path
                 .unsafeFromString(
                   s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}"
-                )
-            ),
-          headers = headers(authorization, ctx.traceId, false)
-        )
-      )(onError)
-    } yield res
-
-  override def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[GetDeleteJobResult] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[GetDeleteJobResult](
-        Request[F](
-          method = Method.GET,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks/delete-result/${request.jobId.value}"
                 )
             ),
           headers = headers(authorization, ctx.traceId, false)
