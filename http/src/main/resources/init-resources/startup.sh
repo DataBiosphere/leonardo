@@ -85,8 +85,6 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 FILE=/var/certs/jupyter-server.crt
-#USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-#DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
 FreesdDisks=()

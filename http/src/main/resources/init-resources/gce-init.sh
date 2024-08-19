@@ -218,12 +218,6 @@ mkdir -p ${DOCKER_COMPOSE_FILES_DIRECTORY}
 log 'Formatting and mounting persistent disk...'
 
 # Format and mount persistent disk
-# Fix this to `sdb`. We've never seen a device name that's not `sdb`,
-# Altho you some images, this cmd $(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-# can be used to find device name, this doesn't work for COS images
-#USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-#DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
-
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
 FreesdDisks=()
