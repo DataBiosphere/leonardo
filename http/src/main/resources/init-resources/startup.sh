@@ -85,8 +85,21 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 FILE=/var/certs/jupyter-server.crt
-USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
+#USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+#DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
+## The PD should be the only `sd` disk that is not mounted yet
+AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
+FreesdDisks=()
+for Disk in "${AllsdDisks[@]}"; do
+    Mounts="$(lsblk -no MOUNTPOINT "${Disk}")"
+    if [ -z "$Mounts" ]; then
+        echo "Found our unmounted persistent disk!"
+        FreesdDisks="${Disk}"
+    else
+        echo "Not our persistent disk!"
+    fi
+done
+DISK_DEVICE_ID=${FreesdDisks}
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
@@ -119,9 +132,9 @@ then
     JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
     export WORK_DIRECTORY='/mnt/disks/work'
 
-    fsck.ext4 -tvy /dev/${DISK_DEVICE_ID}
+    fsck.ext4 -tvy ${DISK_DEVICE_ID}
     mkdir -p /mnt/disks/work
-    mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+    mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
     chmod a+rwx /mnt/disks/work
 
     # (1/6/22) Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
@@ -405,5 +418,5 @@ fi
 # If it's GCE, we resize the PD. Dataproc doesn't have PD
 if [ -f "$FILE" ]; then
   echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-  resize2fs /dev/${DISK_DEVICE_ID}
+  resize2fs ${DISK_DEVICE_ID}
 fi
