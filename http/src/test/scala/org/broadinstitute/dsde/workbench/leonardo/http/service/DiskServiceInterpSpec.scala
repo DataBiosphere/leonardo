@@ -301,6 +301,7 @@ class DiskServiceInterpTest
 
     val googleProject = GoogleProject("project1")
     val diskName = DiskName("diskName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
     when(
       authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
                                      ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),
@@ -322,6 +323,12 @@ class DiskServiceInterpTest
                                            ArgumentMatchers.eq(userInfoCloner)
       )(any())
     ).thenReturn(IO.pure(true))
+
+    when(
+      authProviderMock.lookupWorkspaceParentForGoogleProject(ArgumentMatchers.eq(userInfoCreator),
+                                                             ArgumentMatchers.eq(googleProject)
+      )(any())
+    ).thenReturn(IO.pure(Some(workspaceId)))
 
     when(
       googleDiskServiceMock.getDisk(googleProject, ConfigReader.appConfig.persistentDisk.defaultZone, diskName)

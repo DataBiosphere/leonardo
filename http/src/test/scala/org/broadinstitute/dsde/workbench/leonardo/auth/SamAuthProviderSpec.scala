@@ -631,7 +631,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   it should "lookup the workspace parent for a google project" in {
     // positive test
     samAuthProvider.lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync() shouldBe Some(
-      WorkspaceId(mockSamDAO.workspaceId)
+      WorkspaceId(mockSam.workspaceId)
     )
 
     // negative test - no workspace id returned

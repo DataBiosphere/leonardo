@@ -102,7 +102,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
-                ) >> F.raiseError(t)
+                ) >> F.raiseError[Unit](t)
               }
             // TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
@@ -262,7 +262,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                          d.size,
                                          d.diskType,
                                          d.blockSize,
-                                         d.labels.filter(l => paramMap._3.contains(l._1))
+                                         d.labels.filter(l => paramMap._3.contains(l._1)),
+                                         d.workspaceId
               )
             )
             .toVector

@@ -315,6 +315,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
     when(mockAuthProvider.notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)).thenReturn(IO.unit)
     when(mockAuthProvider.notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)).thenReturn(IO.unit)
+    when(mockAuthProvider.lookupWorkspaceParentForGoogleProject(any, any)(any))
+      .thenReturn(IO.pure(Some(workspaceId)))
     val publisherQueue = QueueFactory.makePublisherQueue()
     val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
     val res = appService
