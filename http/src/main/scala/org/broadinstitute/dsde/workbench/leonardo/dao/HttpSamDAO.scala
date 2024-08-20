@@ -575,7 +575,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
   override def getResourceParent(authHeader: Authorization, resource: SamResourceId)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[GetResourceParentResponse]] = for {
-    _ <- metrics.incrementCounter("sam/getParentResource")
+    _ <- metrics.incrementCounter("sam/getResourceParent")
     resp <- httpClient.expectOptionOr[GetResourceParentResponse](
       Request[F](
         method = Method.GET,

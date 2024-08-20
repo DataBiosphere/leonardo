@@ -472,7 +472,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
       case Left(error) =>
         logger.warn(Map("traceId" -> traceId.asString))(
           s"Unable to populate workspace ID for google project $googleProject: $error"
-        ) >> metrics.incrementCounter(metricName, tags = Map("failed" -> "true"))
+        ) >> metrics.incrementCounter(metricName, tags = Map("succeeded" -> "false"))
     }
   } yield workspaceId.toOption
 
