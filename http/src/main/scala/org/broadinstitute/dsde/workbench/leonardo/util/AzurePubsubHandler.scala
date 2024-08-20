@@ -17,6 +17,7 @@ import bio.terra.workspace.model.{
   CreateControlledAzureResourceResult,
   CreateControlledAzureStorageContainerRequestBody,
   CreateControlledAzureVmRequestBody,
+  CreatedControlledAzureVmResult,
   DeleteControlledAzureResourceResult,
   JobControl,
   JobReport
@@ -78,10 +79,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   // implicits necessary to poll on the status of external jobs
   implicit private def isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
-  implicit private def wsmCreateVmDoneCheckable: DoneCheckable[GetCreateVmJobResult] = (v: GetCreateVmJobResult) =>
-    v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
-  implicit private def wsmDeleteDoneCheckable: DoneCheckable[GetDeleteJobResult] = (v: GetDeleteJobResult) =>
-    v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
 
   implicit private def wsmDeleteDoneControlledAzureResourceDoneCheckable
     : DoneCheckable[DeleteControlledAzureResourceResult] = (v: DeleteControlledAzureResourceResult) =>
@@ -90,6 +87,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   implicit private def wsmCreateAzureResourceResultDoneCheckable: DoneCheckable[CreateControlledAzureResourceResult] =
     (v: CreateControlledAzureResourceResult) =>
+      v.getJobReport.getStatus.equals(JobReport.StatusEnum.SUCCEEDED) || v.getJobReport.getStatus
+        .equals(JobReport.StatusEnum.FAILED)
+
+  implicit private def wsmCreateAzureVmResultDoneCheckable: DoneCheckable[CreatedControlledAzureVmResult] =
+    (v: CreatedControlledAzureVmResult) =>
       v.getJobReport.getStatus.equals(JobReport.StatusEnum.SUCCEEDED) || v.getJobReport.getStatus
         .equals(JobReport.StatusEnum.FAILED)
 
@@ -857,7 +859,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
       createVmJobId = WsmJobId(s"create-vm-${params.runtime.id.toString.take(10)}")
-      getWsmVmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, createVmJobId), auth)
+      wsmControlledResourceClient <- buildWsmControlledResourceApiClient
+      getWsmVmJobResult = F.delay(
+        wsmControlledResourceClient.getCreateAzureVmResult(params.workspaceId.value, createVmJobId.value)
+      )
 
       wsmApi <- buildWsmControlledResourceApiClient
 
@@ -895,17 +900,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.createVmPollConfig.maxAttempts,
           config.createVmPollConfig.interval
         ).compile.lastOrError
-        _ <- resp.jobReport.status match {
-          case WsmJobStatus.Failed =>
+        _ <- resp.getJobReport.getStatus match {
+          case JobReport.StatusEnum.FAILED =>
             F.raiseError[Unit](
               AzureRuntimeCreationError(
                 params.runtime.id,
                 params.workspaceId,
-                s"Wsm createVm job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}",
+                s"Wsm createVm job failed due to ${resp.getErrorReport.getMessage}",
                 params.useExistingDisk
               )
             )
-          case WsmJobStatus.Running =>
+          case JobReport.StatusEnum.RUNNING =>
             F.raiseError[Unit](
               AzureRuntimeCreationError(
                 params.runtime.id,
@@ -914,7 +919,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 params.useExistingDisk
               )
             )
-          case WsmJobStatus.Succeeded =>
+          case JobReport.StatusEnum.SUCCEEDED =>
             val hostIp = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
             for {
               now <- nowInstant
@@ -933,9 +938,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 s"Welder was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
               _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), now).transaction
+              unsanitizedRegion = resp.getAzureVm.getAttributes.getRegion
+              region = if (unsanitizedRegion == null) None else Some(RegionName(unsanitizedRegion))
               // Update runtime region to the VM region
               _ <- RuntimeConfigQueries
-                .updateRegion(params.runtime.runtimeConfigId, resp.vm.map(_.attributes.region))
+                .updateRegion(params.runtime.runtimeConfigId, region)
                 .transaction
               _ <- logger.info(ctx.loggingCtx)("runtime is ready")
             } yield ()

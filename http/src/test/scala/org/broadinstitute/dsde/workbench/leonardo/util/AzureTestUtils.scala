@@ -6,19 +6,23 @@ import org.mockito.Mockito.when
 import org.mockito.ArgumentMatchers.any
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.model.{
+  AzureVmAttributes,
+  AzureVmResource,
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
   CreatedControlledAzureStorageContainer,
+  CreatedControlledAzureVmResult,
   DeleteControlledAzureResourceResult,
   ErrorReport,
   IamRole,
-  JobReport
+  JobReport,
+  ResourceMetadata
 }
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine}
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureVmService
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.wsmWorkspaceDesc
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, wsmWorkspaceDesc}
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   MockWsmClientProvider,
@@ -104,6 +108,30 @@ object AzureTestUtils extends MockitoSugar {
         .jobReport(
           new JobReport().status(diskJobStatus)
         )
+        .errorReport(new ErrorReport())
+    }
+
+    // create vm result
+    when {
+      api.createAzureVm(any, any)
+    } thenAnswer { _ =>
+      new CreatedControlledAzureVmResult()
+        .jobReport(
+          new JobReport().status(vmJobStatus)
+        )
+        .azureVm(new AzureVmResource().attributes(new AzureVmAttributes().region("southcentralus")))
+        .errorReport(new ErrorReport())
+    }
+
+    // create vm result
+    when {
+      api.getCreateAzureVmResult(any, any)
+    } thenAnswer { _ =>
+      new CreatedControlledAzureVmResult()
+        .jobReport(
+          new JobReport().status(vmJobStatus)
+        )
+        .azureVm(new AzureVmResource().attributes(new AzureVmAttributes().region("southcentralus")))
         .errorReport(new ErrorReport())
     }
 

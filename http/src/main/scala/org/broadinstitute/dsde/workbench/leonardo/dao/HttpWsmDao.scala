@@ -15,14 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose
   WORKSPACE_BATCH_SUBNET
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
-import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
@@ -252,26 +250,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield resOpt.fold(List.empty[LandingZoneResourcesByPurpose])(res => res.resources)
 
-  override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[GetCreateVmJobResult] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOr[GetCreateVmJobResult](
-        Request[F](
-          method = Method.GET,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}"
-                )
-            ),
-          headers = headers(authorization, ctx.traceId, false)
-        )
-      )(onError)
-    } yield res
-
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]] = for {
@@ -318,27 +296,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )
     )(onError)
   } yield resp
-
-  private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]] =
-    for {
-      ctx <- ev.ask
-      res <- httpClient.expectOptionOr[DeleteWsmResourceResult](
-        Request[F](
-          method = Method.POST,
-          uri = config.uri
-            .withPath(
-              Uri.Path
-                .unsafeFromString(
-                  s"/api/workspaces/v1/${req.workspaceId.value.toString}/resources/controlled/azure/${resource}/${req.resourceId.value.toString}"
-                )
-            ),
-          entity = req.deleteRequest,
-          headers = headers(authorization, ctx.traceId, true)
-        )
-      )(onError)
-    } yield res
 
   private def onError(response: Response[F])(implicit ev: Ask[F, AppContext]): F[Throwable] =
     for {

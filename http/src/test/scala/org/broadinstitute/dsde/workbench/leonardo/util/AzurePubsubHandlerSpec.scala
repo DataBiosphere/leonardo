@@ -83,20 +83,8 @@ class AzurePubsubHandlerSpec
 
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-    }
     val azurePubsubHandler =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+      makeAzurePubsubHandler(asyncTaskQueue = queue)
 
     val res =
       for {
@@ -153,22 +141,8 @@ class AzurePubsubHandlerSpec
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
     val startTime: Instant = Instant.now
     val mockLatencyMillis = 5000
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] = {
-        Thread.sleep(mockLatencyMillis)
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-      }
-    }
     val azurePubsubHandler =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+      makeAzurePubsubHandler(asyncTaskQueue = queue)
 
     val res =
       for {
@@ -224,20 +198,8 @@ class AzurePubsubHandlerSpec
 
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-    }
     val azurePubsubHandler =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+      makeAzurePubsubHandler(asyncTaskQueue = queue)
 
     val res =
       for {
@@ -296,18 +258,6 @@ class AzurePubsubHandlerSpec
   it should "create an azure vm properly with an action managed identity" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-    }
     val mockSamDAO = new MockSamDAO {
       override def getAzureActionManagedIdentity(authHeader: Authorization,
                                                  resource: PrivateAzureStorageAccountSamResourceId,
@@ -315,7 +265,7 @@ class AzurePubsubHandlerSpec
       )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = IO(Some("awesome-identity"))
     }
     val azurePubsubHandler =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO, samDAO = mockSamDAO)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, samDAO = mockSamDAO)
 
     val res =
       for {
@@ -370,20 +320,10 @@ class AzurePubsubHandlerSpec
 
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Failed, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-    }
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
+
     val azurePubsubHandler =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -473,23 +413,11 @@ class AzurePubsubHandlerSpec
 
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-    }
     val fakeWelderDao = new MockWelderDAO() {
       override def isProxyAvailable(cloudContext: CloudContext, clusterName: RuntimeName): IO[Boolean] = IO.pure(false)
     }
     val azurePubsubHandler =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO, welderDao = fakeWelderDao)
+      makeAzurePubsubHandler(asyncTaskQueue = queue, welderDao = fakeWelderDao)
 
     val res =
       for {
@@ -778,12 +706,15 @@ class AzurePubsubHandlerSpec
   it should "handle vm creation error in async task properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "test exception"
-    val mockWsmDao = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] = IO.raiseError(new Exception(exceptionMsg))
+    val (mockWsm, controlledResourceApi, _, _) =
+      AzureTestUtils.setUpMockWsmApiClientProvider(JobReport.StatusEnum.FAILED)
+
+    when {
+      controlledResourceApi.getCreateAzureVmResult(any, any)
+    } thenAnswer {
+      throw new Exception(exceptionMsg)
     }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
     val res =
       for {
@@ -826,19 +757,7 @@ class AzurePubsubHandlerSpec
   it should "fail to create runtime with persistent disk if no resourceId" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-    }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue)
 
     val res =
       for {
@@ -873,19 +792,8 @@ class AzurePubsubHandlerSpec
   it should "fail to create runtime with persistent disk if WSMresource not found" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
-    val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.pure(
-          GetCreateVmJobResult(
-            Some(WsmVm(WsmVMMetadata(resourceId), WsmVMAttributes(RegionName("southcentralus")))),
-            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
-            None
-          )
-        )
-    }
-    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmDAO = mockWsmDAO)
+
+    val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue)
 
     val res =
       for {

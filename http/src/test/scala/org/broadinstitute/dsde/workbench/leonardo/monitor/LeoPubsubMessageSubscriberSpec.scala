@@ -1929,15 +1929,17 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "handle top-level error in create azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
-    val mockWsmDao = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.raiseError(new Exception(exceptionMsg))
+
+    val (mockWsm, controlledResourceApi, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
+    when {
+      controlledResourceApi.getCreateAzureVmResult(any, any)
+    } thenAnswer {
+      throw new Exception(exceptionMsg)
     }
     val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()
-    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao),
+    val leoSubscriber = makeLeoSubscriber(azureInterp =
+                                            makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm),
                                           asyncTaskQueue = queue
     )
 
