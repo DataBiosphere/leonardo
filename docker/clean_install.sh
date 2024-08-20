@@ -8,7 +8,7 @@ set -eux
 LEONARDO_DIR=$1
 cd $LEONARDO_DIR
 
-export SBT_OPTS="-Xmx6G -Xms6G -Xss4m"
+export SBT_OPTS="-Xmx6G -Xms6G -Xss4m -Dsbt.ivy.home=/home/vsts/.ivy"
 echo "starting sbt clean assembly ..."
 
 sbt -v \
