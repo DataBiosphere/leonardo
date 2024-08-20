@@ -76,8 +76,6 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
     val savedNodepool = makeNodepool(1, cluster1.id).save()
     val app1 =
       makeApp(1, savedNodepool.id, status = AppStatus.Running, appType = AppType.Cromwell, chart = v1Chart).save()
-    val app2 =
-      makeApp(2, savedNodepool.id, status = AppStatus.Running, appType = AppType.Cromwell, chart = v2Chart).save()
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val interp = new AdminServiceInterp[IO](

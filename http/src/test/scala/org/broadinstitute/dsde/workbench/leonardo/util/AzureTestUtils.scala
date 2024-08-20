@@ -16,14 +16,13 @@ import bio.terra.workspace.model.{
   DeleteControlledAzureResourceResult,
   ErrorReport,
   IamRole,
-  JobReport,
-  ResourceMetadata
+  JobReport
 }
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine}
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureVmService
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, wsmWorkspaceDesc}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.wsmWorkspaceDesc
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   MockWsmClientProvider,
@@ -71,8 +70,7 @@ object AzureTestUtils extends MockitoSugar {
     // Create disk
     when {
       api.createAzureDisk(any, any)
-    } thenAnswer { invocation =>
-      val requestBody = invocation.getArgument[CreateControlledAzureDiskRequestBody](0)
+    } thenAnswer { _ =>
       new CreateControlledAzureResourceResult()
         .jobReport(
           new JobReport().status(diskJobStatus)
@@ -83,9 +81,7 @@ object AzureTestUtils extends MockitoSugar {
     // Get disk result
     when {
       api.getCreateAzureDiskResult(any, any)
-    } thenAnswer { invocation =>
-      val jobId = invocation.getArgument[String](1)
-      val requestBody = disksByJob(jobId)
+    } thenAnswer { _ =>
       new CreateControlledAzureResourceResult()
         .jobReport(
           new JobReport().status(diskJobStatus)

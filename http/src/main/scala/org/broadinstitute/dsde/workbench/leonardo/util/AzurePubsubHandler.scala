@@ -814,27 +814,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
       }
     } yield ()
-
-  private def getCommonFields(name: ControlledResourceName,
-                              resourceDesc: String,
-                              userEmail: WorkbenchEmail,
-                              resourceId: Option[WsmControlledResourceId]
-  ) =
-    InternalDaoControlledResourceCommonFields(
-      name,
-      ControlledResourceDescription(resourceDesc),
-      CloningInstructions.Nothing,
-      AccessScope.PrivateAccess,
-      ManagedBy.Application,
-      Some(
-        PrivateResourceUser(
-          userEmail,
-          ControlledResourceIamRole.Writer
-        )
-      ),
-      resourceId
-    )
-
   private def getCommonFieldsForWsmGeneratedClient(name: ControlledResourceName,
                                                    resourceDesc: String,
                                                    userEmail: WorkbenchEmail
@@ -857,7 +836,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
     for {
       ctx <- ev.ask
-      auth <- samDAO.getLeoAuthToken
       createVmJobId = WsmJobId(s"create-vm-${params.runtime.id.toString.take(10)}")
       wsmControlledResourceClient <- buildWsmControlledResourceApiClient
       getWsmVmJobResult = F.delay(
@@ -1197,7 +1175,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .transaction
       _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, now).transaction
 
-      auth <- samDAO.getLeoAuthToken
       diskIdOpt <- clusterQuery.getDiskId(e.runtimeId).transaction
 
       _ <- (e.useExistingDisk, diskIdOpt) match {
@@ -1385,7 +1362,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   override def deleteDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      auth <- samDAO.getLeoAuthToken
 
       _ <- msg.wsmResourceId match {
         case Some(wsmResourceId) =>
