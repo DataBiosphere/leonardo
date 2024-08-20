@@ -327,4 +327,8 @@ trait LeoAuthProvider[F[_]] {
   def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean]
 
   def getLeoAuthToken: F[String]
+
+  def lookupWorkspaceParentForGoogleProject(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkspaceId]]
 }

@@ -44,6 +44,8 @@ class MockSamDAO extends SamDAO[IO] {
   // we don't care much about traceId in unit tests, hence providing a constant UUID here
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
+  val workspaceId = UUID.randomUUID()
+
   override def registerLeo(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
   override def hasResourcePermissionUnchecked(resourceType: SamResourceType,
                                               resource: String,
@@ -504,6 +506,12 @@ class MockSamDAO extends SamDAO[IO] {
                                              resource: PrivateAzureStorageAccountSamResourceId,
                                              action: PrivateAzureStorageAccountAction
   )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = IO(None)
+
+  /** Gets the parent resource if the given resource ID, if one exists. */
+  override def getResourceParent(authHeader: Authorization, resource: SamResourceId)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Option[GetResourceParentResponse]] =
+    IO(Some(GetResourceParentResponse(SamResourceType.Workspace, workspaceId.toString)))
 }
 
 object MockSamDAO {

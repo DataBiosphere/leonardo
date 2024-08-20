@@ -106,6 +106,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
+      // Retrieve parent workspaceId for the google project
+      parentWorkspaceId <- authProvider.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))
       _ <- runtimeOpt match {
@@ -114,10 +117,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
           for {
             samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
             petToken <- serviceAccountProvider.getAccessToken(userInfo.userEmail, googleProject).recoverWith { case e =>
-              log.warn(e)(
-                s"Could not acquire pet service account access token for user ${userInfo.userEmail.value} in project $googleProject. " +
-                  s"Skipping validation of bucket objects in the runtime request."
-              ) as None
+              log
+                .warn(e)(
+                  s"Could not acquire pet service account access token for user ${userInfo.userEmail.value} in project $googleProject. " +
+                    s"Skipping validation of bucket objects in the runtime request."
+                )
+                .as(none[String])
             }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
             runtimeImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderRegistry)
@@ -132,6 +137,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
               config.gceConfig.runtimeConfigDefaults.zone,
               None
             )
+
             runtimeConfig <- req.runtimeConfig
               .fold[F[RuntimeConfigInCreateRuntimeMessage]](F.pure(defaultRuntimeConfig)) { // default to gce if no runtime specific config is provided
                 c =>
@@ -164,7 +170,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
                           petSA,
                           FormattedBy.GCE,
                           authProvider,
-                          diskConfig
+                          diskConfig,
+                          parentWorkspaceId
                         )
                         .map(diskResult =>
                           RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
@@ -177,6 +184,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
                         )
                   }
               }
+
             runtime = convertToRuntime(
               userInfo,
               petSA,
@@ -186,7 +194,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
               runtimeImages,
               config,
               req,
-              context.now
+              context.now,
+              parentWorkspaceId
             )
 
             userScriptUriToValidate = req.userScriptUri
@@ -213,7 +222,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${context.traceId}] Failed to notify the AuthProvider for creation of runtime ${runtime.projectNameString}"
-                ) >> F.raiseError(t)
+                ) >> F.raiseError[Unit](t)
               }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
             runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
@@ -784,7 +793,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
           case e: BaseServiceException if e.getCode == StatusCodes.Forbidden.intValue =>
             log.error(e)(
               s"User ${userEmail.value}'s PET account does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}"
-            ) >> F.raiseError(BucketObjectAccessException(userEmail, gcsPath))
+            ) >> F.raiseError[Unit](BucketObjectAccessException(userEmail, gcsPath))
           case e: BaseServiceException if e.getCode == 401 =>
             log.warn(e)(s"Could not validate object [${gcsUri}] as user [${userEmail.value}]")
         }
@@ -1078,7 +1087,8 @@ object RuntimeServiceInterp {
     clusterImages: Set[RuntimeImage],
     config: RuntimeServiceConfig,
     req: CreateRuntimeRequest,
-    now: Instant
+    now: Instant,
+    workspaceId: Option[WorkspaceId]
   ): Runtime = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
@@ -1118,7 +1128,7 @@ object RuntimeServiceInterp {
 
     Runtime(
       0,
-      None,
+      workspaceId,
       samResource = clusterInternalId,
       runtimeName = runtimeName,
       cloudContext = cloudContext,
@@ -1161,7 +1171,8 @@ object RuntimeServiceInterp {
     serviceAccount: WorkbenchEmail,
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
-    diskConfig: PersistentDiskConfig
+    diskConfig: PersistentDiskConfig,
+    workspaceId: Option[WorkspaceId]
   )(implicit
     as: Ask[F, AppContext],
     F: Async[F],
@@ -1241,7 +1252,8 @@ object RuntimeServiceInterp {
                 CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
                 ctx.now,
                 willBeUsedBy == FormattedBy.Galaxy,
-                None
+                None,
+                workspaceId
               )
             )
             _ <- authProvider
@@ -1249,7 +1261,7 @@ object RuntimeServiceInterp {
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
-                ) >> F.raiseError(t)
+                ) >> F.raiseError[Unit](t)
               }
             pd <- persistentDiskQuery.save(diskBeforeSave).transaction
           } yield PersistentDiskRequestResult(pd, true)
@@ -1344,7 +1356,8 @@ object RuntimeServiceInterp {
                 CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
                 ctx.now,
                 willBeUsedBy == FormattedBy.Galaxy,
-                None
+                None,
+                Some(workspaceId)
               )
             )
             _ <- authProvider
@@ -1352,7 +1365,7 @@ object RuntimeServiceInterp {
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
-                ) >> F.raiseError(t)
+                ) >> F.raiseError[Unit](t)
               }
             pd <- persistentDiskQuery.save(diskBeforeSave).transaction
           } yield PersistentDiskRequestResult(pd, true)

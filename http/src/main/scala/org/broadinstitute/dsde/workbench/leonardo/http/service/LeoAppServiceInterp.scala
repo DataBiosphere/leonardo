@@ -158,6 +158,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
 
+      // Retrieve parent workspaceId for the google project
+      parentWorkspaceId <- authProvider.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+
       notifySamAndCreate = for {
         _ <- authProvider
           .notifyResourceCreated(samResourceId, originatingUserEmail, googleProject)
@@ -249,23 +252,26 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             petSA,
             appTypeToFormattedByType(req.appType),
             authProvider,
-            config.leoKubernetesConfig.diskConfig
+            config.leoKubernetesConfig.diskConfig,
+            parentWorkspaceId
           )
         )
         lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
+
         saveApp <- F.fromEither(
-          getSavableApp(cloudContext,
-                        appName,
-                        originatingUserEmail,
-                        samResourceId,
-                        req,
-                        diskResultOpt.map(_.disk),
-                        lastUsedApp,
-                        petSA,
-                        nodepool.id,
-                        req.workspaceId,
-                        req.autopilot,
-                        ctx
+          getSavableApp(
+            cloudContext,
+            appName,
+            originatingUserEmail,
+            samResourceId,
+            req,
+            diskResultOpt.map(_.disk),
+            lastUsedApp,
+            petSA,
+            nodepool.id,
+            parentWorkspaceId,
+            req.autopilot,
+            ctx
           )
         )
         app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction

@@ -9,7 +9,12 @@ import cats.syntax.all._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, GroupName, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  AuthProviderException,
+  GetResourceParentResponse,
+  GroupName,
+  SamDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -20,6 +25,7 @@ import org.http4s.{AuthScheme, Credentials}
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 
+import java.util.UUID
 import scala.concurrent.duration._
 
 class SamAuthProvider[F[_]: OpenTelemetryMetrics](
@@ -27,7 +33,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   config: SamAuthProviderConfig,
   saProvider: ServiceAccountProvider[F],
   authCache: Cache[F, AuthCacheKey, Boolean]
-)(implicit F: Async[F], logger: StructuredLogger[F])
+)(implicit F: Async[F], logger: StructuredLogger[F], metrics: OpenTelemetryMetrics[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
@@ -421,6 +427,54 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
     } yield token
+
+  /**
+   * Looks up the workspace parent Sam resource for the given google project.
+   *
+   * This method is used to back-populate workspaceId for Leonardo resources created
+   * with the v1 routes, which are in terms of google project. Once Leonardo clients are
+   * migrated to the v2 routes this method can be removed.
+   *
+   * Although we expect all google projects to have workspace parents in Sam, this
+   * method will not fail if a workspace cannot be retrieved. Logs and metrics are
+   * emitted for successful and failed workspace retrievals.
+   *
+   * @param userInfo the user info containing an access token
+   * @param googleProject the google project whose workspace parent to look up
+   * @param ev trace id
+   * @return optional workspace ID
+   */
+  override def lookupWorkspaceParentForGoogleProject(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkspaceId]] = for {
+    traceId <- ev.ask
+
+    // Get resource parent from Sam
+    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    parent <- samDao
+      .getResourceParent(authHeader, ProjectSamResourceId(googleProject))
+
+    // Annotate error cases but don't fail
+    workspaceId = parent match {
+      case Some(GetResourceParentResponse(SamResourceType.Workspace, resourceId)) =>
+        Either.catchNonFatal(UUID.fromString(resourceId)).map(WorkspaceId).leftMap(_.getMessage)
+      case Some(_) => Left(s"Unexpected parent type $parent for google project $googleProject")
+      case None    => Left(s"Parent not found in Sam for google project $googleProject")
+    }
+
+    // Log result and emit metric
+    metricName = "lookupWorkspace"
+    _ <- workspaceId match {
+      case Right(res) =>
+        logger.info(Map("traceId" -> traceId.asString))(
+          s"Populating parent workspace ID $res for google project $googleProject"
+        ) >> metrics.incrementCounter(metricName, tags = Map("succeeded" -> "true"))
+      case Left(error) =>
+        logger.warn(Map("traceId" -> traceId.asString))(
+          s"Unable to populate workspace ID for google project $googleProject: $error"
+        ) >> metrics.incrementCounter(metricName, tags = Map("failed" -> "true"))
+    }
+  } yield workspaceId.toOption
 
 }
 

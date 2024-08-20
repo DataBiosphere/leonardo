@@ -572,6 +572,23 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield resp.map(_.objectId)
 
+  override def getResourceParent(authHeader: Authorization, resource: SamResourceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[GetResourceParentResponse]] = for {
+    _ <- metrics.incrementCounter("sam/getParentResource")
+    resp <- httpClient.expectOptionOr[GetResourceParentResponse](
+      Request[F](
+        method = Method.GET,
+        uri = config.samUri.withPath(
+          Uri.Path.unsafeFromString(
+            s"/api/resources/v2/${resource.resourceType.asString}/${resource.resourceId}/parent"
+          )
+        ),
+        headers = Headers(authHeader)
+      )
+    )(onError)
+  } yield resp
+
   private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[Json]] =
@@ -762,6 +779,14 @@ object HttpSamDAO {
         objectId <- c.downField("objectId").as[String]
       } yield GetActionManagedIdentityResponse(objectId)
   }
+
+  implicit val samResourceTypeDecoder: Decoder[SamResourceType] =
+    Decoder.decodeString.emap(s =>
+      SamResourceType.stringToSamResourceType.get(s).toRight(s"Unknown Sam resource type: $s")
+    )
+
+  implicit val getResourceParentResponseDecoder: Decoder[GetResourceParentResponse] =
+    Decoder.forProduct2("resourceTypeName", "resourceId")(GetResourceParentResponse.apply)
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R,
@@ -811,3 +836,5 @@ final case class AuthProviderException(traceId: TraceId, msg: String, code: Stat
 final case class RegisterInfoResponse(enabled: Boolean)
 
 final case class GetActionManagedIdentityResponse(objectId: String)
+
+final case class GetResourceParentResponse(resourceTypeName: SamResourceType, resourceId: String)

@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.AppSamResource
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, same}
 import org.mockito.Mockito.when
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
@@ -626,6 +626,36 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     // negative test
     an[AuthProviderException] shouldBe thrownBy(samAuthProvider.checkUserEnabled(disabledUserInfo).unsafeRunSync())
+  }
+
+  it should "lookup the workspace parent for a google project" in {
+    // positive test
+    samAuthProvider.lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync() shouldBe Some(
+      WorkspaceId(mockSamDAO.workspaceId)
+    )
+
+    // negative test - no workspace id returned
+    val mockSamDao = mock[SamDAO[IO]](defaultMockitoAnswer[IO])
+    when(mockSamDao.getResourceParent(any, any)(any)).thenReturn(IO.none)
+    val mockSamAuthProvider =
+      new SamAuthProvider(mockSamDao, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+    mockSamAuthProvider.lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync() shouldBe None
+
+    // negative test - invalid workspace id
+    val mockSamDao2 = mock[SamDAO[IO]](defaultMockitoAnswer[IO])
+    when(mockSamDao2.getResourceParent(any, any)(any))
+      .thenReturn(IO.some(GetResourceParentResponse(SamResourceType.Workspace, "invalid-workspace-id")))
+    val mockSamAuthProvider2 =
+      new SamAuthProvider(mockSamDao2, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+    mockSamAuthProvider2.lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync() shouldBe None
+
+    // negative test - unexpected parent type
+    val mockSamDao3 = mock[SamDAO[IO]](defaultMockitoAnswer[IO])
+    when(mockSamDao3.getResourceParent(any, any)(any))
+      .thenReturn(IO.some(GetResourceParentResponse(SamResourceType.PersistentDisk, UUID.randomUUID().toString)))
+    val mockSamAuthProvider3 =
+      new SamAuthProvider(mockSamDao3, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+    mockSamAuthProvider3.lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync() shouldBe None
   }
 
   private def setUpMockSam(): SamDAO[IO] = {

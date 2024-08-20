@@ -189,6 +189,10 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
   override def getLeoAuthToken: IO[String] = ???
+
+  override def lookupWorkspaceParentForGoogleProject(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[Option[WorkspaceId]] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider

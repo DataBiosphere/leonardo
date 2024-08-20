@@ -168,6 +168,11 @@ trait SamDAO[F[_]] {
                                     resource: PrivateAzureStorageAccountSamResourceId,
                                     action: PrivateAzureStorageAccountAction
   )(implicit ev: Ask[F, TraceId]): F[Option[String]]
+
+  /** Gets the parent resource if the given resource ID, if one exists. */
+  def getResourceParent(authHeader: Authorization, resource: SamResourceId)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[GetResourceParentResponse]]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal

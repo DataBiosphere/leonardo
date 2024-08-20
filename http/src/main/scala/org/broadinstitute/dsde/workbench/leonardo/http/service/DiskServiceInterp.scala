@@ -80,6 +80,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         case None =>
           for {
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
+
+            // Retrieve parent workspaceId for the google project
+            parentWorkspaceId <- authProvider.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+
             disk <- F.fromEither(
               convertToDisk(userInfo.userEmail,
                             petSA,
@@ -89,7 +93,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                             config,
                             req,
                             ctx.now,
-                            sourceDiskOpt
+                            sourceDiskOpt,
+                            parentWorkspaceId
               )
             )
             _ <- authProvider
@@ -460,9 +465,21 @@ object DiskServiceInterp {
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant,
-                                     sourceDisk: Option[SourceDisk]
+                                     sourceDisk: Option[SourceDisk],
+                                     workspaceId: Option[WorkspaceId]
   ): Either[Throwable, PersistentDisk] =
-    convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false, sourceDisk)
+    convertToDisk(userEmail,
+                  serviceAccount,
+                  cloudContext,
+                  diskName,
+                  samResource,
+                  config,
+                  req,
+                  now,
+                  false,
+                  sourceDisk,
+                  workspaceId
+    )
 
   private[service] def convertToDisk(userEmail: WorkbenchEmail,
                                      serviceAccount: WorkbenchEmail,
@@ -473,7 +490,8 @@ object DiskServiceInterp {
                                      req: CreateDiskRequest,
                                      now: Instant,
                                      willBeUsedByGalaxy: Boolean,
-                                     sourceDisk: Option[SourceDisk]
+                                     sourceDisk: Option[SourceDisk],
+                                     workspaceId: Option[WorkspaceId]
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
@@ -511,7 +529,7 @@ object DiskServiceInterp {
       labels,
       sourceDisk.map(_.diskLink),
       None,
-      None // TODO: workspace must be present for V2 routes
+      workspaceId
     )
   }
 }
