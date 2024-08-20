@@ -24,7 +24,6 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources]
 
-  // TODO: pt2
   def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
