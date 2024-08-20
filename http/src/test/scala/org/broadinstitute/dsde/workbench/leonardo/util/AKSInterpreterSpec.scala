@@ -1060,12 +1060,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                             namespaceExists: Boolean = true,
                                             identityExists: Boolean = true
   ): (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
-    val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
     val workspaceApi = mock[WorkspaceApi]
     val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
     val namespacesByJob = mutable.Map.empty[String, CreateControlledAzureKubernetesNamespaceRequestBody]
+
     // Create managed identity
     when {
       api.createAzureManagedIdentity(any, any)
@@ -1218,9 +1218,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       new DeleteControlledAzureResourceResult().jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
-    when {
-      wsm.getControlledAzureResourceApi(any)(any)
-    } thenReturn IO.pure(api)
 
     // "ns-name" workspace database resource
 
@@ -1359,13 +1356,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
     }
 
-    when {
-      wsm.getResourceApi(any)(any)
-    } thenReturn IO.pure(resourceApi)
-
-    when {
-      wsm.getWorkspaceApi(any)(any)
-    } thenReturn IO.pure(workspaceApi)
+    val wsm = new MockWsmClientProvider(api, resourceApi, workspaceApi)
 
     (wsm, api, resourceApi, workspaceApi)
 

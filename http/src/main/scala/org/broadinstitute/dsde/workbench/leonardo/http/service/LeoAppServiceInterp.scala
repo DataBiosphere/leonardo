@@ -45,7 +45,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
-import org.http4s.{AuthScheme, Uri}
+import org.http4s.Uri
 import org.typelevel.log4cats.StructuredLogger
 import slick.jdbc.TransactionIsolation
 
@@ -747,10 +747,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       // Resolve the workspace in WSM to get the cloud context
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
@@ -1746,17 +1743,6 @@ case class AppCannotBeDeletedException(cloudContext: CloudContext,
       extraMessageInLogging = extraMsg
     )
 
-case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
-                                                    appName: AppName,
-                                                    status: AppStatus,
-                                                    traceId: TraceId
-) extends LeoException(
-      s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
-        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-
 case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
     extends LeoException(
       s"App(s) in workspace ${workspaceId.value.toString} with (name(s), status(es)) ${apps
@@ -1836,12 +1822,6 @@ case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
 case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-case class AppWithoutWorkspaceIdException(appName: AppName, traceId: TraceId)
-    extends LeoException(
-      s"App ${appName.value} is missing a workspaceId. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

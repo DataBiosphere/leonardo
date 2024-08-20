@@ -8,6 +8,7 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.RegionName
+//TODO: IA-4175 prune
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureImageEncoder,
   azureMachineTypeEncoder,
@@ -33,45 +34,18 @@ import java.time.ZonedDateTime
 import java.util.UUID
 
 trait WsmDao[F[_]] {
-  def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateDiskResponse]
-
-  def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateVmResult]
-
-  def createStorageContainer(request: CreateStorageContainerRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[CreateStorageContainerResult]
-
-  def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]]
-
-  def deleteStorageContainer(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[DeleteWsmResourceResult]]
-
   def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[DeleteWsmResourceResult]]
 
+  // TODO: IA-4175 next up
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
 
-  def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[GetDeleteJobResult]
-
   def getDeleteDiskJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[GetDeleteJobResult]
-
-  def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[WorkspaceDescription]]
 
   def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
