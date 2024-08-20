@@ -5,6 +5,7 @@
 # chmod +x must be set for this script
 set -e
 
+export SBT_OPTS="-Dsbt.ivy.home=/home/vsts/.ivy"
 # Get the last commit hash and set it as an environment variable
 GIT_HASH=$(git log -n 1 --pretty=format:%h)
 
