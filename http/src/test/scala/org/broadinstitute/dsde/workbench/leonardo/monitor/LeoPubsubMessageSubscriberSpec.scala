@@ -3,6 +3,7 @@ package monitor
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model.JobReport
 import cats.data.Kleisli
 import cats.effect.IO
@@ -58,7 +59,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{AckHandler, CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.{any, anyBoolean, startsWith}
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterEach
@@ -1933,8 +1933,8 @@ class LeoPubsubMessageSubscriberSpec
     val (mockWsm, controlledResourceApi, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
     when {
       controlledResourceApi.getCreateAzureVmResult(any, any)
-    } thenAnswer {
-      throw new Exception(exceptionMsg)
+    } thenThrow {
+      new ApiException(exceptionMsg)
     }
     val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()

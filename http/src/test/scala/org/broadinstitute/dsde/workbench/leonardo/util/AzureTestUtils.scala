@@ -8,6 +8,7 @@ import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, Workspa
 import bio.terra.workspace.model.{
   AzureVmAttributes,
   AzureVmResource,
+  CreateControlledAzureDiskRequestBody,
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
   CreatedControlledAzureStorageContainer,
@@ -53,7 +54,7 @@ object AzureTestUtils extends MockitoSugar {
     val resourceApi = mock[ResourceApi]
     val disksByJob = mutable.Map.empty[String, CreateControlledAzureDiskRequestV2Body]
 
-    // Create disk
+    // Create disk v2
     when {
       api.createAzureDiskV2(any, any)
     } thenAnswer { invocation =>
@@ -64,7 +65,19 @@ object AzureTestUtils extends MockitoSugar {
         .jobReport(
           new JobReport().status(diskJobStatus)
         )
-        .errorReport(new ErrorReport())
+        .errorReport(new ErrorReport().message("test exception"))
+    }
+
+    // Create disk
+    when {
+      api.createAzureDisk(any, any)
+    } thenAnswer { invocation =>
+      val requestBody = invocation.getArgument[CreateControlledAzureDiskRequestBody](0)
+      new CreateControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(diskJobStatus)
+        )
+        .errorReport(new ErrorReport().message("test exception"))
     }
 
     // Get disk result
@@ -77,7 +90,7 @@ object AzureTestUtils extends MockitoSugar {
         .jobReport(
           new JobReport().status(diskJobStatus)
         )
-        .errorReport(new ErrorReport())
+        .errorReport(new ErrorReport().message("test exception"))
     }
 
     // Create storage container
@@ -120,7 +133,7 @@ object AzureTestUtils extends MockitoSugar {
           new JobReport().status(vmJobStatus)
         )
         .azureVm(new AzureVmResource().attributes(new AzureVmAttributes().region("southcentralus")))
-        .errorReport(new ErrorReport())
+        .errorReport(new ErrorReport().message("test exception"))
     }
 
     // create vm result
@@ -132,7 +145,7 @@ object AzureTestUtils extends MockitoSugar {
           new JobReport().status(vmJobStatus)
         )
         .azureVm(new AzureVmResource().attributes(new AzureVmAttributes().region("southcentralus")))
-        .errorReport(new ErrorReport())
+        .errorReport(new ErrorReport().message("test exception"))
     }
 
     // delete vm

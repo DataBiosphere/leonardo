@@ -3,6 +3,7 @@ package util
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model.{DeleteControlledAzureResourceRequest, JobReport}
 import cats.effect.IO
 import cats.effect.std.Queue
@@ -711,8 +712,8 @@ class AzurePubsubHandlerSpec
 
     when {
       controlledResourceApi.getCreateAzureVmResult(any, any)
-    } thenAnswer {
-      throw new Exception(exceptionMsg)
+    } thenThrow {
+      new ApiException(exceptionMsg)
     }
     val azureInterp = makeAzurePubsubHandler(asyncTaskQueue = queue, wsmClient = mockWsm)
 
