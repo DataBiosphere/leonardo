@@ -142,8 +142,8 @@ function make_jar()
     docker run --rm --link $DB_CONTAINER:mysql \
                           -e GIT_HASH=$GIT_HASH \
                           -v $PWD:/working \
-                          -v jar-cache:/root/.ivy \
-                          -v jar-cache:/root/.ivy2 \
+                          -v jar-cache:/home/vsts/.ivy \
+                          -v jar-cache:/home/vsts/.ivy2 \
                           sbtscala/scala-sbt:openjdk-17.0.2_1.8.0_2.13.10 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
