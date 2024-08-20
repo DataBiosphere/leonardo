@@ -431,9 +431,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   /**
    * Looks up the workspace parent Sam resource for the given google project.
    *
-   * This method is used to back-populate workspaceId for Leonardo resources created
-   * with the v1 routes, which are in terms of google project. Once Leonardo clients are
-   * migrated to the v2 routes this method can be removed.
+   * This method is used to populate workspaceId for Leonardo resources created
+   * with the v1 routes, which are in terms of google project. Once Leonardo clients
+   * are migrated to the v2 routes this method can be removed.
    *
    * Although we expect all google projects to have workspace parents in Sam, this
    * method will not fail if a workspace cannot be retrieved. Logs and metrics are
