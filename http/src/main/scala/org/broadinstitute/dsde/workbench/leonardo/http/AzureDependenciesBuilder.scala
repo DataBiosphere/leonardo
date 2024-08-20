@@ -51,7 +51,7 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
         baselineDependencies.publisherQueue,
         None, // no GCP dependency
         baselineDependencies.samDAO,
-        baselineDependencies.wsmDAO
+        baselineDependencies.wsmClientProvider
       )
 
     List(monitorAtBoot.process)

@@ -46,7 +46,6 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.ChartVersion
 import org.http4s.AuthScheme
-import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
@@ -95,6 +94,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
+      _ <- logger.info(s"[AzurePubsubHandler/createAndPollRuntime] beginning for runtime ${msg.runtimeId}")
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
@@ -125,6 +125,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         .updateRegion(runtime.runtimeConfigId, Some(RegionName(landingZoneResources.region.name())))
         .transaction
 
+      _ <- logger.info(
+        s"[AzurePubsubHandler/createAndPollRuntime] getting workspace storage container from WSM for runtime ${msg.runtimeId}"
+      )
       // Get the optional storage container for the workspace
       tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
       workspaceStorageContainerOpt <- tokenOpt.flatTraverse { token =>
@@ -158,6 +161,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           PrivateAzureStorageAccountAction.Read
         )
       }
+
+      _ <- logger.info(
+        s"[AzurePubsubHandler/createAndPollRuntime] beginning to monitor runtime creation for runtime ${msg.runtimeId}"
+      )
 
       // all other resources (hybrid connection, storage container, vm)
       // are created within the async task
@@ -576,6 +583,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             .azureDisk(azureDisk)
             .jobControl(jobControl)
 
+          _ <- logger.info(
+            s"[AzurePubsubHandler/createAndPollRuntime] calling createAzureDiskV2 on WSM for runtime ${params.runtime.id}"
+          )
           wsmApi <- buildWsmControlledResourceApiClient
           _ <- F.delay(wsmApi.createAzureDiskV2(request, params.workspaceId.value))
 
@@ -976,7 +986,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
           .map(_ => none[PollStorageContainerParams])
       } { storageContainerResourceRecord =>
-        val deleteJobControl = getDeleteControlledResourceRequest
+        val deleteJobControl = getDeleteControlledResourceRequest()
         F
           .delay(
             wsmApi.deleteAzureStorageContainer(deleteJobControl,
@@ -1026,7 +1036,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .map(_ => none[PollDeleteDiskParams])
       } { wsmDiskRecord =>
         for {
-          deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
+          deleteJobControl <- F.delay(getDeleteControlledResourceRequest())
           _ <- F.delay(
             wsmApi.deleteAzureDisk(deleteJobControl, msg.workspaceId.value, wsmDiskRecord.resourceId.value)
           )
@@ -1055,7 +1065,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .map(_ => none[PollVmParams])
       } { resourceId =>
         for {
-          deleteJobControl <- F.delay(getDeleteControlledResourceRequest)
+          deleteJobControl <- F.delay(getDeleteControlledResourceRequest())
           _ <- F.delay(wsmApi.deleteAzureVm(deleteJobControl, msg.workspaceId.value, resourceId.value))
         } yield Some(
           PollVmParams(msg.workspaceId, WsmJobId(deleteJobControl.getJobControl.getId), runtime, msg.diskIdToDelete)
@@ -1186,7 +1196,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               // if there is a disk record, the disk finished creating, so it must be deleted in WSM
               case Some(diskRecord) =>
                 for {
-                  _ <- deleteDiskInWSM(diskId, diskRecord.resourceId, e.workspaceId, auth, Some(e.runtimeId))
+                  _ <- deleteDiskInWSM(diskId, diskRecord.resourceId, e.workspaceId, Some(e.runtimeId))
                 } yield ()
               case _ =>
                 for {
@@ -1282,7 +1292,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   private def deleteDiskInWSM(diskId: DiskId,
                               wsmResourceId: WsmControlledResourceId,
                               workspaceId: WorkspaceId,
-                              auth: Authorization,
                               runtimeId: Option[Long]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -1291,17 +1300,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       jobId = getWsmJobId("delete-disk", wsmResourceId)
 
       _ <- logger.info(ctx.loggingCtx)(s"Sending WSM delete message for disk resource ${wsmResourceId.value}")
-      _ <- wsmDao
-        .deleteDisk(
-          DeleteWsmResourceRequest(
-            workspaceId,
-            wsmResourceId,
-            WsmDaoDeleteControlledAzureResourceRequest(
-              WsmJobControl(jobId)
-            )
-          ),
-          auth
-        )
+      wsmControlledResourceClient <- buildWsmControlledResourceApiClient
+      deleteDiskBody = getDeleteControlledResourceRequest(jobId.value)
+      _ <- F
+        .delay(wsmControlledResourceClient.deleteAzureDisk(deleteDiskBody, workspaceId.value, wsmResourceId.value))
         .void
         .adaptError(e =>
           AzureDiskDeletionError(
@@ -1312,10 +1314,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         )
 
-      getDeleteJobResult = wsmDao.getDeleteDiskJobResult(
-        GetJobResultRequest(workspaceId, jobId),
-        auth
-      )
+      getDeleteJobResult = F.delay(wsmControlledResourceClient.getDeleteAzureDiskResult(workspaceId.value, jobId.value))
 
       // We need to wait until WSM deletion job to be done to update the database
       taskToRun = for {
@@ -1325,8 +1324,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.deleteDiskPollConfig.interval
         ).compile.lastOrError
 
-        _ <- resp.jobReport.status match {
-          case WsmJobStatus.Succeeded =>
+        _ <- resp.getJobReport.getStatus match {
+          case JobReport.StatusEnum.SUCCEEDED =>
             for {
               _ <- logger.info(ctx.loggingCtx)(s"disk ${diskId.value} is deleted successfully")
               _ <- runtimeId match {
@@ -1334,16 +1333,16 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 case _               => dbRef.inTransaction(persistentDiskQuery.delete(diskId, ctx.now)).void
               }
             } yield ()
-          case WsmJobStatus.Failed =>
+          case JobReport.StatusEnum.FAILED =>
             F.raiseError[Unit](
               AzureDiskDeletionError(
                 diskId,
                 wsmResourceId,
                 workspaceId,
-                s"WSM deleteDisk job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                s"WSM deleteDisk job failed due to ${resp.getErrorReport.getMessage}"
               )
             )
-          case WsmJobStatus.Running =>
+          case JobReport.StatusEnum.RUNNING =>
             F.raiseError[Unit](
               AzureDiskDeletionError(
                 diskId,
@@ -1377,7 +1376,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       _ <- msg.wsmResourceId match {
         case Some(wsmResourceId) =>
-          deleteDiskInWSM(msg.diskId, wsmResourceId, msg.workspaceId, auth, None)
+          deleteDiskInWSM(msg.diskId, wsmResourceId, msg.workspaceId, None)
         case None =>
           for {
             _ <- logger.info(s"No WSM resource found for Azure disk ${msg.diskId}, skipping deletion in WSM")
@@ -1409,12 +1408,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       wsmControlledResourceClient <- wsmClientProvider.getControlledAzureResourceApi(token)
     } yield wsmControlledResourceClient
 
-  private def getDeleteControlledResourceRequest: bio.terra.workspace.model.DeleteControlledAzureResourceRequest = {
-    val deleteStorageContainerJobId = WsmJobId(UUID.randomUUID().toString)
+  private def getDeleteControlledResourceRequest(
+    jobId: String = UUID.randomUUID().toString
+  ): bio.terra.workspace.model.DeleteControlledAzureResourceRequest = {
     val jobControl = new JobControl()
-      .id(deleteStorageContainerJobId.value)
+      .id(jobId)
     val deleteControlledResource = new bio.terra.workspace.model.DeleteControlledAzureResourceRequest()
       .jobControl(jobControl)
+
     deleteControlledResource
   }
 }

@@ -7,7 +7,7 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmClientProvider, MockWsmDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.{
   CreateClusterAndNodepool,
@@ -356,5 +356,5 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     queue: Queue[IO, LeoPubsubMessage] =
       Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): MonitorAtBoot[IO] =
-    new MonitorAtBoot[IO](queue, Some(FakeGoogleComputeService), new MockSamDAO(), new MockWsmDAO())
+    new MonitorAtBoot[IO](queue, Some(FakeGoogleComputeService), new MockSamDAO(), new MockWsmClientProvider())
 }

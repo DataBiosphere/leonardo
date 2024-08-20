@@ -288,7 +288,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
-    val relayNamespace = RelayNamespace("relay-ns")
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
@@ -318,7 +317,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           defaultCreateAzureRuntimeReq
         )
         .attempt
-      workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
+      workspaceDesc <- wsmClientProvider.getWorkspace("token", workspaceId)
       cloudContext = CloudContext.Azure(workspaceDesc.get.azureContext.get)
       clusterRecOpt <- clusterQuery
         .getActiveClusterRecordByName(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
@@ -600,7 +599,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
         )
         .attempt
-      workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
+      workspaceDesc <- wsmClientProvider.getWorkspace("token", workspaceId)
       cloudContext = CloudContext.Azure(workspaceDesc.get.azureContext.get)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(cloudContext, name2)(scala.concurrent.ExecutionContext.global)
@@ -670,7 +669,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
         )
         .attempt
-      workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
+      workspaceDesc <- wsmClientProvider.getWorkspace("token", workspaceId)
       cloudContext = CloudContext.Azure(workspaceDesc.get.azureContext.get)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(cloudContext, name2)(scala.concurrent.ExecutionContext.global)
@@ -717,7 +716,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -772,7 +771,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -827,7 +826,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -867,7 +866,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -907,7 +906,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1439,7 +1438,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, context.now).transaction
 
       _ <- publisherQueue.tryTake // clean out create msg
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       preDeleteClusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1569,7 +1568,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1612,7 +1611,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1646,7 +1645,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val res = for {
       context <- appContext.ask[AppContext]
-      azureCloudContextOpt <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContextOpt <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       azureCloudContext = CloudContext.Azure(azureCloudContextOpt.get)
 
       _ <- azureService
@@ -1804,7 +1803,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
 
       _ <- publisherQueue.tryTakeN(Some(2)) // clean out create msg
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       preDeleteClusterOpt_1 <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName_1)(
           scala.concurrent.ExecutionContext.global
@@ -2443,7 +2442,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -2485,7 +2484,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       _ <- azureService.updateDateAccessed(userInfo, workspaceId, runtimeName)
     } yield ()
 
@@ -2521,7 +2520,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
       _ <- azureService2.updateDateAccessed(userInfo, workspaceId, runtimeName)
     } yield ()
 
