@@ -29,6 +29,10 @@ import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
 
+/**
+ * This is the legacy WsmDAO. It remains because there is some specific logic around models retrieved from WSM
+ * It SHOULD NOT be added to. Favor usage of WsmClientProvider, the auto-generated client.
+ */
 class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
   logger: StructuredLogger[F],
   F: Async[F],
@@ -38,6 +42,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
 
+  // This remains in the legacy dao because of the custom logic around landing zones
+  // We should migrate to the generated client when possible
   override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[LandingZoneResources] =
@@ -250,6 +256,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield resOpt.fold(List.empty[LandingZoneResourcesByPurpose])(res => res.resources)
 
+  // This remains in the legacy dao because of the custom logic around storage containers
+  // We should migrate to the generated client when possible
   override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]] = for {

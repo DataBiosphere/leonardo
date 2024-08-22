@@ -18,6 +18,10 @@ import org.http4s.headers.Authorization
 
 import java.util.UUID
 
+/**
+ * This is the legacy WsmDAO. It remains because there is some specific logic around models retrieved from WSM
+ * It SHOULD NOT be added to. Favor usage of WsmClientProvider, the auto-generated client.
+ */
 trait WsmDao[F[_]] {
 
   def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
@@ -28,9 +32,6 @@ trait WsmDao[F[_]] {
     ev: Ask[F, AppContext]
   ): F[Option[StorageContainerResponse]]
 }
-
-final case class StorageContainerRequest(storageContainerName: ContainerName)
-final case class CreateStorageContainerResult(resourceId: WsmControlledResourceId)
 final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
                                       spendProfile: String,
@@ -186,9 +187,6 @@ object ManagedBy {
 // End Common Controlled resource models
 
 object WsmDecoders {
-
-  implicit val createStorageContainerResultDecoder: Decoder[CreateStorageContainerResult] =
-    Decoder.forProduct1("resourceId")(CreateStorageContainerResult.apply)
 
   implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
     for {

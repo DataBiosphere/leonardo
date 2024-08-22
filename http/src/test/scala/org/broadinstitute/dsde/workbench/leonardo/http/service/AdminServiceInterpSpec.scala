@@ -70,7 +70,6 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
 
   it should "properly queue a message when doing an update" in isolatedDbTest {
     val v1Chart = Config.gkeCromwellAppConfig.chart.copy(version = ChartVersion("0.1.0"))
-    val v2Chart = Config.gkeCromwellAppConfig.chart
 
     val cluster1 = makeKubeCluster(1).save()
     val savedNodepool = makeNodepool(1, cluster1.id).save()
