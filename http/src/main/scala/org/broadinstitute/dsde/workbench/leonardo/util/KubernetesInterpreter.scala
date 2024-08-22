@@ -89,7 +89,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
         s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}).pretty(true).execute()"
       )
 
-      listPodStatus: List[PodStatus] = response.getItems.asScala.toList.flatMap(v1Pod =>
+      listPodStatus: List[PodStatus] = response.getData.getItems.asScala.toList.flatMap(v1Pod =>
         PodStatus.stringToPodStatus
           .get(v1Pod.getStatus.getPhase)
       )
@@ -112,7 +112,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       _ <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.openapi.apis.CoreV1Api.createNamespace(${namespace.name.value}, true, null, null, null)"
+        s"io.kubernetes.client.openapi.apis.CoreV1Api.createNamespace(${namespace.name.value}).pretty(true).execute()"
       )
     } yield ()
 
@@ -137,7 +137,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       _ <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.openapi.apis.CoreV1Api.deleteNamespace(${namespace.name.value}, true, null, null, null, null, null)"
+        s"io.kubernetes.client.openapi.apis.CoreV1Api.deleteNamespace(${namespace.name.value}).pretty(true).execute()"
       )
     } yield ()
 
@@ -157,13 +157,15 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       ctx <- ev.ask
       call =
         recoverF(
-          F.blocking(client.listNamespace().pretty("true").allowWatchBookmarks(false).watch(false).execute()),
+          F.blocking(
+            client.listNamespace().pretty("true").allowWatchBookmarks(false).watch(false).execute()
+          ),
           whenStatusCode(409)
         )
       v1NamespaceList <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespace()",
+        s"io.kubernetes.client.apis.CoreV1Api.listNamespace().pretty(true).allowWatchBookmarks(false).watch(false).executeWithHttpInfo()",
         Show.show[Option[V1NamespaceList]](
           _.fold("No namespace found")(x => x.getItems.asScala.toList.map(_.getMetadata.getName).mkString(","))
         )
