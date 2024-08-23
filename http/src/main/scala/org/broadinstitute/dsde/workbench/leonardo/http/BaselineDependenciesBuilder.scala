@@ -38,6 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
   subscriberConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{HttpSamApiClientProvider, SamService, SamServiceInterp}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -290,6 +291,9 @@ class BaselineDependenciesBuilder {
           ConfigReader.appConfig.azure.pubsubHandler.welderImage
         )
       )
+
+      samClientProvider = new HttpSamApiClientProvider(httpSamDaoConfig.samUri.renderString)
+      samService = new SamServiceInterp(samClientProvider)
     } yield BaselineDependencies[F](
       sslContext,
       runtimeDnsCache,
@@ -330,7 +334,8 @@ class BaselineDependenciesBuilder {
       operationFutureCache,
       azureBatchService,
       azureApplicationInsightsService,
-      openTelemetry
+      openTelemetry,
+      samService
     )
 
   private def createCloudSubscriber[F[_]: Parallel](
@@ -466,5 +471,6 @@ final case class BaselineDependencies[F[_]](
   operationFutureCache: Cache[F, Long, OperationFuture[Operation, Operation]],
   azureBatchService: AzureBatchService[F],
   azureApplicationInsightsService: AzureApplicationInsightsService[F],
-  openTelemetryMetrics: OpenTelemetryMetrics[F]
+  openTelemetryMetrics: OpenTelemetryMetrics[F],
+  samService: SamService[F]
 )

@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersi
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   BadRequestException,
@@ -68,7 +69,8 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       serviceAccountProvider,
       publisherQueue,
       Some(MockGoogleDiskService),
-      Some(googleProjectDAO)
+      Some(googleProjectDAO),
+      mock[SamService[IO]]
     )
     (diskService, publisherQueue)
   }
@@ -172,7 +174,8 @@ class DiskServiceInterpTest
         ): IO[Option[Disk]] =
           IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build()))
       }),
-      Some(new MockGoogleProjectDAOWithCustomAncestors(projectToFolder))
+      Some(new MockGoogleProjectDAOWithCustomAncestors(projectToFolder)),
+      mock[SamService[IO]]
     )
 
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -292,7 +295,8 @@ class DiskServiceInterpTest
       serviceAccountProvider,
       publisherQueue,
       Some(googleDiskServiceMock),
-      Some(new MockGoogleProjectDAO)
+      Some(new MockGoogleProjectDAO),
+      mock[SamService[IO]]
     )
     val userInfoCreator =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("creator"), WorkbenchEmail("creator@example.com"), 0)
@@ -323,12 +327,6 @@ class DiskServiceInterpTest
                                            ArgumentMatchers.eq(userInfoCloner)
       )(any())
     ).thenReturn(IO.pure(true))
-
-    when(
-      authProviderMock.lookupWorkspaceParentForGoogleProject(ArgumentMatchers.eq(userInfoCreator),
-                                                             ArgumentMatchers.eq(googleProject)
-      )(any())
-    ).thenReturn(IO.pure(Some(workspaceId)))
 
     when(
       googleDiskServiceMock.getDisk(googleProject, ConfigReader.appConfig.persistentDisk.defaultZone, diskName)

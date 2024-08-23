@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{
   KubernetesDnsCache,
@@ -37,6 +38,7 @@ import java.io.ByteArrayInputStream
 import java.time.Instant
 import scala.concurrent.duration._
 import scala.util.matching.Regex
+
 trait TestLeoRoutes {
   this: ScalatestRouteTest
     with Matchers
@@ -115,7 +117,8 @@ trait TestLeoRoutes {
     Some(FakeGoogleResourceService),
     Config.gkeCustomAppConfig,
     wsmDao,
-    wsmClientProvider
+    wsmClientProvider,
+    mock[SamService[IO]]
   )
 
   val serviceConfig = RuntimeServiceConfig(
@@ -193,7 +196,8 @@ trait TestLeoRoutes {
     new MockDockerDAO,
     Some(FakeGoogleStorageInterpreter),
     Some(FakeGoogleComputeService),
-    QueueFactory.makePublisherQueue()
+    QueueFactory.makePublisherQueue(),
+    mock[SamService[IO]]
   )
 
   val gcpOnlyServicesRegistry = {

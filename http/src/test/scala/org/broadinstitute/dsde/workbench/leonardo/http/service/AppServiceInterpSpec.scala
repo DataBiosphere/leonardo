@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -108,7 +109,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       Some(googleResourceService),
       customAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
   }
 }
@@ -159,7 +161,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -170,7 +173,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
@@ -181,7 +185,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
 
     for {
@@ -213,7 +218,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -244,7 +250,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -315,8 +322,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
     when(mockAuthProvider.notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)).thenReturn(IO.unit)
     when(mockAuthProvider.notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)).thenReturn(IO.unit)
-    when(mockAuthProvider.lookupWorkspaceParentForGoogleProject(any, any)(any))
-      .thenReturn(IO.pure(Some(workspaceId)))
     val publisherQueue = QueueFactory.makePublisherQueue()
     val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
     val res = appService
@@ -1388,7 +1393,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1539,7 +1545,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1583,7 +1590,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1626,7 +1634,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1666,7 +1675,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1712,7 +1722,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1758,7 +1769,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      mock[SamService[IO]]
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),

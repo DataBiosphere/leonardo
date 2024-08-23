@@ -87,7 +87,8 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
         None,
         gkeCustomAppConfig,
         baselineDependencies.wsmDAO,
-        baselineDependencies.wsmClientProvider
+        baselineDependencies.wsmClientProvider,
+        baselineDependencies.samService
       )
 
     // Needed for v1 APIs
@@ -97,7 +98,8 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       baselineDependencies.serviceAccountProvider,
       baselineDependencies.publisherQueue,
       None,
-      None
+      None,
+      baselineDependencies.samService
     )
 
     val runtimeService = RuntimeService(
@@ -108,7 +110,8 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       baselineDependencies.dockerDAO,
       None,
       None,
-      baselineDependencies.publisherQueue
+      baselineDependencies.publisherQueue,
+      baselineDependencies.samService
     )
 
     var servicesRegistry = ServicesRegistry()

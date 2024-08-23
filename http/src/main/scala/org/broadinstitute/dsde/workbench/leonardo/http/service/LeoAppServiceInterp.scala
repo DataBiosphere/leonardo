@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
@@ -61,7 +62,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 googleResourceService: Option[GoogleResourceService[F]],
                                                 customAppConfig: CustomAppConfig,
                                                 wsmDao: WsmDao[F],
-                                                wsmClientProvider: WsmApiClientProvider[F]
+                                                wsmClientProvider: WsmApiClientProvider[F],
+                                                samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -159,7 +161,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
 
       // Retrieve parent workspaceId for the google project
-      parentWorkspaceId <- authProvider.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
 
       notifySamAndCreate = for {
         _ <- authProvider

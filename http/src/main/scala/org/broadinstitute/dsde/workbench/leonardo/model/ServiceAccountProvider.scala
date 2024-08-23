@@ -6,6 +6,10 @@ import org.broadinstitute.dsde.workbench.leonardo.CloudContext
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
+/**
+ * Deprecated: port functionality to SamService, which uses the generated Sam client and models.
+ */
+@Deprecated
 abstract class ServiceAccountProvider[F[_]] {
 
   /**

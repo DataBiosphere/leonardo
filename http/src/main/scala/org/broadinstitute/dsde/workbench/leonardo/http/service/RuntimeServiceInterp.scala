@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
 // do not remove `projectSamResourceAction`; it is implicit
@@ -37,9 +38,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
 // do not remove `runtimeSamResourceAction`; it is implicit
   runtimeSamResourceAction,
 // do not remove `workspaceSamResourceAction`; it is implicit
-  workspaceSamResourceAction,
-// do not remove `AppSamResourceAction`; it is implicit
-  AppSamResourceAction
+  workspaceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
@@ -70,7 +69,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
   dockerDAO: DockerDAO[F],
   googleStorageService: Option[GoogleStorageService[F]],
   googleComputeService: Option[GoogleComputeService[F]],
-  publisherQueue: Queue[F, LeoPubsubMessage]
+  publisherQueue: Queue[F, LeoPubsubMessage],
+  samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -107,7 +107,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
       )
 
       // Retrieve parent workspaceId for the google project
-      parentWorkspaceId <- authProvider.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
 
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))

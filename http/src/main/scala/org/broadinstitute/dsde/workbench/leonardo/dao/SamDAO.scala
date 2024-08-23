@@ -11,6 +11,10 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 
+/**
+ * Deprecated. Functionality should be ported to SamService, which uses the generated Sam client.
+ */
+@Deprecated
 trait SamDAO[F[_]] {
 
   /** Registers the Leo SA as a user in Sam. */
@@ -168,11 +172,6 @@ trait SamDAO[F[_]] {
                                     resource: PrivateAzureStorageAccountSamResourceId,
                                     action: PrivateAzureStorageAccountAction
   )(implicit ev: Ask[F, TraceId]): F[Option[String]]
-
-  /** Gets the parent resource if the given resource ID, if one exists. */
-  def getResourceParent(authHeader: Authorization, resource: SamResourceId)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Option[GetResourceParentResponse]]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal

@@ -11,6 +11,10 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 
+/**
+ * Deprecated. Functionality should be ported to SamService, which uses the generated Sam client.
+ */
+@Deprecated
 class PetClusterServiceAccountProvider[F[_]: Monad](sam: SamDAO[F]) extends ServiceAccountProvider[F] {
 
   override def getClusterServiceAccount(userInfo: UserInfo, cloudContext: CloudContext)(implicit

@@ -143,6 +143,7 @@ object Dependencies {
   //  https://github.com/DataBiosphere/terra-common-lib/commit/431ad29aeb2275ce3415b22ff4447fc7a34386f7
   val terraCommonLibV = "1.1.4-SNAPSHOT"
   val bpmV = "0.1.548-SNAPSHOT"
+  val samV = "v0.0.271"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
@@ -158,11 +159,12 @@ object Dependencies {
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
   def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
   def excludeOpenTelemetry = ExclusionRule("io.opentelemetry")
+  def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
 
 
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeOpenTelemetry)
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeOpenTelemetry, excludeFlagsmith)
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
   val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
@@ -197,7 +199,8 @@ object Dependencies {
     logbackClassic,
     workspaceManager,
     bpm,
-    terraCommonLib
+    terraCommonLib,
+    sam
   )
 
   val httpDependencies = Seq(

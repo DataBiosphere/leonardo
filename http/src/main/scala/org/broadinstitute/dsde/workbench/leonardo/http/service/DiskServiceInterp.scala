@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 
 import scala.concurrent.ExecutionContext
 
@@ -39,7 +40,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         serviceAccountProvider: ServiceAccountProvider[F],
                                         publisherQueue: Queue[F, LeoPubsubMessage],
                                         googleDiskService: Option[GoogleDiskService[F]],
-                                        googleProjectDAO: Option[GoogleProjectDAO]
+                                        googleProjectDAO: Option[GoogleProjectDAO],
+                                        samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -82,7 +84,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
 
             // Retrieve parent workspaceId for the google project
-            parentWorkspaceId <- authProvider.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+            parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
 
             disk <- F.fromEither(
               convertToDisk(userInfo.userEmail,

@@ -285,7 +285,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.serviceAccountProvider,
       baselineDependencies.publisherQueue,
       Some(gcpDependencies.googleDiskService),
-      Some(gcpDependencies.googleProjectDAO)
+      Some(gcpDependencies.googleProjectDAO),
+      baselineDependencies.samService
     )
 
     val runtimeService = RuntimeService(
@@ -296,7 +297,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.dockerDAO,
       Some(gcpDependencies.googleStorageService),
       Some(gcpDependencies.googleComputeService),
-      baselineDependencies.publisherQueue
+      baselineDependencies.publisherQueue,
+      baselineDependencies.samService
     )
 
     val dataprocInterp = new DataprocInterpreter(
@@ -331,7 +333,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         Some(gcpDependencies.googleResourceService),
         gkeCustomAppConfig,
         baselineDependencies.wsmDAO,
-        baselineDependencies.wsmClientProvider
+        baselineDependencies.wsmClientProvider,
+        baselineDependencies.samService
       )
 
     val resourcesService = new ResourcesServiceInterp[IO](

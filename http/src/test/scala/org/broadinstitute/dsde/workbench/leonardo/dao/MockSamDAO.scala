@@ -506,12 +506,6 @@ class MockSamDAO extends SamDAO[IO] {
                                              resource: PrivateAzureStorageAccountSamResourceId,
                                              action: PrivateAzureStorageAccountAction
   )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = IO(None)
-
-  /** Gets the parent resource if the given resource ID, if one exists. */
-  override def getResourceParent(authHeader: Authorization, resource: SamResourceId)(implicit
-    ev: Ask[IO, TraceId]
-  ): IO[Option[GetResourceParentResponse]] =
-    IO(Some(GetResourceParentResponse(SamResourceType.Workspace, workspaceId.toString)))
 }
 
 object MockSamDAO {
