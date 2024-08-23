@@ -98,7 +98,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         baselineDependencies.publisherQueue,
         Some(gcpDependencies.googleComputeService),
         baselineDependencies.samDAO,
-        baselineDependencies.wsmDAO
+        baselineDependencies.wsmClientProvider
       )
 
     val nonLeoMessageSubscriber =

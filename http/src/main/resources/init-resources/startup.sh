@@ -85,8 +85,19 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 FILE=/var/certs/jupyter-server.crt
-USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
+## The PD should be the only `sd` disk that is not mounted yet
+AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
+FreesdDisks=()
+for Disk in "${AllsdDisks[@]}"; do
+    Mounts="$(lsblk -no MOUNTPOINT "${Disk}")"
+    if [ -z "$Mounts" ]; then
+        echo "Found our unmounted persistent disk!"
+        FreesdDisks="${Disk}"
+    else
+        echo "Not our persistent disk!"
+    fi
+done
+DISK_DEVICE_ID=${FreesdDisks}
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
@@ -119,9 +130,9 @@ then
     JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
     export WORK_DIRECTORY='/mnt/disks/work'
 
-    fsck.ext4 -tvy /dev/${DISK_DEVICE_ID}
+    fsck.ext4 -tvy ${DISK_DEVICE_ID}
     mkdir -p /mnt/disks/work
-    mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+    mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
     chmod a+rwx /mnt/disks/work
 
     # (1/6/22) Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
@@ -147,14 +158,12 @@ END
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
         ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+        
+        # the docker containers need to be restarted or the jupyter container
+        # will fail to start until the appropriate volume/device exists
+        docker restart $JUPYTER_SERVER_NAME
+        docker restart $WELDER_SERVER_NAME
 
-        if [ "${GPU_ENABLED}" == "true" ] ; then
-          # Containers will usually restart just fine. But when gpu is enabled,
-          # jupyter container will fail to start until the appropriate volume/device exists.
-          # Hence restart jupyter container here
-          docker restart jupyter-server
-          docker restart welder-server
-        fi
         # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
         # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
         # make it so that next time this runtime starts up, PD will be mapped to $HOME, but this means that the previous files under $HOME (.jupyter, .local etc)
@@ -172,6 +181,16 @@ END
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
         docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+    fi
+
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+        echo "Restarting Rstudio Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        # the docker containers need to be restarted or the jupyter container
+        # will fail to start until the appropriate volume/device exists
+        docker restart $RSTUDIO_SERVER_NAME
+        docker restart $WELDER_SERVER_NAME
+
     fi
 
     if [ "$UPDATE_WELDER" == "true" ] ; then
@@ -250,6 +269,7 @@ else
       ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
     fi
 fi
+
 
 function failScriptIfError() {
   if [ $EXIT_CODE -ne 0 ]; then
@@ -396,5 +416,5 @@ fi
 # If it's GCE, we resize the PD. Dataproc doesn't have PD
 if [ -f "$FILE" ]; then
   echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-  resize2fs /dev/${DISK_DEVICE_ID}
+  resize2fs ${DISK_DEVICE_ID}
 fi

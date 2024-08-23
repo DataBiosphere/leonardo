@@ -1984,7 +1984,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in create azure disk properly" in isolatedDbTest {
     val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(JobReport.StatusEnum.FAILED)
     val leoSubscriber = makeLeoSubscriber(azureInterp =
                                             makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm),
                                           asyncTaskQueue = queue
@@ -2031,7 +2031,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle delete azure vm failure properly" in isolatedDbTest {
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
     val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()
     val leoSubscriber =
@@ -2580,7 +2580,8 @@ class LeoPubsubMessageSubscriberSpec
       subscriberServicesRegistry
     )
   }
-  val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
+  val (mockWsm, mockControlledResourceApi, mockResourceApi, workspaceApi) =
+    AzureTestUtils.setUpMockWsmApiClientProvider()
 
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
