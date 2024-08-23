@@ -6,7 +6,10 @@ import org.broadinstitute.dsde.workbench.client.sam.api.ResourcesApi
 import org.broadinstitute.dsde.workbench.client.sam.model.FullyQualifiedResourceId
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{project, userInfo, workspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, SamResourceType}
+import org.http4s.{AuthScheme, Credentials}
+import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.BeforeAndAfterAll
@@ -94,8 +97,15 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
   }
 
   def newSamService(resourcesApi: ResourcesApi): SamService[IO] = new SamServiceInterp(
-    setUpMockSamApiClientProvider(resourcesApi)
+    setUpMockSamApiClientProvider(resourcesApi),
+    setUpMockCloudAuthTokenProvider
   )
+
+  def setUpMockCloudAuthTokenProvider: CloudAuthTokenProvider[IO] = {
+    val provider = mock[CloudAuthTokenProvider[IO]]
+    when(provider.getAuthToken).thenReturn(IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "some-token"))))
+    provider
+  }
 
   def setUpMockSamApiClientProvider(resourcesApi: ResourcesApi): SamApiClientProvider[IO] = {
     val provider = mock[SamApiClientProvider[IO]]

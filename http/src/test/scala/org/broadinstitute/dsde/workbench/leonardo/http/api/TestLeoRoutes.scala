@@ -82,7 +82,7 @@ trait TestLeoRoutes {
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, mock[SamService[IO]])
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
   val dataprocInterp =
@@ -111,7 +111,6 @@ trait TestLeoRoutes {
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
     Config.appServiceConfig,
     allowListAuthProvider,
-    serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
     Some(FakeGoogleComputeService),
     Some(FakeGoogleResourceService),
@@ -192,7 +191,6 @@ trait TestLeoRoutes {
     serviceConfig,
     ConfigReader.appConfig.persistentDisk,
     allowListAuthProvider,
-    serviceAccountProvider,
     new MockDockerDAO,
     Some(FakeGoogleStorageInterpreter),
     Some(FakeGoogleComputeService),

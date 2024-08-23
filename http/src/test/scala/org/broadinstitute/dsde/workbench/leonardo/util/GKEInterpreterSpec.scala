@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, m
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   kubernetesClusterQuery,
@@ -28,6 +29,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.ChartVersion
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatestplus.mockito.MockitoSugar
 
 import java.nio.file.Files
 import java.util.Base64
@@ -35,7 +37,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters._
 
-class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {
+class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with MockitoSugar with LeonardoTestSuite {
   val googleIamDao = new MockGoogleIamDAO {
     override def addIamPolicyBindingOnServiceAccount(serviceAccountProject: GoogleProject,
                                                      serviceAccountEmail: WorkbenchEmail,
@@ -51,7 +53,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
 
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, mock[SamService[IO]])
 
   val gkeInterp =
     new GKEInterpreter[IO](

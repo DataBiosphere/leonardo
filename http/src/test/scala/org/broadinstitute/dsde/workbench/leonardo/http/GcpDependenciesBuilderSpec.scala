@@ -29,7 +29,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.leonardo.{AppAccessScope, CloudService, KeyLock, LeoPublisher}
@@ -123,7 +122,6 @@ class GcpDependenciesBuilderSpec
       mock[HttpRStudioDAO[IO]],
       mock[HttpWelderDAO[IO]],
       mock[HttpWsmDao[IO]],
-      mock[ServiceAccountProvider[IO]],
       mock[SamAuthProvider[IO]],
       mock[LeoPublisher[IO]],
       mock[Queue[IO, LeoPubsubMessage]],

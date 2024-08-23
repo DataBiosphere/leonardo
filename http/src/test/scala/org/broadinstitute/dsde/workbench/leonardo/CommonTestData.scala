@@ -6,7 +6,6 @@ import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model.{AzureContext, GcpContext, WorkspaceDescription}
 import cats.effect.IO
 import cats.effect.Ref
-import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.compute.v1.Instance.Status
@@ -35,7 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
   Welder
 }
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.auth.{AllowlistAuthProvider, MockPetClusterServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   AccessScope,
@@ -477,9 +476,8 @@ object CommonTestData {
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
-  val serviceAccountProvider = new MockPetClusterServiceAccountProvider
-  val allowListAuthProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider)
-  val allowListAuthProvider2 = new AllowlistAuthProvider(allowlistAuthConfig2, serviceAccountProvider)
+  val allowListAuthProvider = new AllowlistAuthProvider(allowlistAuthConfig)
+  val allowListAuthProvider2 = new AllowlistAuthProvider(allowlistAuthConfig2)
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),
@@ -489,12 +487,6 @@ object CommonTestData {
   val traceId = Ask.const[IO, TraceId](
     TraceId(UUID.randomUUID())
   ) // we don't care much about traceId in unit tests, hence providing a constant UUID here
-
-  def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
-    serviceAccountProvider.getClusterServiceAccount(userInfo, CloudContext.Gcp(googleProject))(traceId).unsafeRunSync()
-
-  def notebookServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
-    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()
 
   val masterInstance = DataprocInstance(
     DataprocInstanceKey(project, ZoneName("my-zone"), InstanceName("master-instance")),

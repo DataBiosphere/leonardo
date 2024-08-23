@@ -103,7 +103,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     new LeoAppServiceInterp[IO](
       appConfig,
       authProvider,
-      serviceAccountProvider,
       queue,
       Some(FakeGoogleComputeService),
       Some(googleResourceService),
@@ -155,7 +154,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val passAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(passComputeService),
       Some(FakeGoogleResourceService),
@@ -167,7 +165,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(notEnoughMemoryComputeService),
       Some(FakeGoogleResourceService),
@@ -179,7 +176,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(notEnoughCpuComputeService),
       Some(FakeGoogleResourceService),
@@ -212,7 +208,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val interp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noLabelsGoogleResourceService),
@@ -244,7 +239,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val interp = new LeoAppServiceInterp[IO](
       AppServiceConfig(false, false, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
@@ -1378,7 +1372,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
@@ -1412,7 +1405,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "reject create SAS app request if it's not from AoU UI and user is not in the sas_app_users group" in {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1494,7 +1487,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         IO.pure(Some(Map.from(List("security-group" -> "high"))))
     }
 
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1523,14 +1516,13 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
@@ -1564,7 +1556,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1575,7 +1567,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noSecurityGroupGoogleResourceService),
@@ -1606,7 +1597,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1619,7 +1610,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(highSecurityGoogleResourceService),
@@ -1660,7 +1650,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(highSecurityGoogleResourceService),
@@ -1696,7 +1685,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1707,7 +1696,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noSecurityGroupGoogleResourceService),
@@ -1743,7 +1731,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1754,7 +1742,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noSecurityGroupGoogleResourceService),

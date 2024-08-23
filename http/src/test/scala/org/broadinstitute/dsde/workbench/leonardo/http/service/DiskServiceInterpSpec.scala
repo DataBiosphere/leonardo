@@ -66,7 +66,6 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = dontCloneFromTheseGoogleFolders),
       allowListAuthProvider,
-      serviceAccountProvider,
       publisherQueue,
       Some(MockGoogleDiskService),
       Some(googleProjectDAO),
@@ -166,7 +165,6 @@ class DiskServiceInterpTest
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = forbiddenFolders),
       allowListAuthProvider,
-      serviceAccountProvider,
       publisherQueue,
       Some(new MockGoogleDiskService {
         override def getDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
@@ -292,7 +290,6 @@ class DiskServiceInterpTest
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk,
       authProviderMock,
-      serviceAccountProvider,
       publisherQueue,
       Some(googleDiskServiceMock),
       Some(new MockGoogleProjectDAO),

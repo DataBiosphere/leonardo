@@ -159,7 +159,7 @@ class GceRuntimeMonitorSpec
   // process, Creating
   "process" should "fail Creating if user script failed" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
+      serviceAccount = serviceAccountEmail,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
       status = RuntimeStatus.Creating,
       userScriptUri =
@@ -192,7 +192,7 @@ class GceRuntimeMonitorSpec
   // process, Creating
   it should "fail Creating if user startup script failed" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
+      serviceAccount = serviceAccountEmail,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
       status = RuntimeStatus.Creating,
       startUserScriptUri = Some(
@@ -244,7 +244,7 @@ class GceRuntimeMonitorSpec
 
   // process, Creating
   it should "will check again if instance still exists when trying to Creating one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Creating
     )
@@ -283,7 +283,7 @@ class GceRuntimeMonitorSpec
 
   // process, Starting
   it should "will check again if instance still exists when trying to Starting one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -352,7 +352,7 @@ class GceRuntimeMonitorSpec
   }
 
   it should "terminate if instance is terminated after 5 seconds when trying to Starting one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -393,7 +393,7 @@ class GceRuntimeMonitorSpec
 
   it should "fail Starting if user startup script failed" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
+      serviceAccount = serviceAccountEmail,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
       status = RuntimeStatus.Starting,
       startUserScriptUri = Some(
@@ -445,7 +445,7 @@ class GceRuntimeMonitorSpec
 
   // process
   it should "exit monitor if status is not monitored" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopped
     )
@@ -467,7 +467,7 @@ class GceRuntimeMonitorSpec
 
   // process, Stopping
   it should "error when trying to Stop an instance that doesn't exist in GCP" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -489,7 +489,7 @@ class GceRuntimeMonitorSpec
 
   // process, Stopping
   it should "update runtime status appropriately when successfully stopped an instance" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -519,7 +519,7 @@ class GceRuntimeMonitorSpec
 
   // process, Stopping
   it should "will check again if instance is not terminated yet when trying to stop one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -544,7 +544,7 @@ class GceRuntimeMonitorSpec
 
   // process, Deleting
   it should "delete runtime successfully when instance doesn't exist in GCP" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Deleting
     )
@@ -566,7 +566,7 @@ class GceRuntimeMonitorSpec
 
   // process, Deleting
   it should "will check again if instance still exists when trying to delete one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Deleting
     )

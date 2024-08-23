@@ -94,7 +94,6 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       ),
       ConfigReader.appConfig.persistentDisk,
       authProvider,
-      serviceAccountProvider,
       new MockDockerDAO,
       Some(FakeGoogleStorageInterpreter),
       Some(computeService),
