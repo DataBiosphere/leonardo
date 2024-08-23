@@ -210,7 +210,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         securityFilesConfig
       )
 
-      bucketHelper = new BucketHelper[F](bucketHelperConfig, googleStorage, baselineDependencies.serviceAccountProvider)
+      bucketHelper = new BucketHelper[F](bucketHelperConfig, googleStorage, baselineDependencies.samService)
 
       vpcInterp = new VPCInterpreter(vpcInterpreterConfig, googleResourceService, googleComputeService)
 
@@ -282,7 +282,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     val diskService = new DiskServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.publisherQueue,
       Some(gcpDependencies.googleDiskService),
       Some(gcpDependencies.googleProjectDAO),
@@ -293,7 +292,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.runtimeServicesConfig,
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.dockerDAO,
       Some(gcpDependencies.googleStorageService),
       Some(gcpDependencies.googleComputeService),
@@ -327,7 +325,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       new LeoAppServiceInterp(
         appServiceConfig,
         baselineDependencies.authProvider,
-        baselineDependencies.serviceAccountProvider,
         baselineDependencies.publisherQueue,
         Some(gcpDependencies.googleComputeService),
         Some(gcpDependencies.googleResourceService),

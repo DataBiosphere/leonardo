@@ -81,7 +81,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       new LeoAppServiceInterp(
         appServiceConfig,
         baselineDependencies.authProvider,
-        baselineDependencies.serviceAccountProvider,
         baselineDependencies.publisherQueue,
         None,
         None,
@@ -95,7 +94,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
     val diskService = new DiskServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.publisherQueue,
       None,
       None,
@@ -106,7 +104,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       baselineDependencies.runtimeServicesConfig,
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.dockerDAO,
       None,
       None,

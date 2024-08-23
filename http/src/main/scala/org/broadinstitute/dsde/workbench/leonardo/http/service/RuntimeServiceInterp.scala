@@ -65,7 +65,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
   config: RuntimeServiceConfig,
   diskConfig: PersistentDiskConfig,
   authProvider: LeoAuthProvider[F],
-  serviceAccountProvider: ServiceAccountProvider[F],
   dockerDAO: DockerDAO[F],
   googleStorageService: Option[GoogleStorageService[F]],
   googleComputeService: Option[GoogleComputeService[F]],
@@ -98,13 +97,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
       )
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
-      // Grab the service accounts from serviceAccountProvider for use later
-      runtimeServiceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, cloudContext)
-      _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-      petSA <- F.fromEither(
-        runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
+      // Grab the pet service account for the user
+      petSA <- samService.getPetServiceAccount(userInfo, googleProject)
+      _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
       // Retrieve parent workspaceId for the google project
       parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
@@ -116,16 +111,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
         case None =>
           for {
             samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
-            petToken <- serviceAccountProvider.getAccessToken(userInfo.userEmail, googleProject).recoverWith { case e =>
-              log
-                .warn(e)(
-                  s"Could not acquire pet service account access token for user ${userInfo.userEmail.value} in project $googleProject. " +
-                    s"Skipping validation of bucket objects in the runtime request."
-                )
-                .as(none[String])
-            }
-            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam getAccessToken")))
-            runtimeImages <- getRuntimeImages(petToken, context.now, req.toolDockerImage, req.welderRegistry)
+            // TODO this was previously requesting a pet token for the getRuntimeImages call. Why not use the user token?
+            runtimeImages <- getRuntimeImages(Some(userInfo.accessToken.token),
+                                              context.now,
+                                              req.toolDockerImage,
+                                              req.welderRegistry
+            )
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
             // .get here should be okay since this is from config, and it should always be defined; Ideally we probaly should use a different type for reading this config than RuntimeConfig
             bootDiskSize = config.gceConfig.runtimeConfigDefaults.bootDiskSize.get
@@ -212,10 +203,11 @@ class RuntimeServiceInterp[F[_]: Parallel](
               )
               .getOrElse(List.empty[String]) ++ userScriptUriToValidate ++ userStartupScriptToValidate
 
-            _ <- petToken.traverse(t =>
-              gcsObjectUrisToValidate
-                .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))
-            )
+            // TODO: this was previously using the pet token. Why not the user token?
+            _ <- gcsObjectUrisToValidate
+              .parTraverse(s =>
+                validateBucketObjectUri(userInfo.userEmail, userInfo.accessToken.token, s, context.traceId)
+              )
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
             _ <- authProvider
               .notifyResourceCreated[RuntimeSamResourceId](samResource, userInfo.userEmail, googleProject)

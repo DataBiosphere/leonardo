@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -70,7 +70,6 @@ object RuntimeService {
   def apply[F[_]: Parallel](config: RuntimeServiceConfig,
                             diskConfig: PersistentDiskConfig,
                             authProvider: LeoAuthProvider[F],
-                            serviceAccountProvider: ServiceAccountProvider[F],
                             dockerDAO: DockerDAO[F],
                             googleStorageService: Option[GoogleStorageService[F]],
                             googleComputeService: Option[GoogleComputeService[F]],
@@ -87,7 +86,6 @@ object RuntimeService {
       config,
       diskConfig,
       authProvider,
-      serviceAccountProvider,
       dockerDAO,
       googleStorageService,
       googleComputeService,

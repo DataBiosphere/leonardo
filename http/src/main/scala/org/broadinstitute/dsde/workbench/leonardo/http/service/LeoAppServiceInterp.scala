@@ -56,7 +56,6 @@ import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
-                                                serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
                                                 computeService: Option[GoogleComputeService[F]],
                                                 googleResourceService: Option[GoogleResourceService[F]],
@@ -230,12 +229,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             }
           }
 
-        runtimeServiceAccountOpt <- serviceAccountProvider
-          .getClusterServiceAccount(userInfo, cloudContext)
-        _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-        petSA <- F.fromEither(
-          runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-        )
+        petSA <- samService.getPetServiceAccount(userInfo, googleProject)
+        _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
         // Fail fast if the Galaxy disk, memory, number of CPUs is too small
         appMachineType <-
@@ -823,11 +818,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       nodepool = saveClusterResult.defaultNodepool.toNodepool()
 
       // Retrieve a pet identity from Sam
-      runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-      petSA <- F.fromEither(
-        runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
+      petSA <- cloudContext match {
+        case CloudContext.Gcp(googleProject)       => samService.getPetServiceAccount(userInfo, googleProject)
+        case CloudContext.Azure(azureCloudContext) => samService.getPetManagedIdentity(userInfo, azureCloudContext)
+      }
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
       // Process persistent disk in the request, check if the disk was previously attached to any other app
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
@@ -1664,8 +1659,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 }
 
 object LeoAppServiceInterp {
-  case class LeoKubernetesConfig(serviceAccountConfig: ServiceAccountProviderConfig,
-                                 clusterConfig: KubernetesClusterConfig,
+  case class LeoKubernetesConfig(clusterConfig: KubernetesClusterConfig,
                                  nodepoolConfig: NodepoolConfig,
                                  ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,

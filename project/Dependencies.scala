@@ -168,6 +168,7 @@ object Dependencies {
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
   val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
+  val sam = excludeJakarta("org.broadinstitute.dsde.workbench" %% "sam-client" % samV)
 
   val coreDependencies = List(
     jose4j,

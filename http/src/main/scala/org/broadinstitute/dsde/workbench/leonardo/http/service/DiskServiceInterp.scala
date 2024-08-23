@@ -37,7 +37,6 @@ import scala.concurrent.ExecutionContext
 
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
-                                        serviceAccountProvider: ServiceAccountProvider[F],
                                         publisherQueue: Queue[F, LeoPubsubMessage],
                                         googleDiskService: Option[GoogleDiskService[F]],
                                         googleProjectDAO: Option[GoogleProjectDAO],
@@ -64,12 +63,9 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         userInfo
       )
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-      // Grab the service accounts from serviceAccountProvider for use later
-      serviceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, CloudContext.Gcp(googleProject))
-      petSA <- F.fromEither(
-        serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
+
+      // Grab the pet service account for the user
+      petSA <- samService.getPetServiceAccount(userInfo, googleProject)
 
       _ <- req.sourceDisk.traverse(sd => verifyOkToClone(sd.googleProject, googleProject))
 

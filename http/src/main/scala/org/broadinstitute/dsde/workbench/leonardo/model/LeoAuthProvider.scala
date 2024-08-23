@@ -207,8 +207,6 @@ object SamResourceAction {
  */
 @Deprecated
 trait LeoAuthProvider[F[_]] {
-  def serviceAccountProvider: ServiceAccountProvider[F]
-
   def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
