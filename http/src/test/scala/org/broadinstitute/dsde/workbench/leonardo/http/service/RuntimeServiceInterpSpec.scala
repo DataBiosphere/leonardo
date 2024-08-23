@@ -1037,7 +1037,7 @@ class RuntimeServiceInterpTest
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse1 = ListRuntimeResponse2(
       runtime1.id,
-      None,
+      Some(workspaceId),
       runtime1.samResource,
       runtime1.clusterName,
       runtime1.cloudContext,
@@ -1058,7 +1058,7 @@ class RuntimeServiceInterpTest
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse2 = ListRuntimeResponse2(
       runtime2.id,
-      None,
+      Some(workspaceId),
       runtime2.samResource,
       runtime2.clusterName,
       runtime2.cloudContext,

@@ -1,15 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import org.broadinstitute.dsde.workbench.client.sam.api.ResourcesApi
-import org.broadinstitute.dsde.workbench.client.sam.model.FullyQualifiedResourceId
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{project, userInfo, workspaceId}
+import org.broadinstitute.dsde.workbench.client.sam.ApiException
+import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi, UsersApi}
+import org.broadinstitute.dsde.workbench.client.sam.model.{FullyQualifiedResourceId, GetOrCreateManagedIdentityRequest}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, SamResourceType}
-import org.http4s.{AuthScheme, Credentials}
 import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.BeforeAndAfterAll
@@ -20,11 +22,88 @@ import java.util.UUID
 
 class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with BeforeAndAfterAll with MockitoSugar {
   describe("SamServiceInterp") {
+
+    describe("getPetServiceAccount") {
+      it("should retrieve a pet service account from Sam") {
+        // test
+        val result = newSamService().getPetServiceAccount(userInfo, project).unsafeRunSync()
+
+        // assert
+        result shouldBe serviceAccountEmail
+      }
+
+      it("should fail with a SamException") {
+        // setup
+        val googleApi = mock[GoogleApi]
+        when(googleApi.getPetServiceAccount(project.value)).thenThrow(new ApiException(500, "sam error"))
+
+        // test
+        val result =
+          the[SamException] thrownBy newSamService(googleApi = googleApi)
+            .getPetServiceAccount(userInfo, project)
+            .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("sam error")
+        result.statusCode shouldBe StatusCodes.InternalServerError
+      }
+    }
+
+    describe("getPetManagedIdentity") {
+      it("should retrieve a pet managed identity from Sam") {
+        // test
+        val result = newSamService().getPetManagedIdentity(userInfo, azureCloudContext).unsafeRunSync()
+
+        // assert
+        result shouldBe managedIdentityEmail
+      }
+
+      it("should fail with a SamException") {
+        // setup
+        val azureApi = mock[AzureApi]
+        when(azureApi.getPetManagedIdentity(any)).thenThrow(new ApiException(400, "bad request"))
+
+        // test
+        val result =
+          the[SamException] thrownBy newSamService(azureApi = azureApi)
+            .getPetManagedIdentity(userInfo, azureCloudContext)
+            .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("bad request")
+        result.statusCode shouldBe StatusCodes.BadRequest
+      }
+    }
+
+    describe("getProxyGroup") {
+      it("should retrieve a proxy group from Sam") {
+        // test
+        val result = newSamService().getProxyGroup(userEmail).unsafeRunSync()
+
+        // assert
+        result shouldBe proxyGroupEmail
+      }
+
+      it("should fail with a SamException") {
+        // setup
+        val googleApi = mock[GoogleApi]
+        when(googleApi.getProxyGroup(userEmail.value)).thenThrow(new ApiException(500, "error"))
+
+        // test
+        val result =
+          the[SamException] thrownBy newSamService(googleApi = googleApi).getProxyGroup(userEmail).unsafeRunSync()
+
+        // assert
+        result.getMessage should include("error")
+        result.statusCode shouldBe StatusCodes.InternalServerError
+      }
+    }
+
     describe("lookupWorkspaceParentForGoogleProject") {
       it("should successfully lookup a google project's parent workspace") {
         // test
         val result =
-          newSamService(setUpMockResourceApi).lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync()
+          newSamService().lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync()
 
         // assert
         result shouldBe Some(workspaceId)
@@ -32,13 +111,15 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
       it("should handle Sam errors") {
         // setup
-        val resourcesApi = setUpMockResourceApi
-        when(resourcesApi.getResourceParent(SamResourceType.Project.asString, project.value))
+        val resourcesApi = mock[ResourcesApi]
+        when(setUpMockResourceApi.getResourceParent(SamResourceType.Project.asString, project.value))
           .thenThrow(new RuntimeException("error!"))
 
         // test
         val result =
-          newSamService(resourcesApi).lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync()
+          newSamService(resourcesApi)
+            .lookupWorkspaceParentForGoogleProject(userInfo, project)
+            .unsafeRunSync()
 
         // assert
         result shouldBe None
@@ -46,7 +127,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
       it("should handle no workspace returned") {
         // setup
-        val resourcesApi = setUpMockResourceApi
+        val resourcesApi = mock[ResourcesApi]
         when(resourcesApi.getResourceParent(SamResourceType.Project.asString, project.value))
           .thenReturn(null)
 
@@ -60,7 +141,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
       it("should handle an invalid id") {
         // setup
-        val resourcesApi = setUpMockResourceApi
+        val resourcesApi = mock[ResourcesApi]
         when(resourcesApi.getResourceParent(SamResourceType.Project.asString, project.value))
           .thenReturn(
             new FullyQualifiedResourceId()
@@ -78,7 +159,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
       it("should handle an unexpected parent type") {
         // setup
-        val resourcesApi = setUpMockResourceApi
+        val resourcesApi = mock[ResourcesApi]
         when(resourcesApi.getResourceParent(SamResourceType.Project.asString, project.value))
           .thenReturn(
             new FullyQualifiedResourceId()
@@ -96,8 +177,12 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
     }
   }
 
-  def newSamService(resourcesApi: ResourcesApi): SamService[IO] = new SamServiceInterp(
-    setUpMockSamApiClientProvider(resourcesApi),
+  def newSamService(resourcesApi: ResourcesApi = setUpMockResourceApi,
+                    usersApi: UsersApi = setUpMockUserApi,
+                    googleApi: GoogleApi = setUpMockGoogleApi,
+                    azureApi: AzureApi = setUpMockAzureApi
+  ): SamService[IO] = new SamServiceInterp(
+    setUpMockSamApiClientProvider(resourcesApi, usersApi, googleApi, azureApi),
     setUpMockCloudAuthTokenProvider
   )
 
@@ -107,9 +192,16 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
     provider
   }
 
-  def setUpMockSamApiClientProvider(resourcesApi: ResourcesApi): SamApiClientProvider[IO] = {
+  def setUpMockSamApiClientProvider(resourcesApi: ResourcesApi,
+                                    usersApi: UsersApi,
+                                    googleApi: GoogleApi,
+                                    azureApi: AzureApi
+  ): SamApiClientProvider[IO] = {
     val provider = mock[SamApiClientProvider[IO]]
     when(provider.resourcesApi(any)(any)).thenReturn(IO.pure(resourcesApi))
+    when(provider.usersApi(any)(any)).thenReturn(IO.pure(usersApi))
+    when(provider.googleApi(any)(any)).thenReturn(IO.pure(googleApi))
+    when(provider.azureApi(any)(any)).thenReturn(IO.pure(azureApi))
     provider
   }
 
@@ -122,6 +214,31 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
           .resourceId(workspaceId.value.toString)
       )
     resourcesApi
+  }
+
+  def setUpMockUserApi: UsersApi = {
+    val usersApi = mock[UsersApi]
+    usersApi
+  }
+
+  def setUpMockGoogleApi: GoogleApi = {
+    val googleApi = mock[GoogleApi]
+    when(googleApi.getPetServiceAccount(project.value)).thenReturn(serviceAccountEmail.value)
+    when(googleApi.getProxyGroup(userEmail.value)).thenReturn(proxyGroupEmail.value)
+    googleApi
+  }
+
+  def setUpMockAzureApi: AzureApi = {
+    val azureApi = mock[AzureApi]
+    when(
+      azureApi.getPetManagedIdentity(
+        new GetOrCreateManagedIdentityRequest()
+          .tenantId(azureCloudContext.tenantId.value)
+          .subscriptionId(azureCloudContext.subscriptionId.value)
+          .managedResourceGroupName(azureCloudContext.managedResourceGroupName.value)
+      )
+    ).thenReturn(managedIdentityEmail.value)
+    azureApi
   }
 
 }
