@@ -14,7 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, m
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   kubernetesClusterQuery,
@@ -53,7 +52,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Mockito
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
 
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, mock[SamService[IO]])
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, MockSamService)
 
   val gkeInterp =
     new GKEInterpreter[IO](

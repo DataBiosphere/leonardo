@@ -14,7 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{
   KubernetesDnsCache,
@@ -82,7 +81,7 @@ trait TestLeoRoutes {
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, mock[SamService[IO]])
+    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, MockSamService)
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
   val dataprocInterp =
@@ -117,7 +116,7 @@ trait TestLeoRoutes {
     Config.gkeCustomAppConfig,
     wsmDao,
     wsmClientProvider,
-    mock[SamService[IO]]
+    MockSamService
   )
 
   val serviceConfig = RuntimeServiceConfig(
@@ -195,7 +194,7 @@ trait TestLeoRoutes {
     Some(FakeGoogleStorageInterpreter),
     Some(FakeGoogleComputeService),
     QueueFactory.makePublisherQueue(),
-    mock[SamService[IO]]
+    MockSamService
   )
 
   val gcpOnlyServicesRegistry = {

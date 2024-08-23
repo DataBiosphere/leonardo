@@ -98,6 +98,8 @@ object CommonTestData {
   val userInfo3 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user3"), userEmail3, 0)
   val userInfo4 = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user4"), userEmail4, 0)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
+  val managedIdentityEmail = WorkbenchEmail("subscriptions/foo/bar/userAssignedManagedIdentity")
+  val proxyGroupEmail = WorkbenchEmail("PROXY_1245@test.firecloud.org")
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
   val unauthorizedUserInfo =
     UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("somecreep"), unauthorizedEmail, 0)

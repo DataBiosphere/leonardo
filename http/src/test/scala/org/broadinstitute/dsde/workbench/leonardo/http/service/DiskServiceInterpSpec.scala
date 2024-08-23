@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersi
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   BadRequestException,
@@ -69,7 +68,7 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       publisherQueue,
       Some(MockGoogleDiskService),
       Some(googleProjectDAO),
-      mock[SamService[IO]]
+      MockSamService
     )
     (diskService, publisherQueue)
   }
@@ -173,7 +172,7 @@ class DiskServiceInterpTest
           IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build()))
       }),
       Some(new MockGoogleProjectDAOWithCustomAncestors(projectToFolder)),
-      mock[SamService[IO]]
+      MockSamService
     )
 
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -293,7 +292,7 @@ class DiskServiceInterpTest
       publisherQueue,
       Some(googleDiskServiceMock),
       Some(new MockGoogleProjectDAO),
-      mock[SamService[IO]]
+      MockSamService
     )
     val userInfoCreator =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("creator"), WorkbenchEmail("creator@example.com"), 0)
