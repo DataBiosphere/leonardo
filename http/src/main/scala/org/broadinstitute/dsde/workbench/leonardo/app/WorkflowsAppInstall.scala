@@ -68,11 +68,7 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
       )
 
       // Get the pet userToken
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-      userToken <- F.fromOption(
-        tokenOpt,
-        AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
-      )
+      leoAuth <- samDao.getLeoAuthToken
 
       values =
         List(
@@ -107,7 +103,7 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // provenance (app-cloning) configs
-          raw"provenance.userAccessToken=${userToken}",
+          raw"provenance.userAccessToken=${leoAuth}",
 
           // database configs
           raw"postgres.podLocalDatabaseEnabled=false",

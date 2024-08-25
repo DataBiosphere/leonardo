@@ -158,14 +158,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // Get optional action managed identity from Sam for the private_azure_storage_account/read action.
       // Identities must be passed to WSM for application-managed resources.
-      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-      actionIdentityOpt <- tokenOpt.flatTraverse { token =>
-        samDAO.getAzureActionManagedIdentity(
-          org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token)),
+      actionIdentityOpt <- samDAO.getAzureActionManagedIdentity(
+          leoAuth,
           PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
           PrivateAzureStorageAccountAction.Read
         )
-      }
 
       _ <- logger.info(
         s"[AzurePubsubHandler/createAndPollRuntime] beginning to monitor runtime creation for runtime ${msg.runtimeId}"

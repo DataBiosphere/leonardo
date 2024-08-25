@@ -80,11 +80,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
       )
 
       // Get the pet userToken
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-      userToken <- F.fromOption(
-        tokenOpt,
-        AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
-      )
 
       leoAuth <- authProvider.getLeoAuthToken
 
@@ -134,7 +129,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
         // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${userToken}",
+        raw"provenance.userAccessToken=${leoAuth}",
 
         // database configs
         raw"postgres.podLocalDatabaseEnabled=false",
