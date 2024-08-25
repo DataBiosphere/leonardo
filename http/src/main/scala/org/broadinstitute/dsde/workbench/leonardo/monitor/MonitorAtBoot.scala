@@ -223,13 +223,11 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                       appContext.traceId
                     )
                   )
-                  tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                  workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-                    wsmDao.getWorkspace(
+                  leoAuth <- samDAO.getLeoAuthToken
+                  workspaceDescOpt <- wsmDao.getWorkspace(
                       workspaceId,
-                      org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
+                      leoAuth
                     )
-                  }
                   workspaceDesc <- F.fromOption(workspaceDescOpt,
                                                 WorkspaceNotFoundException(workspaceId, appContext.traceId)
                   )
@@ -268,13 +266,11 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                               appContext.traceId
                                             )
                 )
-                tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-                  wsmDao.getWorkspace(
-                    workspaceId,
-                    org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-                  )
-                }
+                leoAuth <- samDAO.getLeoAuthToken
+                workspaceDescOpt <- wsmDao.getWorkspace(
+                  workspaceId,
+                  leoAuth
+                )
                 workspaceDesc <- F.fromOption(workspaceDescOpt,
                                               WorkspaceNotFoundException(workspaceId, appContext.traceId)
                 )
@@ -401,13 +397,11 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
           controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
-          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-          workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-            wsmDao.getWorkspace(
+          leoAuth <- samDAO.getLeoAuthToken
+          workspaceDescOpt <- wsmDao.getWorkspace(
               wid,
-              org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
+              leoAuth
             )
-          }
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
           runtimeId = runtime.id,
@@ -432,13 +426,12 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           wid <- F.fromOption(runtime.workspaceId,
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
-          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-          workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-            wsmDao.getWorkspace(
+          leoAuth <- samDAO.getLeoAuthToken
+          workspaceDescOpt <- wsmDao.getWorkspace(
               wid,
-              org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-            )
-          }
+              leoAuth
+          )
+
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,

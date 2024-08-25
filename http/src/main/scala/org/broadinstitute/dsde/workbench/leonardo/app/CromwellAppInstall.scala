@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService,
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.CoaAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -25,7 +26,8 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
                                cromwellDao: CromwellDAO[F],
                                cbasDao: CbasDAO[F],
                                azureBatchService: AzureBatchService[F],
-                               azureApplicationInsightsService: AzureApplicationInsightsService[F]
+                               azureApplicationInsightsService: AzureApplicationInsightsService[F],
+                               authProvider: SamAuthProvider[F]
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
@@ -67,12 +69,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
                                    AppCreationException("Postgres server required for Cromwell app", Some(ctx.traceId))
     )
 
-    // Get the pet userToken
-    tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-    userToken <- F.fromOption(
-      tokenOpt,
-      AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
-    )
+    leoAuth <- authProvider.getLeoAuthToken
 
     values = List(
       // azure resources configs
@@ -120,7 +117,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
       // provenance (app-cloning) configs
-      raw"provenance.userAccessToken=${userToken}",
+      raw"provenance.userAccessToken=${leoAuth}",
 
       // Database configs
       raw"postgres.podLocalDatabaseEnabled=false",

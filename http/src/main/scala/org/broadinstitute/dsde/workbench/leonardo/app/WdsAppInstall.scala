@@ -7,6 +7,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureApplicationInsightsService
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.WdsAppConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -23,7 +24,8 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
                           tdrConfig: TdrConfig,
                           samDao: SamDAO[F],
                           wdsDao: WdsDAO[F],
-                          azureApplicationInsightsService: AzureApplicationInsightsService[F]
+                          azureApplicationInsightsService: AzureApplicationInsightsService[F],
+                          authProvider: SamAuthProvider[F]
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
@@ -53,12 +55,8 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
         AppCreationException("Postgres server required for WDS app", Some(ctx.traceId))
       )
 
+      leoAuth <- authProvider.getLeoAuthToken
       // Get the pet userToken
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-      userToken <- F.fromOption(
-        tokenOpt,
-        AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
-      )
 
       // Get Vpa enabled tag
       vpaEnabled <- F.pure(params.landingZoneResources.aksCluster.tags.getOrElse("aks-cost-vpa-enabled", false))
@@ -92,7 +90,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // provenance (app-cloning) configs
-          raw"provenance.userAccessToken=${userToken}",
+          raw"provenance.userAccessToken=${leoAuth}",
           raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
 
           // database configs

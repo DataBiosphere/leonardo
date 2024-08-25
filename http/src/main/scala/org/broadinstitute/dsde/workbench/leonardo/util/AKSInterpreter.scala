@@ -108,14 +108,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Get the optional storage container for the workspace
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
       storageContainerOpt <- childSpan("getWorkspaceStorageContainer").use { implicit ev =>
-        tokenOpt.flatTraverse { token =>
           wsmDao.getWorkspaceStorageContainer(
             params.workspaceId,
-            org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
+            leoAuth
           )
-        }
       }
 
       wsmResourceApi <- buildWsmResourceApiClient
@@ -629,20 +626,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           }
       }
 
-      // Delete the Sam resource
-      userEmail = app.auditInfo.creator
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+      // Delete the Sam resource getCachedArbitraryPetAccessToken
       _ <- childSpan("deleteSamResource").use { implicit ev =>
-        tokenOpt match {
-          case Some(token) =>
-            samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                          Authorization(Credentials.Token(AuthScheme.Bearer, token))
-            )
-          case None =>
-            logger.warn(
-              s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
-            )
-        }
+            samDao.deleteResourceInternal(dbApp.app.samResourceId, leoAuth)
       }
 
       _ <- logger.info(
@@ -658,10 +644,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def pollApp(userEmail: WorkbenchEmail, relayBaseUri: Uri, appInstall: AppInstall[F])(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] = for {
-    ctx <- ev.ask
-    tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-    token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
-    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+    authHeader <- samDao.getLeoAuthToken
 
     res <- appInstall.checkStatus(relayBaseUri, authHeader)
   } yield res
