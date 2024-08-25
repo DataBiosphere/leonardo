@@ -28,8 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp._
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials, Uri}
+import org.http4s.Uri
 import org.typelevel.log4cats.StructuredLogger
 
 import java.net.URL
