@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.http4s.AuthScheme
 import org.typelevel.log4cats.Logger
 
 import java.util.UUID
@@ -378,9 +377,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 
-  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId)(implicit
-    ev: Ask[F, TraceId]
-  ): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(
