@@ -31,10 +31,15 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, ContentSecurityPolicyConfig, RefererConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  ApplicationConfig,
+  AzureEnvironmentConverter,
+  ContentSecurityPolicyConfig,
+  RefererConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO, ConfigReader}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage,
@@ -179,6 +184,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.image,
           workspaceStorageContainer,
           msg.workspaceName,
+          AzureEnvironmentConverter
+            .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+            .getStorageEndpointSuffix,
           cloudContext,
           List(actionIdentityOpt).flatten
         )
@@ -194,7 +202,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     val samResourceId = WsmControlledResourceId(UUID.fromString(params.runtime.samResource.resourceId))
 
     val wsStorageContainerUrl =
-      s"https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${params.workspaceStorageContainer.name.value}"
+      s"https://${params.landingZoneResources.storageAccountName.value}.${params.storageAccountUrlDomain}/${params.workspaceStorageContainer.name.value}"
 
     // Setup create VM message
     val vmCommon = getCommonFieldsForWsmGeneratedClient(
