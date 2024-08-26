@@ -67,7 +67,7 @@ class BucketHelper[F[_]](
       // Available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
       // User proxy group -> Reader
       bucketSAs <- getBucketSAs(serviceAccountInfo)
-      proxyGroup <- Stream.eval(samService.getProxyGroup(userEmail)).map(userIdentity)
+      proxyGroup <- Stream.eval(samService.getProxyGroup(userEmail)).map(groupIdentity)
 
       readerAcl = Map(StorageRole.ObjectViewer -> NonEmptyList.one(proxyGroup))
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList(leoEntity, bucketSAs))
