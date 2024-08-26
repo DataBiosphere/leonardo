@@ -318,6 +318,11 @@ class BaseMockSamService extends SamService[IO] {
   override def getProxyGroup(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
     IO.pure(proxyGroupEmail)
 
+  override def getPetServiceAccountToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[String] =
+    IO.pure(tokenValue)
+
   override def lookupWorkspaceParentForGoogleProject(userInfo: UserInfo, googleProject: GoogleProject)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[WorkspaceId]] = IO.pure(Some(workspaceId))

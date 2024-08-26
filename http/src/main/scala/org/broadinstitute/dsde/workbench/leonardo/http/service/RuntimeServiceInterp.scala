@@ -111,12 +111,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
         case None =>
           for {
             samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
-            // TODO this was previously requesting a pet token for the getRuntimeImages call. Why not use the user token?
-            runtimeImages <- getRuntimeImages(Some(userInfo.accessToken.token),
-                                              context.now,
-                                              req.toolDockerImage,
-                                              req.welderRegistry
-            )
+            petToken <- samService.getPetServiceAccountToken(userInfo.userEmail, googleProject)
+            runtimeImages <- getRuntimeImages(Some(petToken), context.now, req.toolDockerImage, req.welderRegistry)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
             // .get here should be okay since this is from config, and it should always be defined; Ideally we probaly should use a different type for reading this config than RuntimeConfig
             bootDiskSize = config.gceConfig.runtimeConfigDefaults.bootDiskSize.get
@@ -203,11 +199,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
               )
               .getOrElse(List.empty[String]) ++ userScriptUriToValidate ++ userStartupScriptToValidate
 
-            // TODO: this was previously using the pet token. Why not the user token?
+            petToken <- samService.getPetServiceAccountToken(userInfo.userEmail, googleProject)
             _ <- gcsObjectUrisToValidate
-              .parTraverse(s =>
-                validateBucketObjectUri(userInfo.userEmail, userInfo.accessToken.token, s, context.traceId)
-              )
+              .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, petToken, s, context.traceId))
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
             _ <- authProvider
               .notifyResourceCreated[RuntimeSamResourceId](samResource, userInfo.userEmail, googleProject)

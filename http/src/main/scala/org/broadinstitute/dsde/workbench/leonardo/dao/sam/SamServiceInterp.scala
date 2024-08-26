@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.services.storage.StorageScopes
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
 import org.broadinstitute.dsde.workbench.client.sam.model.GetOrCreateManagedIdentityRequest
@@ -17,6 +18,7 @@ import org.http4s.Credentials.Token
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
+import scala.jdk.CollectionConverters._
 
 class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
                              cloudAuthTokenProvider: CloudAuthTokenProvider[F]
@@ -25,6 +27,12 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F]
 ) extends SamService[F] {
+
+  private val saScopes = Seq(
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    StorageScopes.DEVSTORAGE_READ_ONLY
+  )
 
   // TODO: pattern for retries
 
@@ -70,6 +78,20 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
         SamException.create("Error getting proxy group from Sam", e, ctx.traceId)
       }
     } yield WorkbenchEmail(proxy)
+
+  override def getPetServiceAccountToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, AppContext]
+  ): F[String] = for {
+    ctx <- ev.ask
+    leoToken <- getLeoAuthToken
+    googleApi <- apiClientProvider.googleApi(leoToken)
+    // TODO: previously Leo cached this Sam call. Is that necessary?
+    petToken <- F
+      .blocking(googleApi.getUserPetServiceAccountToken(googleProject.value, userEmail.value, saScopes.asJava))
+      .adaptError { case e: ApiException =>
+        SamException.create("Error getting pet service account token from Sam", e, ctx.traceId)
+      }
+  } yield petToken
 
   override def lookupWorkspaceParentForGoogleProject(userInfo: UserInfo, googleProject: GoogleProject)(implicit
     ev: Ask[F, AppContext]

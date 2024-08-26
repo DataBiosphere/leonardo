@@ -12,7 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, SamResourceType}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers
+import org.mockito.ArgumentMatchers.{any, anyList}
 import org.mockito.Mockito.when
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funspec.AnyFunSpecLike
@@ -96,6 +97,38 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
         // assert
         result.getMessage should include("error")
         result.statusCode shouldBe StatusCodes.InternalServerError
+      }
+    }
+
+    describe("getPetServiceAccountToken") {
+      it("should successfully request a pet token") {
+        // test
+        val result =
+          newSamService().getPetServiceAccountToken(userEmail, project).unsafeRunSync()
+
+        // assert
+        result shouldBe tokenValue
+      }
+
+      it("should fail with a SamException") {
+        // setup
+        val googleApi = mock[GoogleApi]
+        when(
+          googleApi.getUserPetServiceAccountToken(ArgumentMatchers.eq(project.value),
+                                                  ArgumentMatchers.eq(userEmail.value),
+                                                  anyList()
+          )
+        )
+          .thenThrow(new ApiException(404, "not found"))
+
+        // test
+        val result = the[SamException] thrownBy newSamService(googleApi = googleApi)
+          .getPetServiceAccountToken(userEmail, project)
+          .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("not found")
+        result.statusCode shouldBe StatusCodes.NotFound
       }
     }
 
@@ -225,6 +258,13 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
     val googleApi = mock[GoogleApi]
     when(googleApi.getPetServiceAccount(project.value)).thenReturn(serviceAccountEmail.value)
     when(googleApi.getProxyGroup(userEmail.value)).thenReturn(proxyGroupEmail.value)
+    when(
+      googleApi.getUserPetServiceAccountToken(ArgumentMatchers.eq(project.value),
+                                              ArgumentMatchers.eq(userEmail.value),
+                                              anyList()
+      )
+    )
+      .thenReturn(tokenValue)
     googleApi
   }
 

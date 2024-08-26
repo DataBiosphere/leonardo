@@ -46,6 +46,18 @@ trait SamService[F[_]] {
   )(implicit ev: Ask[F, AppContext]): F[WorkbenchEmail]
 
   /**
+   * Gets a token for the user's pet service account, using the Leo token.
+   * @param userEmail the user email
+   * @param googleProject the google project of the pet
+   * @param ev application context
+   * @return access token for the user's pet service account, or SamException if
+   *         the pet could not be retrieved.
+   */
+  def getPetServiceAccountToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, AppContext]
+  ): F[String]
+
+  /**
    * Looks up the workspace parent Sam resource for the given google project.
    *
    * This method is not used for access control. It is used to populate the workspaceId
