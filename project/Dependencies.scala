@@ -136,7 +136,7 @@ object Dependencies {
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val workSpaceManagerV = "0.254.1127-SNAPSHOT"
-  val terraCommonLibV = "1.1.17-SNAPSHOT"
+  val terraCommonLibV = "1.1.4-SNAPSHOT"
   val bpmV = "0.1.548-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
