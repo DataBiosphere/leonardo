@@ -98,7 +98,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       response <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}).pretty(true).execute()"
+        s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}, true, null, null, null, null, null, null, null, null)"
       )
 
       listPodStatus: List[PodStatus] = response.getItems.asScala.toList.flatMap(v1Pod =>
@@ -126,7 +126,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       _ <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.openapi.apis.CoreV1Api.createNamespace(${namespace.name.value}).pretty(true).execute()"
+        s"io.kubernetes.client.openapi.apis.CoreV1Api.createNamespace(${namespace.name.value}, true, null, null, null)"
       )
     } yield ()
 
@@ -159,7 +159,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       _ <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.openapi.apis.CoreV1Api.deleteNamespace(${namespace.name.value}).pretty(true).execute()"
+        s"io.kubernetes.client.openapi.apis.CoreV1Api.deleteNamespace(${namespace.name.value}, true, null, null, null, null, null)"
       )
     } yield ()
 
@@ -187,7 +187,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       v1NamespaceList <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespace().pretty(true).allowWatchBookmarks(false).watch(false).execute()",
+        s"io.kubernetes.client.apis.CoreV1Api.listNamespace(true, false, null, null, null, null, null, null, null, null, false)",
         Show.show[Option[V1NamespaceList]](
           _.fold("No namespace found")(x => x.getItems.asScala.toList.map(_.getMetadata.getName).mkString(","))
         )

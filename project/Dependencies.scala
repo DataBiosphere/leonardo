@@ -136,6 +136,11 @@ object Dependencies {
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val workSpaceManagerV = "0.254.1127-SNAPSHOT"
+
+  // Sticking to the legacy kubernetes java client for now
+  // See the relevant PRs from TCL, the fix suggested in there does not fully cover the leo use cases
+  //  https://github.com/DataBiosphere/terra-common-lib/commit/d9c2eca9510596def6553a63b6fe1eaa0d364163
+  //  https://github.com/DataBiosphere/terra-common-lib/commit/431ad29aeb2275ce3415b22ff4447fc7a34386f7
   val terraCommonLibV = "1.1.4-SNAPSHOT"
   val bpmV = "0.1.548-SNAPSHOT"
 
