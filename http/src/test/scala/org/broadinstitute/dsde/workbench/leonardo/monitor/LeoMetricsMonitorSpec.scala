@@ -751,7 +751,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val container = mock[V1Container]
     val kube = mock[KubernetesAlgebra[IO]]
 
-    val mockRequest = mock[client.APIlistNamespacedPodRequest]
     when {
       container.getResources
     } thenReturn new V1ResourceRequirements()
