@@ -80,7 +80,19 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       ctx <- ev.ask
       call =
         F.blocking(
-          client.listNamespacedPod(namespace.name.value).pretty("true").execute()
+          client.listNamespacedPod(namespace.name.value,
+                                   "true",
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null,
+                                   null
+          )
         )
 
       response <- withLogging(
@@ -103,10 +115,12 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       ctx <- ev.ask
       call = F
         .blocking(
-          client
-            .createNamespace(new V1Namespace().metadata(new V1ObjectMeta().name(namespace.name.value)))
-            .pretty("true")
-            .execute()
+          client.createNamespace(new V1Namespace().metadata(new V1ObjectMeta().name(namespace.name.value)),
+                                 "true",
+                                 null,
+                                 null,
+                                 null
+          )
         )
         .void
       _ <- withLogging(
@@ -124,7 +138,15 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       call =
         recoverF(
           F.blocking(
-            client.deleteNamespace(namespace.name.value).pretty("true").execute()
+            client.deleteNamespace(
+              namespace.name.value,
+              "true",
+              null,
+              null,
+              null,
+              null,
+              null
+            )
           ).void
             .recoverWith {
               case e: com.google.gson.JsonSyntaxException
@@ -158,7 +180,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       call =
         recoverF(
           F.blocking(
-            client.listNamespace().pretty("true").allowWatchBookmarks(false).watch(false).execute()
+            client.listNamespace("true", false, null, null, null, null, null, null, null, null, false)
           ),
           whenStatusCode(409)
         )
