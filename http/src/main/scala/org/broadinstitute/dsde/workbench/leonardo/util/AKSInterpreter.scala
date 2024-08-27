@@ -897,7 +897,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- F.raiseWhen(landingZoneResources.postgresServer.isEmpty)(
         AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId))
       )
-      wsmApi <- buildWsmControlledResourceApiClient
 
       // get a list of database types required for this app
       controlledDbsRequiredForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
