@@ -17,14 +17,14 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "9138393"
+  private val workbenchLibsHash = "3cea4eb"
   val serviceTestV = s"5.0-$workbenchLibsHash"
   val workbenchModelV = s"0.20-$workbenchLibsHash"
   val workbenchGoogleV = s"0.32-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.36-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
   val workbenchOauth2V = s"0.7-$workbenchLibsHash"
-  val workbenchAzureV = s"0.7-$workbenchLibsHash"
+  val workbenchAzureV = s"0.8-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.8.5"
 
@@ -108,7 +108,9 @@ object Dependencies {
   val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
-    excludeGuava)
+    excludeGuava
+  )
+
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
@@ -134,7 +136,12 @@ object Dependencies {
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val workSpaceManagerV = "0.254.1127-SNAPSHOT"
-  val terraCommonLibV = "0.0.94-SNAPSHOT"
+
+  // Sticking to the legacy kubernetes java client for now
+  // See the relevant PRs from TCL, the fix suggested in there does not fully cover the leo use cases
+  //  https://github.com/DataBiosphere/terra-common-lib/commit/d9c2eca9510596def6553a63b6fe1eaa0d364163
+  //  https://github.com/DataBiosphere/terra-common-lib/commit/431ad29aeb2275ce3415b22ff4447fc7a34386f7
+  val terraCommonLibV = "1.1.4-SNAPSHOT"
   val bpmV = "0.1.548-SNAPSHOT"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
@@ -149,9 +156,13 @@ object Dependencies {
   def excludeBroadWorkbench = ExclusionRule("org.broadinstitute.dsde.workbench")
   def excludePostgresql = ExclusionRule("org.postgresql", "postgresql")
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
+  def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
+  def excludeOpenTelemetry = ExclusionRule("io.opentelemetry")
+
+
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText)
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeOpenTelemetry)
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
   val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
