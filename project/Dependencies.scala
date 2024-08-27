@@ -143,7 +143,7 @@ object Dependencies {
   //  https://github.com/DataBiosphere/terra-common-lib/commit/431ad29aeb2275ce3415b22ff4447fc7a34386f7
   val terraCommonLibV = "1.1.4-SNAPSHOT"
   val bpmV = "0.1.548-SNAPSHOT"
-  val samV = "v0.0.274-18e416d-SNAP"
+  val samV = "v0.0.274-dab4583-SNAP"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
