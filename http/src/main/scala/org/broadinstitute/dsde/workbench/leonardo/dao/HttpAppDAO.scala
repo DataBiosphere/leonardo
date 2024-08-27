@@ -39,7 +39,9 @@ class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client:
             )
           )
           .map(status => status.code < 400) // consider redirect also as success
-          .handleErrorWith(t => logger.error(Map("traceId" -> traceId.asString), t)("i").as(false))
+          .handleErrorWith(t =>
+            logger.error(Map("traceId" -> traceId.asString), t)("Fail to check if app is up").as(false)
+          )
       case _ => Async[F].pure(false) // Update once we support Relay for apps
     }
 }

@@ -49,7 +49,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.ArgumentMatchers.{any, anyString}
-import org.mockito.Mockito.{mock, when}
+import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -750,7 +750,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val spec = mock[V1PodSpec]
     val container = mock[V1Container]
     val kube = mock[KubernetesAlgebra[IO]]
-
     when {
       container.getResources
     } thenReturn new V1ResourceRequirements()

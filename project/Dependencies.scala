@@ -17,14 +17,14 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "9138393"
+  private val workbenchLibsHash = "3cea4eb"
   val serviceTestV = s"5.0-$workbenchLibsHash"
   val workbenchModelV = s"0.20-$workbenchLibsHash"
   val workbenchGoogleV = s"0.32-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.36-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
   val workbenchOauth2V = s"0.7-$workbenchLibsHash"
-  val workbenchAzureV = s"0.7-$workbenchLibsHash"
+  val workbenchAzureV = s"0.8-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.8.5"
 
@@ -157,11 +157,12 @@ object Dependencies {
   def excludePostgresql = ExclusionRule("org.postgresql", "postgresql")
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
   def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
+  def excludeOpenTelemetry = ExclusionRule("io.opentelemetry")
 
 
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase)
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeOpenTelemetry)
   val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
   val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
