@@ -24,8 +24,6 @@ object SamException {
 
   def create(messagePrefix: String, apiException: ApiException, traceId: TraceId): SamException =
     new SamException(
-      // TODO: investigate whether we need to extract the ApiException message like in
-      //  TCL SamExceptionFactory
       extractMessage(messagePrefix, apiException),
       apiException.getCode,
       apiException.getCause,
