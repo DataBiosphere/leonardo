@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
-import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi, UsersApi}
+import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi}
 import org.broadinstitute.dsde.workbench.client.sam.model.{FullyQualifiedResourceId, GetOrCreateManagedIdentityRequest}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -211,11 +211,10 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
   }
 
   def newSamService(resourcesApi: ResourcesApi = setUpMockResourceApi,
-                    usersApi: UsersApi = setUpMockUserApi,
                     googleApi: GoogleApi = setUpMockGoogleApi,
                     azureApi: AzureApi = setUpMockAzureApi
   ): SamService[IO] = new SamServiceInterp(
-    setUpMockSamApiClientProvider(resourcesApi, usersApi, googleApi, azureApi),
+    setUpMockSamApiClientProvider(resourcesApi, googleApi, azureApi),
     setUpMockCloudAuthTokenProvider
   )
 
@@ -226,13 +225,11 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
   }
 
   def setUpMockSamApiClientProvider(resourcesApi: ResourcesApi,
-                                    usersApi: UsersApi,
                                     googleApi: GoogleApi,
                                     azureApi: AzureApi
   ): SamApiClientProvider[IO] = {
     val provider = mock[SamApiClientProvider[IO]]
     when(provider.resourcesApi(any)(any)).thenReturn(IO.pure(resourcesApi))
-    when(provider.usersApi(any)(any)).thenReturn(IO.pure(usersApi))
     when(provider.googleApi(any)(any)).thenReturn(IO.pure(googleApi))
     when(provider.azureApi(any)(any)).thenReturn(IO.pure(azureApi))
     provider
@@ -247,11 +244,6 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
           .resourceId(workspaceId.value.toString)
       )
     resourcesApi
-  }
-
-  def setUpMockUserApi: UsersApi = {
-    val usersApi = mock[UsersApi]
-    usersApi
   }
 
   def setUpMockGoogleApi: GoogleApi = {

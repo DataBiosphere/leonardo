@@ -35,6 +35,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
   )
 
   // TODO: pattern for retries
+  //  See: https://broadworkbench.atlassian.net/browse/IA-5053
 
   override def getPetServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
     ev: Ask[F, AppContext]
@@ -85,7 +86,6 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     ctx <- ev.ask
     leoToken <- getLeoAuthToken
     googleApi <- apiClientProvider.googleApi(leoToken)
-    // TODO: previously Leo cached this Sam call. Is that necessary?
     petToken <- F
       .blocking(googleApi.getUserPetServiceAccountToken(googleProject.value, userEmail.value, saScopes.asJava))
       .adaptError { case e: ApiException =>

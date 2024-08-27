@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 
@@ -34,6 +34,21 @@ trait SamService[F[_]] {
   def getPetManagedIdentity(userInfo: UserInfo, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[F, AppContext]
   ): F[WorkbenchEmail]
+
+  /**
+   * Gets a user's pet GCP service account or Azure managed identity using the user's token.
+   * @param userInfo the user info containing an access token
+   * @param cloudContext GCP or Azure cloud context.
+   * @param ev application context
+   * @return email of the pet service account or pet managed identity, or SamException if
+   *         the pet could not be retrieved.
+   */
+  def getPetServiceAccountOrManagedIdentity(userInfo: UserInfo, cloudContext: CloudContext)(implicit
+    ev: Ask[F, AppContext]
+  ): F[WorkbenchEmail] = cloudContext match {
+    case CloudContext.Gcp(googleProject)       => getPetServiceAccount(userInfo, googleProject)
+    case CloudContext.Azure(azureCloudContext) => getPetManagedIdentity(userInfo, azureCloudContext)
+  }
 
   /**
    * Gets the user's proxy group, using the Leo token.

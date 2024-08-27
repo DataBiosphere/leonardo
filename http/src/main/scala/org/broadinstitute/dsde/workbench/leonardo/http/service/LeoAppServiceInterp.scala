@@ -818,10 +818,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       nodepool = saveClusterResult.defaultNodepool.toNodepool()
 
       // Retrieve a pet identity from Sam
-      petSA <- cloudContext match {
-        case CloudContext.Gcp(googleProject)       => samService.getPetServiceAccount(userInfo, googleProject)
-        case CloudContext.Azure(azureCloudContext) => samService.getPetManagedIdentity(userInfo, azureCloudContext)
-      }
+      petSA <- samService.getPetServiceAccountOrManagedIdentity(userInfo, cloudContext)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
       // Process persistent disk in the request, check if the disk was previously attached to any other app

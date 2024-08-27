@@ -17,11 +17,10 @@ class SamException private (message: String, code: Int, cause: Throwable, traceI
 
 object SamException {
   def create(messagePrefix: String, apiException: ApiException, traceId: TraceId): SamException =
-    // TODO: I tried to use TCL SamExceptionFactory to process the ApiException.
-    //  However it's not usable from Leo becauseof missing Spring dependencies.
-    //  Investigate whether the logic in SamExceptionFactory should be ported to Leo.
     new SamException(
-      s"$messagePrefix: ${apiException.getMessage}",
+      // TODO: investigate whether we need to extract the ApiException message like in
+      //  TCL SamExceptionFactory
+      s"$messagePrefix: ${apiException}",
       apiException.getCode,
       apiException.getCause,
       traceId
