@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="remove-saturnAutoCreated-label-from-azure-apps">
+        <sql dbms="mysql">
+            DELETE FROM LABEL l
+            JOIN APP a ON l.resourceId = a.id AND l.resourceType = 'app'
+            WHERE l.`key` = 'saturnAutoCreated'
+            AND a.appType in ('WORKFLOWS_APP', 'CROMWELL_RUNNER_APP');
+        </sql>
+    </changeSet>
+</databaseChangeLog>
+
+
