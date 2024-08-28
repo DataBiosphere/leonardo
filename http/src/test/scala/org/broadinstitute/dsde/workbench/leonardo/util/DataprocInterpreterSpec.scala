@@ -69,7 +69,7 @@ class DataprocInterpreterSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, MockSamService)
 
   val mockGoogleResourceService = new FakeGoogleResourceService {
     override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =

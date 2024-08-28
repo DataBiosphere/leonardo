@@ -127,7 +127,7 @@ class LeoPubsubMessageSubscriberSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, MockSamService)
 
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, resourceService, FakeGoogleComputeService)

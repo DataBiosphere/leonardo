@@ -65,10 +65,10 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = dontCloneFromTheseGoogleFolders),
       allowListAuthProvider,
-      serviceAccountProvider,
       publisherQueue,
       Some(MockGoogleDiskService),
-      Some(googleProjectDAO)
+      Some(googleProjectDAO),
+      MockSamService
     )
     (diskService, publisherQueue)
   }
@@ -164,7 +164,6 @@ class DiskServiceInterpTest
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = forbiddenFolders),
       allowListAuthProvider,
-      serviceAccountProvider,
       publisherQueue,
       Some(new MockGoogleDiskService {
         override def getDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
@@ -172,7 +171,8 @@ class DiskServiceInterpTest
         ): IO[Option[Disk]] =
           IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build()))
       }),
-      Some(new MockGoogleProjectDAOWithCustomAncestors(projectToFolder))
+      Some(new MockGoogleProjectDAOWithCustomAncestors(projectToFolder)),
+      MockSamService
     )
 
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -289,10 +289,10 @@ class DiskServiceInterpTest
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk,
       authProviderMock,
-      serviceAccountProvider,
       publisherQueue,
       Some(googleDiskServiceMock),
-      Some(new MockGoogleProjectDAO)
+      Some(new MockGoogleProjectDAO),
+      MockSamService
     )
     val userInfoCreator =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("creator"), WorkbenchEmail("creator@example.com"), 0)
@@ -301,6 +301,7 @@ class DiskServiceInterpTest
 
     val googleProject = GoogleProject("project1")
     val diskName = DiskName("diskName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
     when(
       authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
                                      ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),

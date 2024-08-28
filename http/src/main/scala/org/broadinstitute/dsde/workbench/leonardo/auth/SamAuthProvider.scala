@@ -22,15 +22,17 @@ import scalacache.Cache
 
 import scala.concurrent.duration._
 
+/**
+ * Deprecated. Functionality should be ported to SamService, which uses the generated Sam client.
+ */
+@Deprecated
 class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   samDao: SamDAO[F],
   config: SamAuthProviderConfig,
-  saProvider: ServiceAccountProvider[F],
   authCache: Cache[F, AuthCacheKey, Boolean]
 )(implicit F: Async[F], logger: StructuredLogger[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
-  override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
@@ -421,7 +423,6 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
     } yield token
-
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
