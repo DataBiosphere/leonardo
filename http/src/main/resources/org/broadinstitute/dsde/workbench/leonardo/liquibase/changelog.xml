@@ -117,4 +117,5 @@
     <include file="changesets/20240605_add_update_app_log_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20240620_add_mount_ws_bucket_to_app_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20240620_uuid_type.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20240828_remove_saturnAutoCreated_label_from_azure_apps.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
