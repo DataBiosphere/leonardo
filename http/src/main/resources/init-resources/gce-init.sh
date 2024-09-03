@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# Borrowed from init-action.sh. GCE came second after dataproc
 # This init script instantiates the tool (e.g. Jupyter) docker images on Google Compute Engine instances created by Leo.
 
 set -e -x
@@ -59,6 +60,66 @@ display_time() {
   printf '%d seconds\n' $S
 }
 
+function apply_user_script() {
+  # CREATION TIME SCRIPT
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
+  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
+    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var &> /var/user_script_copy_output.txt
+  else
+    curl "${USER_SCRIPT_URI}" -o /var/"${USER_SCRIPT}"
+  fi
+  docker cp /var/"${USER_SCRIPT}" ${CONTAINER_NAME}:${TARGET_DIR}/"${USER_SCRIPT}"
+  # Note that we are running as root
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/"${USER_SCRIPT}"
+
+  # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
+  # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
+  # can gain full access to the VM already, so using this flag is not a significant escalation.
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/"${USER_SCRIPT}" &> /var/us_output.txt || EXIT_CODE=$?
+
+  # Should dump error in staging bucket -> display that back as part of the error message
+  if [ $EXIT_CODE -ne 0 ]; then
+    log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
+function apply_start_user_script() {
+  # START TIME USER SCRIPT -> AOU is using it. We should likely use this in Terra UI as well
+  # See https://broadworkbench.atlassian.net/browse/IA-5054
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
+  if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
+    $GSUTIL_CMD cp ${START_USER_SCRIPT_URI} /var
+  else
+    curl $START_USER_SCRIPT_URI -o /var/${START_USER_SCRIPT}
+  fi
+  docker cp /var/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
+
+  # Keep in sync with startup.sh
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
 #####################################################################################################
 # Main starts here.
 #####################################################################################################
@@ -79,12 +140,16 @@ log "Running GCE VM init script..."
 # .. after start user script
 # .. after start Jupyter
 # END
+
+## Used for profiling
 START_TIME=$(date +%s)
 STEP_TIMINGS=($(date +%s))
 
 # Set variables
 # Values like $(..) are populated by Leo when a cluster is created.
+# See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
 # Avoid exporting variables unless they are needed by external scripts or docker-compose files.
+export CLOUD_SERVICE='GCE'
 export CLUSTER_NAME=$(clusterName)
 export RUNTIME_NAME=$(clusterName)
 export GOOGLE_PROJECT=$(googleProject)
@@ -113,6 +178,7 @@ START_USER_SCRIPT_URI=$(startUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
 START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 IS_GCE_FORMATTED=$(isGceFormatted)
+# Needs to be in sync with terra-docker container
 JUPYTER_HOME=/etc/jupyter
 JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
@@ -140,76 +206,26 @@ INIT_BUCKET_NAME=$(initBucketName)
 CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
+# Toolbox is specific to COS images and is needed to access functionalities like gcloud
 GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
 GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
 
+# Welder configuration, Rstudio files are saved every X seconds in the background but Jupyter notebooks are not
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   export SHOULD_BACKGROUND_SYNC="true"
 else
   export SHOULD_BACKGROUND_SYNC="false"
 fi
 
+
+# Use specific docker compose command if the container is coming from GCR -> WHY?
+# TODO - Also check for GAR see https://broadworkbench.atlassian.net/browse/IA-4518
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
   log 'Authorizing GCR...'
   DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
 else
   DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2"
 fi
-
-function apply_user_script() {
-  local CONTAINER_NAME=$1
-  local TARGET_DIR=$2
-
-  log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
-  USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
-  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
-    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var &> /var/user_script_copy_output.txt
-  else
-    curl "${USER_SCRIPT_URI}" -o /var/"${USER_SCRIPT}"
-  fi
-  docker cp /var/"${USER_SCRIPT}" ${CONTAINER_NAME}:${TARGET_DIR}/"${USER_SCRIPT}"
-  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/"${USER_SCRIPT}"
-
-  # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
-  # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
-  # can gain full access to the VM already, so using this flag is not a significant escalation.
-  EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/"${USER_SCRIPT}" &> /var/us_output.txt || EXIT_CODE=$?
-
-  if [ $EXIT_CODE -ne 0 ]; then
-    log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-  fi
-}
-
-function apply_start_user_script() {
-  local CONTAINER_NAME=$1
-  local TARGET_DIR=$2
-
-  log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
-  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
-  if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
-    $GSUTIL_CMD cp ${START_USER_SCRIPT_URI} /var
-  else
-    curl $START_USER_SCRIPT_URI -o /var/${START_USER_SCRIPT}
-  fi
-  docker cp /var/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
-  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
-
-  # Keep in sync with startup.sh
-  EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
-  if [ $EXIT_CODE -ne 0 ]; then
-    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-  fi
-}
 
 mkdir -p ${WORK_DIRECTORY}
 mkdir -p ${CERT_DIRECTORY}
@@ -248,6 +264,7 @@ mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
+# Enable GPU drivers on top of the base Google DeepLearning default image
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
   version="535.154.05"
@@ -272,9 +289,10 @@ $GSUTIL_CMD cp ${SERVER_KEY} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp ${ROOT_CA} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
 
+# TODO: Figure out what this file is for
 echo "" > /var/google_application_credentials.env
 
-# Install env var config
+# Install env var config (e.g. AOU uses it to inject workspace name)
 if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
   log 'Copy custom env vars config...'
   $GSUTIL_CMD cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
@@ -299,6 +317,7 @@ fi
 if [ "${GPU_ENABLED}" == "true" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`)
   if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    # Little bit of hack to switch the jupyter paths to the rstudio ones. Should be different env variables for Rstudio instead
     sed -i 's/jupyter/rstudio/g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
     sed -i 's#${NOTEBOOKS_DIR}#/home/rstudio#g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
   fi
@@ -349,13 +368,16 @@ END
 # Create a network that allows containers to talk to each other via exposed ports
 docker network create -d bridge app_network
 
+# Docker compose config do dump the env variable to the yaml
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
 
+# Docker Pull
 retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull &> /var/docker_pull_output.txt
 
-# This needs to happen before we start up containers
+# This needs to happen before we start up containers because the jupyter user needs to be the owner of the PD
 chmod a+rwx ${WORK_DIRECTORY}
 
+# Docker compose up, starting all of the containers
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
 # Start up crypto detector, if enabled.
@@ -376,7 +398,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
-  # TODO: update this if we upgrade python version
+  # Install everything after having mounted the empty PD
+  # TODO: update this if we upgrade python version -> Delete legacy code and see what happens
   if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
     # TODO: Remove once we stop supporting non AI notebooks based images
     log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
@@ -386,7 +409,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
   fi
 
-  # Install notebook.json
+  # Install notebook.json, which is related to the locking logic
   if [ ! -z "$JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI" ] ; then
     log 'Copy Jupyter frontend notebook config...'
     $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
@@ -395,7 +418,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
   fi
 
-  # Install NbExtensions
+  # Install NbExtensions (the ones that users might be providing likely AOU?)
   if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
     for ext in ${JUPYTER_NB_EXTENSIONS}
     do
@@ -416,7 +439,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-  # Install serverExtensions
+  # Install serverExtensions (the ones that users might be providing likely AOU?)
   if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
     for ext in ${JUPYTER_SERVER_EXTENSIONS}
     do
@@ -432,7 +455,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-  # Install combined extensions
+  # Install combined extensions (the ones that users might be providing likely AOU?)
   if [ ! -z "$JUPYTER_COMBINED_EXTENSIONS"  ] ; then
     for ext in ${JUPYTER_COMBINED_EXTENSIONS}
     do
@@ -449,7 +472,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-  # Install lab extensions
+  # Install lab extensions (the ones that users might be providing likely AOU?)
   # Note: lab extensions need to installed as jupyter user, not root
   if [ ! -z "$JUPYTER_LAB_EXTENSIONS" ] ; then
     for ext in ${JUPYTER_LAB_EXTENSIONS}
@@ -499,16 +522,15 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' /etc/jupyter/custom/jupyter_delocalize.py"
 
-  # Copy gitignore into jupyter container
-
+  # Copy gitignore into jupyter container (ask AOU?)
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget -N https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
 
-  # Install nbstripout and set gitignore in Git Config
-
+  # Install nbstripout and set gitignore in Git Config (ask AOU?)
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
         && nbstripout --install --global \
         && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
+  # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
   docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
@@ -520,6 +542,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
   # This is to make it so that older images will still work after we change notebooks location to home dir
+  # NO IDEA WHAT THIS IS DOING
   docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
   log 'Starting Jupyter Notebook...'

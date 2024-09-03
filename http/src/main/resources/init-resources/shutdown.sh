@@ -3,10 +3,19 @@
 set -e -x
 
 ##
-# This is a shutdown script designed to run on Leo-created Dataproc clusters.
+# This is a shutdown script designed to run on Leo-created Google Dataproc clusters ad Google Compute Engines (GCE).
 ##
 
-# Templated values
+# Runtimes created after September 2024 should have the CLOUD_SERVICE env exported, but for older runtimes, the CLOUD_SERVICE
+# is assumed based on the location of the certs directory
+if [ -f "/var/certs/jupyter-server.crt" ]
+then
+  export CLOUD_SERVICE='GCE'
+else
+  export CLOUD_SERVICE='DATAPROC'
+fi
+
+# Templated values, see
 export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export SHOULD_DELETE_JUPYTER_DIR=$(shouldDeleteJupyterDir)
@@ -22,12 +31,8 @@ if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ]
     rm -rf /mnt/disks/work/.local || true
 fi
 
-# https://broadworkbench.atlassian.net/browse/IA-3186
-# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
-# a dedicated flag that distinguishes gce and dataproc. But this will do for now
-# Attempt to fix https://broadworkbench.atlassian.net/browse/IA-3258
-if [ -f "/var/certs/jupyter-server.crt" ]
-then
+# TODO - Why do we need different docker compose commands?
+if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
   DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
 else
   DOCKER_COMPOSE='docker-compose'
