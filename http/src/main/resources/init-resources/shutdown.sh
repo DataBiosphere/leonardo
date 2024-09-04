@@ -3,7 +3,7 @@
 set -e -x
 
 ##
-# This is a shutdown script designed to run on Leo-created Google Dataproc clusters ad Google Compute Engines (GCE).
+# This is a shutdown script designed to run on Leo-created Google Dataproc clusters and Google Compute Engines (GCE).
 ##
 
 # Runtimes created after September 2024 should have the CLOUD_SERVICE env exported, but for older runtimes, the CLOUD_SERVICE
@@ -15,7 +15,10 @@ else
   export CLOUD_SERVICE='DATAPROC'
 fi
 
-# Templated values, see
+# Set variables
+# Values like $(..) are populated by Leo when a cluster is resumed.
+# See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
+# Avoid exporting variables unless they are needed by external scripts or docker-compose files.
 export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export SHOULD_DELETE_JUPYTER_DIR=$(shouldDeleteJupyterDir)
