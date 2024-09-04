@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Borrowed from init-action.sh. GCE came second after dataproc
+# Borrowed from init-action.sh as our GCE offering came after the dataproc cluster one.
 # This init script instantiates the tool (e.g. Jupyter) docker images on Google Compute Engine instances created by Leo.
 
 set -e -x
@@ -61,7 +61,7 @@ display_time() {
 }
 
 function apply_user_script() {
-  # CREATION TIME SCRIPT
+  # User script to be executed once at creation time, but will not persist when the runtime is paused / resumed
   local CONTAINER_NAME=$1
   local TARGET_DIR=$2
 
@@ -82,7 +82,7 @@ function apply_user_script() {
   EXIT_CODE=0
   docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/"${USER_SCRIPT}" &> /var/us_output.txt || EXIT_CODE=$?
 
-  # Should dump error in staging bucket -> display that back as part of the error message
+  # Should dump error in staging bucket so we can display that back as part of the error message
   if [ $EXIT_CODE -ne 0 ]; then
     log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
     retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
@@ -93,7 +93,8 @@ function apply_user_script() {
 }
 
 function apply_start_user_script() {
-  # START TIME USER SCRIPT -> AOU is using it. We should likely use this in Terra UI as well
+  # User script to be executed at each startup time so the changes will persist between pause/resume cycles.
+  # Only used by the AOU Workbench, not Terra yet.
   # See https://broadworkbench.atlassian.net/browse/IA-5054
   local CONTAINER_NAME=$1
   local TARGET_DIR=$2
@@ -207,6 +208,7 @@ CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
 # Toolbox is specific to COS images and is needed to access functionalities like gcloud
+# See https://cloud.google.com/container-optimized-os/docs/how-to/toolbox
 GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
 GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
 
@@ -289,7 +291,7 @@ $GSUTIL_CMD cp ${SERVER_KEY} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp ${ROOT_CA} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
 
-# TODO: Figure out what this file is for
+# TODO: Figure out what this file is for. It is empty but used by the docker compose for both GCE and Dataproc
 echo "" > /var/google_application_credentials.env
 
 # Install env var config (e.g. AOU uses it to inject workspace name)
@@ -399,7 +401,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
   # Install everything after having mounted the empty PD
-  # TODO: update this if we upgrade python version -> Delete legacy code and see what happens
+  # This should not be needed anymore if the jupyter home is a directory of the PD mount point
+  # See: https://github.com/DataBiosphere/leonardo/pull/4465/files
   if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
     # TODO: Remove once we stop supporting non AI notebooks based images
     log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
@@ -542,7 +545,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
   # This is to make it so that older images will still work after we change notebooks location to home dir
-  # NO IDEA WHAT THIS IS DOING
   docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
   log 'Starting Jupyter Notebook...'
@@ -606,13 +608,9 @@ RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
 fi
 
 # Resize persistent disk if needed.
-# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
-# a dedicated flag that distinguishes gce and dataproc. But this will do for now
-# If it's GCE, we resize the PD. Dataproc doesn't have PD
-if [ -f "/var/certs/jupyter-server.crt" ]; then
-  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-  resize2fs ${DISK_DEVICE_ID}
-fi
+echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+resize2fs ${DISK_DEVICE_ID}
+
 
 # Remove any unneeded cached images to save disk space.
 # Do this asynchronously so it doesn't hold up cluster creation

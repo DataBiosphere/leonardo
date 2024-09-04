@@ -152,6 +152,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
     # Avoid exporting variables unless they are needed by external scripts or docker-compose files.
     export CLOUD_SERVICE='DATAPROC'
+    # Needs to be in sync with terra-docker container
     export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
     export CLUSTER_NAME=$(clusterName)
     export RUNTIME_NAME=$(clusterName)
