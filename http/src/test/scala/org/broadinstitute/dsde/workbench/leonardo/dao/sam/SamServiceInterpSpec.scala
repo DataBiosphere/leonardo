@@ -4,22 +4,24 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
-import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi}
-import org.broadinstitute.dsde.workbench.client.sam.model.{FullyQualifiedResourceId, GetOrCreateManagedIdentityRequest}
+import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi, UsersApi}
+import org.broadinstitute.dsde.workbench.client.sam.model._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, SamResourceType}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ForbiddenError, LeoInternalServerError}
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, RuntimeAction, SamResourceType}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.mockito.ArgumentMatchers
-import org.mockito.ArgumentMatchers.{any, anyList}
-import org.mockito.Mockito.when
+import org.mockito.ArgumentMatchers.{any, anyList, anyString}
+import org.mockito.Mockito.{doNothing, doThrow, verify, when}
+import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funspec.AnyFunSpecLike
 import org.scalatestplus.mockito.MockitoSugar
 
 import java.util.UUID
+import scala.jdk.CollectionConverters._
 
 class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with BeforeAndAfterAll with MockitoSugar {
   describe("SamServiceInterp") {
@@ -36,7 +38,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       it("should fail with a SamException") {
         // setup
         val googleApi = mock[GoogleApi]
-        when(googleApi.getPetServiceAccount(project.value)).thenThrow(new ApiException(500, "sam error"))
+        when(googleApi.getPetServiceAccount(project.value)).thenThrow(new ApiException(400, "sam error"))
 
         // test
         val result =
@@ -46,7 +48,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // assert
         result.getMessage should include("sam error")
-        result.statusCode shouldBe StatusCodes.InternalServerError
+        result.statusCode shouldBe StatusCodes.BadRequest
       }
     }
 
@@ -88,15 +90,15 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       it("should fail with a SamException") {
         // setup
         val googleApi = mock[GoogleApi]
-        when(googleApi.getProxyGroup(userEmail.value)).thenThrow(new ApiException(500, "error"))
+        when(googleApi.getProxyGroup(userEmail.value)).thenThrow(new ApiException(400, "bad request"))
 
         // test
         val result =
           the[SamException] thrownBy newSamService(googleApi = googleApi).getProxyGroup(userEmail).unsafeRunSync()
 
         // assert
-        result.getMessage should include("error")
-        result.statusCode shouldBe StatusCodes.InternalServerError
+        result.getMessage should include("bad request")
+        result.statusCode shouldBe StatusCodes.BadRequest
       }
     }
 
@@ -210,40 +212,258 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
     }
 
     describe("checkAuthz") {
-      it("should successfully check authorization") {}
-      it("should fail with ForbiddenError if unauthorized") {}
-      it("should fail with SamException on Sam errors") {}
+      it("should successfully check authorization") {
+        // test
+        newSamService()
+          .checkAuthz(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .unsafeRunSync()
+      }
+
+      it("should fail with ForbiddenError if unauthorized") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        when(
+          resourcesApi.resourcePermissionV2(runtimeSamResource.resourceType.asString,
+                                            runtimeSamResource.resourceId,
+                                            RuntimeAction.GetRuntimeStatus.asString
+          )
+        ).thenReturn(false)
+
+        // test
+        val result = the[ForbiddenError] thrownBy newSamService(resourcesApi = resourcesApi)
+          .checkAuthz(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .unsafeRunSync()
+
+        // assert
+        result.email shouldBe userEmail
+      }
+
+      it("should fail with SamException on Sam errors") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        when(resourcesApi.resourcePermissionV2(anyString, anyString, anyString))
+          .thenThrow(new ApiException(400, "sam error"))
+
+        // test
+        val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
+          .checkAuthz(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("Error checking resource permission in Sam")
+        result.statusCode shouldBe StatusCodes.BadRequest
+      }
     }
 
     describe("listResources") {
-      it("should successfully list resources") {}
-      it("should handle Sam errors") {}
+      it("should successfully list resources") {
+        // test
+        val result = newSamService().listResources(tokenValue, runtimeSamResource.resourceType).unsafeRunSync()
+
+        // assert
+        result shouldBe List(runtimeSamResource.resourceId)
+      }
+
+      it("should handle Sam errors") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        when(resourcesApi.listResourcesAndPoliciesV2(anyString)).thenThrow(new ApiException(400, "error"))
+
+        // test
+        val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
+          .listResources(tokenValue, runtimeSamResource.resourceType)
+          .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("Error listing resources from Sam")
+        result.statusCode shouldBe StatusCodes.BadRequest
+      }
     }
 
     describe("createResource") {
-      it("should create a Sam resource with a google project parent") {}
-      it("should create a Sam resource with a workspace parent") {}
-      it("should not allow resource creation with no parent") {}
-      it("should create a Sam resource with a creator policy") {}
-      it("should handle Sam errors") {}
+      it("should create a Sam resource with a google project parent") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        doNothing()
+          .when(resourcesApi)
+          .createResourceV2(ArgumentMatchers.eq(runtimeSamResource.resourceType.asString), any)
+
+        // test
+        newSamService(resourcesApi = resourcesApi)
+          .createResource(tokenValue, runtimeSamResource, Some(project), None, None)
+          .unsafeRunSync()
+
+        // assert
+        val captor = ArgumentCaptor.forClass(classOf[CreateResourceRequestV2])
+        verify(resourcesApi).createResourceV2(ArgumentMatchers.eq(runtimeSamResource.resourceType.asString),
+                                              captor.capture()
+        )
+        assert(captor.getValue.isInstanceOf[CreateResourceRequestV2])
+        val createResourceRequest = captor.getValue.asInstanceOf[CreateResourceRequestV2]
+        createResourceRequest.getResourceId shouldBe runtimeSamResource.resourceId
+        createResourceRequest.getParent shouldBe new FullyQualifiedResourceId()
+          .resourceTypeName(SamResourceType.Project.asString)
+          .resourceId(project.value)
+        createResourceRequest.getAuthDomain shouldBe List.empty.asJava
+        createResourceRequest.getPolicies shouldBe Map.empty.asJava
+      }
+
+      it("should create a Sam resource with a workspace parent") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        doNothing()
+          .when(resourcesApi)
+          .createResourceV2(ArgumentMatchers.eq(runtimeSamResource.resourceType.asString), any)
+
+        // test
+        newSamService(resourcesApi = resourcesApi)
+          .createResource(tokenValue, runtimeSamResource, None, Some(workspaceId), None)
+          .unsafeRunSync()
+
+        // assert
+        val captor = ArgumentCaptor.forClass(classOf[CreateResourceRequestV2])
+        verify(resourcesApi).createResourceV2(ArgumentMatchers.eq(runtimeSamResource.resourceType.asString),
+                                              captor.capture()
+        )
+        assert(captor.getValue.isInstanceOf[CreateResourceRequestV2])
+        val createResourceRequest = captor.getValue.asInstanceOf[CreateResourceRequestV2]
+        createResourceRequest.getResourceId shouldBe runtimeSamResource.resourceId
+        createResourceRequest.getParent shouldBe new FullyQualifiedResourceId()
+          .resourceTypeName(SamResourceType.Workspace.asString)
+          .resourceId(workspaceId.value.toString)
+        createResourceRequest.getAuthDomain shouldBe List.empty.asJava
+        createResourceRequest.getPolicies shouldBe Map.empty.asJava
+      }
+
+      it("should not allow resource creation with no parent") {
+        // test
+        val result = the[LeoInternalServerError] thrownBy newSamService()
+          .createResource(tokenValue, runtimeSamResource, None, None, None)
+          .unsafeRunSync()
+
+        // assert
+        result.msg should include("google project or workspace parent is required")
+      }
+
+      it("should not allow specifying a google project and workspace parent") {
+        // test
+        val result = the[LeoInternalServerError] thrownBy newSamService()
+          .createResource(tokenValue, runtimeSamResource, Some(project), Some(workspaceId), None)
+          .unsafeRunSync()
+
+        // assert
+        result.msg should include("google project or workspace parent is required")
+      }
+
+      it("should create a Sam resource with a creator policy") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        doNothing()
+          .when(resourcesApi)
+          .createResourceV2(ArgumentMatchers.eq(runtimeSamResource.resourceType.asString), any)
+
+        // test
+        newSamService(resourcesApi = resourcesApi)
+          .createResource(tokenValue, runtimeSamResource, None, Some(workspaceId), Some(userEmail))
+          .unsafeRunSync()
+
+        // assert
+        val captor = ArgumentCaptor.forClass(classOf[CreateResourceRequestV2])
+        verify(resourcesApi).createResourceV2(ArgumentMatchers.eq(runtimeSamResource.resourceType.asString),
+                                              captor.capture()
+        )
+        assert(captor.getValue.isInstanceOf[CreateResourceRequestV2])
+        val createResourceRequest = captor.getValue.asInstanceOf[CreateResourceRequestV2]
+        createResourceRequest.getResourceId shouldBe runtimeSamResource.resourceId
+        createResourceRequest.getParent shouldBe new FullyQualifiedResourceId()
+          .resourceTypeName(SamResourceType.Workspace.asString)
+          .resourceId(workspaceId.value.toString)
+        createResourceRequest.getAuthDomain shouldBe List.empty.asJava
+        val policies = createResourceRequest.getPolicies.asScala
+        policies should have size 1
+        policies should contain key "creator"
+        policies("creator") shouldBe new AccessPolicyMembershipRequest()
+          .addMemberEmailsItem(userEmail.value)
+          .addRolesItem("creator")
+      }
+
+      it("should handle Sam errors") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        doThrow(new ApiException(400, "bad request")).when(resourcesApi).createResourceV2(anyString, any)
+
+        // test
+        val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
+          .createResource(tokenValue, runtimeSamResource, Some(project), None, None)
+          .unsafeRunSync()
+
+        result.getMessage should include("bad request")
+        result.statusCode shouldBe StatusCodes.BadRequest
+      }
     }
 
     describe("deleteResource") {
-      it("should delete a Sam resource") {}
-      it("should handle Sam errors") {}
+      it("should delete a Sam resource") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        doNothing()
+          .when(resourcesApi)
+          .deleteResourceV2(runtimeSamResource.resourceType.asString, runtimeSamResource.resourceId)
+
+        // test
+        newSamService(resourcesApi = resourcesApi).deleteResource(tokenValue, runtimeSamResource).unsafeRunSync()
+
+        // assert
+        verify(resourcesApi).deleteResourceV2(runtimeSamResource.resourceType.asString, runtimeSamResource.resourceId)
+      }
+
+      it("should handle Sam errors") {
+        // setup
+        val resourcesApi = mock[ResourcesApi]
+        doThrow(new ApiException(400, "bad request")).when(resourcesApi).deleteResourceV2(anyString, anyString)
+
+        // test
+        val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
+          .deleteResource(tokenValue, runtimeSamResource)
+          .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("bad request")
+        result.statusCode shouldBe StatusCodes.BadRequest
+      }
     }
 
     describe("getUserEmail") {
-      it("should get a user email") {}
-      it("should handle Sam errors") {}
+      it("should get a user email") {
+        // test
+        val result = newSamService().getUserEmail(tokenValue).unsafeRunSync()
+
+        // assert
+        result shouldBe userEmail
+      }
+
+      it("should handle Sam errors") {
+        // setup
+        val usersApi = mock[UsersApi]
+        when(usersApi.getUserStatusInfo).thenThrow(new ApiException(400, "bad request"))
+
+        // test
+        val result =
+          the[SamException] thrownBy newSamService(usersApi = usersApi).getUserEmail(tokenValue).unsafeRunSync()
+
+        // assert
+        result.getMessage should include("bad request")
+        result.statusCode shouldBe StatusCodes.BadRequest
+      }
     }
   }
 
   def newSamService(resourcesApi: ResourcesApi = setUpMockResourceApi,
+                    usersApi: UsersApi = setUpMockUsersApi,
                     googleApi: GoogleApi = setUpMockGoogleApi,
                     azureApi: AzureApi = setUpMockAzureApi
   ): SamService[IO] = new SamServiceInterp(
-    setUpMockSamApiClientProvider(resourcesApi, googleApi, azureApi),
+    setUpMockSamApiClientProvider(resourcesApi, usersApi, googleApi, azureApi),
     setUpMockCloudAuthTokenProvider
   )
 
@@ -254,11 +474,13 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
   }
 
   def setUpMockSamApiClientProvider(resourcesApi: ResourcesApi,
+                                    usersApi: UsersApi,
                                     googleApi: GoogleApi,
                                     azureApi: AzureApi
   ): SamApiClientProvider[IO] = {
     val provider = mock[SamApiClientProvider[IO]]
     when(provider.resourcesApi(any)(any)).thenReturn(IO.pure(resourcesApi))
+    when(provider.usersApi(any)(any)).thenReturn(IO.pure(usersApi))
     when(provider.googleApi(any)(any)).thenReturn(IO.pure(googleApi))
     when(provider.azureApi(any)(any)).thenReturn(IO.pure(azureApi))
     provider
@@ -272,7 +494,21 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
           .resourceTypeName(SamResourceType.Workspace.asString)
           .resourceId(workspaceId.value.toString)
       )
+    when(
+      resourcesApi.resourcePermissionV2(runtimeSamResource.resourceType.asString,
+                                        runtimeSamResource.resourceId,
+                                        RuntimeAction.GetRuntimeStatus.asString
+      )
+    ).thenReturn(true)
+    when(resourcesApi.listResourcesAndPoliciesV2(runtimeSamResource.resourceType.asString))
+      .thenReturn(List(new UserResourcesResponse().resourceId(runtimeSamResource.resourceId)).asJava)
     resourcesApi
+  }
+
+  def setUpMockUsersApi: UsersApi = {
+    val usersApi = mock[UsersApi]
+    when(usersApi.getUserStatusInfo).thenReturn(new UserStatusInfo().userEmail(userEmail.value))
+    usersApi
   }
 
   def setUpMockGoogleApi: GoogleApi = {

@@ -211,6 +211,20 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     for {
       ctx <- ev.ask
       resourcesApi <- apiClientProvider.resourcesApi(bearerToken)
+
+      // Parent must be google project or workspace, but not both
+      parent <- (projectParent, workspaceParent) match {
+        case (Some(project), None)   => F.pure(ProjectSamResourceId(project))
+        case (None, Some(workspace)) => F.pure(WorkspaceResourceSamResourceId(workspace))
+        case _ =>
+          F.raiseError(
+            LeoInternalServerError(
+              "Internal error creating Sam resource: google project or workspace parent is required",
+              Some(ctx.traceId)
+            )
+          )
+      }
+
       // All Leo resources have a creator role
       policies = creator
         .map(c =>
@@ -221,14 +235,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
           )
         )
         .getOrElse(Map.empty)
-      // Parent is required, can be google-project or workspace
-      parent <- F.fromOption(
-        projectParent.map(ProjectSamResourceId).orElse(workspaceParent.map(WorkspaceResourceSamResourceId)),
-        LeoInternalServerError(
-          "Internal error creating Sam resource: google project or workspace parent is required",
-          Some(ctx.traceId)
-        )
-      )
+
       body = new CreateResourceRequestV2()
         .resourceId(samResourceId.resourceId)
         .parent(
