@@ -27,7 +27,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
     describe("getPetServiceAccount") {
       it("should retrieve a pet service account from Sam") {
         // test
-        val result = newSamService().getPetServiceAccount(userInfo, project).unsafeRunSync()
+        val result = newSamService().getPetServiceAccount(tokenValue, project).unsafeRunSync()
 
         // assert
         result shouldBe serviceAccountEmail
@@ -41,7 +41,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
         // test
         val result =
           the[SamException] thrownBy newSamService(googleApi = googleApi)
-            .getPetServiceAccount(userInfo, project)
+            .getPetServiceAccount(tokenValue, project)
             .unsafeRunSync()
 
         // assert
@@ -53,7 +53,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
     describe("getPetManagedIdentity") {
       it("should retrieve a pet managed identity from Sam") {
         // test
-        val result = newSamService().getPetManagedIdentity(userInfo, azureCloudContext).unsafeRunSync()
+        val result = newSamService().getPetManagedIdentity(tokenValue, azureCloudContext).unsafeRunSync()
 
         // assert
         result shouldBe managedIdentityEmail
@@ -67,7 +67,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
         // test
         val result =
           the[SamException] thrownBy newSamService(azureApi = azureApi)
-            .getPetManagedIdentity(userInfo, azureCloudContext)
+            .getPetManagedIdentity(tokenValue, azureCloudContext)
             .unsafeRunSync()
 
         // assert
@@ -136,7 +136,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       it("should successfully lookup a google project's parent workspace") {
         // test
         val result =
-          newSamService().lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync()
+          newSamService().lookupWorkspaceParentForGoogleProject(tokenValue, project).unsafeRunSync()
 
         // assert
         result shouldBe Some(workspaceId)
@@ -151,7 +151,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
         // test
         val result =
           newSamService(resourcesApi)
-            .lookupWorkspaceParentForGoogleProject(userInfo, project)
+            .lookupWorkspaceParentForGoogleProject(tokenValue, project)
             .unsafeRunSync()
 
         // assert
@@ -166,7 +166,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result =
-          newSamService(resourcesApi).lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync()
+          newSamService(resourcesApi).lookupWorkspaceParentForGoogleProject(tokenValue, project).unsafeRunSync()
 
         // assert
         result shouldBe None
@@ -184,7 +184,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result =
-          newSamService(resourcesApi).lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync()
+          newSamService(resourcesApi).lookupWorkspaceParentForGoogleProject(tokenValue, project).unsafeRunSync()
 
         // assert
         result shouldBe None
@@ -202,11 +202,40 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result =
-          newSamService(resourcesApi).lookupWorkspaceParentForGoogleProject(userInfo, project).unsafeRunSync()
+          newSamService(resourcesApi).lookupWorkspaceParentForGoogleProject(tokenValue, project).unsafeRunSync()
 
         // assert
         result shouldBe None
       }
+    }
+
+    describe("checkAuthz") {
+      it("should successfully check authorization") {}
+      it("should fail with ForbiddenError if unauthorized") {}
+      it("should fail with SamException on Sam errors") {}
+    }
+
+    describe("listResources") {
+      it("should successfully list resources") {}
+      it("should handle Sam errors") {}
+    }
+
+    describe("createResource") {
+      it("should create a Sam resource with a google project parent") {}
+      it("should create a Sam resource with a workspace parent") {}
+      it("should not allow resource creation with no parent") {}
+      it("should create a Sam resource with a creator policy") {}
+      it("should handle Sam errors") {}
+    }
+
+    describe("deleteResource") {
+      it("should delete a Sam resource") {}
+      it("should handle Sam errors") {}
+    }
+
+    describe("getUserEmail") {
+      it("should get a user email") {}
+      it("should handle Sam errors") {}
     }
   }
 

@@ -44,6 +44,7 @@ final case class AuthenticationError(email: Option[WorkbenchEmail] = None, extra
     )
     with NoStackTrace
 
+// TODO fix message
 case class ForbiddenError(email: WorkbenchEmail, traceId: Option[TraceId] = None)
     extends LeoException(
       s"${email.value} is unauthorized. " +
