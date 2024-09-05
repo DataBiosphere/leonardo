@@ -18,7 +18,7 @@ object SamRetry {
   /**
    * Initial delay of 1 second, exponential retry up to 5 times.
    */
-  private val retryConfig =
+  private val defaultSamRetryConfig =
     RetryConfig(addJitter(1 seconds, 1 seconds), _ * 2, 5, isRetryable)
 
   /**
@@ -45,5 +45,11 @@ object SamRetry {
     logger: StructuredLogger[F],
     ev: Ask[F, TraceId]
   ): F[A] =
-    tracedRetryF(retryConfig)(F.blocking(thunk), action).compile.lastOrError
+    retry(defaultSamRetryConfig)(F.blocking(thunk), action)
+
+  def retry[F[_], A](retryConfig: RetryConfig)(fa: F[A], action: String)(implicit
+    F: Async[F],
+    logger: StructuredLogger[F],
+    ev: Ask[F, TraceId]
+  ): F[A] = tracedRetryF(retryConfig)(fa, action).compile.lastOrError
 }
