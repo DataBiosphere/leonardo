@@ -130,8 +130,9 @@ trait SamService[F[_]] {
    *                      One of parentProject or parentWorkspace is required.
    * @param parentWorkspace optional parent workspace resource.
    *                        One of parentProject or parentWorkspace is required.
-   * @param policies optional mapping of policy name to policy data to set for
-   *                 the Sam resource.
+   * @param policies optional mapping of policy name to policy data for the Sam resource.
+   *                 Note policy name can be an arbitrary string, but must be unique per
+   *                 resource. Policy data contains emails and Sam roles.
    * @param ev application context
    * @return Unit, or SamException on errors.
    */
