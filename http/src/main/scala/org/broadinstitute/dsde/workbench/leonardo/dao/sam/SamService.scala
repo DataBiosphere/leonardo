@@ -107,7 +107,7 @@ trait SamService[F[_]] {
    * @param ev application context
    * @return Unit if authorized, ForbiddenError if not authorized, SamException on errors.
    */
-  def checkAuthz(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 

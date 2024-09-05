@@ -183,7 +183,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
 
     } yield isAuthorized
 
-  override def checkAuthz(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
