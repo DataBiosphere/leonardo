@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.client.sam.model.{
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.model.{ForbiddenError, LeoInternalServerError}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, SamResourceId, SamResourceType, SamRole, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
