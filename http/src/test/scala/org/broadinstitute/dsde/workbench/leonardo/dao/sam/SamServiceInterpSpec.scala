@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.client.sam.model._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
-import org.broadinstitute.dsde.workbench.leonardo.model.{ForbiddenError, LeoInternalServerError}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, RuntimeAction, SamResourceType}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -219,7 +219,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
           .unsafeRunSync()
       }
 
-      it("should fail with ForbiddenError if unauthorized") {
+      it("should fail with SamException if unauthorized") {
         // setup
         val resourcesApi = mock[ResourcesApi]
         when(
@@ -230,12 +230,14 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
         ).thenReturn(false)
 
         // test
-        val result = the[ForbiddenError] thrownBy newSamService(resourcesApi = resourcesApi)
+        val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
           .checkAuthz(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
           .unsafeRunSync()
 
         // assert
-        result.email shouldBe userEmail
+        result.getMessage should include("is not authorized to perform action")
+        result.getMessage should include(userEmail.value)
+        result.statusCode shouldBe StatusCodes.Forbidden
       }
 
       it("should fail with SamException on Sam errors") {
