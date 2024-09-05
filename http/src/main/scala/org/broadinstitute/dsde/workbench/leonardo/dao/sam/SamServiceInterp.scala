@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -182,7 +183,13 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     ctx <- ev.ask
     isAuthorized <- isAuthorized(bearerToken, samResourceId, action)
     userEmail <- getUserEmail(bearerToken)
-    _ <- F.raiseWhen(!isAuthorized)(ForbiddenError(userEmail, Some(ctx.traceId)))
+    _ <- F.raiseWhen(!isAuthorized)(
+      SamException.create(
+        s"User $userEmail is not authorized to perform action $action on ${samResourceId.resourceType} ${samResourceId.resourceId}",
+        StatusCodes.Forbidden.intValue,
+        ctx.traceId
+      )
+    )
     _ <- logger.info(ctx.loggingCtx)(
       s"User $userEmail is authorized to $action ${samResourceId.resourceType} ${samResourceId.resourceId}"
     )
