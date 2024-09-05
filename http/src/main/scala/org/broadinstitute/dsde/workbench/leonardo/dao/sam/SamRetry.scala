@@ -1,10 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 
 import cats.effect.Async
+import cats.mtl.Ask
+import cats.syntax.all._
 import org.apache.http.HttpStatus
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.util2.addJitter
+import org.typelevel.log4cats.StructuredLogger
 
 import java.net.SocketTimeoutException
 import scala.concurrent.duration._
@@ -38,31 +42,47 @@ object SamRetry {
 
   /**
    * Retries an effect with a given retry configuration. Delegates to
-   * fs2.Stream.retry under the hood.
+   * fs2.Stream.retry under the hood but adds logging on retries.
    * @param retryConfig the retry config to use
    * @param fa the effect to retry
+   * @param action String representing the retryable action for logging
    * @return the first successful effect or the last error after retrying
    */
-  def retry[F[_], A](retryConfig: RetryConfig)(fa: F[A])(implicit
-    F: Async[F]
-  ): F[A] =
+  def retry[F[_], A](retryConfig: RetryConfig)(fa: F[A], action: String)(implicit
+    F: Async[F],
+    logger: StructuredLogger[F],
+    ev: Ask[F, AppContext]
+  ): F[A] = {
+    val faWithLogging = fa.onError {
+      case ex if retryConfig.retryable(ex) =>
+        ev.ask.flatMap(ctx => logger.info(ctx.loggingCtx)(s"SamRetry: caught retry-able exception for $action: $ex"))
+    }
     fs2.Stream
-      .retry[F, A](fa,
-                   retryConfig.retryInitialDelay,
-                   retryConfig.retryNextDelay,
-                   retryConfig.maxAttempts,
-                   retryConfig.retryable
+      .retry[F, A](
+        faWithLogging,
+        retryConfig.retryInitialDelay,
+        retryConfig.retryNextDelay,
+        retryConfig.maxAttempts,
+        retryConfig.retryable
       )
       .compile
       .lastOrError
+      .onError(ex =>
+        ev.ask.flatMap(ctx =>
+          logger.error(ctx.loggingCtx, ex)(s"SamRetry: failed $action after ${retryConfig.maxAttempts} tries")
+        )
+      )
+  }
 
   /**
    * Convenience method which uses the default Sam retry policy and takes a
    * thunk instead of an effect. Wraps the thunk in F.blocking(), which is convenient
    * for working with the Java Sam client.
    */
-  def retry[F[_], A](thunk: => A)(implicit
-    F: Async[F]
+  def retry[F[_], A](thunk: => A, action: String)(implicit
+    F: Async[F],
+    logger: StructuredLogger[F],
+    ev: Ask[F, AppContext]
   ): F[A] =
-    retry(defaultSamRetryConfig)(F.blocking(thunk))
+    retry(defaultSamRetryConfig)(F.blocking(thunk), action)
 }

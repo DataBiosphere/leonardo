@@ -54,8 +54,9 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
       ctx <- ev.ask
       googleApi <- apiClientProvider.googleApi(bearerToken)
       userEmail <- getUserEmail(bearerToken)
-      pet <- SamRetry.retry(googleApi.getPetServiceAccount(googleProject.value)).adaptError { case e: ApiException =>
-        SamException.create("Error getting pet service account from Sam", e, ctx.traceId)
+      pet <- SamRetry.retry(googleApi.getPetServiceAccount(googleProject.value), "getPetServiceAccount").adaptError {
+        case e: ApiException =>
+          SamException.create("Error getting pet service account from Sam", e, ctx.traceId)
       }
       _ <- logger.info(ctx.loggingCtx)(
         s"Retrieved pet service account $pet for user $userEmail in project $googleProject"
@@ -76,7 +77,8 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
               .tenantId(azureCloudContext.tenantId.value)
               .subscriptionId(azureCloudContext.subscriptionId.value)
               .managedResourceGroupName(azureCloudContext.managedResourceGroupName.value)
-          )
+          ),
+          "getPetManagedIdentity"
         )
         .adaptError { case e: ApiException =>
           SamException.create("Error getting pet managed identity from Sam", e, ctx.traceId)
@@ -93,8 +95,9 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
       ctx <- ev.ask
       leoToken <- getLeoAuthToken
       googleApi <- apiClientProvider.googleApi(leoToken)
-      proxy <- SamRetry.retry(googleApi.getProxyGroup(userEmail.value)).adaptError { case e: ApiException =>
-        SamException.create("Error getting proxy group from Sam", e, ctx.traceId)
+      proxy <- SamRetry.retry(googleApi.getProxyGroup(userEmail.value), "getProxyGroup").adaptError {
+        case e: ApiException =>
+          SamException.create("Error getting proxy group from Sam", e, ctx.traceId)
       }
       _ <- logger.info(ctx.loggingCtx)(s"Retrieved proxy group $proxy for user $userEmail")
     } yield WorkbenchEmail(proxy)
@@ -106,7 +109,9 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     leoToken <- getLeoAuthToken
     googleApi <- apiClientProvider.googleApi(leoToken)
     petToken <- SamRetry
-      .retry(googleApi.getUserPetServiceAccountToken(googleProject.value, userEmail.value, saScopes.asJava))
+      .retry(googleApi.getUserPetServiceAccountToken(googleProject.value, userEmail.value, saScopes.asJava),
+             "getUserPetServiceAccountToken"
+      )
       .adaptError { case e: ApiException =>
         SamException.create("Error getting pet service account token from Sam", e, ctx.traceId)
       }
@@ -123,7 +128,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     // Get resource parent from Sam
     resourcesApi <- apiClientProvider.resourcesApi(bearerToken)
     parent <- SamRetry
-      .retry(resourcesApi.getResourceParent(SamResourceType.Project.asString, googleProject.value))
+      .retry(resourcesApi.getResourceParent(SamResourceType.Project.asString, googleProject.value), "getResourceParent")
       .attempt
 
     // Annotate error cases but don't fail
@@ -167,7 +172,9 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
       ctx <- ev.ask
       resourcesApi <- apiClientProvider.resourcesApi(bearerToken)
       isAuthorized <- SamRetry
-        .retry(resourcesApi.resourcePermissionV2(samResourceId.resourceType.asString, samResourceId.resourceId, action))
+        .retry(resourcesApi.resourcePermissionV2(samResourceId.resourceType.asString, samResourceId.resourceId, action),
+               "resourcePermissionV2"
+        )
         .adaptError { case e: ApiException =>
           SamException.create("Error checking resource permission in Sam", e, ctx.traceId)
         }
@@ -198,7 +205,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     ctx <- ev.ask
     resourcesApi <- apiClientProvider.resourcesApi(bearerToken)
     resources <- SamRetry
-      .retry(resourcesApi.listResourcesAndPoliciesV2(samResourceType.asString))
+      .retry(resourcesApi.listResourcesAndPoliciesV2(samResourceType.asString), "listResourcesAndPoliciesV2")
       .adaptError { case e: ApiException =>
         SamException.create("Error listing resources from Sam", e, ctx.traceId)
       }
@@ -274,8 +281,9 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     for {
       ctx <- ev.ask
       usersApi <- apiClientProvider.usersApi(bearerToken)
-      userStatus <- SamRetry.retry(usersApi.getUserStatusInfo()).adaptError { case e: ApiException =>
-        SamException.create(s"Error getting user status info from Sam", e, ctx.traceId)
+      userStatus <- SamRetry.retry(usersApi.getUserStatusInfo(), "getUserStatusInfo").adaptError {
+        case e: ApiException =>
+          SamException.create(s"Error getting user status info from Sam", e, ctx.traceId)
       }
     } yield WorkbenchEmail(userStatus.getUserEmail)
 }
