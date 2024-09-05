@@ -1,17 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 
 import cats.effect.Async
-import cats.mtl.Ask
+import org.apache.http.HttpStatus
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
-import org.apache.http.HttpStatus
 import org.broadinstitute.dsde.workbench.util2.addJitter
 
 import java.net.SocketTimeoutException
 import scala.concurrent.duration._
-import org.broadinstitute.dsde.workbench.google2.tracedRetryF
-import org.broadinstitute.dsde.workbench.model.TraceId
-import org.typelevel.log4cats.StructuredLogger
 
 object SamRetry {
 
@@ -41,27 +37,32 @@ object SamRetry {
   }
 
   /**
-   * Retries an effect with a given retry configuration and logging.
-   * Uses `tracedRetryF` from workbench-libs under the hood.
+   * Retries an effect with a given retry configuration. Delegates to
+   * fs2.Stream.retry under the hood.
    * @param retryConfig the retry config to use
    * @param fa the effect to retry
-   * @param action a string representing the action for logging
    * @return the first successful effect or the last error after retrying
    */
-  def retry[F[_], A](retryConfig: RetryConfig)(fa: F[A], action: String)(implicit
-    F: Async[F],
-    logger: StructuredLogger[F],
-    ev: Ask[F, TraceId]
-  ): F[A] = tracedRetryF(retryConfig)(fa, action).compile.lastOrError
+  def retry[F[_], A](retryConfig: RetryConfig)(fa: F[A])(implicit
+    F: Async[F]
+  ): F[A] =
+    fs2.Stream
+      .retry[F, A](fa,
+                   retryConfig.retryInitialDelay,
+                   retryConfig.retryNextDelay,
+                   retryConfig.maxAttempts,
+                   retryConfig.retryable
+      )
+      .compile
+      .lastOrError
 
   /**
-   * Like #retry, but takes a thunk instead of an effect. Wraps the thunk in
-   * F.blocking(), which is convenient for working with the Java Sam client.
+   * Convenience method which uses the default Sam retry policy and takes a
+   * thunk instead of an effect. Wraps the thunk in F.blocking(), which is convenient
+   * for working with the Java Sam client.
    */
-  def retry[F[_], A](thunk: => A, action: String)(implicit
-    F: Async[F],
-    logger: StructuredLogger[F],
-    ev: Ask[F, TraceId]
+  def retry[F[_], A](thunk: => A)(implicit
+    F: Async[F]
   ): F[A] =
-    retry(defaultSamRetryConfig)(F.blocking(thunk), action)
+    retry(defaultSamRetryConfig)(F.blocking(thunk))
 }
