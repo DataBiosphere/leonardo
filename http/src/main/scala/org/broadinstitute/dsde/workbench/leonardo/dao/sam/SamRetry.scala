@@ -40,16 +40,28 @@ object SamRetry {
     case _ => false
   }
 
+  /**
+   * Retries an effect with a given retry configuration and logging.
+   * Uses `tracedRetryF` from workbench-libs under the hood.
+   * @param retryConfig the retry config to use
+   * @param fa the effect to retry
+   * @param action a string representing the action for logging
+   * @return the first successful effect or the last error after retrying
+   */
+  def retry[F[_], A](retryConfig: RetryConfig)(fa: F[A], action: String)(implicit
+    F: Async[F],
+    logger: StructuredLogger[F],
+    ev: Ask[F, TraceId]
+  ): F[A] = tracedRetryF(retryConfig)(fa, action).compile.lastOrError
+
+  /**
+   * Like #retry, but takes a thunk instead of an effect. Wraps the thunk in
+   * F.blocking(), which is convenient for working with the Java Sam client.
+   */
   def retry[F[_], A](thunk: => A, action: String)(implicit
     F: Async[F],
     logger: StructuredLogger[F],
     ev: Ask[F, TraceId]
   ): F[A] =
     retry(defaultSamRetryConfig)(F.blocking(thunk), action)
-
-  def retry[F[_], A](retryConfig: RetryConfig)(fa: F[A], action: String)(implicit
-    F: Async[F],
-    logger: StructuredLogger[F],
-    ev: Ask[F, TraceId]
-  ): F[A] = tracedRetryF(retryConfig)(fa, action).compile.lastOrError
 }
