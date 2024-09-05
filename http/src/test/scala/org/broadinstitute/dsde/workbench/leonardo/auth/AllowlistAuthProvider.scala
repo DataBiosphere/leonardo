@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
-class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[IO]) extends LeoAuthProvider[IO] {
+class AllowlistAuthProvider(config: Config) extends LeoAuthProvider[IO] {
 
   val allowlist = config.as[Set[String]]("allowlist").map(_.toLowerCase)
 
@@ -111,8 +111,6 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
-
-  override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 
   override def isUserWorkspaceOwner(
     workspaceResource: WorkspaceResourceSamResourceId,

@@ -3,6 +3,7 @@ package monitor
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model.JobReport
 import cats.data.Kleisli
 import cats.effect.IO
@@ -58,7 +59,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{AckHandler, CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp._
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.{any, anyBoolean, startsWith}
 import org.mockito.Mockito._
 import org.scalatest.BeforeAndAfterEach
@@ -127,7 +127,7 @@ class LeoPubsubMessageSubscriberSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, MockSamService)
 
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, resourceService, FakeGoogleComputeService)
@@ -1929,15 +1929,17 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "handle top-level error in create azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
-    val mockWsmDao = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[GetCreateVmJobResult] =
-        IO.raiseError(new Exception(exceptionMsg))
+
+    val (mockWsm, controlledResourceApi, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider()
+    when {
+      controlledResourceApi.getCreateAzureVmResult(any, any)
+    } thenThrow {
+      new ApiException(exceptionMsg)
     }
     val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()
-    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao),
+    val leoSubscriber = makeLeoSubscriber(azureInterp =
+                                            makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm),
                                           asyncTaskQueue = queue
     )
 
@@ -1984,7 +1986,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in create azure disk properly" in isolatedDbTest {
     val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(JobReport.StatusEnum.FAILED)
     val leoSubscriber = makeLeoSubscriber(azureInterp =
                                             makeAzureInterp(asyncTaskQueue = queue, mockWsmClient = mockWsm),
                                           asyncTaskQueue = queue
@@ -2031,7 +2033,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle delete azure vm failure properly" in isolatedDbTest {
-    val (mockWsm, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
+    val (mockWsm, _, _, _) = AzureTestUtils.setUpMockWsmApiClientProvider(vmJobStatus = JobReport.StatusEnum.FAILED)
     val mockAckConsumer = mock[AckHandler]
     val queue = makeTaskQueue()
     val leoSubscriber =
@@ -2580,7 +2582,8 @@ class LeoPubsubMessageSubscriberSpec
       subscriberServicesRegistry
     )
   }
-  val (mockWsm, mockControlledResourceApi, mockResourceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
+  val (mockWsm, mockControlledResourceApi, mockResourceApi, workspaceApi) =
+    AzureTestUtils.setUpMockWsmApiClientProvider()
 
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),

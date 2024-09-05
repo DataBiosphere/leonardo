@@ -93,11 +93,11 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       ),
       ConfigReader.appConfig.persistentDisk,
       authProvider,
-      serviceAccountProvider,
       new MockDockerDAO,
       Some(FakeGoogleStorageInterpreter),
       Some(computeService),
-      publisherQueue
+      publisherQueue,
+      MockSamService
     )
 
   val runtimeService = makeRuntimeService()
@@ -1037,7 +1037,7 @@ class RuntimeServiceInterpTest
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse1 = ListRuntimeResponse2(
       runtime1.id,
-      None,
+      Some(workspaceId),
       runtime1.samResource,
       runtime1.clusterName,
       runtime1.cloudContext,
@@ -1058,7 +1058,7 @@ class RuntimeServiceInterpTest
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse2 = ListRuntimeResponse2(
       runtime2.id,
-      None,
+      Some(workspaceId),
       runtime2.samResource,
       runtime2.clusterName,
       runtime2.cloudContext,
@@ -2392,7 +2392,8 @@ class RuntimeServiceInterpTest
         serviceAccount,
         FormattedBy.GCE,
         allowListAuthProvider,
-        ConfigReader.appConfig.persistentDisk
+        ConfigReader.appConfig.persistentDisk,
+        Some(workspaceId)
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery
@@ -2443,7 +2444,8 @@ class RuntimeServiceInterpTest
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          Some(workspaceId)
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield diskResult shouldBe (Left(
@@ -2470,7 +2472,8 @@ class RuntimeServiceInterpTest
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          Some(workspaceId)
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
       persistedDisk <- persistentDiskQuery
         .getById(diskResult.disk.id)(scala.concurrent.ExecutionContext.global)
@@ -2494,7 +2497,8 @@ class RuntimeServiceInterpTest
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          Some(workspaceId)
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
@@ -2516,7 +2520,8 @@ class RuntimeServiceInterpTest
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          Some(workspaceId)
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -2549,7 +2554,8 @@ class RuntimeServiceInterpTest
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          Some(workspaceId)
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield err shouldBe Left(DiskAlreadyAttachedException(CloudContext.Gcp(project), savedDisk.name, t.traceId))
@@ -2571,7 +2577,8 @@ class RuntimeServiceInterpTest
           serviceAccount,
           FormattedBy.Galaxy,
           allowListAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          Some(workspaceId)
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
       galaxyDisk <- makePersistentDisk(Some(DiskName("galaxyDisk")), Some(FormattedBy.Galaxy)).save()
@@ -2585,7 +2592,8 @@ class RuntimeServiceInterpTest
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
-          ConfigReader.appConfig.persistentDisk
+          ConfigReader.appConfig.persistentDisk,
+          Some(workspaceId)
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
         .attempt
     } yield {
@@ -2613,7 +2621,8 @@ class RuntimeServiceInterpTest
         serviceAccount,
         FormattedBy.GCE,
         allowListAuthProvider,
-        ConfigReader.appConfig.persistentDisk
+        ConfigReader.appConfig.persistentDisk,
+        Some(workspaceId)
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
     } yield ()
 

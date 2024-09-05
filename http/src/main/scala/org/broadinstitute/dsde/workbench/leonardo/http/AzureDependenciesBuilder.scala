@@ -51,7 +51,7 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
         baselineDependencies.publisherQueue,
         None, // no GCP dependency
         baselineDependencies.samDAO,
-        baselineDependencies.wsmDAO
+        baselineDependencies.wsmClientProvider
       )
 
     List(monitorAtBoot.process)
@@ -81,34 +81,34 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       new LeoAppServiceInterp(
         appServiceConfig,
         baselineDependencies.authProvider,
-        baselineDependencies.serviceAccountProvider,
         baselineDependencies.publisherQueue,
         None,
         None,
         gkeCustomAppConfig,
         baselineDependencies.wsmDAO,
-        baselineDependencies.wsmClientProvider
+        baselineDependencies.wsmClientProvider,
+        baselineDependencies.samService
       )
 
     // Needed for v1 APIs
     val diskService = new DiskServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.publisherQueue,
       None,
-      None
+      None,
+      baselineDependencies.samService
     )
 
     val runtimeService = RuntimeService(
       baselineDependencies.runtimeServicesConfig,
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.dockerDAO,
       None,
       None,
-      baselineDependencies.publisherQueue
+      baselineDependencies.publisherQueue,
+      baselineDependencies.samService
     )
 
     var servicesRegistry = ServicesRegistry()

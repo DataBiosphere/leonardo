@@ -22,10 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   LandingZoneResources,
   LeonardoTestSuite,
   PostgresServer,
-  StorageAccountName,
-  WorkspaceId,
-  WsmControlledResourceId,
-  WsmJobId
+  StorageAccountName
 }
 import org.http4s._
 import org.http4s.client.Client
@@ -37,25 +34,6 @@ import java.util.UUID
 
 class HttpWsmDaoSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll {
   val config = HttpWsmDaoConfig(Uri.unsafeFromString("127.0.0.1"))
-
-  it should "not error when getting 404 during resource deletion" in {
-    val wsmClient = Client.fromHttpApp[IO](
-      HttpApp(_ => IO(Response(status = Status.NotFound)))
-    )
-
-    val wsmDao = new HttpWsmDao[IO](wsmClient, config)
-    val res = wsmDao
-      .deleteVm(
-        DeleteWsmResourceRequest(WorkspaceId(UUID.randomUUID()),
-                                 WsmControlledResourceId(UUID.randomUUID()),
-                                 WsmDaoDeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId("job")))
-        ),
-        Authorization(Credentials.Token(AuthScheme.Bearer, "dummy"))
-      )
-      .attempt
-
-    res.unsafeRunSync().isRight shouldBe true
-  }
 
   val testCases: Map[Option[Map[String, String]], Boolean] = Map(
     None -> false,

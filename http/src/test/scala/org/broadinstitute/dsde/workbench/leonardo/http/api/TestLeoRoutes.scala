@@ -37,6 +37,7 @@ import java.io.ByteArrayInputStream
 import java.time.Instant
 import scala.concurrent.duration._
 import scala.util.matching.Regex
+
 trait TestLeoRoutes {
   this: ScalatestRouteTest
     with Matchers
@@ -80,7 +81,7 @@ trait TestLeoRoutes {
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, MockSamService)
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
   val dataprocInterp =
@@ -109,13 +110,13 @@ trait TestLeoRoutes {
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
     Config.appServiceConfig,
     allowListAuthProvider,
-    serviceAccountProvider,
     QueueFactory.makePublisherQueue(),
     Some(FakeGoogleComputeService),
     Some(FakeGoogleResourceService),
     Config.gkeCustomAppConfig,
     wsmDao,
-    wsmClientProvider
+    wsmClientProvider,
+    MockSamService
   )
 
   val serviceConfig = RuntimeServiceConfig(
@@ -189,11 +190,11 @@ trait TestLeoRoutes {
     serviceConfig,
     ConfigReader.appConfig.persistentDisk,
     allowListAuthProvider,
-    serviceAccountProvider,
     new MockDockerDAO,
     Some(FakeGoogleStorageInterpreter),
     Some(FakeGoogleComputeService),
-    QueueFactory.makePublisherQueue()
+    QueueFactory.makePublisherQueue(),
+    MockSamService
   )
 
   val gcpOnlyServicesRegistry = {

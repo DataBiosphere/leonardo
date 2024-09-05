@@ -79,9 +79,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   before {
     setUpMockSam()
     authCache.removeAll
-    samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
-    samAuthProviderWithCache =
-      new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, authCache)
+    samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, authCache)
+    samAuthProviderWithCache = new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, authCache)
   }
 
   "SamAuthProvider" should "check resource permissions" in {
@@ -442,7 +441,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .thenReturn(IO.pure(List((mockWorkspaceId, SamRole.Writer))))
 
     val mockSamAuthProvider =
-      new SamAuthProvider(mockSamDao, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+      new SamAuthProvider(mockSamDao, samAuthProviderConfigWithoutCache, authCache)
 
     // => owned workspace is in owner IDs
     mockSamAuthProvider

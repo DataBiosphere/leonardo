@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import com.azure.core.management.AzureEnvironment
 import org.broadinstitute.dsde.workbench.azure.{
   AzureAppRegistrationConfig,
   AzureServiceBusPublisherConfig,
@@ -151,7 +152,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.168.0"),
+          ChartVersion("0.185.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -170,7 +171,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.253.0"),
+          ChartVersion("0.269.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
@@ -191,7 +192,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WdsAppConfig(
           ChartName("terra-helm/wds"),
-          ChartVersion("0.93.0"),
+          ChartVersion("0.94.0"),
           ReleaseNameSuffix("wds-rls"),
           NamespaceNameSuffix("wds-ns"),
           KsaName("wds-ksa"),
@@ -260,4 +261,15 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
 
     config shouldBe expectedConfig
   }
+
+  it should "convert AzureHostingMode strings to AzureEnvironments correctly" in {
+    val govEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureGov)
+    val expectedGovEnv = AzureEnvironment.AZURE_US_GOVERNMENT
+    govEnv shouldBe expectedGovEnv
+
+    val chinaEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureChina)
+    val expectedChinaEnv = AzureEnvironment.AZURE_CHINA
+    chinaEnv shouldBe expectedChinaEnv
+  }
+
 }

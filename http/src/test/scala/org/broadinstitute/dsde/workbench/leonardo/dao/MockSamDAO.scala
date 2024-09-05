@@ -44,6 +44,8 @@ class MockSamDAO extends SamDAO[IO] {
   // we don't care much about traceId in unit tests, hence providing a constant UUID here
   implicit val traceId: Ask[IO, TraceId] = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
+  val workspaceId = UUID.randomUUID()
+
   override def registerLeo(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
   override def hasResourcePermissionUnchecked(resourceType: SamResourceType,
                                               resource: String,

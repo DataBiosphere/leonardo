@@ -13,13 +13,9 @@ import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.auth.{
-  AuthCacheKey,
-  CloudAuthTokenProvider,
-  PetClusterServiceAccountProvider,
-  SamAuthProvider
-}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, CloudAuthTokenProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
+  applicationConfig,
   asyncTaskProcessorConfig,
   autoFreezeConfig,
   dataprocConfig,
@@ -34,10 +30,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
   pubsubConfig,
   runtimeDnsCacheConfig,
   samAuthConfig,
-  serviceAccountProviderConfig,
   subscriberConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{HttpSamApiClientProvider, SamService, SamServiceInterp}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -45,7 +41,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeServiceConfig,
   SamResourceCacheKey
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -121,12 +116,19 @@ class BaselineDependenciesBuilder {
         F.delay(CaffeineCache[F, UserEmailAndProject, Option[io.circe.Json]](underlyingPetKeyCache))
       )(_.close)
 
+      cloudAuthTokenProvider = CloudAuthTokenProvider[F](ConfigReader.appConfig.azure.hostingModeConfig,
+                                                         applicationConfig
+      )
+
+      samClientProvider = new HttpSamApiClientProvider(httpSamDaoConfig.samUri.renderString)
+      samService = new SamServiceInterp(samClientProvider, cloudAuthTokenProvider)
+
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
         HttpSamDAO[F](
           client,
           httpSamDaoConfig,
           petKeyCache,
-          CloudAuthTokenProvider[F](ConfigReader.appConfig.azure.hostingModeConfig, serviceAccountProviderConfig)
+          cloudAuthTokenProvider
         )
       )
       cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
@@ -184,12 +186,11 @@ class BaselineDependenciesBuilder {
         ConfigReader.appConfig.azure.appRegistration
       )
       // Set up identity providers
-      serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
                                                                                 samAuthConfig.authCacheExpiryTime
       )
       authCache <- Resource.make(F.delay(CaffeineCache[F, AuthCacheKey, Boolean](underlyingAuthCache)))(s => s.close)
-      authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
+      authProvider = new SamAuthProvider(samDao, samAuthConfig, authCache)
 
       cloudPublisher <- createCloudPublisher[F]
 
@@ -299,7 +300,6 @@ class BaselineDependenciesBuilder {
       rstudioDAO,
       welderDao,
       wsmDao,
-      serviceAccountProvider,
       authProvider,
       leoPublisher,
       publisherQueue,
@@ -330,7 +330,8 @@ class BaselineDependenciesBuilder {
       operationFutureCache,
       azureBatchService,
       azureApplicationInsightsService,
-      openTelemetry
+      openTelemetry,
+      samService
     )
 
   private def createCloudSubscriber[F[_]: Parallel](
@@ -435,7 +436,6 @@ final case class BaselineDependencies[F[_]](
   rstudioDAO: HttpRStudioDAO[F],
   welderDAO: HttpWelderDAO[F],
   wsmDAO: HttpWsmDao[F],
-  serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
@@ -466,5 +466,6 @@ final case class BaselineDependencies[F[_]](
   operationFutureCache: Cache[F, Long, OperationFuture[Operation, Operation]],
   azureBatchService: AzureBatchService[F],
   azureApplicationInsightsService: AzureApplicationInsightsService[F],
-  openTelemetryMetrics: OpenTelemetryMetrics[F]
+  openTelemetryMetrics: OpenTelemetryMetrics[F],
+  samService: SamService[F]
 )

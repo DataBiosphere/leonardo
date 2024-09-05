@@ -42,7 +42,8 @@ final case class ListPersistentDiskResponse(id: DiskId,
                                             size: DiskSize,
                                             diskType: DiskType,
                                             blockSize: BlockSize,
-                                            labels: LabelMap
+                                            labels: LabelMap,
+                                            workspaceId: Option[WorkspaceId]
 )
 
 final case class GetPersistentDiskResponse(id: DiskId,
@@ -57,7 +58,8 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            diskType: DiskType,
                                            blockSize: BlockSize,
                                            labels: LabelMap,
-                                           formattedBy: Option[FormattedBy]
+                                           formattedBy: Option[FormattedBy],
+                                           workspaceId: Option[WorkspaceId]
 )
 
 final case class GetPersistentDiskV2Response(id: DiskId,

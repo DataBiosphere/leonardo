@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import bio.terra.workspace.api.WorkspaceApi
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -14,8 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleResourceServic
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Other}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
@@ -33,13 +31,12 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessage,
   LeoPubsubMessageType
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.leonardo.util.{AzureTestUtils, QueueFactory}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
-import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
@@ -49,6 +46,7 @@ import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
 import org.scalatest.prop.TableDrivenPropertyChecks.forAll
+
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -57,43 +55,24 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
   val wsmDao = new MockWsmDAO
-  val workspaceApi = mock[WorkspaceApi]
-  when {
-    workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId.value), any())
-  } thenReturn {
-    wsmWorkspaceDesc
-  }
+  val (wsmClientProvider, _, _, workspaceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
+  val (googleWsmClientProvider, _, _, googleWorkspaceApi) =
+    AzureTestUtils.setUpMockWsmApiClientProvider(googleProject = Some(GoogleProject(workspaceId.toString)))
+
   when {
     workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
   } thenAnswer (_ => throw new Exception("workspace not found"))
 
-  val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
   when {
-    wsmClientProvider.getWorkspaceApi(any)(any)
-  } thenReturn {
-    IO.pure(workspaceApi)
-  }
+    googleWorkspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
+  } thenAnswer (_ => throw new Exception("workspace not found"))
 
-  val gcpWsmDao = new MockWsmDAO {
-    override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-      ev: Ask[IO, AppContext]
-    ): IO[Option[WorkspaceDescription]] =
-      IO.pure(
-        Some(
-          WorkspaceDescription(
-            workspaceId,
-            "someWorkspaceName" + workspaceId,
-            "9f3434cb-8f18-4595-95a9-d9b1ec9731d4",
-            None,
-            Some(GoogleProject(workspaceId.toString))
-          )
-        )
-      )
-  }
+  val gcpWsmDao = new MockWsmDAO
 
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
   val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), authProvider = allowListAuthProvider2)
-  val gcpWorkspaceAppServiceInterp = makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao)
+  val gcpWorkspaceAppServiceInterp =
+    makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
 
   def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
@@ -123,13 +102,13 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     new LeoAppServiceInterp[IO](
       appConfig,
       authProvider,
-      serviceAccountProvider,
       queue,
       Some(FakeGoogleComputeService),
       Some(googleResourceService),
       customAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
   }
 }
@@ -174,35 +153,35 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val passAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(passComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(notEnoughMemoryComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
       appServiceConfig,
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(notEnoughCpuComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
 
     for {
@@ -228,13 +207,13 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val interp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
 
     an[ForbiddenError] should be thrownBy {
@@ -259,13 +238,13 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val interp = new LeoAppServiceInterp[IO](
       AppServiceConfig(false, false, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val res = interp
       .createApp(userInfo, cloudContextGcp, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
@@ -1392,7 +1371,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
@@ -1407,7 +1385,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1425,7 +1404,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "reject create SAS app request if it's not from AoU UI and user is not in the sas_app_users group" in {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1507,7 +1486,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         IO.pure(Some(Map.from(List("security-group" -> "high"))))
     }
 
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1536,14 +1515,13 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List("https://www.myappdescriptor.com/finaldesc"), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
@@ -1558,7 +1536,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1576,7 +1555,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1587,7 +1566,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noSecurityGroupGoogleResourceService),
@@ -1602,7 +1580,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1617,7 +1596,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "create a custom app with high security" in isolatedDbTest {
     val appName = AppName("my_custom_app")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1630,7 +1609,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(highSecurityGoogleResourceService),
@@ -1645,7 +1623,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1670,7 +1649,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       allowListAuthProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(highSecurityGoogleResourceService),
@@ -1685,7 +1663,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1705,7 +1684,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
@@ -1716,7 +1695,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noSecurityGroupGoogleResourceService),
@@ -1731,7 +1709,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -1751,7 +1730,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customApplicationAllowList =
       CustomApplicationAllowListConfig(List(), List())
-    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig, serviceAccountProvider) {
+    val authProvider = new AllowlistAuthProvider(allowlistAuthConfig) {
       override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(true)
     }
@@ -1762,7 +1741,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val testInterp = new LeoAppServiceInterp[IO](
       AppServiceConfig(enableCustomAppCheck = true, enableSasApp = true, leoKubernetesConfig),
       authProvider,
-      serviceAccountProvider,
       QueueFactory.makePublisherQueue(),
       Some(FakeGoogleComputeService),
       Some(noSecurityGroupGoogleResourceService),
@@ -1777,7 +1755,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         List()
       ),
       wsmDao,
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
     val appReq = createAppRequest.copy(
       diskConfig = Some(createDiskConfig),
@@ -2362,7 +2341,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
 
     kubeServiceInterp
       .createAppV2(userInfo, workspaceId, appName, appReq)
@@ -2424,7 +2403,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V2 GCP - delete a gcp app V2, update status appropriately, and queue a message" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
@@ -2785,7 +2764,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
     val res = kubeServiceInterp
       .createAppV2(userInfo, workspaceId, galaxyAppName, galaxyAppReq)
       .attempt
@@ -2865,7 +2844,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V2 GCP - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
 
     val appName = AppName("app1")
     val appName2 = AppName("app2")

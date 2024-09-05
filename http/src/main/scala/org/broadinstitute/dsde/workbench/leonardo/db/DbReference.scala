@@ -33,6 +33,7 @@ object DbReference extends LazyLogging {
       changelogParameters.foreach { case (key, value) => liquibase.setChangeLogParameter(key, value) }
 
       liquibase.update(new Contexts(), new LabelExpression())
+
     } catch {
       case e: SQLTimeoutException =>
         val isCertProblem = Throwables.getRootCause(e).isInstanceOf[SunCertPathBuilderException]
