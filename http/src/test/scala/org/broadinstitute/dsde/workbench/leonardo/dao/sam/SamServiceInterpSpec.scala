@@ -10,7 +10,13 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoTestSuite, RuntimeAction, SamResourceType}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  LeonardoTestSuite,
+  RuntimeAction,
+  SamPolicyData,
+  SamResourceType,
+  SamRole
+}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.mockito.ArgumentMatchers.{any, anyList, anyString}
@@ -292,7 +298,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         newSamService(resourcesApi = resourcesApi)
-          .createResource(tokenValue, runtimeSamResource, Some(project), None, None)
+          .createResource(tokenValue, runtimeSamResource, Some(project), None, Map.empty)
           .unsafeRunSync()
 
         // assert
@@ -319,7 +325,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         newSamService(resourcesApi = resourcesApi)
-          .createResource(tokenValue, runtimeSamResource, None, Some(workspaceId), None)
+          .createResource(tokenValue, runtimeSamResource, None, Some(workspaceId), Map.empty)
           .unsafeRunSync()
 
         // assert
@@ -340,7 +346,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       it("should not allow resource creation with no parent") {
         // test
         val result = the[LeoInternalServerError] thrownBy newSamService()
-          .createResource(tokenValue, runtimeSamResource, None, None, None)
+          .createResource(tokenValue, runtimeSamResource, None, None, Map.empty)
           .unsafeRunSync()
 
         // assert
@@ -350,14 +356,14 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       it("should not allow specifying a google project and workspace parent") {
         // test
         val result = the[LeoInternalServerError] thrownBy newSamService()
-          .createResource(tokenValue, runtimeSamResource, Some(project), Some(workspaceId), None)
+          .createResource(tokenValue, runtimeSamResource, Some(project), Some(workspaceId), Map.empty)
           .unsafeRunSync()
 
         // assert
         result.msg should include("google project or workspace parent is required")
       }
 
-      it("should create a Sam resource with a creator policy") {
+      it("should create a Sam resource with a policy") {
         // setup
         val resourcesApi = mock[ResourcesApi]
         doNothing()
@@ -366,7 +372,12 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         newSamService(resourcesApi = resourcesApi)
-          .createResource(tokenValue, runtimeSamResource, None, Some(workspaceId), Some(userEmail))
+          .createResource(tokenValue,
+                          runtimeSamResource,
+                          None,
+                          Some(workspaceId),
+                          Map("aPolicy" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+          )
           .unsafeRunSync()
 
         // assert
@@ -383,8 +394,8 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
         createResourceRequest.getAuthDomain shouldBe List.empty.asJava
         val policies = createResourceRequest.getPolicies.asScala
         policies should have size 1
-        policies should contain key "creator"
-        policies("creator") shouldBe new AccessPolicyMembershipRequest()
+        policies should contain key "aPolicy"
+        policies("aPolicy") shouldBe new AccessPolicyMembershipRequest()
           .addMemberEmailsItem(userEmail.value)
           .addRolesItem("creator")
       }
@@ -396,7 +407,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
-          .createResource(tokenValue, runtimeSamResource, Some(project), None, None)
+          .createResource(tokenValue, runtimeSamResource, Some(project), None, Map.empty)
           .unsafeRunSync()
 
         result.getMessage should include("bad request")

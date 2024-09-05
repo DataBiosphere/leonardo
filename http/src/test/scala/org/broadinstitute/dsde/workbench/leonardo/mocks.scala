@@ -339,7 +339,7 @@ class BaseMockSamService extends SamService[IO] {
                               samResourceId: SamResourceId,
                               parentProject: Option[GoogleProject],
                               parentWorkspace: Option[WorkspaceId],
-                              creator: Option[WorkbenchEmail]
+                              policies: Map[String, SamPolicyData]
   )(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
   override def deleteResource(bearerToken: String, samResourceId: SamResourceId)(implicit

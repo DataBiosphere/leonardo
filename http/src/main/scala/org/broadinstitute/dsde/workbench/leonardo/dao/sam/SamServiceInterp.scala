@@ -17,7 +17,13 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{ProjectSamResou
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, SamResourceId, SamResourceType, SamRole, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  SamPolicyData,
+  SamResourceId,
+  SamResourceType,
+  WorkspaceId
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -211,7 +217,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
                               samResourceId: SamResourceId,
                               projectParent: Option[GoogleProject],
                               workspaceParent: Option[WorkspaceId],
-                              creator: Option[WorkbenchEmail]
+                              policies: Map[String, SamPolicyData]
   )(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -232,23 +238,20 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
           )
       }
 
-      // All Leo resources have a creator role
-      policies = creator
-        .map(c =>
-          Map(
-            SamRole.Creator.asString -> new AccessPolicyMembershipRequest()
-              .addMemberEmailsItem(c.value)
-              .addRolesItem(SamRole.Creator.asString)
-          )
+      apiPolicies = policies.view
+        .mapValues(p =>
+          new AccessPolicyMembershipRequest()
+            .memberEmails(p.memberEmails.map(_.value).asJava)
+            .roles(p.roles.map(_.asString).asJava)
         )
-        .getOrElse(Map.empty)
+        .toMap
 
       body = new CreateResourceRequestV2()
         .resourceId(samResourceId.resourceId)
         .parent(
           new FullyQualifiedResourceId().resourceTypeName(parent.resourceType.asString).resourceId(parent.resourceId)
         )
-        .policies(policies.asJava)
+        .policies(apiPolicies.asJava)
       _ <- SamRetry
         .retry(resourcesApi.createResourceV2(samResourceId.resourceType.asString, body), "createResourceV2")
         .adaptError { case e: ApiException =>
