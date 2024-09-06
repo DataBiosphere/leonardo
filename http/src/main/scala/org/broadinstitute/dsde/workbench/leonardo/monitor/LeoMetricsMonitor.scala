@@ -379,6 +379,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                                              null
                     )
                   )
+
                   res = pods.getItems.asScala.flatMap { pod =>
                     pod.getMetadata.getLabels.asScala.get("leoServiceName").toList.flatMap { service =>
                       pod.getSpec.getContainers.asScala.flatMap { container =>

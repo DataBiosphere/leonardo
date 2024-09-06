@@ -41,7 +41,7 @@ import scala.jdk.CollectionConverters._
 
 class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with LeonardoTestSuite with EitherValues {
   "creatingRuntime" should "check again if cluster doesn't exist yet" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Creating
     )
@@ -68,7 +68,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will check again status is either Creating or Unknown" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -103,7 +103,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will check again status is Running but not all instances are running" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -128,7 +128,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will error if can't find zone for master instance" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -156,7 +156,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will persist error if cluster is in Error state" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -184,7 +184,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will error if cluster is in unexpected state when trying to create" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -212,7 +212,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will try to persist user script error if cluster is in Error state but no error shown from dataproc" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -241,7 +241,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will persist error if cluster is in Error state when Creating" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -279,7 +279,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   "startingRuntime" should "will check again if not all instances are Running when trying to start" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -301,7 +301,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will check again if master instance doesn't have IP when trying to start" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -323,7 +323,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will persist error if cluster is in Error state when Starting" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Starting
     )
@@ -348,7 +348,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   "stoppingRuntime" should "check again if there's still instance Running" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -368,7 +368,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   "stoppingRuntime" should "update DB when all instances are stopped" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -392,7 +392,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "terminate monitoring stopping if cluster doesn't exist" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -414,7 +414,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   "updatingRuntime" should "terminate monitoring stopping if cluster doesn't exist" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -440,7 +440,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "check again if cluster is still being updated" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Updating
     )
@@ -460,7 +460,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "check again if not all instances are Running" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Stopping
     )
@@ -482,7 +482,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "check again if instance IP is not available yet" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Updating
     )
@@ -504,7 +504,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "complete update" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Updating
     )
@@ -530,7 +530,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   "deleteRuntime" should "check again if cluster still exists" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Deleting
     )
@@ -550,7 +550,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "delete runtime if runtime no longer exists in google" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+    val runtime = makeCluster(1).copy(serviceAccount = serviceAccountEmail,
                                       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
                                       status = RuntimeStatus.Deleting
     )

@@ -52,6 +52,7 @@ object DiskRoutesTestJsonCodec {
       blockSize <- x.downField("blockSize").as[BlockSize]
       labels <- x.downField("labels").as[LabelMap]
       formattedBy <- x.downField("formattedBy").as[Option[FormattedBy]]
+      workspaceId <- x.downField("workspaceId").as[Option[WorkspaceId]]
     } yield GetPersistentDiskResponse(id,
                                       cloudContext,
                                       zone,
@@ -64,7 +65,8 @@ object DiskRoutesTestJsonCodec {
                                       diskType,
                                       blockSize,
                                       labels,
-                                      formattedBy
+                                      formattedBy,
+                                      workspaceId
     )
   }
 
@@ -115,6 +117,7 @@ object DiskRoutesTestJsonCodec {
       diskType <- x.downField("diskType").as[DiskType]
       blockSize <- x.downField("blockSize").as[BlockSize]
       labels <- x.downField("labels").as[LabelMap]
+      workspaceId <- x.downField("workspaceId").as[Option[WorkspaceId]]
     } yield ListPersistentDiskResponse(
       id,
       cloudContext,
@@ -125,7 +128,8 @@ object DiskRoutesTestJsonCodec {
       size,
       diskType,
       blockSize,
-      labels
+      labels,
+      workspaceId
     )
   }
 

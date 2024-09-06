@@ -11,6 +11,10 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 
+/**
+ * Deprecated. Functionality should be ported to SamService, which uses the generated Sam client.
+ */
+@Deprecated
 trait SamDAO[F[_]] {
 
   /** Registers the Leo SA as a user in Sam. */

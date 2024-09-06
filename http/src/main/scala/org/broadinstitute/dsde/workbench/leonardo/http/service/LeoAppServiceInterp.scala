@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
@@ -55,13 +56,13 @@ import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
-                                                serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
                                                 computeService: Option[GoogleComputeService[F]],
                                                 googleResourceService: Option[GoogleResourceService[F]],
                                                 customAppConfig: CustomAppConfig,
                                                 wsmDao: WsmDao[F],
-                                                wsmClientProvider: WsmApiClientProvider[F]
+                                                wsmClientProvider: WsmApiClientProvider[F],
+                                                samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -158,6 +159,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
 
+      // Retrieve parent workspaceId for the google project
+      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
+
       notifySamAndCreate = for {
         _ <- authProvider
           .notifyResourceCreated(samResourceId, originatingUserEmail, googleProject)
@@ -225,12 +229,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             }
           }
 
-        runtimeServiceAccountOpt <- serviceAccountProvider
-          .getClusterServiceAccount(userInfo, cloudContext)
-        _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-        petSA <- F.fromEither(
-          runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-        )
+        petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
+        _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
         // Fail fast if the Galaxy disk, memory, number of CPUs is too small
         appMachineType <-
@@ -249,23 +249,26 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             petSA,
             appTypeToFormattedByType(req.appType),
             authProvider,
-            config.leoKubernetesConfig.diskConfig
+            config.leoKubernetesConfig.diskConfig,
+            parentWorkspaceId
           )
         )
         lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
+
         saveApp <- F.fromEither(
-          getSavableApp(cloudContext,
-                        appName,
-                        originatingUserEmail,
-                        samResourceId,
-                        req,
-                        diskResultOpt.map(_.disk),
-                        lastUsedApp,
-                        petSA,
-                        nodepool.id,
-                        req.workspaceId,
-                        req.autopilot,
-                        ctx
+          getSavableApp(
+            cloudContext,
+            appName,
+            originatingUserEmail,
+            samResourceId,
+            req,
+            diskResultOpt.map(_.disk),
+            lastUsedApp,
+            petSA,
+            nodepool.id,
+            parentWorkspaceId,
+            req.autopilot,
+            ctx
           )
         )
         app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
@@ -815,11 +818,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       nodepool = saveClusterResult.defaultNodepool.toNodepool()
 
       // Retrieve a pet identity from Sam
-      runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-      petSA <- F.fromEither(
-        runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
+      petSA <- samService.getPetServiceAccountOrManagedIdentity(userInfo.accessToken.token, cloudContext)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
       // Process persistent disk in the request, check if the disk was previously attached to any other app
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
@@ -1656,8 +1656,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 }
 
 object LeoAppServiceInterp {
-  case class LeoKubernetesConfig(serviceAccountConfig: ServiceAccountProviderConfig,
-                                 clusterConfig: KubernetesClusterConfig,
+  case class LeoKubernetesConfig(clusterConfig: KubernetesClusterConfig,
                                  nodepoolConfig: NodepoolConfig,
                                  ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,

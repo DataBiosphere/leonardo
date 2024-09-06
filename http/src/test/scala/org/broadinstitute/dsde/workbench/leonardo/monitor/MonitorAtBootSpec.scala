@@ -7,7 +7,7 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmClientProvider, MockWsmDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmClientProvider}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.{
   CreateClusterAndNodepool,

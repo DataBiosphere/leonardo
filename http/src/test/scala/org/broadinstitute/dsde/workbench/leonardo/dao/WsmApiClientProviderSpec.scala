@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.db.WsmResourceType
-import org.broadinstitute.dsde.workbench.leonardo.util.AzureTestUtils
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, LeonardoTestSuite}
 import org.http4s._
 import org.mockito.Mockito.{times, verify, when}

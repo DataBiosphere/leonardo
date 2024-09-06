@@ -6,9 +6,13 @@ import org.mockito.Mockito.when
 import org.mockito.ArgumentMatchers.any
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
 import bio.terra.workspace.model.{
+  AzureVmAttributes,
+  AzureVmResource,
+  CreateControlledAzureDiskRequestBody,
   CreateControlledAzureDiskRequestV2Body,
   CreateControlledAzureResourceResult,
   CreatedControlledAzureStorageContainer,
+  CreatedControlledAzureVmResult,
   DeleteControlledAzureResourceResult,
   ErrorReport,
   IamRole,
@@ -49,7 +53,7 @@ object AzureTestUtils extends MockitoSugar {
     val resourceApi = mock[ResourceApi]
     val disksByJob = mutable.Map.empty[String, CreateControlledAzureDiskRequestV2Body]
 
-    // Create disk
+    // Create disk v2
     when {
       api.createAzureDiskV2(any, any)
     } thenAnswer { invocation =>
@@ -60,20 +64,29 @@ object AzureTestUtils extends MockitoSugar {
         .jobReport(
           new JobReport().status(diskJobStatus)
         )
-        .errorReport(new ErrorReport())
+        .errorReport(new ErrorReport().message("test exception"))
+    }
+
+    // Create disk
+    when {
+      api.createAzureDisk(any, any)
+    } thenAnswer { _ =>
+      new CreateControlledAzureResourceResult()
+        .jobReport(
+          new JobReport().status(diskJobStatus)
+        )
+        .errorReport(new ErrorReport().message("test exception"))
     }
 
     // Get disk result
     when {
       api.getCreateAzureDiskResult(any, any)
-    } thenAnswer { invocation =>
-      val jobId = invocation.getArgument[String](1)
-      val requestBody = disksByJob(jobId)
+    } thenAnswer { _ =>
       new CreateControlledAzureResourceResult()
         .jobReport(
           new JobReport().status(diskJobStatus)
         )
-        .errorReport(new ErrorReport())
+        .errorReport(new ErrorReport().message("test exception"))
     }
 
     // Create storage container
@@ -105,6 +118,30 @@ object AzureTestUtils extends MockitoSugar {
           new JobReport().status(diskJobStatus)
         )
         .errorReport(new ErrorReport())
+    }
+
+    // create vm result
+    when {
+      api.createAzureVm(any, any)
+    } thenAnswer { _ =>
+      new CreatedControlledAzureVmResult()
+        .jobReport(
+          new JobReport().status(vmJobStatus)
+        )
+        .azureVm(new AzureVmResource().attributes(new AzureVmAttributes().region("southcentralus")))
+        .errorReport(new ErrorReport().message("test exception"))
+    }
+
+    // create vm result
+    when {
+      api.getCreateAzureVmResult(any, any)
+    } thenAnswer { _ =>
+      new CreatedControlledAzureVmResult()
+        .jobReport(
+          new JobReport().status(vmJobStatus)
+        )
+        .azureVm(new AzureVmResource().attributes(new AzureVmAttributes().region("southcentralus")))
+        .errorReport(new ErrorReport().message("test exception"))
     }
 
     // delete vm

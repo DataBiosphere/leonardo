@@ -30,7 +30,8 @@ object MockDiskServiceInterp extends DiskService[IO] {
         CommonTestData.diskType,
         CommonTestData.blockSize,
         Map.empty,
-        None
+        None,
+        Some(CommonTestData.workspaceId)
       )
     )
 
@@ -49,7 +50,8 @@ object MockDiskServiceInterp extends DiskService[IO] {
           CommonTestData.diskSize,
           CommonTestData.diskType,
           CommonTestData.blockSize,
-          Map.empty
+          Map.empty,
+          Some(CommonTestData.workspaceId)
         )
       )
     )

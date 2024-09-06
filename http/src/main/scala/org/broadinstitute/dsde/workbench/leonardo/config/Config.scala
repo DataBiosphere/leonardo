@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{GroupName, HttpSamDaoConf
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   CreateDiskTimeout,
@@ -381,14 +380,6 @@ object Config {
       )
   }
 
-  implicit private val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
-    ValueReader.relative { config =>
-      ServiceAccountProviderConfig(
-        config.as[Path]("leoServiceAccountJsonFile"),
-        config.as[WorkbenchEmail]("leoServiceAccountEmail")
-      )
-    }
-
   implicit private val httpSamDao2ConfigValueReader: ValueReader[HttpSamDaoConfig] = ValueReader.relative { config =>
     HttpSamDaoConfig(
       Uri.unsafeFromString(config.as[String]("samServer")),
@@ -515,8 +506,6 @@ object Config {
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val autodeleteConfig = config.as[AutoDeleteConfig]("autodelete")
-  val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
-  val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy")
   val refererConfig = config.as[RefererConfig]("refererConfig")
   val vpcConfig = config.as[VPCConfig]("vpc")
@@ -796,7 +785,6 @@ object Config {
     }
 
   val leoKubernetesConfig = LeoKubernetesConfig(
-    kubeServiceAccountProviderConfig,
     gkeClusterConfig,
     gkeNodepoolConfig,
     gkeIngressConfig,

@@ -37,6 +37,10 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters.SeqHasAsJava
 import scala.util.control.NoStackTrace
 
+/**
+ * Deprecated. Functionality should be ported to SamService, which uses the generated Sam client.
+ */
+@Deprecated
 class HttpSamDAO[F[_]](httpClient: Client[F],
                        config: HttpSamDaoConfig,
                        petKeyCache: Cache[F, UserEmailAndProject, Option[Json]],

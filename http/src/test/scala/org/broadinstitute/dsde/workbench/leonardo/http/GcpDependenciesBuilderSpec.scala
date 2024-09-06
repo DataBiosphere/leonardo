@@ -25,10 +25,10 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.leonardo.{AppAccessScope, CloudService, KeyLock, LeoPublisher}
@@ -122,7 +122,6 @@ class GcpDependenciesBuilderSpec
       mock[HttpRStudioDAO[IO]],
       mock[HttpWelderDAO[IO]],
       mock[HttpWsmDao[IO]],
-      mock[ServiceAccountProvider[IO]],
       mock[SamAuthProvider[IO]],
       mock[LeoPublisher[IO]],
       mock[Queue[IO, LeoPubsubMessage]],
@@ -153,7 +152,8 @@ class GcpDependenciesBuilderSpec
       mock[Cache[IO, Long, OperationFuture[Operation, Operation]]],
       mock[AzureBatchService[IO]],
       mock[AzureApplicationInsightsService[IO]],
-      mock[OpenTelemetryMetrics[IO]]
+      mock[OpenTelemetryMetrics[IO]],
+      mock[SamService[IO]]
     )
   private def createGcpDependenciesRegistryWithMocks = {
     val registry = ServicesRegistry()
