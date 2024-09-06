@@ -11,7 +11,6 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.cloudresourcemanager.model.Ancestor
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
@@ -43,7 +42,6 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         samService: SamService[F]
 )(implicit
   F: Async[F],
-  log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends DiskService[F] {
@@ -57,12 +55,15 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
 
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
+
       hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
         ProjectSamResourceId(googleProject),
         ProjectAction.CreatePersistentDisk,
         userInfo
       )
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
 
       // Grab the pet service account for the user
       petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
@@ -85,7 +86,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
             )
 
             disk <- F.fromEither(
-              convertToDisk(userInfo.userEmail,
+              convertToDisk(userEmail,
                             petSA,
                             cloudContext,
                             diskName,
@@ -97,13 +98,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                             parentWorkspaceId
               )
             )
-            _ <- authProvider
-              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
-              .handleErrorWith { t =>
-                log.error(t)(
-                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
-                ) >> F.raiseError[Unit](t)
-              }
+            // Create a persistent-disk Sam resource with a creator policy and the google project as the parent
+            _ <- samService.createResource(userInfo.accessToken.token,
+                                           samResource,
+                                           Some(googleProject),
+                                           None,
+                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+            )
             // TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
             _ <- publisherQueue.offer(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
@@ -381,12 +382,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
-      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
-      _ <- authProvider
-        .notifyResourceDeletedV2(
-          dbdisk.samResource,
-          userInfo
-        )
+      // Delete the persistent-disk Sam resource
+      _ <- samService.deleteResource(userInfo.accessToken.token, dbdisk.samResource)
     } yield ()
 
   def deleteAllDisksRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit

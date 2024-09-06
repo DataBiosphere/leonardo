@@ -120,6 +120,24 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     )
   } yield petToken
 
+  override def getArbitraryPetServiceAccountToken(userEmail: WorkbenchEmail)(implicit
+    ev: Ask[F, AppContext]
+  ): F[String] = for {
+    ctx <- ev.ask
+    leoToken <- getLeoAuthToken
+    googleApi <- apiClientProvider.googleApi(leoToken)
+    petToken <- SamRetry
+      .retry(googleApi.getUserArbitraryPetServiceAccountToken(userEmail.value, saScopes.asJava),
+             "getUserArbitraryPetServiceAccountToken"
+      )
+      .adaptError { case e: ApiException =>
+        SamException.create("Error getting arbitrary pet service account token from Sam", e, ctx.traceId)
+      }
+    _ <- logger.info(ctx.loggingCtx)(
+      s"Retrieved arbitrary pet service account token for user $userEmail"
+    )
+  } yield petToken
+
   override def lookupWorkspaceParentForGoogleProject(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceId]] = for {

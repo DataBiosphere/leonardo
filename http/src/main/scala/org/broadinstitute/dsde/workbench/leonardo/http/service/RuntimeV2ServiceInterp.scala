@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 // do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
@@ -46,10 +47,10 @@ import scala.concurrent.ExecutionContext
 class RuntimeV2ServiceInterp[F[_]: Parallel](
   config: RuntimeServiceConfig,
   authProvider: LeoAuthProvider[F],
-  wsmDao: WsmDao[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
-  wsmClientProvider: WsmApiClientProvider[F]
+  wsmClientProvider: WsmApiClientProvider[F],
+  samService: SamService[F]
 )(implicit F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F])
     extends RuntimeV2Service[F] {
 
@@ -75,6 +76,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       samResource = WorkspaceResourceSamResourceId(workspaceId)
 
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
+
       hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
         samResource,
         WorkspaceAction.CreateControlledUserResource,
@@ -82,11 +86,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
 
       // enforcing one runtime per workspace/user at a time
-      userEmail = Some(userInfo.userEmail)
-      authorizedIds <- getAuthorizedIds(userInfo, userEmail, Some(samResource))
+      authorizedIds <- getAuthorizedIds(userInfo, Some(userEmail), Some(samResource))
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(
           // Authorization scopes
@@ -97,7 +100,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
           readerWorkspaceIds = authorizedIds.readerWorkspaceIds,
           // Filters
           excludeStatuses = List(RuntimeStatus.Deleted, RuntimeStatus.Deleting),
-          creatorEmail = userEmail,
+          creatorEmail = Some(userEmail),
           workspaceId = Some(workspaceId),
           cloudProvider = Some(cloudContext.cloudProvider)
         )
@@ -107,7 +110,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         .raiseError(
           OnlyOneRuntimePerWorkspacePerCreator(
             workspaceId,
-            userInfo.userEmail,
+            userEmail,
             runtimes.head.clusterName,
             runtimes.head.status
           )
@@ -135,7 +138,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         None,
         ctx.now
       )
-      vmSamResourceId <- F.delay(UUID.randomUUID())
 
       _ <- runtimeOpt match {
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
@@ -150,7 +152,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                     .listDisks(
                       Map.empty,
                       includeDeleted = false,
-                      Some(userInfo.userEmail),
+                      Some(userEmail),
                       Some(cloudContext),
                       Some(workspaceId)
                     )
@@ -188,24 +190,25 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                       ctx.now
                     )
                   )
-                  _ <- authProvider
-                    .notifyResourceCreatedV2(samResource, userInfo.userEmail, cloudContext, workspaceId, userInfo)
-                    .handleErrorWith { t =>
-                      log.error(t)(
-                        s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${req.azureDiskConfig.name.value}"
-                      ) >> F.raiseError[Unit](t)
-                    }
+                  // Create a persistent-disk Sam resource with a creator policy and the workspace as the parent
+                  _ <- samService.createResource(userInfo.accessToken.token,
+                                                 samResource,
+                                                 None,
+                                                 Some(workspaceId),
+                                                 Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                  )
                   disk <- persistentDiskQuery.save(pd).transaction
                 } yield disk.id
             }
 
+            samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
             runtime = convertToRuntime(
               workspaceId,
               runtimeName,
               cloudContext,
               userInfo,
               req,
-              RuntimeSamResourceId(vmSamResourceId.toString),
+              samResource,
               Set(runtimeImage, listenerImage, welderImage),
               Set.empty,
               ctx.now
@@ -217,6 +220,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
               None
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
+
+            // Create a notebook-cluster Sam resource with a creator policy and the workspace as the parent
+            _ <- samService.createResource(userInfo.accessToken.token,
+                                           samResource,
+                                           None,
+                                           Some(workspaceId),
+                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+            )
+
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
             _ <- publisherQueue.offer(
               CreateAzureRuntimeMessage(

@@ -90,13 +90,15 @@ class RuntimeServiceInterp[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         AzureUnimplementedException("Azure runtime is not supported yet")
       )
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
       hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
         ProjectSamResourceId(googleProject),
         ProjectAction.CreateRuntime,
         userInfo
       )
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
       // Grab the pet service account for the user
       petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
@@ -111,7 +113,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
         case None =>
           for {
             samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
-            petToken <- samService.getPetServiceAccountToken(userInfo.userEmail, googleProject)
+            // Get a GCP pet service account token to resolve GCP objects like bucket objects, GCR images.
+            // We can't use the user token directly because it is a B2C token.
+            petToken <- samService.getPetServiceAccountToken(userEmail, googleProject)
             runtimeImages <- getRuntimeImages(Some(petToken), context.now, req.toolDockerImage, req.welderRegistry)
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done get runtime images")))
             // .get here should be okay since this is from config, and it should always be defined; Ideally we probaly should use a different type for reading this config than RuntimeConfig
@@ -154,9 +158,11 @@ class RuntimeServiceInterp[F[_]: Parallel](
                           gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
                           googleProject,
                           userInfo,
+                          userEmail,
                           petSA,
                           FormattedBy.GCE,
                           authProvider,
+                          samService,
                           diskConfig,
                           parentWorkspaceId
                         )
@@ -199,18 +205,17 @@ class RuntimeServiceInterp[F[_]: Parallel](
               )
               .getOrElse(List.empty[String]) ++ userScriptUriToValidate ++ userStartupScriptToValidate
 
-            petToken <- samService.getPetServiceAccountToken(userInfo.userEmail, googleProject)
             _ <- gcsObjectUrisToValidate
-              .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, petToken, s, context.traceId))
+              .parTraverse(s => validateBucketObjectUri(userEmail, petToken, s, context.traceId))
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
-            _ <- authProvider
-              .notifyResourceCreated[RuntimeSamResourceId](samResource, userInfo.userEmail, googleProject)
-              .handleErrorWith { t =>
-                log.error(t)(
-                  s"[${context.traceId}] Failed to notify the AuthProvider for creation of runtime ${runtime.projectNameString}"
-                ) >> F.raiseError[Unit](t)
-              }
-            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
+            // Create a notebook-cluster Sam resource with a cretor policy and the google project as the parent
+            _ <- samService.createResource(userInfo.accessToken.token,
+                                           samResource,
+                                           Some(googleProject),
+                                           None,
+                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+            )
+            _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam createResource")))
             runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
             saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
@@ -303,12 +308,15 @@ class RuntimeServiceInterp[F[_]: Parallel](
       ctx <- ev.ask
       cloudContext = CloudContext.Gcp(req.googleProject)
 
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(req.userInfo.accessToken.token)
+
       // throw 403 if no project-level permission
       hasProjectPermission <- authProvider.isUserProjectReader(
         cloudContext,
         req.userInfo
       )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(req.userInfo.userEmail, Some(ctx.traceId)))
+      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userEmail, Some(ctx.traceId)))
 
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, req.runtimeName).transaction
@@ -332,7 +340,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
       _ <-
         if (hasStatusPermission) F.unit
         else
-          log.info(ctx.loggingCtx)(s"${req.userInfo.userEmail.value} has no permission to get runtime status") >> F
+          log.info(ctx.loggingCtx)(s"${userEmail.value} has no permission to get runtime status") >> F
             .raiseError[Unit](
               RuntimeNotFoundException(
                 cloudContext,
@@ -346,7 +354,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
       hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
         listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
 
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(req.userInfo.userEmail))
+      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
       // throw 409 if the cluster is not deletable
       _ <-
         if (runtime.status.isDeletable) F.unit
@@ -400,10 +408,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
               DeleteRuntimeMessage(runtime.id, persistentDiskToDelete, Some(ctx.traceId))
             )
         } else {
-          clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyResourceDeleted(
-            runtime.samResource,
-            runtime.auditInfo.creator,
-            req.googleProject
+          clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> samService.deleteResource(
+            req.userInfo.accessToken.token,
+            runtime.samResource
           )
         }
     } yield ()
@@ -467,12 +474,8 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
-      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
-      _ <- authProvider
-        .notifyResourceDeletedV2(
-          runtime.samResource,
-          userInfo
-        )
+      // Delete the notebook-cluster Sam resource
+      _ <- samService.deleteResource(userInfo.accessToken.token, runtime.samResource)
     } yield ()
 
   def deleteAllRuntimesRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
@@ -1154,17 +1157,18 @@ object RuntimeServiceInterp {
     targetZone: ZoneName,
     googleProject: GoogleProject,
     userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     serviceAccount: WorkbenchEmail,
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
+    samService: SamService[F],
     diskConfig: PersistentDiskConfig,
     workspaceId: Option[WorkspaceId]
   )(implicit
     as: Ask[F, AppContext],
     F: Async[F],
     dbReference: DbReference[F],
-    ec: ExecutionContext,
-    log: StructuredLogger[F]
+    ec: ExecutionContext
   ): F[PersistentDiskRequestResult] =
     for {
       ctx <- as.ask
@@ -1213,7 +1217,7 @@ object RuntimeServiceInterp {
               userInfo
             )
 
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
           } yield PersistentDiskRequestResult(pd, false)
 
         case None =>
@@ -1223,13 +1227,11 @@ object RuntimeServiceInterp {
               ProjectAction.CreatePersistentDisk,
               userInfo
             )
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
-            // Look up the original email in case this API was called by a pet SA
-            originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(
-                originatingUserEmail,
+                userEmail,
                 serviceAccount,
                 cloudContext,
                 req.name,
@@ -1242,13 +1244,13 @@ object RuntimeServiceInterp {
                 workspaceId
               )
             )
-            _ <- authProvider
-              .notifyResourceCreated(samResource, originatingUserEmail, googleProject)
-              .handleErrorWith { t =>
-                log.error(t)(
-                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
-                ) >> F.raiseError[Unit](t)
-              }
+            // Create a persistent-disk Sam resource with a creator policy and the google project as the parent
+            _ <- samService.createResource(userInfo.accessToken.token,
+                                           samResource,
+                                           Some(googleProject),
+                                           None,
+                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+            )
             pd <- persistentDiskQuery.save(diskBeforeSave).transaction
           } yield PersistentDiskRequestResult(pd, true)
       }
@@ -1260,16 +1262,17 @@ object RuntimeServiceInterp {
     cloudContext: CloudContext,
     workspaceId: WorkspaceId,
     userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     serviceAccount: WorkbenchEmail,
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
+    samService: SamService[F],
     diskConfig: PersistentDiskConfig
   )(implicit
     as: Ask[F, AppContext],
     F: Async[F],
     dbReference: DbReference[F],
-    ec: ExecutionContext,
-    log: StructuredLogger[F]
+    ec: ExecutionContext
   ): F[PersistentDiskRequestResult] =
     for {
       ctx <- as.ask
@@ -1317,7 +1320,7 @@ object RuntimeServiceInterp {
               userInfo
             )
 
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
           } yield PersistentDiskRequestResult(pd, false)
 
         case None =>
@@ -1327,13 +1330,11 @@ object RuntimeServiceInterp {
               WorkspaceAction.CreateControlledApplicationResource,
               userInfo
             ) // TODO: Correct check?
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
-            // Look up the original email in case this API was called by a pet SA
-            originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(
-                originatingUserEmail,
+                userEmail,
                 serviceAccount,
                 cloudContext,
                 req.name,
@@ -1346,13 +1347,13 @@ object RuntimeServiceInterp {
                 Some(workspaceId)
               )
             )
-            _ <- authProvider
-              .notifyResourceCreatedV2(samResource, originatingUserEmail, cloudContext, workspaceId, userInfo)
-              .handleErrorWith { t =>
-                log.error(t)(
-                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
-                ) >> F.raiseError[Unit](t)
-              }
+            // Create a persistent-disk Sam resource with a creator policy and the workspace as the parent
+            _ <- samService.createResource(userInfo.accessToken.token,
+                                           samResource,
+                                           None,
+                                           Some(workspaceId),
+                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+            )
             pd <- persistentDiskQuery.save(diskBeforeSave).transaction
           } yield PersistentDiskRequestResult(pd, true)
       }
