@@ -6,8 +6,7 @@ set -e -x
 # This is a shutdown script designed to run on Leo-created Google Dataproc clusters and Google Compute Engines (GCE).
 ##
 
-# Runtimes created after September 2024 should have the CLOUD_SERVICE env exported, but for older runtimes, the CLOUD_SERVICE
-# is assumed based on the location of the certs directory
+# The CLOUD_SERVICE is assumed based on the location of the certs directory
 if [ -f "/var/certs/jupyter-server.crt" ]
 then
   export CLOUD_SERVICE='GCE'
@@ -34,10 +33,11 @@ if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ]
     rm -rf /mnt/disks/work/.local || true
 fi
 
-# TODO - Why do we need different docker compose commands?
 if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
+  # COS images need to run docker-compose as a container by design
   DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
 else
+  # Dataproc has docker-compose natively installed
   DOCKER_COMPOSE='docker-compose'
 fi
 

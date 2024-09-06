@@ -9,12 +9,76 @@ set -e -x
 # cluster if not already installed.
 ##
 
+EXIT_CODE=0
+
+# Set variables
+# Values like $(..) are populated by Leo when a cluster is resumed.
+# See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
+# Avoid exporting variables unless they are needed by external scripts or docker-compose files.
+# The CLOUD_SERVICE is assumed based on the location of the certs directory
+if [ -f "/var/certs/jupyter-server.crt" ]
+then
+  export CLOUD_SERVICE='GCE'
+  CERT_DIRECTORY='/var/certs'
+  GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
+  GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
+  DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
+  DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
+
+else
+  export CLOUD_SERVICE='DATAPROC'
+  CERT_DIRECTORY='/certs'
+  GSUTIL_CMD='gsutil'
+  GCLOUD_CMD='gcloud'
+  DOCKER_COMPOSE='docker-compose'
+  DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
+fi
+export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
+export GOOGLE_PROJECT=$(googleProject)
+export CLUSTER_NAME=$(clusterName)
+export RUNTIME_NAME=$(clusterName)
+export OWNER_EMAIL=$(loginHint)
+export PET_SA_EMAIL=$(petSaEmail)
+export JUPYTER_SERVER_NAME=$(jupyterServerName)
+export RSTUDIO_SERVER_NAME=$(rstudioServerName)
+export WELDER_SERVER_NAME=$(welderServerName)
+export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
+export NOTEBOOKS_DIR=$(notebooksDir)
+export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
+export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
+JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
+RSTUDIO_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/rstudio-docker*)
+export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
+export WELDER_ENABLED=$(welderEnabled)
+export UPDATE_WELDER=$(updateWelder)
+export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+export DISABLE_DELOCALIZATION=$(disableDelocalization)
+export STAGING_BUCKET=$(stagingBucketName)
+export START_USER_SCRIPT_URI=$(startUserScriptUri)
+export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
+export WELDER_MEM_LIMIT=$(welderMemLimit)
+export MEM_LIMIT=$(memLimit)
+export SHM_SIZE=$(shmSize)
+export INIT_BUCKET_NAME=$(initBucketName)
+export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
+export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
+JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
+GPU_ENABLED=$(gpuEnabled)
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export SHOULD_BACKGROUND_SYNC="true"
+else
+  export SHOULD_BACKGROUND_SYNC="false"
+fi
+
+# Overwrite old cert on restart
+SERVER_CRT=$(proxyServerCrt)
+SERVER_KEY=$(proxyServerKey)
+ROOT_CA=$(rootCaPem)
+
 #
 # Functions
 # (copied from init-actions.sh and gce-init.sh, see documentation there)
 #
-EXIT_CODE=0
-
 function retry {
   local retries=$1
   shift
@@ -76,7 +140,7 @@ function validateCert() {
       DATAPROC_IMAGES_TO_RESTART+=(-f /etc/jupyter-docker-compose.yaml )
     fi
 
-    if [ "$certFileDirectory" = "/certs" ] #if its dataproc the cert directory is '/certs', and we can assume the docker images present
+    if [ "${CLOUD_SERVICE}" == 'DATAPROC']
     then
       ${DOCKER_COMPOSE} "${DATAPROC_IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     else
@@ -87,63 +151,9 @@ function validateCert() {
     retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
   fi
 }
+
 #
 # Main
-#
-
-# Runtimes created after September 2024 should have the CLOUD_SERVICE env exported, but for older runtimes, the CLOUD_SERVICE
-# is assumed based on the location of the certs directory
-if [ -f "/var/certs/jupyter-server.crt" ]
-then
-  export CLOUD_SERVICE='GCE'
-else
-  export CLOUD_SERVICE='DATAPROC'
-fi
-
-# Set variables
-# Values like $(..) are populated by Leo when a cluster is resumed.
-# See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
-# Avoid exporting variables unless they are needed by external scripts or docker-compose files.
-export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
-export GOOGLE_PROJECT=$(googleProject)
-export CLUSTER_NAME=$(clusterName)
-export RUNTIME_NAME=$(clusterName)
-export OWNER_EMAIL=$(loginHint)
-export PET_SA_EMAIL=$(petSaEmail)
-export JUPYTER_SERVER_NAME=$(jupyterServerName)
-export RSTUDIO_SERVER_NAME=$(rstudioServerName)
-export WELDER_SERVER_NAME=$(welderServerName)
-export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
-export NOTEBOOKS_DIR=$(notebooksDir)
-export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
-export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
-export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
-export WELDER_ENABLED=$(welderEnabled)
-export UPDATE_WELDER=$(updateWelder)
-export WELDER_DOCKER_IMAGE=$(welderDockerImage)
-export DISABLE_DELOCALIZATION=$(disableDelocalization)
-export STAGING_BUCKET=$(stagingBucketName)
-export START_USER_SCRIPT_URI=$(startUserScriptUri)
-export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
-export WELDER_MEM_LIMIT=$(welderMemLimit)
-export MEM_LIMIT=$(memLimit)
-export SHM_SIZE=$(shmSize)
-export INIT_BUCKET_NAME=$(initBucketName)
-export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
-export PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
-JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
-GPU_ENABLED=$(gpuEnabled)
-if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  export SHOULD_BACKGROUND_SYNC="true"
-else
-  export SHOULD_BACKGROUND_SYNC="false"
-fi
-
-# Overwrite old cert on restart
-SERVER_CRT=$(proxyServerCrt)
-SERVER_KEY=$(proxyServerKey)
-ROOT_CA=$(rootCaPem)
-
 ## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
 FreesdDisks=()
@@ -177,11 +187,6 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   mount -o remount,exec /var/lib/nvidia
 fi
 
-if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
-  DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
-else
-  DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
-fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then
   echo "Upgrading welder..."
@@ -211,12 +216,6 @@ fi
 if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
     # GCE
 then
-    CERT_DIRECTORY='/var/certs'
-    GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
-    GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
-    DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
-    JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
-    RSTUDIO_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/rstudio-docker*)
     export WORK_DIRECTORY='/mnt/disks/work'
 
     fsck.ext4 -tvy ${DISK_DEVICE_ID}
@@ -291,12 +290,7 @@ END
     fi
 else
     # DATAPROC
-    CERT_DIRECTORY='/certs'
-    GSUTIL_CMD='gsutil'
-    GCLOUD_CMD='gcloud'
-    DOCKER_COMPOSE='docker-compose'
-    JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
-    export WORK_DIRECTORY=/work
+    export WORK_DIRECTORY='/work'
 
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
@@ -397,7 +391,6 @@ fi
 
 # Resize persistent disk if needed.
 # If it's GCE, we resize the PD. Dataproc doesn't have PD
-# TODO - Check how we are using PD with dataproc clusters
 if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
   echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
   resize2fs ${DISK_DEVICE_ID}

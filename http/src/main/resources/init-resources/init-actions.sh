@@ -275,7 +275,6 @@ END
       gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
     fi
 
-    echo "" > /var/google_application_credentials.env
 
     # If any image is hosted in a GCR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
@@ -343,7 +342,16 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
-      # Install NbExtensions
+      # Install NbExtensions. These are user-specified Jupyter extensions.
+      # For instance Terra UI is passing
+      #  {
+      #    "nbExtensions": {
+      #      "saturn-iframe-extension": "https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"
+      #    },
+      #    "labExtensions": {},
+      #    "serverExtensions": {},
+      #    "combinedExtensions": {}
+      #  }
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
         do
@@ -366,7 +374,7 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
-      # Install serverExtensions
+      # Install serverExtensions if provided by the user
       if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
         do
@@ -384,7 +392,7 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
-      # Install combined extensions
+      # Install combined extensions if provided by the user
       if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
         for ext in ${JUPYTER_COMBINED_EXTENSIONS}
         do
@@ -419,7 +427,7 @@ END
       # done start user script
       STEP_TIMINGS+=($(date +%s))
 
-      # Install lab extensions
+      # Install lab extensions if provided by the user
       # Note: lab extensions need to installed as jupyter user, not root
       if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_LAB_EXTENSIONS}

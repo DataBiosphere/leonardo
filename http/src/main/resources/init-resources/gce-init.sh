@@ -5,6 +5,79 @@
 
 set -e -x
 
+# Set variables
+# Values like $(..) are populated by Leo when a cluster is created.
+# See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
+# Avoid exporting variables unless they are needed by external scripts or docker-compose files.
+export CLOUD_SERVICE='GCE'
+export CLUSTER_NAME=$(clusterName)
+export RUNTIME_NAME=$(clusterName)
+export GOOGLE_PROJECT=$(googleProject)
+export STAGING_BUCKET=$(stagingBucketName)
+export OWNER_EMAIL=$(loginHint)
+export PET_SA_EMAIL=$(petSaEmail)
+export JUPYTER_SERVER_NAME=$(jupyterServerName)
+export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
+export WELDER_SERVER_NAME=$(welderServerName)
+export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+export RSTUDIO_SERVER_NAME=$(rstudioServerName)
+export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
+export RSTUDIO_USER_HOME=/home/rstudio
+export PROXY_SERVER_NAME=$(proxyServerName)
+export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
+export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
+export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
+export MEM_LIMIT=$(memLimit)
+export SHM_SIZE=$(shmSize)
+export WELDER_MEM_LIMIT=$(welderMemLimit)
+export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
+export WELDER_ENABLED=$(welderEnabled)
+export NOTEBOOKS_DIR=$(notebooksDir)
+
+START_USER_SCRIPT_URI=$(startUserScriptUri)
+# Include a timestamp suffix to differentiate different startup logs across restarts.
+START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
+IS_GCE_FORMATTED=$(isGceFormatted)
+# Needs to be in sync with terra-docker container
+JUPYTER_HOME=/etc/jupyter
+JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
+JUPYTER_USER_HOME=$(jupyterHomeDirectory)
+RSTUDIO_SCRIPTS=/etc/rstudio/scripts
+SERVER_CRT=$(proxyServerCrt)
+SERVER_KEY=$(proxyServerKey)
+ROOT_CA=$(rootCaPem)
+JUPYTER_DOCKER_COMPOSE_GCE=$(jupyterDockerCompose)
+RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
+PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
+WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
+GPU_DOCKER_COMPOSE=$(gpuDockerCompose)
+PROXY_SITE_CONF=$(proxySiteConf)
+JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
+JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
+JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
+JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
+USER_SCRIPT_URI=$(userScriptUri)
+USER_SCRIPT_OUTPUT_URI=$(userScriptOutputUri)
+JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
+CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
+GPU_ENABLED=$(gpuEnabled)
+INIT_BUCKET_NAME=$(initBucketName)
+
+CERT_DIRECTORY='/var/certs'
+DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
+WORK_DIRECTORY='/mnt/disks/work'
+# Toolbox is specific to COS images and is needed to access functionalities like gcloud
+# See https://cloud.google.com/container-optimized-os/docs/how-to/toolbox
+GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
+GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
+
+# Welder configuration, Rstudio files are saved every X seconds in the background but Jupyter notebooks are not
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export SHOULD_BACKGROUND_SYNC="true"
+else
+  export SHOULD_BACKGROUND_SYNC="false"
+fi
+
 #####################################################################################################
 # Functions
 #####################################################################################################
@@ -146,81 +219,8 @@ log "Running GCE VM init script..."
 START_TIME=$(date +%s)
 STEP_TIMINGS=($(date +%s))
 
-# Set variables
-# Values like $(..) are populated by Leo when a cluster is created.
-# See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
-# Avoid exporting variables unless they are needed by external scripts or docker-compose files.
-export CLOUD_SERVICE='GCE'
-export CLUSTER_NAME=$(clusterName)
-export RUNTIME_NAME=$(clusterName)
-export GOOGLE_PROJECT=$(googleProject)
-export STAGING_BUCKET=$(stagingBucketName)
-export OWNER_EMAIL=$(loginHint)
-export PET_SA_EMAIL=$(petSaEmail)
-export JUPYTER_SERVER_NAME=$(jupyterServerName)
-export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
-export WELDER_SERVER_NAME=$(welderServerName)
-export WELDER_DOCKER_IMAGE=$(welderDockerImage)
-export RSTUDIO_SERVER_NAME=$(rstudioServerName)
-export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
-export RSTUDIO_USER_HOME=/home/rstudio
-export PROXY_SERVER_NAME=$(proxyServerName)
-export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
-export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
-export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
-export MEM_LIMIT=$(memLimit)
-export SHM_SIZE=$(shmSize)
-export WELDER_MEM_LIMIT=$(welderMemLimit)
-export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
-export WELDER_ENABLED=$(welderEnabled)
-export NOTEBOOKS_DIR=$(notebooksDir)
 
-START_USER_SCRIPT_URI=$(startUserScriptUri)
-# Include a timestamp suffix to differentiate different startup logs across restarts.
-START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
-IS_GCE_FORMATTED=$(isGceFormatted)
-# Needs to be in sync with terra-docker container
-JUPYTER_HOME=/etc/jupyter
-JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
-JUPYTER_USER_HOME=$(jupyterHomeDirectory)
-RSTUDIO_SCRIPTS=/etc/rstudio/scripts
-SERVER_CRT=$(proxyServerCrt)
-SERVER_KEY=$(proxyServerKey)
-ROOT_CA=$(rootCaPem)
-JUPYTER_DOCKER_COMPOSE_GCE=$(jupyterDockerCompose)
-RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
-PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
-WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
-GPU_DOCKER_COMPOSE=$(gpuDockerCompose)
-PROXY_SITE_CONF=$(proxySiteConf)
-JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
-JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
-JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
-JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
-USER_SCRIPT_URI=$(userScriptUri)
-USER_SCRIPT_OUTPUT_URI=$(userScriptOutputUri)
-JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
-CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
-GPU_ENABLED=$(gpuEnabled)
-INIT_BUCKET_NAME=$(initBucketName)
-
-CERT_DIRECTORY='/var/certs'
-DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
-WORK_DIRECTORY='/mnt/disks/work'
-# Toolbox is specific to COS images and is needed to access functionalities like gcloud
-# See https://cloud.google.com/container-optimized-os/docs/how-to/toolbox
-GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
-
-# Welder configuration, Rstudio files are saved every X seconds in the background but Jupyter notebooks are not
-if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  export SHOULD_BACKGROUND_SYNC="true"
-else
-  export SHOULD_BACKGROUND_SYNC="false"
-fi
-
-
-# Use specific docker compose command if the container is coming from GCR -> WHY?
+# Use specific docker compose command if the container is coming from GCR, see  https://hub.docker.com/r/cryptopants/docker-compose-gcr
 # TODO - Also check for GAR see https://broadworkbench.atlassian.net/browse/IA-4518
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
   log 'Authorizing GCR...'
@@ -291,10 +291,17 @@ $GSUTIL_CMD cp ${SERVER_KEY} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp ${ROOT_CA} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
 
-# TODO: Figure out what this file is for. It is empty but used by the docker compose for both GCE and Dataproc
-echo "" > /var/google_application_credentials.env
 
-# Install env var config (e.g. AOU uses it to inject workspace name)
+# Install env var config (e.g. AOU / Terra use it to inject workspace name)
+# e.g. {
+       #  "WORKSPACE_NAME": "CARJune24",
+       #  "WORKSPACE_NAMESPACE": "callisto-dev",
+       #  "WORKSPACE_BUCKET": "gs://fc-09516ff0-136e-4874-8484-1be0afa267a6",
+       #  "GOOGLE_PROJECT": "terra-dev-e67d9572",
+       #  "CUSTOM_IMAGE": "false",
+       #  "DRS_RESOLVER_ENDPOINT": "api/v4/drs/resolve",
+       #  "TERRA_DEPLOYMENT_ENV": "dev"
+       #}
 if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
   log 'Copy custom env vars config...'
   $GSUTIL_CMD cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
@@ -319,7 +326,7 @@ fi
 if [ "${GPU_ENABLED}" == "true" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`)
   if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-    # Little bit of hack to switch the jupyter paths to the rstudio ones. Should be different env variables for Rstudio instead
+    # Little bit of hack to switch the jupyter paths to the rstudio ones. Should have separate docker gpu compose of rJupyter and Rstudio instead
     sed -i 's/jupyter/rstudio/g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
     sed -i 's#${NOTEBOOKS_DIR}#/home/rstudio#g' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
   fi
@@ -370,7 +377,7 @@ END
 # Create a network that allows containers to talk to each other via exposed ports
 docker network create -d bridge app_network
 
-# Docker compose config do dump the env variable to the yaml
+# Dumps the rendered yaml to the init script log.
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
 
 # Docker Pull
@@ -412,7 +419,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
   fi
 
-  # Install notebook.json, which is related to the locking logic
+  # Install notebook.json which is used to populate Jupyter.notebook.config in JavaScript extensions.
+  # This is used in the edit-mode.js extension that Terra/AoU use.
   if [ ! -z "$JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI" ] ; then
     log 'Copy Jupyter frontend notebook config...'
     $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
@@ -421,7 +429,16 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
   fi
 
-  # Install NbExtensions (the ones that users might be providing likely AOU?)
+  # Install NbExtensions. These are user-specified Jupyter extensions.
+  # For instance Terra UI is passing
+  #  {
+  #    "nbExtensions": {
+  #      "saturn-iframe-extension": "https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"
+  #    },
+  #    "labExtensions": {},
+  #    "serverExtensions": {},
+  #    "combinedExtensions": {}
+#  }
   if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
     for ext in ${JUPYTER_NB_EXTENSIONS}
     do
@@ -442,7 +459,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-  # Install serverExtensions (the ones that users might be providing likely AOU?)
+  # Install serverExtensions if provided by the user
   if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
     for ext in ${JUPYTER_SERVER_EXTENSIONS}
     do
@@ -458,7 +475,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-  # Install combined extensions (the ones that users might be providing likely AOU?)
+  # Install combined extensions if provided by the user
   if [ ! -z "$JUPYTER_COMBINED_EXTENSIONS"  ] ; then
     for ext in ${JUPYTER_COMBINED_EXTENSIONS}
     do
@@ -475,7 +492,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-  # Install lab extensions (the ones that users might be providing likely AOU?)
+  # Install lab extensions if provided by the user
   # Note: lab extensions need to installed as jupyter user, not root
   if [ ! -z "$JUPYTER_LAB_EXTENSIONS" ] ; then
     for ext in ${JUPYTER_LAB_EXTENSIONS}
