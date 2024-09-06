@@ -98,11 +98,11 @@ class RuntimeServiceInterp[F[_]: Parallel](
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
       // Grab the pet service account for the user
-      petSA <- samService.getPetServiceAccount(userInfo, googleProject)
+      petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
       // Retrieve parent workspaceId for the google project
-      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))

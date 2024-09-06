@@ -160,7 +160,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
 
       // Retrieve parent workspaceId for the google project
-      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
       notifySamAndCreate = for {
         _ <- authProvider
@@ -229,7 +229,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             }
           }
 
-        petSA <- samService.getPetServiceAccount(userInfo, googleProject)
+        petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
         _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
         // Fail fast if the Galaxy disk, memory, number of CPUs is too small
@@ -818,7 +818,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       nodepool = saveClusterResult.defaultNodepool.toNodepool()
 
       // Retrieve a pet identity from Sam
-      petSA <- samService.getPetServiceAccountOrManagedIdentity(userInfo, cloudContext)
+      petSA <- samService.getPetServiceAccountOrManagedIdentity(userInfo.accessToken.token, cloudContext)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
       // Process persistent disk in the request, check if the disk was previously attached to any other app

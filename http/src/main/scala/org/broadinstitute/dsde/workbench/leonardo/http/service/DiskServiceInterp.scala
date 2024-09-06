@@ -65,7 +65,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
       // Grab the pet service account for the user
-      petSA <- samService.getPetServiceAccount(userInfo, googleProject)
+      petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
 
       _ <- req.sourceDisk.traverse(sd => verifyOkToClone(sd.googleProject, googleProject))
 
@@ -80,7 +80,9 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
 
             // Retrieve parent workspaceId for the google project
-            parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo, googleProject)
+            parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token,
+                                                                                  googleProject
+            )
 
             disk <- F.fromEither(
               convertToDisk(userInfo.userEmail,
