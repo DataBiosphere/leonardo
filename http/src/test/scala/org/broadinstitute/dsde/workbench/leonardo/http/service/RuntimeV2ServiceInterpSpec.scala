@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   WsmResourceSamResourceId
 }
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
-import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -47,7 +46,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, Upd
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.{any, argThat, eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
@@ -69,18 +67,22 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     azureServiceConfig
   )
 
-  val wsmDao = new MockWsmDAO
   val wsmClientProvider = new MockWsmClientProvider()
 
   // used when we care about queue state
   def makeInterp(
     queue: Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue(),
     authProvider: AllowlistAuthProvider = allowListAuthProvider,
-    wsmDao: WsmDao[IO] = wsmDao,
     dateAccessedQueue: Queue[IO, UpdateDateAccessedMessage] = QueueFactory.makeDateAccessedQueue(),
     wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
-    new RuntimeV2ServiceInterp[IO](serviceConfig, authProvider, wsmDao, queue, dateAccessedQueue, wsmClientProvider)
+    new RuntimeV2ServiceInterp[IO](serviceConfig,
+                                   authProvider,
+                                   queue,
+                                   dateAccessedQueue,
+                                   wsmClientProvider,
+                                   MockSamService
+    )
 
   // need to set previous runtime to deleted status before creating next to avoid exception
   def setRuntimeDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[Long] =
@@ -263,20 +265,20 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     new RuntimeV2ServiceInterp[IO](
       serviceConfig,
       allowListAuthProvider,
-      new MockWsmDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
 
   val runtimeV2Service2 =
     new RuntimeV2ServiceInterp[IO](
       serviceConfig,
       allowListAuthProvider2,
-      new MockWsmDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
 
   it should "submit a create azure runtime message properly" in isolatedDbTest {
@@ -292,18 +294,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val publisherQueue = QueueFactory.makePublisherQueue()
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
-    val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[Option[StorageContainerResponse]] =
-        IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[LandingZoneResources] =
-        IO.pure(landingZoneResources)
-    }
-    val azureService = makeInterp(publisherQueue, wsmDao = wsmDao)
+    val azureService = makeInterp(publisherQueue)
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
@@ -568,18 +559,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val publisherQueue = QueueFactory.makePublisherQueue()
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
-    val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[Option[StorageContainerResponse]] =
-        IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[LandingZoneResources] =
-        IO.pure(landingZoneResources)
-    }
-    val azureService = makeInterp(publisherQueue, wsmDao = wsmDao)
+    val azureService = makeInterp(publisherQueue)
 
     azureService
       .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
@@ -626,18 +606,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val publisherQueue = QueueFactory.makePublisherQueue()
     val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
-    val wsmDao = new MockWsmDAO {
-      override def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[Option[StorageContainerResponse]] =
-        IO.pure(Some(StorageContainerResponse(ContainerName("dummy"), storageContainerResourceId)))
-
-      override def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[LandingZoneResources] =
-        IO.pure(landingZoneResources)
-    }
-    val azureService = makeInterp(publisherQueue, wsmDao = wsmDao)
+    val azureService = makeInterp(publisherQueue)
 
     azureService
       .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)

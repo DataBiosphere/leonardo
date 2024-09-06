@@ -779,11 +779,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
       }
 
-      // Create a new Sam resource for the app (either shared or not)
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
 
       // Create kubernetes-app Sam resource with a creator policy and the workspace as the parent
-      // TODO needs to handle shared or not
       _ <- samService.createResource(userInfo.accessToken.token,
                                      samResourceId,
                                      None,

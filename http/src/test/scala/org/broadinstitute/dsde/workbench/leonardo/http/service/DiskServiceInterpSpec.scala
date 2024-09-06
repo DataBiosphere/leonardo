@@ -309,8 +309,6 @@ class DiskServiceInterpTest
       )(any(), any())
     ).thenReturn(IO.pure(true))
 
-    when(authProviderMock.notifyResourceCreated(any(), any(), any())(any(), any(), any())).thenReturn(IO.unit)
-
     when(
       authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
                                      ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),

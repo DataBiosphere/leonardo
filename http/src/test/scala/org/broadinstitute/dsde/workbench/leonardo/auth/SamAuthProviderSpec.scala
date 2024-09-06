@@ -365,56 +365,6 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     cacheMap.asScala.values.map(_.value).toSet shouldBe Set(true)
   }
 
-  it should "create a resource" in {
-    val newRuntime = RuntimeSamResourceId("new_runtime")
-    samAuthProvider.notifyResourceCreated(newRuntime, userEmail, project).unsafeRunSync()
-    mockSam.runtimes.get((newRuntime, authHeader)) shouldBe Some(
-      RuntimeAction.allActions
-    )
-
-    val newDisk = PersistentDiskSamResourceId("new_disk")
-    samAuthProvider.notifyResourceCreated(newDisk, userEmail, project).unsafeRunSync()
-    mockSam.persistentDisks.get((newDisk, authHeader)) shouldBe Some(
-      PersistentDiskAction.allActions
-    )
-
-    val newApp = AppSamResourceId("new_app", None)
-    samAuthProvider.notifyResourceCreated(newApp, userEmail, project).unsafeRunSync()
-    mockSam.apps.get((newApp, authHeader)) shouldBe Some(
-      AppAction.allActions
-    )
-    mockSam.apps.get((newApp, projectOwnerAuthHeader)) shouldBe Some(
-      MockSamDAO.appManagerActions
-    )
-
-    val newSharedApp = AppSamResourceId("new_shared_app", Some(AppAccessScope.WorkspaceShared))
-    samAuthProvider
-      .notifyResourceCreatedV2(newSharedApp, userEmail, cloudContextGcp, workspaceId, userInfo)
-      .unsafeRunSync()
-    mockSam.apps.get((newSharedApp, authHeader)) shouldBe Some(
-      AppAction.allActions
-    )
-    mockSam.apps.get((newSharedApp, workspaceOwnerAuthHeader)) shouldBe Some(
-      MockSamDAO.appManagerActions
-    )
-  }
-
-  it should "delete a resource" in {
-    samAuthProvider.notifyResourceDeleted(runtimeSamResource, userEmail, project).unsafeRunSync()
-    mockSam.runtimes.get((runtimeSamResource, authHeader)) shouldBe None
-
-    samAuthProvider.notifyResourceDeleted(diskSamResource, userEmail, project).unsafeRunSync()
-    mockSam.persistentDisks.get((diskSamResource, authHeader)) shouldBe None
-
-    samAuthProvider.notifyResourceDeleted(appSamId, userEmail, project).unsafeRunSync()
-    mockSam.apps.get((appSamId, authHeader)) shouldBe None
-    mockSam.apps.get((appSamId, projectOwnerAuthHeader)) shouldBe None
-
-    samAuthProvider.notifyResourceDeleted(sharedAppSamId, userEmail, project).unsafeRunSync()
-    mockSam.apps.get((sharedAppSamId, authHeader)) shouldBe None
-    mockSam.apps.get((sharedAppSamId, projectOwnerAuthHeader)) shouldBe None
-  }
-
   it should "get authorized IDs" in {
     val petRuntime = RuntimeSamResourceId("pet_runtime")
     mockSam.createResourceAsGcpPet(petRuntime, userEmail2, project).unsafeRunSync()

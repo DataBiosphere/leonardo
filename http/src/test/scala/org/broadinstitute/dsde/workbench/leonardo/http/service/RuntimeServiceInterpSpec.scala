@@ -58,8 +58,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   RuntimeConfigInCreateRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.mockito.ArgumentMatchers.{any, eq => isEq}
@@ -1447,9 +1447,6 @@ class RuntimeServiceInterpTest
           )
         )
       )
-    when(
-      mockAuthProvider.notifyResourceDeletedV2[RuntimeSamResourceId](any, isEq(userInfo))(any, any)
-    ).thenReturn(IO.unit)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
@@ -2389,12 +2386,14 @@ class RuntimeServiceInterpTest
         zone,
         project,
         userInfo,
+        userEmail,
         serviceAccount,
         FormattedBy.GCE,
         allowListAuthProvider,
+        MockSamService,
         ConfigReader.appConfig.persistentDisk,
         Some(workspaceId)
-      )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+      )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery
         .getById(disk.id)(scala.concurrent.ExecutionContext.global)
@@ -2441,12 +2440,14 @@ class RuntimeServiceInterpTest
           targetZone,
           project,
           userInfo,
+          userEmail,
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
+          MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
-        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
         .attempt
     } yield diskResult shouldBe (Left(
       BadRequestException(
@@ -2469,12 +2470,14 @@ class RuntimeServiceInterpTest
           targetZone,
           project,
           userInfo,
+          userEmail,
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
+          MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
-        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
       persistedDisk <- persistentDiskQuery
         .getById(diskResult.disk.id)(scala.concurrent.ExecutionContext.global)
         .transaction
@@ -2494,12 +2497,14 @@ class RuntimeServiceInterpTest
           zone,
           project,
           userInfo,
+          userEmail,
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
+          MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
-        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
         .attempt
     } yield returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
 
@@ -2517,12 +2522,14 @@ class RuntimeServiceInterpTest
           zone,
           project,
           userInfo,
+          userEmail,
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
+          MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
-        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
@@ -2551,12 +2558,14 @@ class RuntimeServiceInterpTest
           zone,
           project,
           userInfo,
+          userEmail,
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
+          MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
-        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
         .attempt
     } yield err shouldBe Left(DiskAlreadyAttachedException(CloudContext.Gcp(project), savedDisk.name, t.traceId))
 
@@ -2574,12 +2583,14 @@ class RuntimeServiceInterpTest
           zone,
           project,
           userInfo,
+          userEmail,
           serviceAccount,
           FormattedBy.Galaxy,
           allowListAuthProvider,
+          MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
-        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
         .attempt
       galaxyDisk <- makePersistentDisk(Some(DiskName("galaxyDisk")), Some(FormattedBy.Galaxy)).save()
       req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
@@ -2589,12 +2600,14 @@ class RuntimeServiceInterpTest
           zone,
           project,
           userInfo,
+          userEmail,
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
+          MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
-        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+        )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
         .attempt
     } yield {
       formatGceDiskError shouldBe Left(
@@ -2618,12 +2631,14 @@ class RuntimeServiceInterpTest
         zone,
         project,
         userInfo,
+        userEmail,
         serviceAccount,
         FormattedBy.GCE,
         allowListAuthProvider,
+        MockSamService,
         ConfigReader.appConfig.persistentDisk,
         Some(workspaceId)
-      )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
+      )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
     } yield ()
 
     val thrown = the[ForbiddenError] thrownBy {

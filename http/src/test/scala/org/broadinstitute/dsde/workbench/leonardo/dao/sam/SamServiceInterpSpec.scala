@@ -140,6 +140,34 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       }
     }
 
+    describe("getArbitraryPetServiceAccountToken") {
+      it("should successfully request an arbitrary pet token") {
+        // test
+        val result =
+          newSamService().getArbitraryPetServiceAccountToken(userEmail).unsafeRunSync()
+
+        // assert
+        result shouldBe tokenValue
+      }
+
+      it("should fail with a SamException") {
+        // setup
+        val googleApi = mock[GoogleApi]
+        when(
+          googleApi.getUserArbitraryPetServiceAccountToken(ArgumentMatchers.eq(userEmail.value), anyList())
+        ).thenThrow(new ApiException(404, "not found"))
+
+        // test
+        val result = the[SamException] thrownBy newSamService(googleApi = googleApi)
+          .getArbitraryPetServiceAccountToken(userEmail)
+          .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("not found")
+        result.statusCode shouldBe StatusCodes.NotFound
+      }
+    }
+
     describe("lookupWorkspaceParentForGoogleProject") {
       it("should successfully lookup a google project's parent workspace") {
         // test
@@ -533,8 +561,11 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
                                               ArgumentMatchers.eq(userEmail.value),
                                               anyList()
       )
-    )
-      .thenReturn(tokenValue)
+    ).thenReturn(tokenValue)
+    when(
+      googleApi
+        .getUserArbitraryPetServiceAccountToken(ArgumentMatchers.eq(userEmail.value), anyList())
+    ).thenReturn(tokenValue)
     googleApi
   }
 

@@ -39,13 +39,12 @@ import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{verify, when}
+import org.mockito.Mockito.when
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.prop.TableDrivenPropertyChecks._
+import org.scalatest.prop.TableDrivenPropertyChecks.{forAll, _}
 import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
-import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -106,7 +105,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       Some(FakeGoogleComputeService),
       Some(googleResourceService),
       customAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -157,7 +155,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(passComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -168,7 +165,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughMemoryComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -179,7 +175,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughCpuComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -211,7 +206,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -242,7 +236,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -297,7 +290,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   }
 
   it should "rollback Sam resource creation if app creation fails" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 
     // Fake an error in getLastUsedAppForDisk
     val disk = makePersistentDisk(None)
@@ -313,8 +305,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val mockAuthProvider = mock[LeoAuthProvider[IO]]
     when(mockAuthProvider.hasPermission(any, any, any)(any, any)).thenReturn(IO.pure(true))
     when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
-    when(mockAuthProvider.notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)).thenReturn(IO.unit)
-    when(mockAuthProvider.notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)).thenReturn(IO.unit)
     val publisherQueue = QueueFactory.makePublisherQueue()
     val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
     val res = appService
@@ -322,9 +312,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app"
-
-    verify(mockAuthProvider).notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)
-    verify(mockAuthProvider).notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)
+    // TODO verify SamService
   }
 
   it should "create an app in a user's existing nodepool" in isolatedDbTest {
@@ -1384,7 +1372,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1535,7 +1522,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1579,7 +1565,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1622,7 +1607,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1662,7 +1646,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1708,7 +1691,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1754,7 +1736,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
