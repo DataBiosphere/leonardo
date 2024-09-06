@@ -32,7 +32,7 @@ env:
   LEO_SWAT_TESTS_RUN_NAME: 'leonardo-swat-tests-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   BEE_CREATE_RUN_NAME: 'bee-create-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
   BEE_DESTROY_RUN_NAME: 'bee-destroy-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
-  AZURE_SWAT_TESTS_RUN_NAME: 'azure-swat-tests-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
+  # AZURE_SWAT_TESTS_RUN_NAME: 'azure-swat-tests-${{ github.event.repository.name }}-${{ github.run_id }}-${{ github.run_attempt }}'
 
 concurrency:
   # Don't run this workflow concurrently on the same branch
@@ -216,32 +216,33 @@ jobs:
               "custom-version-json": "${{ steps.render-leo-version.outputs.custom-version-json }}"
             }'
 
-  azure-automation-tests:
-    runs-on: ubuntu-latest
-    needs: [ leo-build-tag-publish-job, report-to-sherlock, init-github-context, create-bee-workflow ]
-    permissions:
-      contents: 'read'
-      id-token: 'write'
-    steps:
-      - name: dispatch to azure automation test workflow
-        uses: broadinstitute/workflow-dispatch@v4.0.0
-        with:
-          run-name: "${{ env.AZURE_SWAT_TESTS_RUN_NAME }}"
-          workflow: .github/workflows/azure_automation_test.yml
-          repo: DataBiosphere/leonardo
-          ref: refs/heads/develop
-          token: ${{ env.TOKEN }}
-          # this is not actually 85mins, the timeout is not working correctly and is summing from other jobs
-          wait-for-completion-timeout: 85m
-          inputs: '{
-            "terra-env": "${{ needs.init-github-context.outputs.test-env }}",
-            "automation-branch": "${{ needs.init-github-context.outputs.automation-branch }}",
-            "app-version": "${{ needs.leo-build-tag-publish-job.outputs.tag }}",
-            "bee-name": "${{ env.BEE_NAME }}",
-            "is-triggered-from-pr-dispatch": "true",
-            "run-name": "${{ env.AZURE_SWAT_TESTS_RUN_NAME }}"
-            }'
-          wait-for-completion: true
+## !! Commenting out until when/if the azure tests are necessary again...
+#  azure-automation-tests:
+#    runs-on: ubuntu-latest
+#    needs: [ leo-build-tag-publish-job, report-to-sherlock, init-github-context, create-bee-workflow ]
+#    permissions:
+#      contents: 'read'
+#      id-token: 'write'
+#    steps:
+#      - name: dispatch to azure automation test workflow
+#        uses: broadinstitute/workflow-dispatch@v4.0.0
+#        with:
+#          run-name: "${{ env.AZURE_SWAT_TESTS_RUN_NAME }}"
+#          workflow: .github/workflows/azure_automation_test.yml
+#          repo: DataBiosphere/leonardo
+#          ref: refs/heads/develop
+#          token: ${{ env.TOKEN }}
+#          # this is not actually 85mins, the timeout is not working correctly and is summing from other jobs
+#          wait-for-completion-timeout: 85m
+#          inputs: '{
+#            "terra-env": "${{ needs.init-github-context.outputs.test-env }}",
+#            "automation-branch": "${{ needs.init-github-context.outputs.automation-branch }}",
+#            "app-version": "${{ needs.leo-build-tag-publish-job.outputs.tag }}",
+#            "bee-name": "${{ env.BEE_NAME }}",
+#            "is-triggered-from-pr-dispatch": "true",
+#            "run-name": "${{ env.AZURE_SWAT_TESTS_RUN_NAME }}"
+#            }'
+#          wait-for-completion: true
 
   leo-swat-test-job:
     strategy:
@@ -298,7 +299,7 @@ jobs:
     needs:
       - init-github-context
       - leo-swat-test-job
-      - azure-automation-tests
+     # - azure-automation-tests
     if: ${{ needs.init-github-context.outputs.delete-bee && always() }} # always run to confirm bee is destroyed unless explicitly requested not to
     permissions:
       contents: 'read'
