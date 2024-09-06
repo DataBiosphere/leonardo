@@ -215,7 +215,6 @@ fi
 
 if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
     # GCE
-then
     export WORK_DIRECTORY='/mnt/disks/work'
 
     fsck.ext4 -tvy ${DISK_DEVICE_ID}
