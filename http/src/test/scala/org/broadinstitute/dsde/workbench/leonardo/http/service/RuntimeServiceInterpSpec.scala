@@ -209,18 +209,16 @@ class RuntimeServiceInterpTest
     with MockitoSugar {
 
   it should "fail if user doesn't have project level permission" in {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
-
     val res = for {
       r <- runtimeService
         .createRuntime(
-          userInfo,
+          unauthorizedUserInfo,
           cloudContextGcp,
           RuntimeName("clusterName1"),
           emptyCreateRuntimeReq
         )
         .attempt
-    } yield r shouldBe Left(ForbiddenError(userInfo.userEmail))
+    } yield r shouldBe Left(ForbiddenError(unauthorizedEmail))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -293,12 +291,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "successfully create a GCE runtime when no runtime is specified" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
 
@@ -353,12 +345,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "successfully accept https as user script and user startup script" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("project1"))
     val runtimeName = RuntimeName("clusterName2")
     val request = emptyCreateRuntimeReq.copy(
@@ -389,12 +375,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "successfully create a cluster with an rstudio image" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName2")
     val rstudioImage = ContainerImage("some-rstudio-image", ContainerRegistry.GCR)
@@ -421,12 +401,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is 0" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
@@ -503,12 +477,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is more than 0" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
@@ -576,12 +544,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "create a runtime with the latest welder from welderRegistry" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("cloudContext"))
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
@@ -652,12 +614,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "create a runtime with the crypto-detector image" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
@@ -709,12 +665,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "create a runtime with a disk config" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val persistentDisk = PersistentDiskRequest(
       diskName,
       Some(DiskSize(500)),
@@ -805,13 +755,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to delete a runtime while it's still creating" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       _ <- runtimeService
         .createRuntime(
@@ -829,13 +772,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "create a runtime with a gpu config" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val gpuConfig = Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
     val req = emptyCreateRuntimeReq.copy(
       runtimeConfig = Some(
@@ -882,13 +818,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "get a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
@@ -910,7 +839,7 @@ class RuntimeServiceInterpTest
 
   it should "fail to get a runtime when users don't have access to the project" in isolatedDbTest {
     val exc = runtimeService
-      .getRuntime(userInfo4, cloudContextGcp, RuntimeName("cluster"))
+      .getRuntime(unauthorizedUserInfo, cloudContextGcp, RuntimeName("cluster"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -1157,13 +1086,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "delete a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
@@ -1190,13 +1112,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "delete a runtime with disk properly" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
@@ -1236,12 +1151,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to delete a runtime if detaching disk fails" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val operationFuture = new FakeComputeOperationFuture {
       override def get(): Operation = {
         val exception = new java.util.concurrent.ExecutionException(
@@ -1286,12 +1195,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to delete a runtime if user loses project access" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider2)
     val res = for {
       context <- appContext.ask[AppContext]
@@ -1319,12 +1222,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "delete runtime records, update all status appropriately, and not queue messages" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val publisherQueue = QueueFactory.makePublisherQueue()
     val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider, publisherQueue = publisherQueue)
     val res = for {
@@ -1373,12 +1270,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to delete runtime records if user loses project access" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider2)
     val res = for {
       context <- appContext.ask[AppContext]
@@ -1421,12 +1312,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "deleteAllRuntimeRecords, update all status appropriately, and not queue messages" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
     val mockAuthProvider = mockAuthorize(
@@ -1497,12 +1382,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "deleteAll runtimes" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
     val mockAuthProvider = mockAuthorize(
@@ -1578,12 +1457,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail deleteAll runtimes if one runtime is in a non deletable state" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
     val mockAuthProvider = mockAuthorize(
@@ -1657,13 +1530,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "stop a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
@@ -1688,13 +1554,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "not stop a stopping runtime and also not error" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
@@ -1719,13 +1578,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "start a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
       service = makeRuntimeService(publisherQueue)
@@ -1750,13 +1602,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "update autopause" in isolatedDbTest {
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     val res = for {
       // remove some existing items in the queue just to be safe
       _ <- publisherQueue.tryTake
@@ -1800,13 +1645,6 @@ class RuntimeServiceInterpTest
   )
 
   reqMaps.foreach { upsertLabels =>
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     it should s"Process upsert labels correctly for $upsertLabels" in isolatedDbTest {
       val res = for {
         samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -1846,13 +1684,6 @@ class RuntimeServiceInterpTest
   )
 
   deleteLists.foreach { deleteLabelSet =>
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
     it should s"Process reqlabels correctly for $deleteLabelSet" in isolatedDbTest {
       val res = for {
         samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -1877,12 +1708,6 @@ class RuntimeServiceInterpTest
 
   List(RuntimeStatus.Creating, RuntimeStatus.Stopping, RuntimeStatus.Deleting, RuntimeStatus.Starting).foreach {
     status =>
-      val userInfo = UserInfo(
-        OAuth2BearerToken(""),
-        WorkbenchUserId("userId"),
-        WorkbenchEmail("user1@example.com"),
-        0
-      ) // this email is allowlisted
       it should s"fail to update a runtime in $status status" in isolatedDbTest {
         val res = for {
           samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -2512,7 +2337,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to create a disk when caller has no permission" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
 
     val thrown = the[ForbiddenError] thrownBy {
@@ -2521,8 +2345,8 @@ class RuntimeServiceInterpTest
           req,
           zone,
           project,
-          userInfo,
-          userEmail,
+          unauthorizedUserInfo,
+          unauthorizedEmail,
           serviceAccount,
           FormattedBy.GCE,
           allowListAuthProvider,
@@ -2533,7 +2357,7 @@ class RuntimeServiceInterpTest
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-    thrown shouldBe ForbiddenError(userInfo.userEmail)
+    thrown shouldBe ForbiddenError(unauthorizedEmail)
   }
 
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
@@ -2622,7 +2446,6 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to attach a disk when caller has no attach permission" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val res = for {
       savedDisk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
@@ -2630,8 +2453,8 @@ class RuntimeServiceInterpTest
         req,
         zone,
         project,
-        userInfo,
-        userEmail,
+        unauthorizedUserInfo,
+        unauthorizedEmail,
         serviceAccount,
         FormattedBy.GCE,
         allowListAuthProvider,
@@ -2645,7 +2468,7 @@ class RuntimeServiceInterpTest
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
-    thrown shouldBe ForbiddenError(userInfo.userEmail)
+    thrown shouldBe ForbiddenError(unauthorizedEmail)
   }
 
   it should "test getToolFromImages - get the Jupyter tool from list of cluster images" in isolatedDbTest {

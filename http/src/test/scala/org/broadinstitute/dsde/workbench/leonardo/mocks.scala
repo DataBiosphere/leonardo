@@ -327,6 +327,13 @@ class BaseMockSamService extends SamService[IO] {
   ): IO[Unit] = IO.unit
 
   override def getUserEmail(bearerToken: String)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
-    IO.pure(userEmail)
+    bearerToken match {
+      case userInfo.accessToken.token             => IO.pure(userInfo.userEmail)
+      case userInfo2.accessToken.token            => IO.pure(userInfo2.userEmail)
+      case userInfo3.accessToken.token            => IO.pure(userInfo3.userEmail)
+      case userInfo4.accessToken.token            => IO.pure(userInfo4.userEmail)
+      case unauthorizedUserInfo.accessToken.token => IO.pure(unauthorizedUserInfo.userEmail)
+      case _                                      => IO.pure(userInfo.userEmail)
+    }
 }
 object MockSamService extends BaseMockSamService

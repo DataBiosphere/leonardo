@@ -179,7 +179,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
               }
 
             runtime = convertToRuntime(
-              userInfo,
+              userEmail,
               petSA,
               CloudContext.Gcp(googleProject),
               runtimeName,
@@ -1068,7 +1068,7 @@ object RuntimeServiceInterp {
     }
 
   private[service] def convertToRuntime(
-    userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     serviceAccountInfo: WorkbenchEmail,
     cloudContext: CloudContext,
     runtimeName: RuntimeName,
@@ -1084,7 +1084,7 @@ object RuntimeServiceInterp {
       runtimeName,
       Some(GoogleProject(cloudContext.asString)),
       cloudContext,
-      userInfo.userEmail,
+      userEmail,
       Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
@@ -1123,7 +1123,7 @@ object RuntimeServiceInterp {
       cloudContext = cloudContext,
       serviceAccount = serviceAccountInfo,
       asyncRuntimeFields = None,
-      auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
+      auditInfo = AuditInfo(userEmail, now, None, now),
       kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, clusterImages, None, allLabels),
       status = RuntimeStatus.PreCreating,

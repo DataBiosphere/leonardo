@@ -867,13 +867,12 @@ class LeoPubsubMessageSubscriber[F[_]](
             operationAttempt <- F.blocking(v.get()).attempt
             _ <- operationAttempt match {
               case Left(error: java.util.concurrent.ExecutionException) if error.getMessage.contains("Not Found") =>
-                logger.info(ctx.loggingCtx)("disk is already deleted") >> persistentDiskQuery
-                  .delete(diskId, ctx.now)
-                  .transaction[F]
-                  .void >> samService
-                  .getPetServiceAccountToken(disk.auditInfo.creator, googleProject)
-                  .flatMap(petToken => samService.deleteResource(petToken, disk.samResource))
-
+                for {
+                  _ <- logger.info(ctx.loggingCtx)("disk is already deleted")
+                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void
+                  petToken <- samService.getPetServiceAccountToken(disk.auditInfo.creator, googleProject)
+                  _ <- samService.deleteResource(petToken, disk.samResource)
+                } yield ()
               case Left(error) =>
                 F.raiseError(
                   new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name}", error)
@@ -883,9 +882,9 @@ class LeoPubsubMessageSubscriber[F[_]](
                   _ <- F.raiseUnless(isSuccess(op.getHttpErrorStatusCode))(
                     new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${op}")
                   )
-                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> samService
-                    .getPetServiceAccountToken(disk.auditInfo.creator, googleProject)
-                    .flatMap(petToken => samService.deleteResource(petToken, disk.samResource))
+                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void
+                  petToken <- samService.getPetServiceAccountToken(disk.auditInfo.creator, googleProject)
+                  _ <- samService.deleteResource(petToken, disk.samResource)
                 } yield ()
             }
           } yield ()
@@ -1337,10 +1336,11 @@ class LeoPubsubMessageSubscriber[F[_]](
               // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
               case AppStatus.Deleted => F.unit
               case _ =>
-                appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >>
-                  samService
-                    .getPetServiceAccountToken(dbApp.app.auditInfo.creator, msg.project)
-                    .flatMap(petToken => samService.deleteResource(petToken, dbApp.app.samResourceId))
+                for {
+                  _ <- appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void
+                  petToken <- samService.getPetServiceAccountToken(dbApp.app.auditInfo.creator, msg.project)
+                  _ <- samService.deleteResource(petToken, dbApp.app.samResourceId)
+                } yield ()
             }
           else F.unit
       } yield ()

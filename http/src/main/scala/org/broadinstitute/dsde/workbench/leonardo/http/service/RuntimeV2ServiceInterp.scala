@@ -180,7 +180,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                   samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
                   pd <- F.fromEither(
                     convertToDisk(
-                      userInfo,
+                      userEmail,
                       cloudContext,
                       DiskName(req.azureDiskConfig.name.value),
                       samResource,
@@ -206,7 +206,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
               workspaceId,
               runtimeName,
               cloudContext,
-              userInfo,
+              userEmail,
               req,
               samResource,
               Set(runtimeImage, listenerImage, welderImage),
@@ -567,7 +567,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     } yield runtimes.toVector
 
   private[service] def convertToDisk(
-    userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
     diskName: DiskName,
     samResource: PersistentDiskSamResourceId,
@@ -581,7 +581,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       Map(
         "diskName" -> diskName.value,
         "cloudContext" -> cloudContext.asString,
-        "creator" -> userInfo.userEmail.value
+        "creator" -> userEmail.value
       )
 
     // combine default and given labels
@@ -599,10 +599,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       cloudContext,
       ZoneName("unset"),
       diskName,
-      userInfo.userEmail,
+      userEmail,
       samResource,
       DiskStatus.Creating,
-      AuditInfo(userInfo.userEmail, now, None, now),
+      AuditInfo(userEmail, now, None, now),
       req.azureDiskConfig.size.getOrElse(config.defaultDiskSizeGb),
       req.azureDiskConfig.diskType.getOrElse(config.defaultDiskType),
       config.defaultBlockSizeBytes,
@@ -731,7 +731,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName,
     cloudContext: CloudContext,
-    userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     request: CreateAzureRuntimeRequest,
     samResourceId: RuntimeSamResourceId,
     runtimeImages: Set[RuntimeImage],
@@ -743,9 +743,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       runtimeName,
       None,
       cloudContext,
-      userInfo.userEmail,
+      userEmail,
       // TODO: use an azure service account
-      Some(userInfo.userEmail),
+      Some(userEmail),
       None,
       None,
       // TODO: Will need to be updated when we support RStudio on Azure or JupyterLab on GCP V2 endpoint
@@ -761,9 +761,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       runtimeName = runtimeName,
       cloudContext = cloudContext,
       // TODO: use an azure service account
-      serviceAccount = userInfo.userEmail,
+      serviceAccount = userEmail,
       asyncRuntimeFields = None,
-      auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
+      auditInfo = AuditInfo(userEmail, now, None, now),
       kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, runtimeImages, None, allLabels),
       status = RuntimeStatus.PreCreating,
