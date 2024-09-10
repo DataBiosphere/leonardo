@@ -307,11 +307,11 @@ class MockAKSInterp extends AKSAlgebra[IO] {
 }
 
 class BaseMockSamService extends SamService[IO] {
-  override def getPetServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+  override def getPetServiceAccount(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[IO, AppContext]
   ): IO[WorkbenchEmail] = IO.pure(serviceAccountEmail)
 
-  override def getPetManagedIdentity(userInfo: UserInfo, azureCloudContext: AzureCloudContext)(implicit
+  override def getPetManagedIdentity(bearerToken: String, azureCloudContext: AzureCloudContext)(implicit
     ev: Ask[IO, AppContext]
   ): IO[WorkbenchEmail] = IO.pure(managedIdentityEmail)
 
@@ -323,8 +323,30 @@ class BaseMockSamService extends SamService[IO] {
   ): IO[String] =
     IO.pure(tokenValue)
 
-  override def lookupWorkspaceParentForGoogleProject(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+  override def lookupWorkspaceParentForGoogleProject(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[WorkspaceId]] = IO.pure(Some(workspaceId))
+
+  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Unit] = IO.unit
+
+  override def listResources(bearerToken: String, samResourceType: SamResourceType)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[List[String]] = IO.pure(List.empty)
+
+  override def createResource(bearerToken: String,
+                              samResourceId: SamResourceId,
+                              parentProject: Option[GoogleProject],
+                              parentWorkspace: Option[WorkspaceId],
+                              policies: Map[String, SamPolicyData]
+  )(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  override def deleteResource(bearerToken: String, samResourceId: SamResourceId)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Unit] = IO.unit
+
+  override def getUserEmail(bearerToken: String)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
+    IO.pure(userEmail)
 }
 object MockSamService extends BaseMockSamService

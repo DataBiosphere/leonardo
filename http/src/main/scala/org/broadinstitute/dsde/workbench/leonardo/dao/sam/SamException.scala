@@ -30,6 +30,9 @@ object SamException {
       traceId
     )
 
+  def create(message: String, code: Int, traceId: TraceId): SamException =
+    new SamException(message, code, null, traceId)
+
   /**
    * Extracts a useful message from a Sam client ApiException.
    *
