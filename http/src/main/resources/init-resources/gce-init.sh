@@ -150,7 +150,7 @@ else
 fi
 
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
-  log 'Authorizing GCR...'
+  log 'Authorizing GAR...'
   $GCLOUD_CMD auth configure-docker
 fi
 
