@@ -151,7 +151,7 @@ fi
 
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
   log 'Authorizing GAR...'
-  $GCLOUD_CMD auth configure-docker
+  $GCLOUD_CMD auth configure-docker us-docker.pkg.dev
 fi
 
 DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2"
