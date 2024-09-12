@@ -32,12 +32,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-// do not remove `projectSamResourceAction`; it is implicit
   projectSamResourceAction,
-// do not remove `runtimeSamResourceAction`; it is implicit
   runtimeSamResourceAction,
-// do not remove `workspaceSamResourceAction`; it is implicit
   workspaceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
@@ -209,11 +207,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
               .parTraverse(s => validateBucketObjectUri(userEmail, petToken, s, context.traceId))
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
             // Create a notebook-cluster Sam resource with a cretor policy and the google project as the parent
-            _ <- samService.createResource(userInfo.accessToken.token,
-                                           samResource,
-                                           Some(googleProject),
-                                           None,
-                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+            _ <- samService.createResource(
+              userInfo.accessToken.token,
+              samResource,
+              Some(googleProject),
+              None,
+              getRuntimeSamPolicyMap(userEmail)
             )
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam createResource")))
             runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
@@ -1245,11 +1244,12 @@ object RuntimeServiceInterp {
               )
             )
             // Create a persistent-disk Sam resource with a creator policy and the google project as the parent
-            _ <- samService.createResource(userInfo.accessToken.token,
-                                           samResource,
-                                           Some(googleProject),
-                                           None,
-                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+            _ <- samService.createResource(
+              userInfo.accessToken.token,
+              samResource,
+              Some(googleProject),
+              None,
+              getDiskSamPolicyMap(userEmail)
             )
             pd <- persistentDiskQuery.save(diskBeforeSave).transaction
           } yield PersistentDiskRequestResult(pd, true)
@@ -1352,7 +1352,7 @@ object RuntimeServiceInterp {
                                            samResource,
                                            None,
                                            Some(workspaceId),
-                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                                           getDiskSamPolicyMap(userEmail)
             )
             pd <- persistentDiskQuery.save(diskBeforeSave).transaction
           } yield PersistentDiskRequestResult(pd, true)
@@ -1374,6 +1374,8 @@ object RuntimeServiceInterp {
         }
     }
 
+  private[service] def getRuntimeSamPolicyMap(userEmail: WorkbenchEmail): Map[String, SamPolicyData] =
+    Map("creator" -> SamPolicyData(List(userEmail), List(RuntimeRole.Creator.asString)))
 }
 
 final case class PersistentDiskRequestResult(disk: PersistentDisk, creationNeeded: Boolean)

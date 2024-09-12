@@ -13,9 +13,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
 import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoTestSuite,
   RuntimeAction,
+  RuntimeRole,
   SamPolicyData,
-  SamResourceType,
-  SamRole
+  SamResourceType
 }
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -404,7 +404,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
                           runtimeSamResource,
                           None,
                           Some(workspaceId),
-                          Map("aPolicy" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                          Map("aPolicy" -> SamPolicyData(List(userEmail), List(RuntimeRole.Creator.asString)))
           )
           .unsafeRunSync()
 

@@ -36,6 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
   checkIfCanBeDeleted,
+  getAppSamPolicyMap,
   isPatchVersionDifference
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
@@ -167,7 +168,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                        samResourceId,
                                        Some(googleProject),
                                        None,
-                                       Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                                       getAppSamPolicyMap(userEmail, req.accessScope)
         )
         saveCluster <- F.fromEither(
           getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
@@ -786,7 +787,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      samResourceId,
                                      None,
                                      Some(workspaceId),
-                                     Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                                     getAppSamPolicyMap(userEmail, req.accessScope)
       )
 
       // Save or retrieve a KubernetesCluster record for the app
@@ -1685,6 +1686,20 @@ object LeoAppServiceInterp {
     if (deletable) Right(())
     else Left(s"${appType} can not be deleted in ${appStatus} status.")
   }
+
+  /**
+   * Shared apps are represented as kubernetes-app-shared resources in Sam and have an "owner" role.
+   * Private apps are represented as kubernetes-app resources in Sam and have a "creator" role.
+   */
+  private[http] def getAppSamPolicyMap(userEmail: WorkbenchEmail,
+                                       accessScope: Option[AppAccessScope]
+  ): Map[String, SamPolicyData] =
+    accessScope match {
+      case Some(AppAccessScope.WorkspaceShared) =>
+        Map("owner" -> SamPolicyData(List(userEmail), List(SharedAppRole.Owner.asString)))
+      case _ =>
+        Map("creator" -> SamPolicyData(List(userEmail), List(AppRole.Creator.asString)))
+    }
 }
 
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)

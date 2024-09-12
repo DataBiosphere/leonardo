@@ -94,12 +94,13 @@ object ProjectAction {
   final case object CreateApp extends ProjectAction {
     val asString = "create_kubernetes_app"
   }
+
+  // TODO the below actions will be removed after we migrate to Sam hierarchical resources
+  //  for notebook-cluster and persistent-disk. See: https://broadworkbench.atlassian.net/browse/IA-5059
+
   // Other exists because there are other project actions not used by Leo
   final case class Other(asString: String) extends ProjectAction
 
-  // TODO we'd like to remove the below actions at the project level, and control these
-  // actions with policies at the resource level instead.
-  // See https://broadworkbench.atlassian.net/browse/IA-2093
   final case object GetRuntimeStatus extends ProjectAction {
     val asString = "list_notebook_cluster"
   }
@@ -262,8 +263,68 @@ object PrivateAzureStorageAccountAction {
     sealerate.collect[PrivateAzureStorageAccountAction].map(a => (a.asString, a)).toMap
 }
 
-// TODO [IA-4608] merge with SamPolicyName
-/** Represents a role in Sam, permitting a set of actions on a resource of a certain type. */
+sealed trait RuntimeRole extends Product with Serializable {
+  def asString: String
+  override def toString = asString
+}
+object RuntimeRole {
+  final case object Creator extends RuntimeRole {
+    val asString = "creator"
+  }
+
+  final case object Manager extends RuntimeRole {
+    val asString = "manager"
+  }
+}
+
+sealed trait PersistentDiskRole extends Product with Serializable {
+  def asString: String
+  override def toString = asString
+}
+object PersistentDiskRole {
+  final case object Creator extends PersistentDiskRole {
+    val asString = "creator"
+  }
+
+  final case object Manager extends PersistentDiskRole {
+    val asString = "manager"
+  }
+}
+
+sealed trait AppRole extends Product with Serializable {
+  def asString: String
+  override def toString = asString
+}
+
+object AppRole {
+  final case object Creator extends AppRole {
+    val asString = "creator"
+  }
+
+  final case object Manager extends AppRole {
+    val asString = "manager"
+  }
+}
+
+sealed trait SharedAppRole extends Product with Serializable {
+  def asString: String
+  override def toString = asString
+}
+
+object SharedAppRole {
+  final case object Owner extends SharedAppRole {
+    val asString = "owner"
+  }
+
+  final case object User extends SharedAppRole {
+    val asString = "user"
+  }
+}
+
+/**
+ * Deprecated: use resource-type specific role enums (RuntimeRole, PersistentDiskRole, etc).
+ */
+@Deprecated
 sealed trait SamRole extends Product with Serializable {
   def asString: String
   override def toString = asString
@@ -289,8 +350,10 @@ object SamRole {
   val stringToRole = sealerate.collect[SamRole].map(p => (p.asString, p)).toMap
 }
 
-// TODO [IA-4608] merge with SamRole
-/** Represents a role in Sam, permitting a set of actions on a resource of a certain type. */
+/**
+ * Deprecated: don't use an enum to represent policy names.
+ */
+@Deprecated
 sealed trait SamPolicyName extends Serializable with Product
 object SamPolicyName {
   final case object Creator extends SamPolicyName {
@@ -316,7 +379,7 @@ object SamPolicyName {
 }
 
 final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
-final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])
+final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[String])
 
 sealed abstract class AppAccessScope
 object AppAccessScope {

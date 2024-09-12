@@ -258,7 +258,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
         .mapValues(p =>
           new AccessPolicyMembershipRequest()
             .memberEmails(p.memberEmails.map(_.value).asJava)
-            .roles(p.roles.map(_.asString).asJava)
+            .roles(p.roles.asJava)
         )
         .toMap
 

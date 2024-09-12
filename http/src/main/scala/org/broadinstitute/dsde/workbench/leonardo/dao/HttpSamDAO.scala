@@ -483,7 +483,7 @@ object HttpSamDAO {
   implicit val samPolicyDataDecoder: Decoder[SamPolicyData] = Decoder.instance { x =>
     for {
       memberEmails <- x.downField("memberEmails").as[List[WorkbenchEmail]]
-      roles <- x.downField("roles").as[List[SamRole]]
+      roles <- x.downField("roles").as[List[String]]
     } yield SamPolicyData(memberEmails, roles)
   }
   implicit val syncStatusDecoder: Decoder[SyncStatusResponse] = Decoder.instance { x =>

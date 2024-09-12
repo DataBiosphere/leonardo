@@ -21,6 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.getRuntimeSamPolicyMap
 // do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
@@ -195,7 +197,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                                                  samResource,
                                                  None,
                                                  Some(workspaceId),
-                                                 Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                                                 getDiskSamPolicyMap(userEmail)
                   )
                   disk <- persistentDiskQuery.save(pd).transaction
                 } yield disk.id
@@ -226,7 +228,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                                            samResource,
                                            None,
                                            Some(workspaceId),
-                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                                           getRuntimeSamPolicyMap(userEmail)
             )
 
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction

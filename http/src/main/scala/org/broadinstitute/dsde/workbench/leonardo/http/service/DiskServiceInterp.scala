@@ -103,7 +103,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                            samResource,
                                            Some(googleProject),
                                            None,
-                                           Map("creator" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                                           getDiskSamPolicyMap(userEmail)
             )
             // TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
@@ -530,6 +530,9 @@ object DiskServiceInterp {
       workspaceId
     )
   }
+
+  private[service] def getDiskSamPolicyMap(userEmail: WorkbenchEmail): Map[String, SamPolicyData] =
+    Map("creator" -> SamPolicyData(List(userEmail), List(PersistentDiskRole.Creator.asString)))
 }
 
 case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject,
