@@ -5,12 +5,12 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResour
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+/** A Sam resource type and resource ID */
 sealed trait SamResourceId {
   def resourceId: String
   def resourceType: SamResourceType
   def asString: String = resourceId
 }
-
 object SamResourceId {
   final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId {
     override def resourceType: SamResourceType = SamResourceType.Runtime
@@ -48,6 +48,7 @@ object SamResourceId {
   }
 }
 
+/** Enumeration of Sam resource types known to Leonardo */
 sealed trait SamResourceType extends Product with Serializable {
   def asString: String
 }
@@ -81,9 +82,13 @@ object SamResourceType {
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap
 }
 
-sealed trait ProjectAction extends Product with Serializable {
+/** Enumeration of Sam resource actions known to Leonardo */
+sealed trait SamResourceAction extends Product with Serializable {
   def asString: String
+  override def toString = asString
 }
+
+sealed trait ProjectAction extends SamResourceAction
 object ProjectAction {
   final case object CreateRuntime extends ProjectAction {
     val asString = "launch_notebook_cluster"
@@ -121,9 +126,7 @@ object ProjectAction {
     sealerate.collect[ProjectAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait RuntimeAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait RuntimeAction extends SamResourceAction
 object RuntimeAction {
   final case object GetRuntimeStatus extends RuntimeAction {
     val asString = "status"
@@ -152,9 +155,7 @@ object RuntimeAction {
     sealerate.collect[RuntimeAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait PersistentDiskAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait PersistentDiskAction extends SamResourceAction
 object PersistentDiskAction {
   final case object ReadPersistentDisk extends PersistentDiskAction {
     val asString = "read"
@@ -180,9 +181,7 @@ object PersistentDiskAction {
     sealerate.collect[PersistentDiskAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait AppAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait AppAction extends SamResourceAction
 object AppAction {
   final case object GetAppStatus extends AppAction {
     val asString = "status"
@@ -214,9 +213,7 @@ object AppAction {
     sealerate.collect[AppAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait WorkspaceAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait WorkspaceAction extends SamResourceAction
 object WorkspaceAction {
   final case object CreateControlledApplicationResource extends WorkspaceAction {
     val asString = "create_controlled_application_private"
@@ -233,9 +230,7 @@ object WorkspaceAction {
     sealerate.collect[WorkspaceAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait WsmResourceAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait WsmResourceAction extends SamResourceAction
 object WsmResourceAction {
   final case object Write extends WsmResourceAction {
     val asString = "write"
@@ -248,9 +243,7 @@ object WsmResourceAction {
     sealerate.collect[WsmResourceAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait PrivateAzureStorageAccountAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait PrivateAzureStorageAccountAction extends SamResourceAction
 object PrivateAzureStorageAccountAction {
   final case object Write extends PrivateAzureStorageAccountAction {
     val asString = "write"
@@ -263,10 +256,13 @@ object PrivateAzureStorageAccountAction {
     sealerate.collect[PrivateAzureStorageAccountAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait RuntimeRole extends Product with Serializable {
+/** Enumeration of Sam resource roles known to Leonardo. */
+sealed trait SamResourceRole extends Product with Serializable {
   def asString: String
   override def toString = asString
 }
+
+sealed trait RuntimeRole extends SamResourceRole
 object RuntimeRole {
   final case object Creator extends RuntimeRole {
     val asString = "creator"
@@ -277,10 +273,7 @@ object RuntimeRole {
   }
 }
 
-sealed trait PersistentDiskRole extends Product with Serializable {
-  def asString: String
-  override def toString = asString
-}
+sealed trait PersistentDiskRole extends SamResourceRole
 object PersistentDiskRole {
   final case object Creator extends PersistentDiskRole {
     val asString = "creator"
@@ -291,11 +284,7 @@ object PersistentDiskRole {
   }
 }
 
-sealed trait AppRole extends Product with Serializable {
-  def asString: String
-  override def toString = asString
-}
-
+sealed trait AppRole extends SamResourceRole
 object AppRole {
   final case object Creator extends AppRole {
     val asString = "creator"
@@ -306,11 +295,7 @@ object AppRole {
   }
 }
 
-sealed trait SharedAppRole extends Product with Serializable {
-  def asString: String
-  override def toString = asString
-}
-
+sealed trait SharedAppRole extends SamResourceRole
 object SharedAppRole {
   final case object Owner extends SharedAppRole {
     val asString = "owner"

@@ -307,7 +307,10 @@ class BaseMockSamService extends SamService[IO] {
     ev: Ask[IO, AppContext]
   ): IO[Option[WorkspaceId]] = IO.pure(Some(workspaceId))
 
-  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  override def checkAuthorized(bearerToken: String,
+                               samResourceId: SamResourceId,
+                               action: org.broadinstitute.dsde.workbench.leonardo.SamResourceAction
+  )(implicit
     ev: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 

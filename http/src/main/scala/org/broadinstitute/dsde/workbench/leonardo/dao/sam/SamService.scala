@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   CloudContext,
   SamPolicyData,
+  SamResourceAction,
   SamResourceId,
   SamResourceType,
   WorkspaceId
@@ -116,7 +117,7 @@ trait SamService[F[_]] {
    * @param ev application context
    * @return Unit if authorized, ForbiddenError if not authorized, SamException on errors.
    */
-  def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: SamResourceAction)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 

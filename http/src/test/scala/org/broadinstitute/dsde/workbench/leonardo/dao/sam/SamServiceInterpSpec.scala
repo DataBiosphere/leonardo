@@ -249,7 +249,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       it("should successfully check authorization") {
         // test
         newSamService()
-          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus)
           .unsafeRunSync()
       }
 
@@ -265,7 +265,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
-          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus)
           .unsafeRunSync()
 
         // assert
@@ -282,7 +282,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
-          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus)
           .unsafeRunSync()
 
         // assert

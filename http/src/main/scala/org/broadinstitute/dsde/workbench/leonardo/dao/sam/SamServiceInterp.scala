@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   SamPolicyData,
+  SamResourceAction,
   SamResourceId,
   SamResourceType,
   WorkspaceId
@@ -183,14 +184,15 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
       }
     } yield token
 
-  private def isAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  private def isAuthorized(bearerToken: String, samResourceId: SamResourceId, action: SamResourceAction)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
       ctx <- ev.ask
       resourcesApi <- apiClientProvider.resourcesApi(bearerToken)
       isAuthorized <- SamRetry
-        .retry(resourcesApi.resourcePermissionV2(samResourceId.resourceType.asString, samResourceId.resourceId, action),
+        .retry(resourcesApi
+                 .resourcePermissionV2(samResourceId.resourceType.asString, samResourceId.resourceId, action.asString),
                "resourcePermissionV2"
         )
         .adaptError { case e: ApiException =>
@@ -199,7 +201,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
 
     } yield isAuthorized
 
-  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: SamResourceAction)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
