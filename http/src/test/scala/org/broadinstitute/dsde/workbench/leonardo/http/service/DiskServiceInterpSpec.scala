@@ -783,6 +783,13 @@ class DiskServiceInterpTest
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
+
+  it should "get a correct sam policy map for disks" in {
+    val map = DiskServiceInterp.getDiskSamPolicyMap(userEmail)
+    map should have size 1
+    map should contain key "creator"
+    map("creator") shouldBe SamPolicyData(List(userEmail), List(PersistentDiskRole.Creator.asString))
+  }
 }
 
 class MockGoogleProjectDAOWithCustomAncestors(customAncestors: Map[GoogleProject, String])

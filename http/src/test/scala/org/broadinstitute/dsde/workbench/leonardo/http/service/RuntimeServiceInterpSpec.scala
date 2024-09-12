@@ -40,6 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
   calculateAutopauseThreshold,
+  getRuntimeSamPolicyMap,
   getToolFromImages
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
@@ -2479,6 +2480,13 @@ class RuntimeServiceInterpTest
   it should "test getToolFromImages - get the RStudio tool from list of cluster images" in isolatedDbTest {
     val tool = getToolFromImages(Set(rstudioImage, welderImage, proxyImage, cryptoDetectorImage))
     tool shouldBe Some(Tool.RStudio)
+  }
+
+  it should "get a correct sam policy map for runtimes" in {
+    val map = getRuntimeSamPolicyMap(userEmail)
+    map should have size 1
+    map should contain key "creator"
+    map("creator") shouldBe SamPolicyData(List(userEmail), List(RuntimeRole.Creator.asString))
   }
 
   private def withLeoPublisher(

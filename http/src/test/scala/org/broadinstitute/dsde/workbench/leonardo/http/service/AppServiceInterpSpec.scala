@@ -3339,4 +3339,21 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
+
+  it should "get a correct sam policy map for apps" in {
+    val map1 = LeoAppServiceInterp.getAppSamPolicyMap(userEmail, None)
+    map1 should have size 1
+    map1 should contain key "creator"
+    map1("creator") shouldBe SamPolicyData(List(userEmail), List(AppRole.Creator.asString))
+
+    val map2 = LeoAppServiceInterp.getAppSamPolicyMap(userEmail, Some(AppAccessScope.UserPrivate))
+    map2 should have size 1
+    map2 should contain key "creator"
+    map2("creator") shouldBe SamPolicyData(List(userEmail), List(AppRole.Creator.asString))
+
+    val map3 = LeoAppServiceInterp.getAppSamPolicyMap(userEmail, Some(AppAccessScope.WorkspaceShared))
+    map3 should have size 1
+    map3 should contain key "owner"
+    map3("owner") shouldBe SamPolicyData(List(userEmail), List(SharedAppRole.Owner.asString))
+  }
 }
