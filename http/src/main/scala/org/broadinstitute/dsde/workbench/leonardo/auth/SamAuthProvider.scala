@@ -6,7 +6,7 @@ import cats.data.NonEmptyList
 import cats.effect.{Async, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, GroupName, SamDAO}
@@ -314,45 +314,6 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
       roles <- samDao.getResourceRoles(authHeader, workspaceResource)
     } yield roles.nonEmpty
   }
-
-  override def notifyResourceCreated[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // Note: apps on GCP are defined with a google-project as a parent Sam resource.
-    // Otherwise the Sam resource has no parent.
-    if (sr.resourceType(samResource) != SamResourceType.App)
-      samDao.createResourceAsGcpPet(samResource, creatorEmail, googleProject)
-    else
-      samDao.createResourceWithGoogleProjectParent(samResource, creatorEmail, googleProject)
-
-  override def notifyResourceCreatedV2[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    cloudContext: CloudContext,
-    workspaceId: WorkspaceId,
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // Note: V2 apps on both GCP and azure are defined with a workspace as a parent Sam resource.
-    // Otherwise the Sam resource has no parent.
-    if (List(SamResourceType.App, SamResourceType.SharedApp).contains(sr.resourceType(samResource)))
-      samDao.createResourceWithWorkspaceParent(samResource, creatorEmail, userInfo, workspaceId)
-    else
-      samDao.createResourceWithUserInfo(samResource, userInfo)
-
-  override def notifyResourceDeleted[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
-    samDao.deleteResourceAsGcpPet(samResource, creatorEmail, googleProject)
-
-  override def notifyResourceDeletedV2[R](
-    samResource: R,
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
-    samDao.deleteResourceWithUserInfo(samResource, userInfo)
 
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
     for {

@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   CloudContext,
   SamPolicyData,
+  SamResourceAction,
   SamResourceId,
   SamResourceType,
   WorkspaceId
@@ -80,6 +81,15 @@ trait SamService[F[_]] {
   ): F[String]
 
   /**
+   * Gets a token for a user's arbitrary pet service account, using a Leonardo token.
+   * @param userEmail the user email
+   * @param ev application context
+   * @return access token for the user's arbitrary pet service account, or SamException if
+   *         the pet could not be retrieved.
+   */
+  def getArbitraryPetServiceAccountToken(userEmail: WorkbenchEmail)(implicit ev: Ask[F, AppContext]): F[String]
+
+  /**
    * Looks up the workspace parent Sam resource for the given google project.
    *
    * This method is not used for access control. It is used to populate the workspaceId
@@ -107,7 +117,7 @@ trait SamService[F[_]] {
    * @param ev application context
    * @return Unit if authorized, ForbiddenError if not authorized, SamException on errors.
    */
-  def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: SamResourceAction)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit]
 

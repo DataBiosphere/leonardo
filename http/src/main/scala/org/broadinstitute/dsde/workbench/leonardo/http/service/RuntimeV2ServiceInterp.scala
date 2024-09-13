@@ -19,7 +19,10 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.getRuntimeSamPolicyMap
 // do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
@@ -46,10 +49,10 @@ import scala.concurrent.ExecutionContext
 class RuntimeV2ServiceInterp[F[_]: Parallel](
   config: RuntimeServiceConfig,
   authProvider: LeoAuthProvider[F],
-  wsmDao: WsmDao[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
-  wsmClientProvider: WsmApiClientProvider[F]
+  wsmClientProvider: WsmApiClientProvider[F],
+  samService: SamService[F]
 )(implicit F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F])
     extends RuntimeV2Service[F] {
 
@@ -75,6 +78,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
       samResource = WorkspaceResourceSamResourceId(workspaceId)
 
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
+
       hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
         samResource,
         WorkspaceAction.CreateControlledUserResource,
@@ -82,11 +88,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
 
       // enforcing one runtime per workspace/user at a time
-      userEmail = Some(userInfo.userEmail)
-      authorizedIds <- getAuthorizedIds(userInfo, userEmail, Some(samResource))
+      authorizedIds <- getAuthorizedIds(userInfo, Some(userEmail), Some(samResource))
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(
           // Authorization scopes
@@ -97,7 +102,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
           readerWorkspaceIds = authorizedIds.readerWorkspaceIds,
           // Filters
           excludeStatuses = List(RuntimeStatus.Deleted, RuntimeStatus.Deleting),
-          creatorEmail = userEmail,
+          creatorEmail = Some(userEmail),
           workspaceId = Some(workspaceId),
           cloudProvider = Some(cloudContext.cloudProvider)
         )
@@ -107,7 +112,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         .raiseError(
           OnlyOneRuntimePerWorkspacePerCreator(
             workspaceId,
-            userInfo.userEmail,
+            userEmail,
             runtimes.head.clusterName,
             runtimes.head.status
           )
@@ -135,7 +140,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         None,
         ctx.now
       )
-      vmSamResourceId <- F.delay(UUID.randomUUID())
 
       _ <- runtimeOpt match {
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
@@ -150,7 +154,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                     .listDisks(
                       Map.empty,
                       includeDeleted = false,
-                      Some(userInfo.userEmail),
+                      Some(userEmail),
                       Some(cloudContext),
                       Some(workspaceId)
                     )
@@ -178,7 +182,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                   samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
                   pd <- F.fromEither(
                     convertToDisk(
-                      userInfo,
+                      userEmail,
                       cloudContext,
                       DiskName(req.azureDiskConfig.name.value),
                       samResource,
@@ -188,24 +192,25 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                       ctx.now
                     )
                   )
-                  _ <- authProvider
-                    .notifyResourceCreatedV2(samResource, userInfo.userEmail, cloudContext, workspaceId, userInfo)
-                    .handleErrorWith { t =>
-                      log.error(t)(
-                        s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${req.azureDiskConfig.name.value}"
-                      ) >> F.raiseError[Unit](t)
-                    }
+                  // Create a persistent-disk Sam resource with a creator policy and the workspace as the parent
+                  _ <- samService.createResource(userInfo.accessToken.token,
+                                                 samResource,
+                                                 None,
+                                                 Some(workspaceId),
+                                                 getDiskSamPolicyMap(userEmail)
+                  )
                   disk <- persistentDiskQuery.save(pd).transaction
                 } yield disk.id
             }
 
+            samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
             runtime = convertToRuntime(
               workspaceId,
               runtimeName,
               cloudContext,
-              userInfo,
+              userEmail,
               req,
-              RuntimeSamResourceId(vmSamResourceId.toString),
+              samResource,
               Set(runtimeImage, listenerImage, welderImage),
               Set.empty,
               ctx.now
@@ -217,6 +222,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
               None
             )
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
+
+            // Create a notebook-cluster Sam resource with a creator policy and the workspace as the parent
+            _ <- samService.createResource(userInfo.accessToken.token,
+                                           samResource,
+                                           None,
+                                           Some(workspaceId),
+                                           getRuntimeSamPolicyMap(userEmail)
+            )
+
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
             _ <- publisherQueue.offer(
               CreateAzureRuntimeMessage(
@@ -555,7 +569,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     } yield runtimes.toVector
 
   private[service] def convertToDisk(
-    userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
     diskName: DiskName,
     samResource: PersistentDiskSamResourceId,
@@ -569,7 +583,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       Map(
         "diskName" -> diskName.value,
         "cloudContext" -> cloudContext.asString,
-        "creator" -> userInfo.userEmail.value
+        "creator" -> userEmail.value
       )
 
     // combine default and given labels
@@ -587,10 +601,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       cloudContext,
       ZoneName("unset"),
       diskName,
-      userInfo.userEmail,
+      userEmail,
       samResource,
       DiskStatus.Creating,
-      AuditInfo(userInfo.userEmail, now, None, now),
+      AuditInfo(userEmail, now, None, now),
       req.azureDiskConfig.size.getOrElse(config.defaultDiskSizeGb),
       req.azureDiskConfig.diskType.getOrElse(config.defaultDiskType),
       config.defaultBlockSizeBytes,
@@ -719,7 +733,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName,
     cloudContext: CloudContext,
-    userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     request: CreateAzureRuntimeRequest,
     samResourceId: RuntimeSamResourceId,
     runtimeImages: Set[RuntimeImage],
@@ -731,9 +745,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       runtimeName,
       None,
       cloudContext,
-      userInfo.userEmail,
+      userEmail,
       // TODO: use an azure service account
-      Some(userInfo.userEmail),
+      Some(userEmail),
       None,
       None,
       // TODO: Will need to be updated when we support RStudio on Azure or JupyterLab on GCP V2 endpoint
@@ -749,9 +763,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       runtimeName = runtimeName,
       cloudContext = cloudContext,
       // TODO: use an azure service account
-      serviceAccount = userInfo.userEmail,
+      serviceAccount = userEmail,
       asyncRuntimeFields = None,
-      auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
+      auditInfo = AuditInfo(userEmail, now, None, now),
       kernelFoundBusyDate = None,
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, runtimeImages, None, allLabels),
       status = RuntimeStatus.PreCreating,

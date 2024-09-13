@@ -46,8 +46,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   ServiceId,
   WorkspaceId
 }
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.mockito.ArgumentMatchers.{any, anyString}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
@@ -660,9 +660,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     when {
       sam.getCachedArbitraryPetAccessToken(any)(any)
     } thenReturn IO.pure(Some("token"))
-    when {
-      sam.deleteResourceInternal(any, any)(any, any)
-    } thenReturn IO.unit
     sam
   }
 

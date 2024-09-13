@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
@@ -30,10 +31,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.Check
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -586,7 +586,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       FakeGoogleStorageService,
       MockGoogleDiskService,
       FakeDataproInterp,
-      dataprocService
+      dataprocService,
+      MockSamService
     )
 
   def getCluster(state: State, zoneName: Option[ZoneName] = None): Cluster = {

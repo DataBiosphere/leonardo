@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
+
 import akka.actor.ActorSystem
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appServiceConfig, gkeCustomAppConfig}
@@ -85,7 +86,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
         None,
         None,
         gkeCustomAppConfig,
-        baselineDependencies.wsmDAO,
         baselineDependencies.wsmClientProvider,
         baselineDependencies.samService
       )

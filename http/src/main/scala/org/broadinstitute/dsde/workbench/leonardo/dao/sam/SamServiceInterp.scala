@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   SamPolicyData,
+  SamResourceAction,
   SamResourceId,
   SamResourceType,
   WorkspaceId
@@ -120,6 +121,24 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
     )
   } yield petToken
 
+  override def getArbitraryPetServiceAccountToken(userEmail: WorkbenchEmail)(implicit
+    ev: Ask[F, AppContext]
+  ): F[String] = for {
+    ctx <- ev.ask
+    leoToken <- getLeoAuthToken
+    googleApi <- apiClientProvider.googleApi(leoToken)
+    petToken <- SamRetry
+      .retry(googleApi.getUserArbitraryPetServiceAccountToken(userEmail.value, saScopes.asJava),
+             "getUserArbitraryPetServiceAccountToken"
+      )
+      .adaptError { case e: ApiException =>
+        SamException.create("Error getting arbitrary pet service account token from Sam", e, ctx.traceId)
+      }
+    _ <- logger.info(ctx.loggingCtx)(
+      s"Retrieved arbitrary pet service account token for user $userEmail"
+    )
+  } yield petToken
+
   override def lookupWorkspaceParentForGoogleProject(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[WorkspaceId]] = for {
@@ -165,14 +184,15 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
       }
     } yield token
 
-  private def isAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  private def isAuthorized(bearerToken: String, samResourceId: SamResourceId, action: SamResourceAction)(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] =
     for {
       ctx <- ev.ask
       resourcesApi <- apiClientProvider.resourcesApi(bearerToken)
       isAuthorized <- SamRetry
-        .retry(resourcesApi.resourcePermissionV2(samResourceId.resourceType.asString, samResourceId.resourceId, action),
+        .retry(resourcesApi
+                 .resourcePermissionV2(samResourceId.resourceType.asString, samResourceId.resourceId, action.asString),
                "resourcePermissionV2"
         )
         .adaptError { case e: ApiException =>
@@ -181,7 +201,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
 
     } yield isAuthorized
 
-  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: SamResourceAction)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] = for {
     ctx <- ev.ask
@@ -240,7 +260,7 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
         .mapValues(p =>
           new AccessPolicyMembershipRequest()
             .memberEmails(p.memberEmails.map(_.value).asJava)
-            .roles(p.roles.map(_.asString).asJava)
+            .roles(p.roles.asJava)
         )
         .toMap
 
