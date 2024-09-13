@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -39,7 +40,7 @@ import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks.{forAll, _}
@@ -94,7 +95,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
                  enableSasApp: Boolean = true,
                  googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                  customAppConfig: CustomAppConfig = gkeCustomAppConfig,
-                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
+                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
+                 samService: SamService[IO] = MockSamService
   ) = {
     val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
 
@@ -106,7 +108,7 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       Some(googleResourceService),
       customAppConfig,
       wsmClientProvider,
-      MockSamService
+      samService
     )
   }
 }
@@ -290,7 +292,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   }
 
   it should "rollback Sam resource creation if app creation fails" in isolatedDbTest {
-
     // Fake an error in getLastUsedAppForDisk
     val disk = makePersistentDisk(None)
       .copy(cloudContext = cloudContextGcp)
@@ -306,13 +307,20 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     when(mockAuthProvider.hasPermission(any, any, any)(any, any)).thenReturn(IO.pure(true))
     when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
+    val mockSamService = mock[SamService[IO]]
+    when(mockSamService.createResource(any, any, any, any, any)(any)).thenReturn(IO.unit)
+    when(mockSamService.deleteResource(any, any)(any)).thenReturn(IO.unit)
+    when(mockSamService.getUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
+    when(mockSamService.lookupWorkspaceParentForGoogleProject(any, any)(any)).thenReturn(IO.none)
+    when(mockSamService.getPetServiceAccount(any, any)(any)).thenReturn(IO.pure(petUserInfo.userEmail))
+    val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider, samService = mockSamService)
     val res = appService
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app"
-    // TODO verify SamService
+    verify(mockSamService).createResource(any, any, any, any, any)(any)
+    verify(mockSamService).deleteResource(any, any)(any)
   }
 
   it should "create an app in a user's existing nodepool" in isolatedDbTest {

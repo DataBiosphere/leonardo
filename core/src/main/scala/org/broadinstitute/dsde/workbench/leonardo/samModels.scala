@@ -308,6 +308,7 @@ object SharedAppRole {
 
 /**
  * Deprecated: use resource-type specific role enums (RuntimeRole, PersistentDiskRole, etc).
+ * See: https://broadworkbench.atlassian.net/browse/IA-5063
  */
 @Deprecated
 sealed trait SamRole extends Product with Serializable {
@@ -337,6 +338,7 @@ object SamRole {
 
 /**
  * Deprecated: don't use an enum to represent policy names.
+ * See: https://broadworkbench.atlassian.net/browse/IA-5063
  */
 @Deprecated
 sealed trait SamPolicyName extends Serializable with Product

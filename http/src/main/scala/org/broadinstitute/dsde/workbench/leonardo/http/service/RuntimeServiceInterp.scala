@@ -206,7 +206,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
             _ <- gcsObjectUrisToValidate
               .parTraverse(s => validateBucketObjectUri(userEmail, petToken, s, context.traceId))
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done validating buckets")))
-            // Create a notebook-cluster Sam resource with a cretor policy and the google project as the parent
+            // Create a notebook-cluster Sam resource with a creator policy and the google project as the parent
             _ <- samService.createResource(
               userInfo.accessToken.token,
               samResource,
