@@ -120,7 +120,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val cloudServiceMappedColumnType: BaseColumnType[CloudService] =
       MappedColumnType
         .base[CloudService, String](_.asString, s => CloudService.withName(s))
-    // mysql 5.6 doesns't support json. Hence writing properties field as string in json format
+    // TODO: change with mysql upgrade to 5.7 (mysql 5.6 doesn't support json. Hence writing properties field as string in json format)
     implicit val mapMappedColumnType: BaseColumnType[Map[String, String]] =
       MappedColumnType
         .base[Map[String, String], String](
