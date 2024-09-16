@@ -10,7 +10,7 @@ import com.google.cloud.compute.v1.Operation
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.{BlobGetOption, BucketSourceOption}
 import fs2.Stream
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
@@ -127,19 +127,6 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(GoogleProject, R)]] =
     ???
 
-  override def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = IO.unit
-
-  override def notifyResourceDeleted[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit
-    sr: SamResource[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = IO.unit
-
   override def isUserProjectReader(cloudContext: CloudContext, userInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = ???
@@ -159,18 +146,6 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
-
-  override def notifyResourceCreatedV2[R](samResource: R,
-                                          creatorEmail: WorkbenchEmail,
-                                          cloudContext: CloudContext,
-                                          workspaceId: WorkspaceId,
-                                          userInfo: UserInfo
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
-
-  override def notifyResourceDeletedV2[R](samResource: R, userInfo: UserInfo)(implicit
-    sr: SamResource[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = ???
 
   override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
@@ -323,11 +298,19 @@ class BaseMockSamService extends SamService[IO] {
   ): IO[String] =
     IO.pure(tokenValue)
 
+  override def getArbitraryPetServiceAccountToken(userEmail: WorkbenchEmail)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[String] =
+    IO.pure(tokenValue)
+
   override def lookupWorkspaceParentForGoogleProject(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[IO, AppContext]
   ): IO[Option[WorkspaceId]] = IO.pure(Some(workspaceId))
 
-  override def checkAuthorized(bearerToken: String, samResourceId: SamResourceId, action: String)(implicit
+  override def checkAuthorized(bearerToken: String,
+                               samResourceId: SamResourceId,
+                               action: org.broadinstitute.dsde.workbench.leonardo.SamResourceAction
+  )(implicit
     ev: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
@@ -347,6 +330,13 @@ class BaseMockSamService extends SamService[IO] {
   ): IO[Unit] = IO.unit
 
   override def getUserEmail(bearerToken: String)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
-    IO.pure(userEmail)
+    bearerToken match {
+      case userInfo.accessToken.token             => IO.pure(userInfo.userEmail)
+      case userInfo2.accessToken.token            => IO.pure(userInfo2.userEmail)
+      case userInfo3.accessToken.token            => IO.pure(userInfo3.userEmail)
+      case userInfo4.accessToken.token            => IO.pure(userInfo4.userEmail)
+      case unauthorizedUserInfo.accessToken.token => IO.pure(unauthorizedUserInfo.userEmail)
+      case _                                      => IO.pure(userInfo.userEmail)
+    }
 }
 object MockSamService extends BaseMockSamService

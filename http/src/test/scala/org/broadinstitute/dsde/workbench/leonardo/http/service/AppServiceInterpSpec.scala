@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -42,10 +43,9 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.prop.TableDrivenPropertyChecks._
+import org.scalatest.prop.TableDrivenPropertyChecks.{forAll, _}
 import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
-import org.scalatest.prop.TableDrivenPropertyChecks.forAll
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -95,7 +95,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
                  enableSasApp: Boolean = true,
                  googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                  customAppConfig: CustomAppConfig = gkeCustomAppConfig,
-                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
+                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
+                 samService: SamService[IO] = MockSamService
   ) = {
     val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
 
@@ -106,9 +107,8 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       Some(FakeGoogleComputeService),
       Some(googleResourceService),
       customAppConfig,
-      wsmDao,
       wsmClientProvider,
-      MockSamService
+      samService
     )
   }
 }
@@ -157,7 +157,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(passComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -168,7 +167,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughMemoryComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -179,7 +177,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughCpuComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -211,7 +208,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -242,7 +238,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -297,8 +292,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   }
 
   it should "rollback Sam resource creation if app creation fails" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-
     // Fake an error in getLastUsedAppForDisk
     val disk = makePersistentDisk(None)
       .copy(cloudContext = cloudContextGcp)
@@ -313,18 +306,21 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val mockAuthProvider = mock[LeoAuthProvider[IO]]
     when(mockAuthProvider.hasPermission(any, any, any)(any, any)).thenReturn(IO.pure(true))
     when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
-    when(mockAuthProvider.notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)).thenReturn(IO.unit)
-    when(mockAuthProvider.notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)).thenReturn(IO.unit)
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider)
+    val mockSamService = mock[SamService[IO]]
+    when(mockSamService.createResource(any, any, any, any, any)(any)).thenReturn(IO.unit)
+    when(mockSamService.deleteResource(any, any)(any)).thenReturn(IO.unit)
+    when(mockSamService.getUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
+    when(mockSamService.lookupWorkspaceParentForGoogleProject(any, any)(any)).thenReturn(IO.none)
+    when(mockSamService.getPetServiceAccount(any, any)(any)).thenReturn(IO.pure(petUserInfo.userEmail))
+    val appService = makeInterp(publisherQueue, authProvider = mockAuthProvider, samService = mockSamService)
     val res = appService
       .createApp(userInfo, cloudContextGcp, appName, appReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy/cromwell/rstudio app can be re-used to create a new galaxy/cromwell/rstudio app"
-
-    verify(mockAuthProvider).notifyResourceCreated(any[AppSamResourceId], any, any)(any, any, any)
-    verify(mockAuthProvider).notifyResourceDeleted(any[AppSamResourceId], any, any)(any, any)
+    verify(mockSamService).createResource(any, any, any, any, any)(any)
+    verify(mockSamService).deleteResource(any, any)(any)
   }
 
   it should "create an app in a user's existing nodepool" in isolatedDbTest {
@@ -1384,7 +1380,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1535,7 +1530,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1579,7 +1573,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1622,7 +1615,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1662,7 +1654,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1708,7 +1699,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -1754,7 +1744,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmDao,
       wsmClientProvider,
       MockSamService
     )
@@ -3357,5 +3346,22 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         .updateApp(userInfo, cloudContextGcp, wrongApp, UpdateAppRequest(None, None))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
+  }
+
+  it should "get a correct sam policy map for apps" in {
+    val map1 = LeoAppServiceInterp.getAppSamPolicyMap(userEmail, None)
+    map1 should have size 1
+    map1 should contain key "creator"
+    map1("creator") shouldBe SamPolicyData(List(userEmail), List(AppRole.Creator.asString))
+
+    val map2 = LeoAppServiceInterp.getAppSamPolicyMap(userEmail, Some(AppAccessScope.UserPrivate))
+    map2 should have size 1
+    map2 should contain key "creator"
+    map2("creator") shouldBe SamPolicyData(List(userEmail), List(AppRole.Creator.asString))
+
+    val map3 = LeoAppServiceInterp.getAppSamPolicyMap(userEmail, Some(AppAccessScope.WorkspaceShared))
+    map3 should have size 1
+    map3 should contain key "owner"
+    map3("owner") shouldBe SamPolicyData(List(userEmail), List(SharedAppRole.Owner.asString))
   }
 }

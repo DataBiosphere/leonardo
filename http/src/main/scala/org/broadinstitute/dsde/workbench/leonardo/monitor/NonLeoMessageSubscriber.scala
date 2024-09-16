@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{DeviceName, GoogleComputeServi
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
@@ -44,7 +45,8 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
                                     authProvider: LeoAuthProvider[F],
                                     subscriber: CloudSubscriber[F, NonLeoMessage],
                                     publisher: CloudPublisher[F],
-                                    asyncTasks: Queue[F, Task[F]]
+                                    asyncTasks: Queue[F, Task[F]],
+                                    samService: SamService[F]
 )(implicit
   logger: StructuredLogger[F],
   F: Async[F],
@@ -195,10 +197,11 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
       task = for {
         _ <- gkeAlg.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.googleProject))
         apps <- appQuery.getNonDeletedAppsByNodepool(msg.nodepoolId).transaction
+        // Delete kubernetes-app Sam resources
         _ <- apps.traverse { app =>
-          authProvider
-            .notifyResourceDeleted(app.samResourceId, app.creator, msg.googleProject)
-            .void
+          samService
+            .getPetServiceAccountToken(app.creator, msg.googleProject)
+            .flatMap(petToken => samService.deleteResource(petToken, app.samResourceId))
         }
       } yield ()
 

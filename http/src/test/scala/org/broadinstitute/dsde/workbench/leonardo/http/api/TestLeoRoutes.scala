@@ -114,7 +114,6 @@ trait TestLeoRoutes {
     Some(FakeGoogleComputeService),
     Some(FakeGoogleResourceService),
     Config.gkeCustomAppConfig,
-    wsmDao,
     wsmClientProvider,
     MockSamService
   )
@@ -132,10 +131,10 @@ trait TestLeoRoutes {
     new RuntimeV2ServiceInterp[IO](
       serviceConfig,
       allowListAuthProvider,
-      new MockWsmDAO,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
-      wsmClientProvider
+      wsmClientProvider,
+      MockSamService
     )
 
   val underlyingRuntimeDnsCache =

@@ -33,12 +33,10 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
                                 wsmDao: WsmDao[IO] = wsmDao,
                                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
   ) =
-    new DiskV2ServiceInterp[IO](ConfigReader.appConfig.persistentDisk.copy(),
-                                allowlistAuthProvider,
-                                wsmDao,
-                                mockSamDAO,
-                                queue,
-                                wsmClientProvider
+    new DiskV2ServiceInterp[IO](
+      allowlistAuthProvider,
+      queue,
+      wsmClientProvider
     )
 
   val diskV2Service = makeDiskV2Service(QueueFactory.makePublisherQueue(), wsmDao = new MockWsmDAO)

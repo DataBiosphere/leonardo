@@ -2,8 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
-import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
@@ -19,13 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskS
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  BadRequestException,
-  ForbiddenError,
-  LeoAuthProvider,
-  NonDeletableDisksInProjectFoundException,
-  SamResourceAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessageType
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
@@ -34,13 +26,14 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import org.scalatest.flatspec.AnyFlatSpec
 import org.mockito.Mockito._
+import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
+import java.time.Instant
+import java.util.UUID
 import scala.collection.immutable.List
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
@@ -82,29 +75,23 @@ class DiskServiceInterpTest
 
   "DiskService" should "fail with AuthorizationError if user doesn't have project level permission" in {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("email"), 0)
     val googleProject = GoogleProject("googleProject")
 
     val res = for {
       d <- diskService
         .createDisk(
-          userInfo,
+          userInfo4,
           googleProject,
           DiskName("diskName1"),
           emptyCreateDiskReq
         )
         .attempt
-    } yield d shouldBe (Left(ForbiddenError(userInfo.userEmail)))
+    } yield d shouldBe (Left(ForbiddenError(userInfo4.userEmail)))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "successfully create a persistent disk" in isolatedDbTest {
     val (diskService, publisherQueue) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
     val cloudContext = CloudContext.Gcp(GoogleProject("project1"))
     val diskName = DiskName("diskName1")
 
@@ -112,7 +99,7 @@ class DiskServiceInterpTest
       context <- appContext.ask[AppContext]
       d <- diskService
         .createDisk(
-          userInfo,
+          userInfo, // this email is allow-listed
           GoogleProject(cloudContext.asString),
           diskName,
           emptyCreateDiskReq
@@ -309,8 +296,6 @@ class DiskServiceInterpTest
       )(any(), any())
     ).thenReturn(IO.pure(true))
 
-    when(authProviderMock.notifyResourceCreated(any(), any(), any())(any(), any(), any())).thenReturn(IO.unit)
-
     when(
       authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
                                      ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),
@@ -367,12 +352,6 @@ class DiskServiceInterpTest
 
   it should "get a disk" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
-
     val res = for {
       samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = samResource).save()
@@ -389,16 +368,11 @@ class DiskServiceInterpTest
 
   it should "fail to get a disk when user doesn't have project access" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = samResource).save()
-      getResponse <- diskService.getDisk(userInfo4, disk.cloudContext, disk.name)
+      getResponse <- diskService.getDisk(unauthorizedUserInfo, disk.cloudContext, disk.name)
     } yield getResponse
 
     a[ForbiddenError] should be thrownBy {
@@ -408,11 +382,6 @@ class DiskServiceInterpTest
 
   it should "list disks" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -428,11 +397,6 @@ class DiskServiceInterpTest
 
   it should "list azure and gcp disks" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
@@ -448,11 +412,6 @@ class DiskServiceInterpTest
 
   it should "list disks with a project" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
@@ -466,11 +425,6 @@ class DiskServiceInterpTest
 
   it should "list disks with project access" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
@@ -484,11 +438,6 @@ class DiskServiceInterpTest
 
   it should "list disks with parameters" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -502,11 +451,6 @@ class DiskServiceInterpTest
 
   it should "list disks belonging to other users" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     // Make disks belonging to different users than the calling user
     val res = for {
@@ -529,11 +473,6 @@ class DiskServiceInterpTest
 
   it should "list disks belonging to self and others, if not filtered by role=creator" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -551,11 +490,6 @@ class DiskServiceInterpTest
 
   it should "list disks belonging to self only, if filtered by role=creator" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -573,11 +507,6 @@ class DiskServiceInterpTest
 
   it should "fail to list disks if filtered by role=not_creator" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -595,11 +524,6 @@ class DiskServiceInterpTest
 
   it should "delete a disk" in isolatedDbTest {
     val (diskService, publisherQueue) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -623,11 +547,6 @@ class DiskServiceInterpTest
 
   it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
     val (diskService, _) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       t <- appContext.ask[AppContext]
@@ -651,11 +570,6 @@ class DiskServiceInterpTest
 
   it should "fail to delete a disk if user lost project access" in isolatedDbTest {
     val (diskService, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       t <- appContext.ask[AppContext]
@@ -679,11 +593,6 @@ class DiskServiceInterpTest
 
   it should "delete a disk records but not queue delete disk message" in isolatedDbTest {
     val (diskService, publisherQueue) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -712,11 +621,6 @@ class DiskServiceInterpTest
   it should "fail to delete a disk records if the user does not have permission" in isolatedDbTest {
     val (diskService1, _) = makeDiskService()
     val (diskService2, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -742,11 +646,6 @@ class DiskServiceInterpTest
 
   it should "delete all disks records but not queue delete disk messages" in isolatedDbTest {
     val (diskService, publisherQueue) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -776,11 +675,6 @@ class DiskServiceInterpTest
 
   it should "delete all orphaned disks" in isolatedDbTest {
     val (diskService, publisherQueue) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -824,11 +718,6 @@ class DiskServiceInterpTest
 
   it should "fail to delete all orphaned disks if a disk is not deletable" in isolatedDbTest {
     val (diskService, publisherQueue) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -860,11 +749,6 @@ class DiskServiceInterpTest
 
   List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
     status =>
-      val userInfo = UserInfo(OAuth2BearerToken(""),
-                              WorkbenchUserId("userId"),
-                              WorkbenchEmail("user1@example.com"),
-                              0
-      ) // this email is allow-listed
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val (diskService, _) = makeDiskService()
         val res = for {
@@ -884,11 +768,6 @@ class DiskServiceInterpTest
 
   it should "update a disk in Ready status" in isolatedDbTest {
     val (diskService, publisherQueue) = makeDiskService()
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -903,6 +782,13 @@ class DiskServiceInterpTest
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "get a correct sam policy map for disks" in {
+    val map = DiskServiceInterp.getDiskSamPolicyMap(userEmail)
+    map should have size 1
+    map should contain key "creator"
+    map("creator") shouldBe SamPolicyData(List(userEmail), List(PersistentDiskRole.Creator.asString))
   }
 }
 

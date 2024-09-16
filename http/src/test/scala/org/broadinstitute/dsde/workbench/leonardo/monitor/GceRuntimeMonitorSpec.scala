@@ -621,7 +621,8 @@ class GceRuntimeMonitorSpec
       FakeGoogleStorageService,
       MockGoogleDiskService,
       publisherQueue,
-      GceInterp
+      GceInterp,
+      MockSamService
     )
   }
 

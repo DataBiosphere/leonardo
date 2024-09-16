@@ -5,7 +5,13 @@ import cats.effect.{Deferred, IO}
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppStatus, Autodelete, AutodeleteThreshold, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppStatus,
+  Autodelete,
+  AutodeleteThreshold,
+  LeonardoTestSuite,
+  MockSamService
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
@@ -77,7 +83,8 @@ class AutoDeleteAppMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with T
     publisherQueue: Queue[IO, LeoPubsubMessage],
     authProvider: LeoAuthProvider[IO]
   )(waitDuration: FiniteDuration): IO[Unit] = {
-    val monitorProcess = AutoDeleteAppMonitor.process[IO](autodeleteConfig, publisherQueue, authProvider)
+    val monitorProcess =
+      AutoDeleteAppMonitor.process[IO](autodeleteConfig, publisherQueue, authProvider, MockSamService)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val signal = Stream.sleep[IO](waitDuration).evalMap(_ => signalToStop.complete(())).void
       val p = Stream(monitorProcess.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)

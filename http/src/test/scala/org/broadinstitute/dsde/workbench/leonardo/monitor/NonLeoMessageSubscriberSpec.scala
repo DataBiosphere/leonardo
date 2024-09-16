@@ -355,7 +355,8 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       MockAuthProvider,
       googleSubscriber,
       publisher,
-      asyncTaskQueue
+      asyncTaskQueue,
+      MockSamService
     )
   }
 }

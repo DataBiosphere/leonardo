@@ -36,21 +36,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.{googleDataprocRetryPolicy, CloudService}
 import org.broadinstitute.dsde.workbench.leonardo.http.Boot.workbenchMetricsBaseName
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  CloudServiceRuntimeMonitor,
-  DataprocRuntimeMonitor,
-  GceRuntimeMonitor,
-  MonitorAtBoot,
-  NonLeoMessage,
-  NonLeoMessageSubscriber,
-  NonLeoMessageSubscriberConfig,
-  RuntimeMonitor
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.leonardo.{googleDataprocRetryPolicy, CloudService}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
 import org.typelevel.log4cats.StructuredLogger
@@ -110,7 +101,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         baselineDependencies.authProvider,
         gcpDependencies.nonLeoMessageSubscriber,
         gcpDependencies.cryptoMiningUserPublisher,
-        baselineDependencies.asyncTasksQueue
+        baselineDependencies.asyncTasksQueue,
+        baselineDependencies.samService
       )
 
     List(
@@ -329,7 +321,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         Some(gcpDependencies.googleComputeService),
         Some(gcpDependencies.googleResourceService),
         gkeCustomAppConfig,
-        baselineDependencies.wsmDAO,
         baselineDependencies.wsmClientProvider,
         baselineDependencies.samService
       )
@@ -371,7 +362,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       gcpDependencies.googleStorageService,
       gcpDependencies.googleDiskService,
       baselineDependencies.publisherQueue,
-      gceInterp
+      gceInterp,
+      baselineDependencies.samService
     )
 
     val dataprocRuntimeMonitor = new DataprocRuntimeMonitor[IO](
@@ -381,7 +373,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       gcpDependencies.googleStorageService,
       gcpDependencies.googleDiskService,
       dataprocInterp,
-      gcpDependencies.googleDataproc
+      gcpDependencies.googleDataproc,
+      baselineDependencies.samService
     )
 
     val cloudServiceRuntimeMonitor =

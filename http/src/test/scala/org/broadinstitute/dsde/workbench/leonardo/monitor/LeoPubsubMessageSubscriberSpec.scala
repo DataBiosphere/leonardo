@@ -2151,7 +2151,6 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  final case class TestExceptionIndexTuple(exception: Throwable, index: Int)
   it should "save an error and transition app to error when a fatal error occurs in azure updateAndPollApp" in isolatedDbTest {
     val errors = Table(
       "exception",
@@ -2579,7 +2578,8 @@ class LeoPubsubMessageSubscriberSpec
       MockAuthProvider,
       azureInterp,
       operationFutureCache,
-      subscriberServicesRegistry
+      subscriberServicesRegistry,
+      MockSamService
     )
   }
   val (mockWsm, mockControlledResourceApi, mockResourceApi, workspaceApi) =
@@ -2626,3 +2626,5 @@ class LeoPubsubMessageSubscriberSpec
       ): IO[Option[Disk]] = IO(Some(Disk.newBuilder().setLastDetachTimestamp(Random.nextInt().toString).build()))
     }
 }
+
+final case class TestExceptionIndexTuple(exception: Throwable, index: Int)
