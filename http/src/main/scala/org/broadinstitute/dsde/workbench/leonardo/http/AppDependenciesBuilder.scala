@@ -177,7 +177,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.azureContainerService
     )
 
-    /*val metricsMonitor = new LeoMetricsMonitor(
+    val metricsMonitor = new LeoMetricsMonitor(
       ConfigReader.appConfig.metrics,
       baselineDependencies.appDAO,
       baselineDependencies.wdsDAO,
@@ -188,7 +188,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.samDAO,
       kubeAlg,
       baselineDependencies.azureContainerService
-    )*/
+    )
 
     val cromwellAppInstall = new CromwellAppInstall[IO](
       ConfigReader.appConfig.azure.coaAppConfig,
