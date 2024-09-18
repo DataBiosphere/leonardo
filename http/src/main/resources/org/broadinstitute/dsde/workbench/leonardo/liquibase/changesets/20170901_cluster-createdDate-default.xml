@@ -2,6 +2,6 @@
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
     <changeSet logicalFilePath="leonardo" author="kumra" id="cluster-createdDate-default">
         <sql dbms="mysql">ALTER TABLE  CLUSTER
-            CHANGE createdDate createdDate TIMESTAMP(6) NOT NULL DEFAULT 0</sql>
+            CHANGE createdDate createdDate TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)</sql>
     </changeSet>
 </databaseChangeLog>
