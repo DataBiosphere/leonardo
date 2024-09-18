@@ -19,6 +19,7 @@ EXIT_CODE=0
 if [ -f "/var/certs/jupyter-server.crt" ]
 then
   export CLOUD_SERVICE='GCE'
+  export WORK_DIRECTORY='/mnt/disks/work'
   CERT_DIRECTORY='/var/certs'
   GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
   GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
@@ -27,6 +28,7 @@ then
 
 else
   export CLOUD_SERVICE='DATAPROC'
+  export WORK_DIRECTORY='/work'
   CERT_DIRECTORY='/certs'
   GSUTIL_CMD='gsutil'
   GCLOUD_CMD='gcloud'
@@ -216,8 +218,6 @@ fi
 
 if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
     # GCE
-    export WORK_DIRECTORY='/mnt/disks/work'
-
     fsck.ext4 -tvy ${DISK_DEVICE_ID}
     mkdir -p /mnt/disks/work
     mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
@@ -290,7 +290,6 @@ END
     fi
 else
     # DATAPROC
-    export WORK_DIRECTORY='/work'
 
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
