@@ -278,9 +278,9 @@ MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+        ${DOCKER_COMPOSE} -f ${RSTUDIO_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} -f ${RSTUDIO_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${RSTUDIO_DOCKER_COMPOSE} up -d
 
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
