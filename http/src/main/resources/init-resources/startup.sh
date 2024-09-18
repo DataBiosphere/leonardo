@@ -34,6 +34,7 @@ else
   DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
 fi
 export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
+export RSTUDIO_USER_HOME=/home/rstudio
 export GOOGLE_PROJECT=$(googleProject)
 export CLUSTER_NAME=$(clusterName)
 export RUNTIME_NAME=$(clusterName)
