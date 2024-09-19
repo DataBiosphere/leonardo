@@ -65,7 +65,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.mockito.ArgumentMatchers.{any, eq => isEq}
-import org.mockito.Mockito.when
+import org.mockito.Mockito.{doAnswer, when}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
@@ -838,39 +838,34 @@ class RuntimeServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "throw RuntimeNotFoundException when user has no access" in isolatedDbTest {
+  it should "raise RuntimeNotFoundException when user has no access" in isolatedDbTest {
     val mockSamService: SamService[IO] = mock[SamService[IO]](defaultMockitoAnswer[IO])
-    when(
-      mockSamService.checkAuthorized(
+    doAnswer { _ =>
+      IO.raiseError(
+        SamException.create(
+          s"USER is not authorized to perform ACTION on RUNTIME",
+          StatusCodes.Forbidden.intValue,
+          TraceId(UUID.randomUUID)
+        )
+      )
+    }.when(mockSamService)
+      .checkAuthorized(
         isEq(userInfo.accessToken.token),
         any(runtimeSamResource.getClass),
         isEq(RuntimeAction.GetRuntimeStatus)
       )(any(Ask[IO, AppContext].getClass))
-    ).thenReturn(
-      IO.pure(
-        Left(
-          SamException.create(
-            s"USER is not authorized to perform ACTION on RUNTIME",
-            StatusCodes.Forbidden.intValue,
-            TraceId(UUID.randomUUID)
-          )
-        )
-      )
-    )
     val service = makeRuntimeService(samService = mockSamService)
-
-    val exc = service
-      .getRuntime(unauthorizedUserInfo, cloudContextGcp, RuntimeName("cluster"))
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-
-    exc shouldBe a[RuntimeNotFoundException]
+    val res = for {
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1, None, cloudContextGcp, samResource).save())
+      getResponse <- service.getRuntime(userInfo, cloudContextGcp, testRuntime.runtimeName)
+    } yield getResponse
+    the[RuntimeNotFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
-  it should "throw RuntimeNotFoundException when runtime does not exist" in isolatedDbTest {
+  it should "raise RuntimeNotFoundException when runtime does not exist" in isolatedDbTest {
     val service = makeRuntimeService()
     val exc = service
       .getRuntime(userInfo, CloudContext.Gcp(GoogleProject("nonexistent")), RuntimeName("cluster"))
