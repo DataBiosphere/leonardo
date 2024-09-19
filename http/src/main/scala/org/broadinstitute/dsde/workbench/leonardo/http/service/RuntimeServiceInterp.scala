@@ -235,6 +235,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[GetRuntimeResponse] = for {
     ctx <- as.ask
 
+    // raises RuntimeNotFoundException
     runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
     bearerToken = userInfo.accessToken.token
