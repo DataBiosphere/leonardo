@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
@@ -235,20 +235,18 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[GetRuntimeResponse] = for {
     ctx <- as.ask
 
-    // raises RuntimeNotFoundException
+    // raises RuntimeNotFoundException Not Found
     runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
     bearerToken = userInfo.accessToken.token
 
+    // raises SamException Forbidden
     _ <- samService
       .checkAuthorized(
         bearerToken,
         runtime.samResource,
         RuntimeAction.GetRuntimeStatus
       )
-      .adaptError { case _: SamException =>
-        RuntimeNotFoundException(cloudContext, runtimeName, "requires RuntimeAction GetRuntimeStatus")
-      }
   } yield runtime
 
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(

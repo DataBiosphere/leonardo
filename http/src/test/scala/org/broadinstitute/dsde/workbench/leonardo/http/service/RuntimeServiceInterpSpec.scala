@@ -838,7 +838,7 @@ class RuntimeServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "raise RuntimeNotFoundException when user has no access" in isolatedDbTest {
+  it should "raise SamException when user has no access" in isolatedDbTest {
     val mockSamService: SamService[IO] = mock[SamService[IO]](defaultMockitoAnswer[IO])
     doAnswer { _ =>
       IO.raiseError(
@@ -860,7 +860,7 @@ class RuntimeServiceInterpTest
       testRuntime <- IO(makeCluster(1, None, cloudContextGcp, samResource).save())
       getResponse <- service.getRuntime(userInfo, cloudContextGcp, testRuntime.runtimeName)
     } yield getResponse
-    the[RuntimeNotFoundException] thrownBy {
+    the[SamException] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
