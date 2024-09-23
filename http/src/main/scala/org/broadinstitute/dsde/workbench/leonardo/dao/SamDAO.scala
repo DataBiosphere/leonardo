@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.mtl.Ask
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
@@ -69,57 +69,6 @@ trait SamDAO[F[_]] {
   def getResourceRoles(authHeader: Authorization, resourceId: SamResourceId)(implicit
     ev: Ask[F, TraceId]
   ): F[Set[SamRole]]
-
-  /** Creates a Sam resource R using a GCP pet credential for the given email/project. */
-  def createResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    sr: SamResource[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  /** Creates a Sam resource R using the provided user token. */
-  def createResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
-    sr: SamResource[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  /** Creates a Sam resource R with the provided google project as the parent resource using a GCP pet credential
-     for the given email/project. */
-  def createResourceWithGoogleProjectParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  /** Creates a Sam resource R with the provided workspace as the parent resource
-   * for the given email/project. */
-  def createResourceWithWorkspaceParent[R](resource: R,
-                                           creatorEmail: WorkbenchEmail,
-                                           userInfo: UserInfo,
-                                           workspaceId: WorkspaceId
-  )(implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  /** Deletes a Sam resource R using a GCP pet credential for the given email/project. */
-  def deleteResourceAsGcpPet[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    sr: SamResource[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  /** Deletes a Sam resource R using the provided user info. */
-  def deleteResourceWithUserInfo[R](resource: R, userInfo: UserInfo)(implicit
-    sr: SamResource[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  /** Deletes a Sam resource R using the provided bearer token. */
-  def deleteResourceInternal[R](resource: R, authHeader: Authorization)(implicit
-    sr: SamResource[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
 
   /** Gets a pet GCP service account for the calling user. */
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit

@@ -25,11 +25,11 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmException, Release, Values}
+import org.broadinstitute.dsp._
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
+import org.mockito.Mockito._
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.Succeeded
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -79,7 +79,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockKube,
       mockWsm,
       mockWsmDAO,
-      mockSamAuthProvider
+      mockSamAuthProvider,
+      MockSamService
     )
 
   val aksInterp = newAksInterp(config)
@@ -241,7 +242,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockKube,
       mockWsm,
       mockWsmDAO,
-      mockSamAuthProvider
+      mockSamAuthProvider,
+      MockSamService
     )
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -1047,9 +1049,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     when {
       sam.getCachedArbitraryPetAccessToken(any)(any)
     } thenReturn IO.pure(Some("token"))
-    when {
-      sam.deleteResourceInternal(any, any)(any, any)
-    } thenReturn IO.unit
     when {
       sam.getLeoAuthToken
     } thenReturn IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "leotoken")))

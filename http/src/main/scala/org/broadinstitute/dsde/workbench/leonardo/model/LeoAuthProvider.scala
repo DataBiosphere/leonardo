@@ -3,8 +3,9 @@ package model
 
 import cats.data.NonEmptyList
 import cats.mtl.Ask
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   AppSamResource,
   PersistentDiskSamResource,
@@ -13,7 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   WorkspaceResource,
   WsmResource
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -282,36 +282,6 @@ trait LeoAuthProvider[F[_]] {
   )(implicit
     ev: Ask[F, TraceId]
   ): F[Set[WorkspaceResourceSamResourceId]]
-
-  // Creates a resource in Sam
-  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  def notifyResourceCreatedV2[R](samResource: R,
-                                 creatorEmail: WorkbenchEmail,
-                                 cloudContext: CloudContext,
-                                 workspaceId: WorkspaceId,
-                                 userInfo: UserInfo
-  )(implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  // Deletes a resource in Sam
-  def notifyResourceDeleted[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
-
-  def notifyResourceDeletedV2[R](
-    samResource: R,
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
 
   def isUserWorkspaceOwner(
     workspaceResource: WorkspaceResourceSamResourceId,

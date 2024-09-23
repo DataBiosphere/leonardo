@@ -13,9 +13,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
 import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoTestSuite,
   RuntimeAction,
+  RuntimeRole,
   SamPolicyData,
-  SamResourceType,
-  SamRole
+  SamResourceType
 }
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -140,6 +140,34 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       }
     }
 
+    describe("getArbitraryPetServiceAccountToken") {
+      it("should successfully request an arbitrary pet token") {
+        // test
+        val result =
+          newSamService().getArbitraryPetServiceAccountToken(userEmail).unsafeRunSync()
+
+        // assert
+        result shouldBe tokenValue
+      }
+
+      it("should fail with a SamException") {
+        // setup
+        val googleApi = mock[GoogleApi]
+        when(
+          googleApi.getUserArbitraryPetServiceAccountToken(ArgumentMatchers.eq(userEmail.value), anyList())
+        ).thenThrow(new ApiException(404, "not found"))
+
+        // test
+        val result = the[SamException] thrownBy newSamService(googleApi = googleApi)
+          .getArbitraryPetServiceAccountToken(userEmail)
+          .unsafeRunSync()
+
+        // assert
+        result.getMessage should include("not found")
+        result.statusCode shouldBe StatusCodes.NotFound
+      }
+    }
+
     describe("lookupWorkspaceParentForGoogleProject") {
       it("should successfully lookup a google project's parent workspace") {
         // test
@@ -221,7 +249,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       it("should successfully check authorization") {
         // test
         newSamService()
-          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus)
           .unsafeRunSync()
       }
 
@@ -237,7 +265,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
-          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus)
           .unsafeRunSync()
 
         // assert
@@ -254,7 +282,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // test
         val result = the[SamException] thrownBy newSamService(resourcesApi = resourcesApi)
-          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus.asString)
+          .checkAuthorized(tokenValue, runtimeSamResource, RuntimeAction.GetRuntimeStatus)
           .unsafeRunSync()
 
         // assert
@@ -376,7 +404,7 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
                           runtimeSamResource,
                           None,
                           Some(workspaceId),
-                          Map("aPolicy" -> SamPolicyData(List(userEmail), List(SamRole.Creator)))
+                          Map("aPolicy" -> SamPolicyData(List(userEmail), List(RuntimeRole.Creator.asString)))
           )
           .unsafeRunSync()
 
@@ -533,8 +561,11 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
                                               ArgumentMatchers.eq(userEmail.value),
                                               anyList()
       )
-    )
-      .thenReturn(tokenValue)
+    ).thenReturn(tokenValue)
+    when(
+      googleApi
+        .getUserArbitraryPetServiceAccountToken(ArgumentMatchers.eq(userEmail.value), anyList())
+    ).thenReturn(tokenValue)
     googleApi
   }
 

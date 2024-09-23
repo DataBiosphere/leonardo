@@ -4,16 +4,9 @@ package util
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import bio.terra.workspace.client.ApiException
-import bio.terra.workspace.model.{
-  AzureVmAttributes,
-  AzureVmResource,
-  CreatedControlledAzureVmResult,
-  DeleteControlledAzureResourceRequest,
-  JobReport
-}
+import bio.terra.workspace.model._
 import cats.effect.IO
 import cats.effect.std.Queue
-import cats.implicits._
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
@@ -45,7 +38,7 @@ import reactor.core.publisher.Mono
 
 import java.net.URL
 import java.nio.file.Paths
-import java.time.{Instant, ZonedDateTime}
+import java.time.ZonedDateTime
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 

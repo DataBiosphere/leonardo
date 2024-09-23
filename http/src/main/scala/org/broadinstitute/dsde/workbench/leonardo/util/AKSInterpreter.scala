@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -46,7 +47,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            kubeAlg: KubernetesAlgebra[F],
                            wsmClientProvider: WsmApiClientProvider[F],
                            legacyWsmDao: WsmDao[F],
-                           authProvider: SamAuthProvider[F]
+                           authProvider: SamAuthProvider[F],
+                           samService: SamService[F]
 )(implicit
   appTypeToAppInstall: AppType => AppInstall[F],
   executionContext: ExecutionContext,
@@ -632,18 +634,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+      petToken <- samService.getArbitraryPetServiceAccountToken(userEmail)
       _ <- childSpan("deleteSamResource").use { implicit ev =>
-        tokenOpt match {
-          case Some(token) =>
-            samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                          Authorization(Credentials.Token(AuthScheme.Bearer, token))
-            )
-          case None =>
-            logger.warn(
-              s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
-            )
-        }
+        samService.deleteResource(petToken, dbApp.app.samResourceId)
       }
 
       _ <- logger.info(
