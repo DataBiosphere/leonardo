@@ -227,7 +227,7 @@ if grep -qF "us.gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PRO
 # if coming from a private repo on GCR, need to use credentials supplied in cryptopants/docker-compose-gcr 
 # (see https://hub.docker.com/r/cryptopants/docker-compose-gcr)
 elif grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
-  log 'Authorizing GAR...'
+  log 'Authorizing GCR...'
   DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
 else
   DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2"
