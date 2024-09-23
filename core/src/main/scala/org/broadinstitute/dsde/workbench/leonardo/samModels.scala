@@ -149,6 +149,9 @@ object RuntimeAction {
   final case object SetParent extends RuntimeAction {
     val asString = "set_parent"
   }
+  final case object GetParent extends RuntimeAction {
+    val asString = "get_parent"
+  }
 
   val allActions = sealerate.values[RuntimeAction]
   val stringToAction: Map[String, RuntimeAction] =
@@ -174,6 +177,9 @@ object PersistentDiskAction {
   }
   final case object SetParent extends PersistentDiskAction {
     val asString = "set_parent"
+  }
+  final case object GetParent extends PersistentDiskAction {
+    val asString = "get_parent"
   }
 
   val allActions = sealerate.values[PersistentDiskAction]
