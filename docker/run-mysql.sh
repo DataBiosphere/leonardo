@@ -17,7 +17,7 @@ start() {
                -e MYSQL_DATABASE=leotestdb \
                -d \
                -p 3311:3306 \
-               mysql/mysql-server:$MYSQL_VERSION
+               mysql/mysql-server:$MYSQL_VERSION \
 
     # validate mysql
     echo "running mysql validation..."

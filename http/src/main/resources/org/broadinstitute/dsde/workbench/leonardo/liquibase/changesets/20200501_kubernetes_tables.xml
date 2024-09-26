@@ -2,46 +2,66 @@
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
     <changeSet logicalFilePath="leonardo" author="jcanas" id="kubernetes_cluster_table">
-        <createTable tableName="KUBERNETES_CLUSTER">
-            <column name="id" type="BIGINT" autoIncrement="true">
-                <constraints primaryKey="true"/>
-            </column>
-            <column name="googleProject" type="VARCHAR(254)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="clusterName" type="VARCHAR(254)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="location" type="VARCHAR(254)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="status" type="VARCHAR(254)" defaultValue="STATUS_UNSPECIFIED">
-                <constraints nullable="false"/>
-            </column>
-            <column name="serviceAccount" type="VARCHAR(254)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="samResourceId" type="VARCHAR(254)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="creator" type="VARCHAR(254)">
-                <constraints nullable="false"/>
-            </column>
-            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
-                <constraints nullable="false"/>
-            </column>
-            <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
-                <constraints nullable="false"/>
-            </column>
-            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
-                <constraints nullable="false"/>
-            </column>
-            <column name="apiServerIp" type="VARCHAR(254)"/>
-            <column name="networkName" type="VARCHAR(254)"/>
-            <column name="subNetworkName" type="VARCHAR(254)"/>
-            <column name="subNetworkIpRange" type="VARCHAR(254)"/>
-        </createTable>
-        <addUniqueConstraint columnNames="googleProject, clusterName, destroyedDate" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE" tableName="KUBERNETES_CLUSTER"/>
+<!--        <createTable tableName="KUBERNETES_CLUSTER">-->
+<!--            <column name="id" type="BIGINT" autoIncrement="true">-->
+<!--                <constraints primaryKey="true"/>-->
+<!--            </column>-->
+<!--            <column name="googleProject" type="VARCHAR(254)">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="clusterName" type="VARCHAR(254)">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="location" type="VARCHAR(254)">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="status" type="VARCHAR(254)" defaultValue="STATUS_UNSPECIFIED">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="serviceAccount" type="VARCHAR(254)">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="samResourceId" type="VARCHAR(254)">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="creator" type="VARCHAR(254)">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="'0000-00-00 00:00:00.000000'">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">-->
+<!--                <constraints nullable="false"/>-->
+<!--            </column>-->
+<!--            <column name="apiServerIp" type="VARCHAR(254)"/>-->
+<!--            <column name="networkName" type="VARCHAR(254)"/>-->
+<!--            <column name="subNetworkName" type="VARCHAR(254)"/>-->
+<!--            <column name="subNetworkIpRange" type="VARCHAR(254)"/>-->
+<!--        </createTable>-->
+<!--        <addUniqueConstraint columnNames="googleProject, clusterName, destroyedDate" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE" tableName="KUBERNETES_CLUSTER"/>-->
+        <sql>
+            CREATE TABLE KUBERNETES_CLUSTER (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                googleProject VARCHAR(254) NOT NULL,
+                clusterName VARCHAR(254) NOT NULL,
+                location VARCHAR(254) NOT NULL,
+                status VARCHAR(254) NOT NULL DEFAULT "STATUS_UNSPECIFIED",
+                serviceAccount VARCHAR(254) NOT NULL,
+                samResourceId VARCHAR(254) NOT NULL,
+                creator VARCHAR(254) NOT NULL,
+                createdDate TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",
+                destroyedDate TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",
+                dateAccessed TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",
+                apiServerIp VARCHAR(254),
+                networkName VARCHAR(254),
+                subNetworkName VARCHAR(254),
+                subNetworkIpRange VARCHAR(254),
+                UNIQUE (googleProject, clusterName, destroyedDate)
+            );
+        </sql>
     </changeSet>
 
     <changeSet logicalFilePath="leonardo"  id="nodepool_table" author="jcanas">
