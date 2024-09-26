@@ -220,18 +220,7 @@ START_TIME=$(date +%s)
 STEP_TIMINGS=($(date +%s))
 
 
-# everything in the public broad us.gcr.io bucket has been migrated to GAR
-if grep -qF "us.gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
-  log 'Authorizing GAR...'
-  DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2"
-# if coming from a private repo on GCR, need to use credentials supplied in cryptopants/docker-compose-gcr 
-# (see https://hub.docker.com/r/cryptopants/docker-compose-gcr)
-elif grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
-  log 'Authorizing GCR...'
-  DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
-else
-  DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2"
-fi
+DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2"
 
 mkdir -p ${WORK_DIRECTORY}
 mkdir -p ${CERT_DIRECTORY}
@@ -385,7 +374,14 @@ docker network create -d bridge app_network
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
 
 # Docker Pull
-retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull &> /var/docker_pull_output.txt
+log 'Pulling docker images...'
+if ! retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull &> /var/docker_pull_output.txt; then
+    # if coming from a private repo on GCR, need to use credentials supplied in cryptopants/docker-compose-gcr
+    # (see https://hub.docker.com/r/cryptopants/docker-compose-gcr)
+    log 'Docker pull failed. Private image, trying with cryptopants/docker-compose-gcr...'
+    DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
+    retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull &> /var/docker_pull_output.txt;
+fi
 
 # This needs to happen before we start up containers because the jupyter user needs to be the owner of the PD
 chmod a+rwx ${WORK_DIRECTORY}
