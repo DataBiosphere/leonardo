@@ -22,7 +22,7 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 /**
- * This monitor periodically sweeps the Leo database and autodelete App that have been running for too long.
+ * This monitor periodically sweeps the Leo database and autodeletes Apps that have been running for too long.
  */
 class AutoDeleteAppMonitor[F[_]](
   config: AutoDeleteConfig,
@@ -35,8 +35,7 @@ class AutoDeleteAppMonitor[F[_]](
   ec: ExecutionContext,
   openTelemetry: OpenTelemetryMetrics[F]
 ) extends BackgroundProcess[F, AppToAutoDelete] {
-  override def name: String =
-    "autodeleteApp" //
+  override def name: String = "autodeleteApp"
   override def interval: scala.concurrent.duration.FiniteDuration = config.autodeleteCheckInterval
 
   override def getCandidates(now: Instant)(implicit
@@ -54,7 +53,7 @@ class AutoDeleteAppMonitor[F[_]](
       _ <- a.cloudContext match {
         case CloudContext.Gcp(googleProject) =>
           if (a.appStatus == AppStatus.Error) {
-            implicit val implicitAppContext = Ask.const(AppContext(traceId, now))
+            implicit val implicitAppContext: Ask[F, AppContext] = Ask.const(AppContext(traceId, now))
             for {
               // delete kubernetes-app Sam resource
               petToken <- samService.getPetServiceAccountToken(a.creator, googleProject)
