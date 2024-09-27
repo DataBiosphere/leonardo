@@ -31,6 +31,7 @@ terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.1.9"
 google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20230714"
 docker_composer="docker/compose:1.29.2"
+docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
 # If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
