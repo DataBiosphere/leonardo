@@ -1,27 +1,54 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
     <changeSet logicalFilePath="leonardo" author="rtitle" id="persistent-disk-table">
-        <sql>
-            CREATE TABLE PERSISTENT_DISK (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                googleProject VARCHAR(255) NOT NULL,
-                zone VARCHAR(255) NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                googleId VARCHAR(255),
-                samResourceId VARCHAR(255) NOT NULL,
-                status VARCHAR(255) NOT NULL,
-                creator VARCHAR(255) NOT NULL,
-                createdDate TIMESTAMP(6) NOT NULL,
-                destroyedDate TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",
-                dateAccessed TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",
-                sizeGb INT NOT NULL,
-                type VARCHAR(255) NOT NULL,
-                blockSizeBytes INT NOT NULL,
-
-                UNIQUE (googleProject, name, destroyedDate),
-                INDEX IDX_PERSISTENT_DISK_STATUS (status)
-            );
-        </sql>
+        <createTable tableName="PERSISTENT_DISK">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="googleProject" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="zone" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleId" type="VARCHAR(255)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="samResourceId" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="creator" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sizeGb" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="blockSizeBytes" type="INT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint columnNames="googleProject, name, destroyedDate" constraintName="IDX_PERSISTENT_DISK_UNIQUE" tableName="PERSISTENT_DISK"/>
+        <createIndex indexName="IDX_PERSISTENT_DISK_STATUS" tableName="PERSISTENT_DISK">
+            <column name="status"/>
+        </createIndex>
     </changeSet>
 
     <changeSet logicalFilePath="leonardo" author="rtitle" id="update-label-table">
