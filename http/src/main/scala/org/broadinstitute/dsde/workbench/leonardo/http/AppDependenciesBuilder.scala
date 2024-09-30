@@ -30,7 +30,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   AutoDeleteAppMonitor,
   AutopauseMonitor,
   DateAccessedUpdater,
-  LeoMetricsMonitor,
   LeoPubsubMessageSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
