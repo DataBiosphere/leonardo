@@ -53,7 +53,7 @@ object Dependencies {
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
-  val excludeWorkbenchUtils2 = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-utils2_${scalaV}")
+  val excludeWorkbenchUtils2 = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-util2_${scalaV}")
 
   val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.4"
 
