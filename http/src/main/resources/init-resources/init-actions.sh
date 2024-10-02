@@ -276,11 +276,11 @@ END
     fi
 
 
-    # If any image is hosted in a GCR registry (detected by regex) then
+    # If any image is hosted in a GAR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
-    # TODO - Also check for GAR see https://broadworkbench.atlassian.net/browse/IA-4518
+    # NOTE: GCR images are now hosted on GAR, but the file paths haven't changed, they automatically redirect.
     if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
-      log 'Authorizing GCR...'
+      log 'Authorizing GCR/GAR...'
       gcloud auth configure-docker
     fi
 
