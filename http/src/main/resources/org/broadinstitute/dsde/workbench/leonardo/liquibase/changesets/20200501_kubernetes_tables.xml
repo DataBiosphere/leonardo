@@ -42,26 +42,6 @@
             <column name="subNetworkIpRange" type="VARCHAR(254)"/>
         </createTable>
         <addUniqueConstraint columnNames="googleProject, clusterName, destroyedDate" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE" tableName="KUBERNETES_CLUSTER"/>
-<!--        <sql>-->
-<!--            CREATE TABLE KUBERNETES_CLUSTER (-->
-<!--                id BIGINT AUTO_INCREMENT PRIMARY KEY,-->
-<!--                googleProject VARCHAR(254) NOT NULL,-->
-<!--                clusterName VARCHAR(254) NOT NULL,-->
-<!--                location VARCHAR(254) NOT NULL,-->
-<!--                status VARCHAR(254) NOT NULL DEFAULT "STATUS_UNSPECIFIED",-->
-<!--                serviceAccount VARCHAR(254) NOT NULL,-->
-<!--                samResourceId VARCHAR(254) NOT NULL,-->
-<!--                creator VARCHAR(254) NOT NULL,-->
-<!--                createdDate TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",-->
-<!--                destroyedDate TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",-->
-<!--                dateAccessed TIMESTAMP(6) NOT NULL DEFAULT "1970-01-01 00:00:01.000000",-->
-<!--                apiServerIp VARCHAR(254),-->
-<!--                networkName VARCHAR(254),-->
-<!--                subNetworkName VARCHAR(254),-->
-<!--                subNetworkIpRange VARCHAR(254),-->
-<!--                CONSTRAINT IDX_KUBERNETES_CLUSTER_UNIQUE UNIQUE (googleProject, clusterName, destroyedDate)-->
-<!--            );-->
-<!--        </sql>-->
     </changeSet>
 
     <changeSet logicalFilePath="leonardo"  id="nodepool_table" author="jcanas">
