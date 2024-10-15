@@ -232,34 +232,22 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
   override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
     as: Ask[F, AppContext]
-  ): F[GetRuntimeResponse] =
-    for {
-      ctx <- as.ask
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+  ): F[GetRuntimeResponse] = for {
+    ctx <- as.ask
 
-      // throws 404 if not existent
-      resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
+    // raises RuntimeNotFoundException Not Found
+    runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
-      // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasPermissionWithProjectFallback[RuntimeSamResourceId, RuntimeAction](
-        resp.samResource,
-        RuntimeAction.GetRuntimeStatus,
-        ProjectAction.GetRuntimeStatus,
-        userInfo,
-        GoogleProject(cloudContext.asString)
+    bearerToken = userInfo.accessToken.token
+
+    // raises SamException Forbidden
+    _ <- samService
+      .checkAuthorized(
+        bearerToken,
+        runtime.samResource,
+        RuntimeAction.GetRuntimeStatus
       )
-      _ <-
-        if (hasPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext, runtimeName, "permission denied")
-          )
-    } yield resp
+  } yield runtime
 
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
     implicit as: Ask[F, AppContext]
