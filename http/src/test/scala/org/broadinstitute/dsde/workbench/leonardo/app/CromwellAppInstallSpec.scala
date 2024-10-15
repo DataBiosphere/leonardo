@@ -82,6 +82,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
     val params = BuildHelmOverrideValuesParams(
       app,
       workspaceId,
+      workspaceName,
       cloudContext,
       billingProfileId,
       lzResources.copy(postgresServer = Some(PostgresServer("postgres", false))),
@@ -90,7 +91,8 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       ServiceAccountName("ksa-1"),
       ManagedIdentityName("mi-1"),
       cromwellOnAzureDatabases,
-      aksInterpConfig
+      aksInterpConfig,
+      None
     )
 
     val overrides = cromwellAppInstall.buildHelmOverrideValues(params)

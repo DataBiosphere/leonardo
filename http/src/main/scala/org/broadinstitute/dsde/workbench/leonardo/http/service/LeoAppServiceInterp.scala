@@ -96,7 +96,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
-            AppType.CromwellRunnerApp =>
+            AppType.CromwellRunnerApp | AppType.Jupyter =>
           F.unit
         case AppType.Allowed =>
           req.allowedChartName match {
@@ -1203,6 +1203,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
                 (Some(FormattedBy.Cromwell), Some(AppRestore.Other(_))) |
+                (Some(FormattedBy.Jupyter), Some(AppRestore.Other(_))) |
                 (Some(FormattedBy.Allowed), Some(AppRestore.Other(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
@@ -1409,11 +1410,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Validate disk.
       // Apps on GCP require a disk.
-      // Apps on Azure require _no_ disk.
-      _ <- (cloudContext.cloudProvider, diskOpt) match {
-        case (CloudProvider.Gcp, None) =>
+      // Apps on Azure require _no_ disk. !!except Jupyter apps!!
+      _ <- (cloudContext.cloudProvider, diskOpt, req.appType == AppType.Jupyter) match {
+        case (CloudProvider.Gcp, None, _) =>
           Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
-        case (CloudProvider.Azure, Some(_)) =>
+        case (CloudProvider.Azure, None, true) =>
+          Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
+        case (CloudProvider.Azure, Some(_), false) =>
           Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
         case _ => Right(())
       }

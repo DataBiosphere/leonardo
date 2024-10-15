@@ -235,7 +235,19 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           List(
             ServiceConfig(ServiceName("batch"), KubernetesServiceKindName("ClusterIP"))
           ),
-          false,
+          enabled = false,
+          chartVersionsToExcludeFromUpdates = List()
+        ),
+        JupyterAppConfig(
+          ChartName("terra-helm/jupyter"),
+          ChartVersion("0.1.0"),
+          ReleaseNameSuffix("jupyter-rls"),
+          NamespaceNameSuffix("jupyter-ns"),
+          KsaName("jupyter-ksa"),
+          List(
+            ServiceConfig(ServiceName("jupyter"), KubernetesServiceKindName("ClusterIP"))
+          ),
+          enabled = true,
           chartVersionsToExcludeFromUpdates = List()
         ),
         List(AppType.Wds, AppType.WorkflowsApp),

@@ -129,6 +129,10 @@ object FormattedBy extends Enum[FormattedBy] {
     override def asString: String = "CROMWELL"
   }
 
+  final case object Jupyter extends FormattedBy {
+    override def asString: String = "JUPYTER"
+  }
+
   final case object Allowed extends FormattedBy {
     override def asString: String = "ALLOWED"
   }

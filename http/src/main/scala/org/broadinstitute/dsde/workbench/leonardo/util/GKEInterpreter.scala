@@ -1213,7 +1213,7 @@ class GKEInterpreter[F[_]](
               config.monitorConfig.startApp.interval
             ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
           } yield last.isDone
-        case AppType.Wds | AppType.HailBatch | AppType.WorkflowsApp | AppType.CromwellRunnerApp =>
+        case AppType.Wds | AppType.HailBatch | AppType.WorkflowsApp | AppType.CromwellRunnerApp | AppType.Jupyter =>
           F.raiseError(AppCreationException(s"App type ${dbApp.app.appType} not supported on GCP"))
       }
 

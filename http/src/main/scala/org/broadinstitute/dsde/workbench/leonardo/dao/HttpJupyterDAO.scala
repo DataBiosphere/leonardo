@@ -1,27 +1,49 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.Async
+import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
-import org.http4s.{Header, Headers, Method, Request}
+import org.http4s.client.dsl.Http4sClientDsl
+import org.http4s.headers.Authorization
+import org.http4s.{Header, Headers, Method, Request, Uri}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
 class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F], samDAO: SamDAO[F])(implicit
   F: Async[F],
-  logger: Logger[F]
-) extends JupyterDAO[F] {
+  logger: Logger[F],
+  metrics: OpenTelemetryMetrics[F]
+) extends JupyterDAO[F]
+    with Http4sClientDsl[F] {
   private val SETDATEACCESSEDINSPECTOR_HEADER_IGNORE: Header.Raw =
     Header.Raw(CIString("X-SetDateAccessedInspector-Action"), "ignore")
+
+  def getStatus(baseUri: Uri, authHeader: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Boolean] = for {
+    _ <- metrics.incrementCounter("jupyter/status")
+    res <- client.status(
+      Request[F](
+        method = Method.GET,
+        uri = baseUri / "api" / "status", // TODO (LM) this may need to change
+        headers = Headers(authHeader)
+      )
+    )
+    _ <- logger.info(s"(LM) Jupyter endpoint: ${baseUri / "api" / "status"}")
+    _ <- logger.info(s"(LM) Jupyter status result: $res")
+
+  } yield res.isSuccess
 
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
@@ -37,7 +59,9 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
           client
             .successful(
               Request[F](
-                method = Method.GET,
+                method =
+                  Method.GET, //    private def azureUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/${path}")
+                // https://hostIp/runtimeName/api/status
                 uri = x.toNotebooksUri / "api" / "status",
                 headers = headers
               )
@@ -108,13 +132,6 @@ object HttpJupyterDAO {
     Decoder.decodeString.map(s => if (s == Idle.toString) Idle else OtherState(s))
   implicit val kernalDecoder: Decoder[Kernel] = Decoder.forProduct1("execution_state")(Kernel)
   implicit val sessionDecoder: Decoder[Session] = Decoder.forProduct1("kernel")(Session)
-}
-
-trait JupyterDAO[F[_]] {
-  def isAllKernelsIdle(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
-  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
-  def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit]
-  def terminalExists(googleProject: GoogleProject, runtimeName: RuntimeName, terminalName: TerminalName): F[Boolean]
 }
 
 sealed abstract class ExecutionState

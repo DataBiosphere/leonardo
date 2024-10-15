@@ -2988,6 +2988,7 @@ components:
         - ALLOWED
         - WORKFLOWS_APP
         - CROMWELL_RUNNER_APP
+        - JUPYTER
     AllowedChartName:
       type: string
       enum:

@@ -7,7 +7,7 @@ import com.azure.resourcemanager.batch.models.{BatchAccount, BatchAccountKeys}
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, tokenValue}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, wsmResourceId, tokenValue}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.makeApp
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.appMonitorConfig
@@ -78,6 +78,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
   )
 
   val workspaceId = WorkspaceId(UUID.randomUUID)
+  val workspaceName = "workspaceName"
   val workspaceCreatedDate = java.time.OffsetDateTime.parse("1970-01-01T12:15:30-07:00")
 
   val aksInterpConfig = AKSInterpreterConfig(
@@ -93,6 +94,7 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
     BuildHelmOverrideValuesParams(
       app,
       workspaceId,
+      workspaceName,
       cloudContext,
       billingProfileId,
       lzResources,
@@ -101,7 +103,8 @@ class BaseAppInstallSpec extends AnyFlatSpecLike with LeonardoTestSuite with Moc
       ServiceAccountName("ksa-1"),
       ManagedIdentityName("mi-1"),
       databases,
-      aksInterpConfig
+      aksInterpConfig,
+      None
     )
 
   private def setUpMockSamDAO: SamDAO[IO] = {

@@ -364,6 +364,10 @@ object AppType {
     override def toString: String = "HAIL_BATCH"
   }
 
+  case object Jupyter extends AppType {
+    override def toString: String = "JUPYTER"
+  }
+
   // See more context in https://docs.google.com/document/d/1RaQRMqAx7ymoygP6f7QVdBbZC-iD9oY_XLNMe_oz_cs/edit
   case object Allowed extends AppType {
     override def toString: String = "ALLOWED"
@@ -377,16 +381,18 @@ object AppType {
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 
   /**
-   * Disk formatting for an App. Currently, only Galaxy, RStudio and Custom app types
+   * Disk formatting for an App. Currently, only Galaxy, RStudio, Jupyter and Custom app types
    * support disk management. So we default all other app types to Cromwell,
    * but the field is unused.
    */
   def appTypeToFormattedByType(appType: AppType): FormattedBy =
     appType match {
       case Galaxy                                                        => FormattedBy.Galaxy
+      case Jupyter                                                       => FormattedBy.Jupyter
       case Custom                                                        => FormattedBy.Custom
       case Allowed                                                       => FormattedBy.Allowed
       case Cromwell | Wds | HailBatch | WorkflowsApp | CromwellRunnerApp => FormattedBy.Cromwell
+
     }
 }
 
@@ -439,9 +445,9 @@ final case class App(id: AppId,
                      descriptorPath: Option[Uri],
                      extraArgs: List[String],
                      sourceWorkspaceId: Option[WorkspaceId],
-                     numOfReplicas: Option[Int],
                      autodelete: Autodelete,
-                     autopilot: Option[Autopilot],
+                     autopilot: Boolean,
+                     computeProfile: ComputeProfile,
                      bucketNameToMount: Option[GcsBucketName]
 ) {
 
@@ -598,7 +604,13 @@ object ComputeClass {
   val stringToObject = values.map(v => v.toString.toLowerCase -> v).toMap
 }
 final case class Autodelete(autodeleteEnabled: Boolean, autodeleteThreshold: Option[AutodeleteThreshold])
-final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
+
+final case class ComputeProfile(numOfReplicas: Option[Int],
+                                cpuInMi: Option[Int],
+                                memoryInGb: Option[Int],
+                                computeClass: Option[ComputeClass],
+                                ephemeralStorageInGb: Option[Int]
+)
 
 final case class UpdateAppTableId(value: Long) extends AnyVal
 final case class UpdateAppJobId(value: UUID) extends AnyVal
