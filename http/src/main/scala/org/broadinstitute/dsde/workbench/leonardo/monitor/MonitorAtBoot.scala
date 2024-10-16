@@ -223,8 +223,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                     )
                   )
                   leoAuth <- samDAO.getLeoAuthToken
+                  token = leoAuth.credentials.toString().split(" ")(1)
                   workspaceDescOpt <- wsmClientProvider.getWorkspace(
-                      leoAuth,
+                      token,
                       workspaceId
                     )
                   workspaceDesc <- F.fromOption(workspaceDescOpt,
@@ -266,8 +267,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                             )
                 )
                 leoAuth <- samDAO.getLeoAuthToken
+                token = leoAuth.credentials.toString().split(" ")(1)
                 workspaceDescOpt <- wsmClientProvider.getWorkspace(
-                  leoAuth,
+                  token,
                   workspaceId
                 )
                 workspaceDesc <- F.fromOption(workspaceDescOpt,
@@ -396,8 +398,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
           leoAuth <- samDAO.getLeoAuthToken
           workspaceDescOpt <- wsmClientProvider.getWorkspace(
-              leoAuth,
+              leoAuth.credentials.renderString,
               wid
+          )
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
           runtimeId = runtime.id,
@@ -423,8 +426,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
           leoAuth <- samDAO.getLeoAuthToken
+          token = leoAuth.credentials.toString().split(" ")(1)
           workspaceDescOpt <- wsmClientProvider.getWorkspace(
-              leoAuth,
+              token,
               wid
           )
 
