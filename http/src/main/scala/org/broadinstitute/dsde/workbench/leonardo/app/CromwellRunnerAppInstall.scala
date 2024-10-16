@@ -81,6 +81,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
       // Get the pet userToken
 
+      leoAuth <- authProvider.getLeoAuthToken
+
       parsedUUID <- F.delay(Either.catchNonFatal(UUID.fromString(params.billingProfileId.value)))
       profileAttempt <- parsedUUID.traverse { uuid =>
         bpmClient.getProfile(leoAuth, uuid)
