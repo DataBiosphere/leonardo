@@ -69,8 +69,6 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
                                    AppCreationException("Postgres server required for Cromwell app", Some(ctx.traceId))
     )
 
-    leoAuth <- authProvider.getLeoAuthToken
-
     values = List(
       // azure resources configs
       raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
@@ -117,7 +115,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
       // provenance (app-cloning) configs
-      raw"provenance.userAccessToken=${leoAuth}",
+      raw"provenance.userAccessToken=",
 
       // Database configs
       raw"postgres.podLocalDatabaseEnabled=false",

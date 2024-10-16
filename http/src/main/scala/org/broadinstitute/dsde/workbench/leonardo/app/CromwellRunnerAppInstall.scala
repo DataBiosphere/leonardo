@@ -81,8 +81,6 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
       // Get the pet userToken
 
-      leoAuth <- authProvider.getLeoAuthToken
-
       parsedUUID <- F.delay(Either.catchNonFatal(UUID.fromString(params.billingProfileId.value)))
       profileAttempt <- parsedUUID.traverse { uuid =>
         bpmClient.getProfile(leoAuth, uuid)
@@ -129,7 +127,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
         // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=${leoAuth}",
+        raw"provenance.userAccessToken=",
 
         // database configs
         raw"postgres.podLocalDatabaseEnabled=false",
