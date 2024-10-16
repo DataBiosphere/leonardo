@@ -539,6 +539,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Query the Landing Zone service for the landing zone resources
       leoAuth <- samDao.getLeoAuthToken
+      token = leoAuth.credentials.toString().split(" ")(1)
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
         legacyWsmDao.getLandingZoneResources(billingProfileId, leoAuth)
       }
@@ -630,7 +631,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Delete the Sam resource getCachedArbitraryPetAccessToken
       _ <- childSpan("deleteSamResource").use { implicit ev =>
-        samService.deleteResource(leoAuth, dbApp.app.samResourceId)
+        samService.deleteResource(token, dbApp.app.samResourceId)
       }
 
       _ <- logger.info(
