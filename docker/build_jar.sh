@@ -12,6 +12,7 @@ GIT_HASH=$(git log -n 1 --pretty=format:%h)
 EXIT_CODE=0
 docker run --rm -v $PWD:/working \
   -v sbt-cache:/root/.sbt -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
+  -v /home/vsts/.ivy:/home/vsts/.ivy -v /home/vsts/.ivy2:/home/vsts/.ivy2 \
   -v coursier-cache:/root/.cache/coursier \
   sbtscala/scala-sbt:openjdk-17.0.2_1.7.2_2.13.10 /working/docker/clean_install.sh /working \
   || EXIT_CODE=$?
