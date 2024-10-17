@@ -2,7 +2,6 @@
 
 set -e -x
 
-# This is the very first script as we started on Dataproc
 #
 # This init script instantiates the tool (e.g. Jupyter) docker images on the Dataproc cluster master node.
 # Adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
@@ -138,8 +137,17 @@ STEP_TIMINGS=($(date +%s))
 # temp workaround for https://github.com/docker/compose/issues/5930
 export CLOUDSDK_PYTHON=python3
 
-# This identifies whether we are running on the master node (running the jupyter container). There does not seem to be any customization of the worker nodes
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
+
+# If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS env var.
+# This overrides the credentials on the metadata server.
+# This needs to happen on master and worker nodes.
+SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
+if [ ! -z "$SERVICE_ACCOUNT_CREDENTIALS" ] ; then
+  gsutil cp ${SERVICE_ACCOUNT_CREDENTIALS} /etc
+  SERVICE_ACCOUNT_CREDENTIALS=`basename ${SERVICE_ACCOUNT_CREDENTIALS}`
+  export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+fi
 
 # Only initialize tool and proxy docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
@@ -147,12 +155,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
-    # Set variables
-    # Values like $(..) are populated by Leo when a cluster is created.
-    # See https://github.com/DataBiosphere/leonardo/blob/e46acfcb409b11198b1f12533cefea3f6c7fdafb/http/src/main/scala/org/broadinstitute/dsde/workbench/leonardo/util/RuntimeTemplateValues.scala#L192
-    # Avoid exporting variables unless they are needed by external scripts or docker-compose files.
-    export CLOUD_SERVICE='DATAPROC'
-    # Needs to be in sync with terra-docker container
+    # The following values are populated by Leo when a cluster is created.
     export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
     export CLUSTER_NAME=$(clusterName)
     export RUNTIME_NAME=$(clusterName)
@@ -225,12 +228,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
 
 
-    # GCP connector is used by dataproc to connect with the staging bucket to read the logs
+    # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
 
-
-    ## Note that the stack driver configuration is changing in later versions of Dataproc, see https://broadworkbench.atlassian.net/browse/IA-5023
     # Add stack driver configuration for welder
     tee /etc/google-fluentd/config.d/welder.conf << END
 <source>
@@ -275,6 +276,23 @@ END
       gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
     fi
 
+    if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+      echo "GOOGLE_APPLICATION_CREDENTIALS=/var/${SERVICE_ACCOUNT_CREDENTIALS}" > /var/google_application_credentials.env
+    else
+      echo "" > /var/google_application_credentials.env
+    fi
+
+    # Install RStudio license file, if specified
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      STAT_EXIT_CODE=0
+      gsutil -q stat ${RSTUDIO_LICENSE_FILE} || STAT_EXIT_CODE=$?
+      if [ $STAT_EXIT_CODE -eq 0 ] ; then
+        echo "Using RStudio license file $RSTUDIO_LICENSE_FILE"
+        gsutil cp ${RSTUDIO_LICENSE_FILE} /etc/rstudio-license-file.lic
+      else
+        echo "" > /etc/rstudio-license-file.lic
+      fi
+    fi
 
     # If any image is hosted in a GAR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
@@ -286,7 +304,7 @@ END
 
     STEP_TIMINGS+=($(date +%s))
 
-    log 'Starting up the Jupyter docker...'
+    log 'Starting up the Jupydocker...'
 
     # Run docker-compose for each specified compose file.
     # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
@@ -327,9 +345,37 @@ END
 
     STEP_TIMINGS+=($(date +%s))
 
+    # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
+    # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
+    # credentials on the metadata server.
+    if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+      if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+        log 'Copying SA into Jupyter Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+      if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+        log 'Copying SA into RStudio Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+        log 'Copying SA into Welder Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+    fi
+
+    STEP_TIMINGS+=($(date +%s))
+
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
       log 'Installing Jupydocker kernelspecs...'
+
+      # Install hail addition if the image is old leonardo jupyter image or it's a hail specific image
+      if [[ ${JUPYTER_DOCKER_IMAGE} == *"leonardo-jupyter"* ]] ; then
+        log 'Installing Hail additions to Jupydocker spark.conf...'
+
+        # Install the Hail additions to Spark conf.
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
+      fi
 
       # Install notebook.json
       if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
@@ -342,16 +388,7 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
-      # Install NbExtensions. These are user-specified Jupyter extensions.
-      # For instance Terra UI is passing
-      #  {
-      #    "nbExtensions": {
-      #      "saturn-iframe-extension": "https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"
-      #    },
-      #    "labExtensions": {},
-      #    "serverExtensions": {},
-      #    "combinedExtensions": {}
-      #  }
+      # Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
         do
@@ -374,7 +411,7 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
-      # Install serverExtensions if provided by the user
+      # Install serverExtensions
       if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
         do
@@ -392,7 +429,7 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
-      # Install combined extensions if provided by the user
+      # Install combined extensions
       if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
         for ext in ${JUPYTER_COMBINED_EXTENSIONS}
         do
@@ -427,7 +464,7 @@ END
       # done start user script
       STEP_TIMINGS+=($(date +%s))
 
-      # Install lab extensions if provided by the user
+      # Install lab extensions
       # Note: lab extensions need to installed as jupyter user, not root
       if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_LAB_EXTENSIONS}
@@ -466,14 +503,16 @@ END
       docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
       # Copy gitignore into jupyter container
+
       docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
 
       # Install nbstripout and set gitignore in Git Config
+
       docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
             && python -m nbstripout --install --global \
             && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
-      # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
+
       docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
            && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
            && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
