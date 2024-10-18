@@ -41,7 +41,7 @@ python generate_custom_image.py \
     --zone $ZONE \
     --gcs-bucket $DATAPROC_IMAGE_BUCKET \
     --project-id=$GOOGLE_PROJECT \
-    --disk-size=150
+    --disk-size=120
 
 if ! [ -z "$OUTPUT_FILE_PATH" ]; then
   echo "projects/$GOOGLE_PROJECT/global/images/$OUTPUT_IMAGE_NAME" > $OUTPUT_FILE_PATH
