@@ -243,9 +243,16 @@ MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+        COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE"
+        if [ "${GPU_ENABLED}" == "true" ] ; then
+          GPU_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/gpu-docker*)
+          $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${GPU_DOCKER_COMPOSE}` $GPU_DOCKER_COMPOSE
+          COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE -f $GPU_DOCKER_COMPOSE"
+        fi
+
+        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d
         
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
