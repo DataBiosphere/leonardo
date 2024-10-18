@@ -50,7 +50,6 @@ export NOTEBOOKS_DIR=$(notebooksDir)
 export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
 export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
-GPU_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/gpu-docker*)
 RSTUDIO_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/rstudio-docker*)
 export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
@@ -228,9 +227,8 @@ if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
-        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose files
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
         $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
-        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${GPU_DOCKER_COMPOSE}` $GPU_DOCKER_COMPOSE
 
 tee /var/variables.env << END
 JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
@@ -247,6 +245,8 @@ END
 
         COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE"
         if [ "${GPU_ENABLED}" == "true" ] ; then
+          GPU_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/gpu-docker*)
+          $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${GPU_DOCKER_COMPOSE}` $GPU_DOCKER_COMPOSE
           COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE -f $GPU_DOCKER_COMPOSE"
         fi
 
