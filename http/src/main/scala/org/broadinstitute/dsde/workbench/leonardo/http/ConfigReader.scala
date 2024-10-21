@@ -28,6 +28,7 @@ final case class AzureConfig(
   workflowsAppConfig: WorkflowsAppConfig,
   wdsAppConfig: WdsAppConfig,
   hailBatchAppConfig: HailBatchAppConfig,
+  jupyterAppConfig: JupyterAppConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
   listenerChartConfig: ListenerChartConfig,

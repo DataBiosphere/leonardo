@@ -246,7 +246,7 @@ case class AppResourceCannotBeDeletedException(wsmResourceId: WsmControlledResou
                                                wsmResourceType: WsmResourceType,
                                                traceId: TraceId
 ) extends LeoException(
-      s"Azure ${wsmResourceType.toString} with id ${wsmResourceId.value} associated with ${appId.id} cannot be deleted in $status status, please wait and try again",
+      s"Azure ${wsmResourceType.toString} with id ${wsmResourceId.value} associated with ${appId.id} cannot be deleted in $status status in WSM, please wait and try again",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

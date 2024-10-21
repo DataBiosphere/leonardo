@@ -129,6 +129,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case FormattedBy.Galaxy =>
               (galaxyPvcId, lastUsedBy).mapN((gp, lb) => GalaxyRestore(gp, lb))
             case FormattedBy.Cromwell                 => lastUsedBy.map(Other)
+            case FormattedBy.Jupyter                  => lastUsedBy.map(Other)
             case FormattedBy.Allowed                  => lastUsedBy.map(Other)
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
@@ -274,7 +275,9 @@ object persistentDiskQuery {
             isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
             isAttached <- if (isAttachedToRuntime) DBIO.successful(true) else appQuery.isDiskAttached(diskId)
           } yield isAttached
-        case Some(FormattedBy.Galaxy | FormattedBy.Custom | FormattedBy.Cromwell | FormattedBy.Allowed) =>
+        case Some(
+              FormattedBy.Galaxy | FormattedBy.Custom | FormattedBy.Cromwell | FormattedBy.Allowed | FormattedBy.Jupyter
+            ) =>
           appQuery.isDiskAttached(diskId)
         case Some(FormattedBy.GCE) =>
           RuntimeConfigQueries.isDiskAttached(diskId)

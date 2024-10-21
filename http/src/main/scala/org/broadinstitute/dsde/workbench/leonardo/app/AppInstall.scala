@@ -15,7 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   LandingZoneResources,
   ManagedIdentityName,
   WorkspaceId,
-  WsmControlledDatabaseResource
+  WsmControlledDatabaseResource,
+  WsmControlledResourceId
 }
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
@@ -34,6 +35,10 @@ trait AppInstall[F[_]] {
 
   /** Checks status of the app. */
   def checkStatus(baseUri: Uri, authHeader: Authorization)(implicit ev: Ask[F, AppContext]): F[Boolean]
+
+//  /** Checks status of the app. */
+//  def checkStatus(cloudContext: CloudContext, runtimeName: RuntimeName)(implicit ev: Ask[F, AppContext]): F[Boolean]
+
 }
 
 object AppInstall {
@@ -43,13 +48,15 @@ object AppInstall {
                                 cromwellAppInstall: CromwellAppInstall[F],
                                 workflowsAppInstall: WorkflowsAppInstall[F],
                                 hailBatchAppInstall: HailBatchAppInstall[F],
-                                cromwellRunnerAppInstall: CromwellRunnerAppInstall[F]
+                                cromwellRunnerAppInstall: CromwellRunnerAppInstall[F],
+                                jupyterAppInstall: JupyterAppInstall[F]
   ): AppType => AppInstall[F] = _ match {
     case AppType.Wds               => wdsAppInstall
     case AppType.Cromwell          => cromwellAppInstall
     case AppType.WorkflowsApp      => workflowsAppInstall
     case AppType.HailBatch         => hailBatchAppInstall
     case AppType.CromwellRunnerApp => cromwellRunnerAppInstall
+    case AppType.Jupyter           => jupyterAppInstall
     case e                         => throw new IllegalArgumentException(s"Unexpected app type: ${e}")
   }
 
@@ -75,6 +82,7 @@ object Database {
 
 final case class BuildHelmOverrideValuesParams(app: App,
                                                workspaceId: WorkspaceId,
+                                               workspaceName: String,
                                                cloudContext: AzureCloudContext,
                                                billingProfileId: BillingProfileId,
                                                landingZoneResources: LandingZoneResources,
@@ -83,5 +91,6 @@ final case class BuildHelmOverrideValuesParams(app: App,
                                                ksaName: ServiceAccountName,
                                                managedIdentityName: ManagedIdentityName,
                                                databaseNames: List[WsmControlledDatabaseResource],
-                                               config: AKSInterpreterConfig
+                                               config: AKSInterpreterConfig,
+                                               diskWsmResourceId: Option[WsmControlledResourceId]
 )

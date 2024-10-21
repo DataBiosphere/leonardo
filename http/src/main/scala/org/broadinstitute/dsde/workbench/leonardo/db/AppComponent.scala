@@ -41,9 +41,9 @@ final case class AppRecord(id: AppId,
                            descriptorPath: Option[Uri],
                            extraArgs: Option[List[String]],
                            sourceWorkspaceId: Option[WorkspaceId],
-                           numOfReplicas: Option[Int],
                            autodelete: Autodelete,
-                           autopilot: Option[Autopilot],
+                           autopilot: Boolean,
+                           computeProfile: ComputeProfile,
                            bucketNameToMount: Option[GcsBucketName]
 )
 
@@ -101,10 +101,10 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       descriptorPath,
       extraArgs,
       sourceWorkspaceId,
-      numOfReplicas,
       // combine these values to allow tuple creation; longer than 22 elements is not allowed
       (autodeleteEnabled, autodeleteThreshold),
-      (autopilotEnabled, computeClass, cpu, memory, ephemeralStorage),
+      autopilotEnabled,
+      (numOfReplicas, cpu, memory, computeClass, ephemeralStorage),
       bucketNameToMount
     ) <> ({
       case (
@@ -126,9 +126,9 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
             descriptorPath,
             extraArgs,
             sourceWorkspaceId,
-            numOfReplicas,
             autodelete,
             autopilot,
+            computeProfile,
             bucketNameToMount
           ) =>
         AppRecord(
@@ -156,23 +156,14 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           descriptorPath,
           extraArgs,
           sourceWorkspaceId,
-          numOfReplicas,
           Autodelete(autodelete._1, autodelete._2),
-          if (autopilot._1)
-            for {
-              computeClass <- autopilot._2
-              cpu <- autopilot._3
-              memory <- autopilot._4
-              ephemeralStorage <- autopilot._5
-            } yield Autopilot(computeClass, cpu, memory, ephemeralStorage)
-          else None,
+          autopilot,
+          ComputeProfile(computeProfile._1, computeProfile._2, computeProfile._3, computeProfile._4, computeProfile._5),
           bucketNameToMount
         )
     }, { r: AppRecord =>
-      val autopilotComputeClass = r.autopilot.map(_.computeClass)
-      val autopilotCpu = r.autopilot.map(_.cpuInMillicores)
-      val autopilotMemory = r.autopilot.map(_.memoryInGb)
-      val autopilotEphemeralStorage = r.autopilot.map(_.ephemeralStorageInGb)
+//      val autopilotComputeClass = r.autopilot.map(_.computeClass)
+//      val autopilotEphemeralStorage = r.autopilot.map(_.ephemeralStorageInGb)
       Some(
         (
           r.id,
@@ -197,10 +188,15 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
           r.descriptorPath,
           r.extraArgs,
           r.sourceWorkspaceId,
-          r.numOfReplicas,
           // combine these values to allow tuple creation; longer than 22 elements is not allowed
           (r.autodelete.autodeleteEnabled, r.autodelete.autodeleteThreshold),
-          (r.autopilot.isDefined, autopilotComputeClass, autopilotCpu, autopilotMemory, autopilotEphemeralStorage),
+          r.autopilot,
+          (r.computeProfile.numOfReplicas,
+           r.computeProfile.cpuInMi,
+           r.computeProfile.memoryInGb,
+           r.computeProfile.computeClass,
+           r.computeProfile.ephemeralStorageInGb
+          ),
           r.bucketNameToMount
         )
       )
@@ -229,20 +225,15 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.googleServiceAccount,
       app.auditInfo,
       labels,
-      AppResources(
-        namespace,
-        disk,
-        services,
-        app.kubernetesServiceAccount
-      ),
+      AppResources(namespace, disk, services, app.kubernetesServiceAccount),
       errors,
       app.customEnvironmentVariables.getOrElse(Map.empty),
       app.descriptorPath,
       app.extraArgs.getOrElse(List.empty),
       app.sourceWorkspaceId,
-      app.numOfReplicas,
       app.autodelete,
       app.autopilot,
+      app.computeProfile,
       app.bucketNameToMount
     )
 
@@ -310,9 +301,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.descriptorPath,
         if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs),
         saveApp.app.sourceWorkspaceId,
-        saveApp.app.numOfReplicas,
         saveApp.app.autodelete,
         saveApp.app.autopilot,
+        saveApp.app.computeProfile,
         saveApp.app.bucketNameToMount
       )
       appId <- appQuery returning appQuery.map(_.id) += record

@@ -1196,7 +1196,8 @@ object RuntimeServiceInterp {
               case Some(formattedBy) =>
                 if (willBeUsedBy == formattedBy) {
                   formattedBy match {
-                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.Allowed =>
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.Allowed |
+                        FormattedBy.Jupyter =>
                       appQuery.isDiskAttached(pd.id).transaction
                     case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   }
@@ -1300,7 +1301,8 @@ object RuntimeServiceInterp {
               case Some(formattedBy) =>
                 if (willBeUsedBy == formattedBy) {
                   formattedBy match {
-                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.Allowed =>
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom | FormattedBy.Allowed |
+                        FormattedBy.Jupyter =>
                       appQuery.isDiskAttached(pd.id).transaction
                     case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   }

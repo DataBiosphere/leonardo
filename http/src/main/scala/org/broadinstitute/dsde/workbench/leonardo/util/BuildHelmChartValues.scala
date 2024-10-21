@@ -259,7 +259,9 @@ private[leonardo] object BuildHelmChartValues {
       case AppType.Wds               => s"http://wds-${release.asString}-wds-svc:8080"
       case AppType.HailBatch         => "http://batch:8080"
       case AppType.WorkflowsApp      => s"http://wfa-${release.asString}-reverse-proxy-service:8000/"
-      case _                         => "unknown"
+      case AppType.Jupyter =>
+        s"http://jupyter-${release.asString}:8888/"
+      case _ => "unknown"
     }
 
     // Hail batch serves requests on /{appName}/batch and uses relative redirects,
