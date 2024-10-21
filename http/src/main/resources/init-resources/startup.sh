@@ -243,9 +243,16 @@ MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+        COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE"
+        if [ "${GPU_ENABLED}" == "true" ] ; then
+          GPU_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/gpu-docker*)
+          $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${GPU_DOCKER_COMPOSE}` $GPU_DOCKER_COMPOSE
+          COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE -f $GPU_DOCKER_COMPOSE"
+        fi
+
+        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d
         
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
@@ -262,29 +269,10 @@ END
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
         echo "Restarting Rstudio Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
-        # Make sure when runtimes restarts, they'll get a new version of rstudio docker compose file
-        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${RSTUDIO_DOCKER_COMPOSE}` $RSTUDIO_DOCKER_COMPOSE
-
-tee /var/variables.env << END
-WORK_DIRECTORY=${WORK_DIRECTORY}
-RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
-RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
-RSTUDIO_USER_HOME=${RSTUDIO_USER_HOME}
-GOOGLE_PROJECT=${GOOGLE_PROJECT}
-RUNTIME_NAME=${RUNTIME_NAME}
-OWNER_EMAIL=${OWNER_EMAIL}
-PET_SA_EMAIL=${PET_SA_EMAIL}
-WELDER_ENABLED=${WELDER_ENABLED}
-MEM_LIMIT=${MEM_LIMIT}
-SHM_SIZE=${SHM_SIZE}
-END
-
-        ${DOCKER_COMPOSE} -f ${RSTUDIO_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${RSTUDIO_DOCKER_COMPOSE} rm -f
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${RSTUDIO_DOCKER_COMPOSE} up -d
-
-        # the docker containers need to be restarted or the jupyter container
-        # will fail to start until the appropriate volume/device exists
+        # the docker containers need to be restarted or the R container
+        # will fail to start until the appropriate volume/device exists.
+        # We aren't fully stopping and starting the container here because this would reset the state
+        # of R system packages, which are stored inside the container, and which the user may have modified.
         docker restart $RSTUDIO_SERVER_NAME
         docker restart $WELDER_SERVER_NAME
 
