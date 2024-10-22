@@ -55,7 +55,6 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
         AppCreationException("Postgres server required for WDS app", Some(ctx.traceId))
       )
 
-      leoAuth <- authProvider.getLeoAuthToken
       // Get the pet userToken
 
       // Get Vpa enabled tag
@@ -90,7 +89,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // provenance (app-cloning) configs
-          raw"provenance.userAccessToken=${leoAuth}",
+          raw"provenance.userAccessToken=",
           raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
 
           // database configs

@@ -68,7 +68,6 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
       )
 
       // Get the pet userToken
-      leoAuth <- samDao.getLeoAuthToken
 
       values =
         List(
@@ -103,7 +102,7 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // provenance (app-cloning) configs
-          raw"provenance.userAccessToken=${leoAuth}",
+          raw"provenance.userAccessToken=",
 
           // database configs
           raw"postgres.podLocalDatabaseEnabled=false",
