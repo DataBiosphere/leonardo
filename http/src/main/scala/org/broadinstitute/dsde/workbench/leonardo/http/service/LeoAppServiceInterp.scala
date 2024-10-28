@@ -168,7 +168,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                        samResourceId,
                                        Some(googleProject),
                                        None,
-                                       getAppSamPolicyMap(userEmail, req.accessScope)
+                                       getAppSamPolicyMap(userEmail,
+                                         WorkbenchEmail("90d2e10c-0bbb-48e6-935e-9df9b1989998@uami.terra.bio"),
+                                         req.accessScope)
         )
         saveCluster <- F.fromEither(
           getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
@@ -787,7 +789,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      samResourceId,
                                      None,
                                      Some(workspaceId),
-                                     getAppSamPolicyMap(userEmail, req.accessScope)
+                                     getAppSamPolicyMap(userEmail,
+                                       WorkbenchEmail("90d2e10c-0bbb-48e6-935e-9df9b1989998@uami.terra.bio"),
+                                       req.accessScope)
       )
 
       // Save or retrieve a KubernetesCluster record for the app
@@ -1692,13 +1696,14 @@ object LeoAppServiceInterp {
    * Private apps are represented as kubernetes-app resources in Sam and have a "creator" role.
    */
   private[http] def getAppSamPolicyMap(userEmail: WorkbenchEmail,
+                                       leoEmail: WorkbenchEmail,
                                        accessScope: Option[AppAccessScope]
   ): Map[String, SamPolicyData] =
     accessScope match {
       case Some(AppAccessScope.WorkspaceShared) =>
-        Map("owner" -> SamPolicyData(List(userEmail), List(SharedAppRole.Owner.asString)))
+        Map("owner" -> SamPolicyData(List(userEmail, leoEmail), List(SharedAppRole.Owner.asString)))
       case _ =>
-        Map("creator" -> SamPolicyData(List(userEmail), List(AppRole.Creator.asString)))
+        Map("creator" -> SamPolicyData(List(userEmail, leoEmail), List(AppRole.Creator.asString)))
     }
 }
 
