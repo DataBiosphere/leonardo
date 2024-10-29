@@ -443,8 +443,8 @@ class GKEInterpreter[F[_]](
       ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName.value}]"
       call = F.fromFuture(
         F.delay(
-          googleIamDAO.addIamPolicyBindingOnServiceAccount(googleProject,
-                                                           petSAProject,
+          googleIamDAO.addIamPolicyBindingOnServiceAccount(petSAProject,
+                                                           gsa,
                                                            WorkbenchEmail(ksaToGsa),
                                                            Set("roles/iam.workloadIdentityUser")
           )
