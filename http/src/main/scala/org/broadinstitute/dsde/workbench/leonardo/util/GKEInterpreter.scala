@@ -439,11 +439,12 @@ class GKEInterpreter[F[_]](
       // Associate GSA to newly created KSA
       // This string is constructed based on Google requirements to associate a GSA to a KSA
       // (https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#creating_a_relationship_between_ksas_and_gsas)
+      petSAProject = GoogleProject(gsa.value.split("@").last.split("\\.").head)
       ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName.value}]"
       call = F.fromFuture(
         F.delay(
           googleIamDAO.addIamPolicyBindingOnServiceAccount(googleProject,
-                                                           gsa,
+                                                           petSAProject,
                                                            WorkbenchEmail(ksaToGsa),
                                                            Set("roles/iam.workloadIdentityUser")
           )
