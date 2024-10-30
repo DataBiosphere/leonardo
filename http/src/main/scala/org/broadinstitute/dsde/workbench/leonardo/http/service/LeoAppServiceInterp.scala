@@ -163,13 +163,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Retrieve parent workspaceId for the google project
       parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
+      leoToken <- authProvider.getLeoAuthToken
+      leoEmail <- samService.getUserEmail(leoToken)
       notifySamAndCreate = for {
         _ <- samService.createResource(userInfo.accessToken.token,
                                        samResourceId,
                                        Some(googleProject),
                                        None,
                                        getAppSamPolicyMap(userEmail,
-                                         WorkbenchEmail("90d2e10c-0bbb-48e6-935e-9df9b1989998@uami.terra.bio"),
+                                         leoEmail,
                                          req.accessScope)
         )
         saveCluster <- F.fromEither(
@@ -785,12 +787,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
 
       // Create kubernetes-app Sam resource with a creator policy and the workspace as the parent
+      leoToken <- authProvider.getLeoAuthToken
+      leoEmail <- samService.getUserEmail(leoToken)
       _ <- samService.createResource(userInfo.accessToken.token,
                                      samResourceId,
                                      None,
                                      Some(workspaceId),
                                      getAppSamPolicyMap(userEmail,
-                                       WorkbenchEmail("90d2e10c-0bbb-48e6-935e-9df9b1989998@uami.terra.bio"),
+                                       leoEmail,
                                        req.accessScope)
       )
 
