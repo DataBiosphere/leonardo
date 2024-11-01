@@ -171,7 +171,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         WorkflowsAppConfig(
           ChartName("terra-helm/workflows-app"),
-          ChartVersion("0.285.0"),
+          ChartVersion("0.286.0"),
           ReleaseNameSuffix("wfa-rls"),
           NamespaceNameSuffix("wfa-ns"),
           KsaName("wfa-ksa"),
