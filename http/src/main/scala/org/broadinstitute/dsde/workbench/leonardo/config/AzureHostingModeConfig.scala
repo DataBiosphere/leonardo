@@ -18,7 +18,7 @@ case class AzureManagedIdentityAuthConfig(
 
 object AzureEnvironmentConverter {
   val Azure: String = "AZURE"
-  val AzureGov: String = "AZURE_US_GOVERNMENT"
+  val AzureGov: String = "AZURE_GOV"
 
   def fromString(s: String): AzureEnvironment = s match {
     case AzureGov => AzureEnvironment.AZURE_US_GOVERNMENT
