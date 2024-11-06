@@ -2,14 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
-  azureRegion,
-  billingProfileId,
-  landingZoneResources,
-  petUserInfo
-}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.{ManagedIdentityName, PostgresServer, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.config.AzureEnvironmentConverter
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.http4s.Uri
@@ -70,7 +66,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
@@ -126,7 +122,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}," +
       "postgres.pgbouncer.enabled=false," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +

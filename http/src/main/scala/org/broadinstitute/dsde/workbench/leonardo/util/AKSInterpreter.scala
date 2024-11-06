@@ -183,7 +183,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPrimaryKey <- childSpan("createRelayHybridConnection").use { implicit ev =>
         azureRelayService.createRelayHybridConnection(landingZoneResources.relayNamespace, hcName, params.cloudContext)
       }
-      relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayDomain = s"${landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
@@ -417,7 +417,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Get relay hybrid connection information
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${workspaceId.value}")
-      relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayDomain = s"${landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
       relayPrimaryKey <- azureRelayService.getRelayHybridConnectionKey(landingZoneResources.relayNamespace,

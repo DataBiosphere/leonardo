@@ -4,6 +4,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledDatabaseResource
+import org.broadinstitute.dsde.workbench.leonardo.config.AzureEnvironmentConverter
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 
@@ -48,7 +49,7 @@ class WorkflowsAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwellMetadata=$cromwellMetadataAzureDbName," +

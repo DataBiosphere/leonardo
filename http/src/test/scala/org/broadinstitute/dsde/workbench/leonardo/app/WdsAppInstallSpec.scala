@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, landingZoneResources, petUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.config.AzureEnvironmentConverter
 import org.broadinstitute.dsde.workbench.leonardo.{WorkspaceId, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WdsDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
@@ -50,7 +51,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "provenance.sourceWorkspaceId=," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}," +
       "postgres.pgbouncer.enabled=true," +
       s"postgres.dbname=$wdsAzureDbName," +
       "postgres.user=ksa-1"
@@ -81,7 +82,7 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres.database.azure.com," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}," +
       "postgres.pgbouncer.enabled=true," +
       s"postgres.dbname=$wdsAzureDbName," +
       "postgres.user=ksa-1"

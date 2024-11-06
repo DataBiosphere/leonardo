@@ -892,7 +892,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case JobReport.StatusEnum.SUCCEEDED =>
-            val hostIp = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+            val hostIp = s"${params.landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
             for {
               now <- nowInstant
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction

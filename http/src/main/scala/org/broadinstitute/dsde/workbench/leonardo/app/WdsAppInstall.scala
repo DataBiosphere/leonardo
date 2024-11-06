@@ -8,7 +8,7 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureApplicationInsightsService
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.WdsAppConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, WdsAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -93,7 +93,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
 
           // database configs
-          raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
+          raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}",
           raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
           raw"postgres.dbname=$dbName",
           // convention is that the database user is the same as the service account name

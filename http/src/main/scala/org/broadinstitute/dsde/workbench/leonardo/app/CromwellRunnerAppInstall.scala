@@ -133,7 +133,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
         // database configs
         raw"postgres.podLocalDatabaseEnabled=false",
-        raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
+        raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}",
         raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
         // convention is that the database user is the same as the service account name
         raw"postgres.user=${params.ksaName.value}",
