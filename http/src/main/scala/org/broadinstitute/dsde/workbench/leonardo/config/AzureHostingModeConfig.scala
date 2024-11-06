@@ -17,24 +17,23 @@ case class AzureManagedIdentityAuthConfig(
 )
 
 object AzureEnvironmentConverter {
-  val Azure: String = "AZURE"F
+  val Azure: String = "AZURE"
   val AzureGov: String = "AZURE_US_GOVERNMENT"
 
   def fromString(s: String): AzureEnvironment = s match {
-    case AzureGov   => AzureEnvironment.AZURE_US_GOVERNMENT
+    case AzureGov => AzureEnvironment.AZURE_US_GOVERNMENT
     // a bit redundant, but I want to have a explicit case for Azure for clarity, even though it's the default
     case Azure => AzureEnvironment.AZURE
     case _     => AzureEnvironment.AZURE
   }
 
   def relaySuffixFromEnvironment(azureEnvironment: AzureEnvironment): String = azureEnvironment match {
-    case AzureEnvironment.AZURE_US_GOVERNMENT   => ".servicebus.usgovcloudapi.net"
+    case AzureEnvironment.AZURE_US_GOVERNMENT => ".servicebus.usgovcloudapi.net"
     // a bit redundant, but I want to have a explicit case for Azure for clarity, even though it's the default
     case AzureEnvironment.AZURE => ".servicebus.windows.net"
-    case _     => ".servicebus.windows.net"
+    case _                      => ".servicebus.windows.net"
   }
 
-  def relaySuffixFromString(s: String): String =  {
+  def relaySuffixFromString(s: String): String =
     relaySuffixFromEnvironment(fromString(s))
-  }
 }

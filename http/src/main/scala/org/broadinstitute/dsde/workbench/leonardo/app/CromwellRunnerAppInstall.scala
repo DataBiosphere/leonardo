@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledData
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.{ControlledDatabase, ReferenceDatabase}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{CromwellRunnerAppConfig, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, CromwellRunnerAppConfig, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{BpmApiClientProvider, CromwellDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
