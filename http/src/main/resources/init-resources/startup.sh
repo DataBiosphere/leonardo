@@ -192,7 +192,7 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   mount -o remount,exec /var/lib/nvidia
 
   GPU_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/gpu-docker*)
-  $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${GPU_DOCKER_COMPOSE}` $GPU_DOCKER_COMPOSE
+#  $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${GPU_DOCKER_COMPOSE}` $GPU_DOCKER_COMPOSE
   COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE -f $GPU_DOCKER_COMPOSE"
   COMPLETE_RSTUDIO_DOCKER_COMPOSE="-f $RSTUDIO_DOCKER_COMPOSE -f $GPU_DOCKER_COMPOSE"
 fi
@@ -247,8 +247,8 @@ MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
-        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
+#        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
+#        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate
         
@@ -281,8 +281,8 @@ MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
-        ${DOCKER_COMPOSE} -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} rm -f
+#        ${DOCKER_COMPOSE} -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} stop
+#        ${DOCKER_COMPOSE} -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} rm -f
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate
 
@@ -298,8 +298,8 @@ else
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
-        ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
+#        ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
+#        ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate
 
