@@ -234,9 +234,6 @@ if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
-        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
-        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
-
 tee /var/variables.env << END
 JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
 JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
@@ -270,9 +267,6 @@ END
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
         echo "Restarting Rstudio Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
-        # Make sure when runtimes restarts, they'll get a new version of rstudio docker compose file
-        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${RSTUDIO_DOCKER_COMPOSE}` $RSTUDIO_DOCKER_COMPOSE
-
 tee /var/variables.env << END
 WORK_DIRECTORY=${WORK_DIRECTORY}
 RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
@@ -303,9 +297,6 @@ else
 
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
-
-        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
-        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
 
         ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
         ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
