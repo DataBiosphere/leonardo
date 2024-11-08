@@ -192,7 +192,6 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   mount -o remount,exec /var/lib/nvidia
 
   GPU_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/gpu-docker*)
-#  $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${GPU_DOCKER_COMPOSE}` $GPU_DOCKER_COMPOSE
   COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE -f $GPU_DOCKER_COMPOSE"
   COMPLETE_RSTUDIO_DOCKER_COMPOSE="-f $RSTUDIO_DOCKER_COMPOSE -f $GPU_DOCKER_COMPOSE"
 fi
@@ -233,6 +232,7 @@ if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
     # (1/6/22) Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+        # The user might have updated the runtime, which would change some environment variables like MEM_LIMIT and SHM_SIZE
 
 tee /var/variables.env << END
 JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
@@ -247,9 +247,8 @@ MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
-#        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
-#        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
+        # We only want to restart the existing container with the latest environment variables
         ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate
         
         # the docker containers need to be restarted or the jupyter container
@@ -266,6 +265,7 @@ END
 
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
         echo "Restarting Rstudio Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+        # The user might have updated the runtime, which would change some environment variables like MEM_LIMIT and SHM_SIZE
 
 tee /var/variables.env << END
 WORK_DIRECTORY=${WORK_DIRECTORY}
@@ -281,9 +281,8 @@ MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
-#        ${DOCKER_COMPOSE} -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} stop
-#        ${DOCKER_COMPOSE} -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} rm -f
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
+        # We only want to restart the existing container with the latest environment variables
         ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate
 
         # the docker containers need to be restarted or the R container
@@ -298,8 +297,6 @@ else
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
-#        ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} stop
-#        ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} rm -f
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate
 
