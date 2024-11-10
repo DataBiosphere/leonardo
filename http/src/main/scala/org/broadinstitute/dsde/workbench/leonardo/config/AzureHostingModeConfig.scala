@@ -36,4 +36,14 @@ object AzureEnvironmentConverter {
 
   def relaySuffixFromString(s: String): String =
     relaySuffixFromEnvironment(fromString(s))
+
+  def postgresSuffixFromEnvironment(azureEnvironment: AzureEnvironment): String = azureEnvironment match {
+    case AzureEnvironment.AZURE_US_GOVERNMENT => ".database.usgovcloudapi.net"
+    // a bit redundant, but I want to have a explicit case for Azure for clarity, even though it's the default
+    case AzureEnvironment.AZURE => ".database.azure.com"
+    case _                      => ".database.azure.com"
+  }
+
+  def postgresSuffixFromString(s: String): String =
+    postgresSuffixFromEnvironment(fromString(s))
 }

@@ -66,7 +66,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
@@ -122,7 +122,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getSqlServerHostnameSuffix}," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
       "postgres.pgbouncer.enabled=false," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
