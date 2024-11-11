@@ -283,7 +283,7 @@ END
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         # We only want to restart the existing container with the latest environment variables
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate
 
         # the docker containers need to be restarted or the R container
         # will fail to start until the appropriate volume/device exists.
@@ -298,7 +298,7 @@ else
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
-        ${DOCKER_COMPOSE} -f ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate
+        ${DOCKER_COMPOSE} ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate
 
         log 'Copy Jupyter frontend notebook config...'
         $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
