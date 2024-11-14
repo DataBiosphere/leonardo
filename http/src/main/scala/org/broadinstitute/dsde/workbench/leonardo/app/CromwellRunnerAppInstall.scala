@@ -133,7 +133,8 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
         // database configs
         raw"postgres.podLocalDatabaseEnabled=false",
-        raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
+        raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter
+            .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
         raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
         // convention is that the database user is the same as the service account name
         raw"postgres.user=${params.ksaName.value}",
@@ -150,7 +151,10 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
         // Bard configs
         raw"bard.bardUrl=${config.bardBaseUri}",
-        raw"bard.enabled=${config.bardEnabled}"
+        raw"bard.enabled=${config.bardEnabled}",
+
+        // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
+        raw"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:e2b89ddf7915044b5f9281a7c8ab257ce658c181"
       )
 
       finalList = maybeLimits match {
