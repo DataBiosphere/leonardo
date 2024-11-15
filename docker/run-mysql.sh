@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # The CloudSQL console simply states "MySQL 5.6" so we may not match the minor version number
-MYSQL_VERSION=5.6
+MYSQL_VERSION=5.7
 start() {
 
     echo "attempting to remove old $CONTAINER container..."
