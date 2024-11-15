@@ -83,7 +83,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}",
       raw"config.azureManagementTokenScope=${AzureEnvironmentConverter
           .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
-          .getResourceManagerEndpoint}/.default",
+          .getResourceManagerEndpoint}.default",
 
       // relay configs
       raw"relay.path=${params.relayPath.renderString}",

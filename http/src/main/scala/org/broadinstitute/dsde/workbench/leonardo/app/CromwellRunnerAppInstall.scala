@@ -107,7 +107,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
         raw"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}",
         raw"config.azureManagementTokenScope=${AzureEnvironmentConverter
-          .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getResourceManagerEndpoint}/.default",
+          .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getResourceManagerEndpoint}.default",
 
         // relay configs
         raw"relay.path=${params.relayPath.renderString}",
