@@ -80,6 +80,10 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
       raw"config.region=${params.landingZoneResources.region}",
       raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
+      raw"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}",
+      raw"config.azureManagementTokenScope=${AzureEnvironmentConverter
+          .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+          .getResourceManagerEndpoint}/.default",
 
       // relay configs
       raw"relay.path=${params.relayPath.renderString}",
@@ -119,7 +123,8 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
 
       // Database configs
       raw"postgres.podLocalDatabaseEnabled=false",
-      raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
+      raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter
+          .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
       raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
       // convention is that the database user is the same as the service account name
       raw"postgres.user=${params.ksaName.value}",
@@ -127,9 +132,8 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"postgres.dbnames.cbas=${dbNames.cbas}",
       raw"postgres.dbnames.tes=${dbNames.tes}",
 
-    // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
-    raw"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:e2b89ddf7915044b5f9281a7c8ab257ce658c181"
-
+      // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
+      raw"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:e2b89ddf7915044b5f9281a7c8ab257ce658c181"
     )
   } yield Values(values.mkString(","))
 
