@@ -17,8 +17,8 @@ case class AzureManagedIdentityAuthConfig(
 )
 
 object AzureEnvironmentConverter {
-  val Azure: String = "AZURE"
-  val AzureGov: String = "AZURE_GOV"
+  val Azure: String = "AzureCloud"
+  val AzureGov: String = "AzureUSGovernmentCloud"
 
   def fromString(s: String): AzureEnvironment = s match {
     case AzureGov => AzureEnvironment.AZURE_US_GOVERNMENT
@@ -27,6 +27,7 @@ object AzureEnvironmentConverter {
     case _     => AzureEnvironment.AZURE
   }
 
+  // servicebus suffix not currently provided by AzureEnvironment library, values found here
   def relaySuffixFromEnvironment(azureEnvironment: AzureEnvironment): String = azureEnvironment match {
     case AzureEnvironment.AZURE_US_GOVERNMENT => ".servicebus.usgovcloudapi.net"
     // a bit redundant, but I want to have a explicit case for Azure for clarity, even though it's the default
@@ -37,6 +38,7 @@ object AzureEnvironmentConverter {
   def relaySuffixFromString(s: String): String =
     relaySuffixFromEnvironment(fromString(s))
 
+  // database suffix not currently provided by AzureEnvironment library, values found here
   def postgresSuffixFromEnvironment(azureEnvironment: AzureEnvironment): String = azureEnvironment match {
     case AzureEnvironment.AZURE_US_GOVERNMENT => ".database.usgovcloudapi.net"
     // a bit redundant, but I want to have a explicit case for Azure for clarity, even though it's the default
@@ -45,5 +47,16 @@ object AzureEnvironmentConverter {
   }
 
   def postgresSuffixFromString(s: String): String =
+    postgresSuffixFromEnvironment(fromString(s))
+
+  // batchAccount suffix not currently provided by AzureEnvironment library, values found here
+  def batchAccountSuffixFromEnvironment(azureEnvironment: AzureEnvironment): String = azureEnvironment match {
+    case AzureEnvironment.AZURE_US_GOVERNMENT => ".batch.usgovcloudapi.net"
+    // a bit redundant, but I want to have a explicit case for Azure for clarity, even though it's the default
+    case AzureEnvironment.AZURE => ".batch.azure.com"
+    case _                      => ".batch.azure.com"
+  }
+
+  def batchAccountSuffixFromString(s: String): String =
     postgresSuffixFromEnvironment(fromString(s))
 }
