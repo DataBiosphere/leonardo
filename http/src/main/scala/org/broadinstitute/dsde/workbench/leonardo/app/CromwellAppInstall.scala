@@ -93,6 +93,9 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       // persistence configs
       raw"persistence.storageResourceGroup=${params.cloudContext.managedResourceGroupName.value}",
       raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
+      raw"persistence.storageAccountSuffix=${AzureEnvironmentConverter
+        .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+        .getStorageEndpointSuffix}",
       raw"persistence.blobContainer=${storageContainer.name.value}",
       raw"persistence.leoAppInstanceName=${params.app.appName.value}",
       raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
