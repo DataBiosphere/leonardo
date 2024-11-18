@@ -107,9 +107,10 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
         raw"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}",
         raw"config.azureManagementTokenScope=${AzureEnvironmentConverter
-          .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getResourceManagerEndpoint}.default",
+            .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+            .getResourceManagerEndpoint}.default",
         raw"config.batchAccountSuffix=${AzureEnvironmentConverter
-          .batchAccountSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
+            .batchAccountSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
 
         // relay configs
         raw"relay.path=${params.relayPath.renderString}",
@@ -159,7 +160,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"bard.enabled=${config.bardEnabled}",
 
         // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
-        raw"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:e2b89ddf7915044b5f9281a7c8ab257ce658c181"
+        raw"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:84214c9d71721269f9945406d72e30a6f8aac514"
       )
 
       finalList = maybeLimits match {
