@@ -58,5 +58,5 @@ object AzureEnvironmentConverter {
   }
 
   def batchAccountSuffixFromString(s: String): String =
-    postgresSuffixFromEnvironment(fromString(s))
+    batchAccountSuffixFromEnvironment(fromString(s))
 }
