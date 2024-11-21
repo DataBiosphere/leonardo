@@ -41,13 +41,13 @@
             <column name="creator" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
             <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
-            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
             <column name="namespaceId" type="BIGINT">
