@@ -21,7 +21,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql/mysql-server:5.7
+        image: mysql/mysql-server:8.0
         env:
           MYSQL_ROOT_PASSWORD: leonardo-test
           MYSQL_USER: leonardo-test
