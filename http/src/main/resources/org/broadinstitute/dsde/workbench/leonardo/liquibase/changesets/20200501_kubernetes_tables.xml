@@ -2,6 +2,11 @@
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
     <changeSet logicalFilePath="leonardo" author="jcanas" id="kubernetes_cluster_table">
+        <validCheckSum>8:599d13c602bc3a23e12dc577a848456f</validCheckSum>
+        <comment>
+            Mysql 5.7+ changed default time stamps. This changeSet has been modified to reflect that; the
+            validCheckSum is the checksum from when the default was 0000-00-00 00:00:00.000000.
+        </comment>
         <createTable tableName="KUBERNETES_CLUSTER">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true"/>
@@ -27,13 +32,13 @@
             <column name="creator" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
             <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
-            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
             <column name="apiServerIp" type="VARCHAR(254)"/>
@@ -45,6 +50,11 @@
     </changeSet>
 
     <changeSet logicalFilePath="leonardo"  id="nodepool_table" author="jcanas">
+        <validCheckSum>8:854fccdae58bc9906a94269397f04ae3</validCheckSum>
+        <comment>
+            Mysql 5.7+ changed default time stamps. This changeSet has been modified to reflect that; the
+            validCheckSum is the checksum from when the default was 0000-00-00 00:00:00.000000.
+        </comment>
         <createTable tableName="NODEPOOL">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true"/>
@@ -61,13 +71,13 @@
             <column name="creator" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+            <column name="createdDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
             <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
-            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="0000-00-00 00:00:00.000000">
+            <column name="dateAccessed" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
                 <constraints nullable="false"/>
             </column>
             <column name="machineType" type="VARCHAR(254)">
