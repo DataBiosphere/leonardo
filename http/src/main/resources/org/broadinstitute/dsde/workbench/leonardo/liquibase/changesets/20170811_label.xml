@@ -15,6 +15,9 @@
         <createIndex indexName="FK_CLUSTER_ID" tableName="LABEL">
             <column name="clusterId"/>
         </createIndex>
+        <sql>
+            SET restrict_fk_on_non_standard_key = OFF;
+        </sql>
         <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="LABEL" constraintName="FK_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
         <addUniqueConstraint columnNames="clusterId, key" constraintName="IDX_LABEL_UNIQUE" tableName="LABEL"/>
     </changeSet>
