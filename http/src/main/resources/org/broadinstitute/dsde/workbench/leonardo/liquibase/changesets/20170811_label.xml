@@ -15,7 +15,7 @@
         <createIndex indexName="FK_CLUSTER_ID" tableName="LABEL">
             <column name="clusterId"/>
         </createIndex>
-        <addUniqueConstraint columnNames="clusterId, key" constraintName="IDX_LABEL_UNIQUE" tableName="LABEL"/>
         <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="LABEL" constraintName="FK_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
+        <addUniqueConstraint columnNames="clusterId, key" constraintName="IDX_LABEL_UNIQUE" tableName="LABEL"/>
     </changeSet>
 </databaseChangeLog>
