@@ -228,7 +228,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       wsStorageContainerUrl,
       applicationConfig.leoUrlBase,
       params.runtime.runtimeName.asString,
-      s"'${refererConfig.validHosts.mkString("','")}'"
+      s"'${refererConfig.validHosts.mkString("','")}'",
+      ${AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}
     )
 
     val cmdToExecute = s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
