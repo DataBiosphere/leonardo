@@ -13,8 +13,11 @@
     </changeSet>
 
     <changeSet id="make dateAccessed not null" author="vkumra">
-        <addNotNullConstraint columnDataType="TIMESTAMP(6)"
-                              columnName="dateAccessed"
-                              tableName="CLUSTER"/>
+        <validCheckSum>8:5017000ff29d7873815c1bdb69895225</validCheckSum>
+        <comment>
+            Mysql 5.7+ cannot add a not null constraint with a default value simultaneously. This changeSet has been modified to reflect that; the
+            validCheckSum is the checksum from when the table was not altered, but with addNotNullConstraint and addDefaultValue.
+        </comment>
+        <sql>ALTER TABLE CLUSTER MODIFY COLUMN dateAccessed TIMESTAMP(6) NOT NULL DEFAULT '1970-01-01 00:00:01.000000'</sql>
     </changeSet>
 </databaseChangeLog>
