@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
@@ -990,6 +989,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
         else Async[F].pure((mt, true))
       }
     } yield targetMachineType
+}
 
 object RuntimeServiceInterp {
 

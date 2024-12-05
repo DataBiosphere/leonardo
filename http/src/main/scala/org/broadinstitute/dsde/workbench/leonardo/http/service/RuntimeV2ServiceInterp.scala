@@ -9,7 +9,6 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   ProjectSamResourceId,
@@ -26,11 +25,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInt
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.RuntimeSamResource
 // do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-  projectSamResourceAction,
-  runtimeSamResourceAction,
   workspaceSamResourceAction,
-  wsmResourceSamResourceAction,
-  AppSamResourceAction
+  wsmResourceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
