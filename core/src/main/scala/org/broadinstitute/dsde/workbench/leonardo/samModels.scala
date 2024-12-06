@@ -230,6 +230,9 @@ object WorkspaceAction {
   final case object Delete extends WorkspaceAction {
     val asString = "delete"
   }
+  final case object Compute extends WorkspaceAction {
+    val asString = "compute"
+  }
 
   val allActions = sealerate.values[WorkspaceAction]
   val stringToAction: Map[String, WorkspaceAction] =

@@ -88,15 +88,15 @@ class RuntimeServiceInterp[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         AzureUnimplementedException("Azure runtime is not supported yet")
       )
+      // Check if the user has launch_notebook_cluster on the google-project resource.
+      _ <- samService.checkAuthorized(
+        userInfo.accessToken.token,
+        ProjectSamResourceId(googleProject),
+        ProjectAction.CreateRuntime
+      )
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(userInfo.accessToken.token)
-      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
-        ProjectSamResourceId(googleProject),
-        ProjectAction.CreateRuntime,
-        userInfo
-      )
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
       // Grab the pet service account for the user
       petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
@@ -235,30 +235,10 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[GetRuntimeResponse] =
     for {
       ctx <- as.ask
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
 
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
-
-      // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasPermissionWithProjectFallback[RuntimeSamResourceId, RuntimeAction](
-        resp.samResource,
-        RuntimeAction.GetRuntimeStatus,
-        ProjectAction.GetRuntimeStatus,
-        userInfo,
-        GoogleProject(cloudContext.asString)
-      )
-      _ <-
-        if (hasPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext, runtimeName, "permission denied")
-          )
+      _ <- samService.checkAuthorized(userInfo.accessToken.token, resp.samResource, RuntimeAction.GetRuntimeStatus)
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
