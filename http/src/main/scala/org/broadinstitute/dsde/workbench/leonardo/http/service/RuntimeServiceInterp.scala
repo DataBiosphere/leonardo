@@ -234,11 +234,14 @@ class RuntimeServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
-      ctx <- as.ask
-
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
-      _ <- samService.checkAuthorized(userInfo.accessToken.token, resp.samResource, RuntimeAction.GetRuntimeStatus)
+      _ <- samService
+        .checkAuthorized(userInfo.accessToken.token, resp.samResource, RuntimeAction.GetRuntimeStatus)
+        .adaptError {
+          // If the user doesn't have permission to read the runtime, pretend it doesn't exist to avoid leaking its existence
+          case _: ForbiddenError => RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
+        }
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
