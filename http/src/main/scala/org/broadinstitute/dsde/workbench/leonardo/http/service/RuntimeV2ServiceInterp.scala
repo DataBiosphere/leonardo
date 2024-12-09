@@ -63,7 +63,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      _ <- samService.checkAuthorized(userInfo.accessToken.token, WorkspaceResourceSamResourceId(workspaceId), WorkspaceAction.Compute)
+      _ <- samService.checkAuthorized(userInfo.accessToken.token,
+                                      WorkspaceResourceSamResourceId(workspaceId),
+                                      WorkspaceAction.Compute
+      )
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
 
       workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
