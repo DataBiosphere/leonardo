@@ -24,7 +24,6 @@
             Mysql 5.7+ changed default time stamps. This changeSet has been modified to reflect that; the
             validCheckSum is the checksum from when the default was 0000-00-00 00:00:00.000000.
         </comment>
-        <sql> SET GLOBAL innodb_default_row_format=DYNAMIC; </sql>
         <createTable tableName="APP">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true"/>
