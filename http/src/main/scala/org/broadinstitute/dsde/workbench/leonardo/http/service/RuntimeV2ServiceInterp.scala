@@ -63,6 +63,12 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
+      _ <- samService.checkAuthorized(userInfo.accessToken.token,
+                                      WorkspaceResourceSamResourceId(workspaceId),
+                                      WorkspaceAction.Compute
+      )
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
+
       workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
@@ -73,19 +79,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
         case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
 
-      samResource = WorkspaceResourceSamResourceId(workspaceId)
-
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(userInfo.accessToken.token)
-
-      hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
-        samResource,
-        WorkspaceAction.CreateControlledUserResource,
-        userInfo
-      )
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
 
       // enforcing one runtime per workspace/user at a time
       samResources <- samService.listResources(userInfo.accessToken.token, RuntimeSamResource.resourceType)
