@@ -2,5 +2,5 @@
 # the repo. Unless a later match takes precedence,
 # @broadinstitute/dsp-analysis will be requested for
 # review when someone opens a pull request.
-* @broadinstitute/dsp-analysis
+* @DataBiosphere/dsp-analysis
 
