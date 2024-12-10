@@ -37,7 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, default
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.{
   calculateAutopauseThreshold,
@@ -849,15 +849,23 @@ class RuntimeServiceInterpTest
     exc shouldBe a[RuntimeNotFoundException]
   }
 
-  it should "fail to get a runtime when users don't have access to the project" in isolatedDbTest {
-    val exc = runtimeService
-      .getRuntime(unauthorizedUserInfo, cloudContextGcp, RuntimeName("cluster"))
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-    exc shouldBe a[ForbiddenError]
+  it should "throw RuntimeNotFoundException when users don't have permission on the runtime" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    val runtimeService = makeRuntimeService(samService = samService)
+    val samResource = RuntimeSamResourceId(UUID.randomUUID.toString)
+    when(
+      samService.checkAuthorized(isEq(unauthorizedUserInfo.accessToken.token),
+                                 isEq(samResource),
+                                 isEq(RuntimeAction.GetRuntimeStatus)
+      )(any())
+    ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    val res = for {
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
+      getResponse <- runtimeService
+        .getRuntime(unauthorizedUserInfo, testRuntime.cloudContext, testRuntime.runtimeName)
+        .attempt
+    } yield getResponse.swap.toOption.get.isInstanceOf[RuntimeNotFoundException] shouldBe true
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes" in isolatedDbTest {

@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.getRuntimeSamPolicyMap
@@ -239,31 +239,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
       runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
-
-      hasPermission <-
-        if (runtime.auditInfo.creator == userInfo.userEmail)
-          F.pure(true)
-        else
-          checkSamPermission(
-            WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
-            userInfo,
-            WsmResourceAction.Read
-          ).map(_._1)
-
+      _ <- samService
+        .checkAuthorized(userInfo.accessToken.token, runtime.samResource, RuntimeAction.GetRuntimeStatus)
+        .adaptError {
+          // If the user doesn't have permission to read the runtime, pretend it doesn't exist to avoid leaking its existence
+          case e: SamException if e.statusCode == StatusCodes.Forbidden =>
+            RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database")
+        }
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
-      _ <- F
-        .raiseError[Unit](
-          RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
-        )
-        .whenA(!hasPermission)
-
     } yield runtime
 
   override def updateRuntime(

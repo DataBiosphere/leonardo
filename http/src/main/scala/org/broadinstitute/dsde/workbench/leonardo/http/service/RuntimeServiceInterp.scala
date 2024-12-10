@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
@@ -234,31 +234,15 @@ class RuntimeServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
-      ctx <- as.ask
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
-
-      // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasPermissionWithProjectFallback[RuntimeSamResourceId, RuntimeAction](
-        resp.samResource,
-        RuntimeAction.GetRuntimeStatus,
-        ProjectAction.GetRuntimeStatus,
-        userInfo,
-        GoogleProject(cloudContext.asString)
-      )
-      _ <-
-        if (hasPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext, runtimeName, "permission denied")
-          )
+      _ <- samService
+        .checkAuthorized(userInfo.accessToken.token, resp.samResource, RuntimeAction.GetRuntimeStatus)
+        .adaptError {
+          // If the user doesn't have permission to read the runtime, pretend it doesn't exist to avoid leaking its existence
+          case e: SamException if e.statusCode == StatusCodes.Forbidden =>
+            RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
+        }
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
