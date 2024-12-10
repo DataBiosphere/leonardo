@@ -213,6 +213,14 @@ class RuntimeServiceInterpTest
     with MockitoSugar {
 
   it should "fail if user doesn't have project level permission" in {
+    val samService = mock[SamService[IO]]
+    val runtimeService = makeRuntimeService(samService = samService)
+    when(
+      samService.checkAuthorized(isEq(unauthorizedUserInfo.accessToken.token),
+                                 isEq(ProjectSamResourceId(cloudContextGcp.value)),
+                                 isEq(ProjectAction.CreateRuntime)
+      )(any())
+    ).thenReturn(IO.raiseError(ForbiddenError(unauthorizedUserInfo.userEmail)))
     val res = for {
       r <- runtimeService
         .createRuntime(

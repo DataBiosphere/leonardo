@@ -88,15 +88,15 @@ class RuntimeServiceInterp[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         AzureUnimplementedException("Azure runtime is not supported yet")
       )
+      // Check if the user has launch_notebook_cluster on the google-project resource.
+      _ <- samService.checkAuthorized(
+        userInfo.accessToken.token,
+        ProjectSamResourceId(googleProject),
+        ProjectAction.CreateRuntime
+      )
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(userInfo.accessToken.token)
-      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
-        ProjectSamResourceId(googleProject),
-        ProjectAction.CreateRuntime,
-        userInfo
-      )
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
       // Grab the pet service account for the user
       petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
