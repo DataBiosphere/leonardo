@@ -366,15 +366,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val samService = mock[SamService[IO]]
-    when(
-      samService.checkAuthorized(unauthorizedUserInfo.accessToken.token,
-                                 WorkspaceResourceSamResourceId(workspaceId),
-                                 WorkspaceAction.Compute
-      )
-    ).thenReturn(IO.raiseError(ForbiddenError(unauthorizedUserInfo.userEmail)))
-    val runtimeV2Service = makeInterp(samService = samService)
-
     val thrown = the[ForbiddenError] thrownBy {
       runtimeV2Service
         .createRuntime(unauthorizedUserInfo, runtimeName, workspaceId, false, defaultCreateAzureRuntimeReq)
