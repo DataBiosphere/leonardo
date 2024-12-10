@@ -152,6 +152,9 @@ object RuntimeAction {
   final case object GetParent extends RuntimeAction {
     val asString = "get_parent"
   }
+  final case object CanAccess extends RuntimeAction {
+    val asString = "can_access"
+  }
 
   val allActions = sealerate.values[RuntimeAction]
   val stringToAction: Map[String, RuntimeAction] =
@@ -180,6 +183,9 @@ object PersistentDiskAction {
   }
   final case object GetParent extends PersistentDiskAction {
     val asString = "get_parent"
+  }
+  final case object CanAccess extends PersistentDiskAction {
+    val asString = "can_access"
   }
 
   val allActions = sealerate.values[PersistentDiskAction]
@@ -212,6 +218,9 @@ object AppAction {
   }
   final case object SetParent extends AppAction {
     val asString = "set_parent"
+  }
+  final case object CanAccess extends AppAction {
+    val asString = "can_access"
   }
 
   val allActions = sealerate.values[AppAction]
