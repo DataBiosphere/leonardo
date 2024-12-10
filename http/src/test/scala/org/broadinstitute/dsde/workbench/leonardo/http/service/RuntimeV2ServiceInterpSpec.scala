@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
@@ -27,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, default
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
@@ -687,9 +688,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
+    val samService = mockSamForCreateRuntimeTest(userInfo)
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.unit)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
+    val azureService = makeInterp(publisherQueue, samService = samService)
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
@@ -719,86 +724,32 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "get a runtime when caller is creator" in isolatedDbTest {
-
-    val userInfo = UserInfo(
-      OAuth2BearerToken(""),
-      WorkbenchUserId("userId"),
-      WorkbenchEmail("user1@example.com"),
-      0
-    ) // this email is allowlisted
-
-    implicit val mockSamResourceAction: SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] =
-      mock[SamResourceAction[WsmResourceSamResourceId, WsmResourceAction]]
-
-    // test: user does not have access permission for this resource (but they are the creator)
-    val mockAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
-    // User passes isUserWorkspaceReader
-    when(mockAuthProvider.isUserWorkspaceReader(any, any)(any)).thenReturn(IO.pure(true))
-    // Calls to a method on a mock which is not stubbed explicitly will return null;
-    // the user cannot pass mockAuthProvider.hasPermission unless we stub it
-
-    val runtimeName = RuntimeName("clusterName1")
-    val workspaceId = WorkspaceId(UUID.randomUUID())
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-
-    val setupAzureService = makeInterp(publisherQueue)
-    val testAzureService = makeInterp(publisherQueue, mockAuthProvider)
-
-    val res = for {
-      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-
-      _ <- setupAzureService
-        .createRuntime(
-          userInfo,
-          runtimeName,
-          workspaceId,
-          false,
-          defaultCreateAzureRuntimeReq
-        )
-      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      cluster = clusterOpt.get
-      getResponse <- testAzureService.getRuntime(userInfo, runtimeName, workspaceId)
-    } yield {
-      getResponse.clusterName shouldBe runtimeName
-      getResponse.auditInfo.creator shouldBe userInfo.userEmail
-
-    }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  it should "fail to get a non-existent runtime" in isolatedDbTest {
+    runtimeV2Service
+      .getRuntime(userInfo, RuntimeName("non-existent"), workspaceId)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get shouldBe a[RuntimeNotFoundByWorkspaceIdException]
   }
 
-  it should "fail to get a runtime when caller has workspace permission, lacks resource permissions, and is not creator" in isolatedDbTest {
-    val userInfoNoncreator =
-      UserInfo(OAuth2BearerToken(""), WorkbenchUserId("anotherUserId"), WorkbenchEmail("another_user@example.com"), 0)
-
-    implicit val mockSamResourceAction: SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] =
-      mock[SamResourceAction[WsmResourceSamResourceId, WsmResourceAction]]
-
-    // test: user does not have access permission for this resource (and they are not the creator)
-    val mockAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
-    // User passes isUserWorkspaceReader
-    when(mockAuthProvider.isUserWorkspaceReader(any(), any())(any())).thenReturn(IO.pure(true))
-    when(mockAuthProvider.hasPermission(any(), any(), any())(any(), any())).thenReturn(IO.pure(false))
-
+  it should "fail to get a runtime when caller lacks permission" in isolatedDbTest {
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
+    val samService = mockSamForCreateRuntimeTest(userInfo)
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
     val publisherQueue = QueueFactory.makePublisherQueue()
 
-    val setupAzureService = makeInterp(publisherQueue)
-    val testAzureService = makeInterp(publisherQueue, mockAuthProvider)
+    val testAzureService = makeInterp(publisherQueue, samService = samService)
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
 
-      _ <- setupAzureService
+      _ <- testAzureService
         .createRuntime(
           userInfo,
           runtimeName,
@@ -806,82 +757,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      cluster = clusterOpt.get
-      _ <- testAzureService.getRuntime(userInfoNoncreator, runtimeName, workspaceId)
+      _ <- testAzureService.getRuntime(userInfo, runtimeName, workspaceId)
     } yield ()
 
-    the[RuntimeNotFoundException] thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-
-  it should "fail to get a runtime when caller has no permission" in isolatedDbTest {
-    val runtimeName = RuntimeName("clusterName1")
-    val workspaceId = WorkspaceId(UUID.randomUUID())
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
-
-    val res = for {
-      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-
-      _ <- azureService
-        .createRuntime(
-          userInfo,
-          runtimeName,
-          workspaceId,
-          false,
-          defaultCreateAzureRuntimeReq
-        )
-      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      _ <- azureService.getRuntime(unauthorizedUserInfo, runtimeName, workspaceId)
-    } yield ()
-
-    the[ForbiddenError] thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-
-  it should "fail to get a runtime if the creator loses access to workspace" in isolatedDbTest {
-    val runtimeName = RuntimeName("clusterName1")
-    val workspaceId = WorkspaceId(UUID.randomUUID())
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue, allowListAuthProvider)
-    val azureService2 = makeInterp(publisherQueue, allowListAuthProvider2)
-
-    val res = for {
-      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-
-      _ <- azureService
-        .createRuntime(
-          userInfo,
-          runtimeName,
-          workspaceId,
-          false,
-          defaultCreateAzureRuntimeReq
-        )
-      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      _ <- azureService2.getRuntime(userInfo, runtimeName, workspaceId)
-    } yield ()
-
-    the[ForbiddenError] thrownBy {
+    the[RuntimeNotFoundByWorkspaceIdException] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
