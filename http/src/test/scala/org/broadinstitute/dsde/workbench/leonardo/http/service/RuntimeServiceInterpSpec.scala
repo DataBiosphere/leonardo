@@ -213,14 +213,6 @@ class RuntimeServiceInterpTest
     with MockitoSugar {
 
   it should "fail if user doesn't have project level permission" in {
-    val samService = mock[SamService[IO]]
-    val runtimeService = makeRuntimeService(samService = samService)
-    when(
-      samService.checkAuthorized(isEq(unauthorizedUserInfo.accessToken.token),
-                                 isEq(ProjectSamResourceId(cloudContextGcp.value)),
-                                 isEq(ProjectAction.CreateRuntime)
-      )(any())
-    ).thenReturn(IO.raiseError(ForbiddenError(unauthorizedUserInfo.userEmail)))
     val res = for {
       r <- runtimeService
         .createRuntime(
@@ -849,23 +841,15 @@ class RuntimeServiceInterpTest
     exc shouldBe a[RuntimeNotFoundException]
   }
 
-  it should "throw RuntimeNotFoundException when users don't have permission on the runtime" in isolatedDbTest {
-    val samService = mock[SamService[IO]]
-    val runtimeService = makeRuntimeService(samService = samService)
-    val samResource = RuntimeSamResourceId(UUID.randomUUID.toString)
-    when(
-      samService.checkAuthorized(isEq(unauthorizedUserInfo.accessToken.token),
-                                 isEq(samResource),
-                                 isEq(RuntimeAction.GetRuntimeStatus)
-      )(any())
-    ).thenReturn(IO.raiseError(ForbiddenError(unauthorizedUserInfo.userEmail)))
-    val res = for {
-      testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
-      getResponse <- runtimeService
-        .getRuntime(unauthorizedUserInfo, testRuntime.cloudContext, testRuntime.runtimeName)
-        .attempt
-    } yield getResponse.swap.toOption.get.isInstanceOf[RuntimeNotFoundException] shouldBe true
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  it should "fail to get a runtime when users don't have access to the project" in isolatedDbTest {
+    val exc = runtimeService
+      .getRuntime(unauthorizedUserInfo, cloudContextGcp, RuntimeName("cluster"))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+    exc shouldBe a[ForbiddenError]
   }
 
   it should "list runtimes" in isolatedDbTest {
