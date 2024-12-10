@@ -324,12 +324,20 @@ object RuntimeServiceDbQueries {
                    labelMap: LabelMap = Map.empty[String, String],
                    workspaceId: Option[WorkspaceId] = None
   )(implicit ec: ExecutionContext): DBIO[Vector[ListRuntimeResponse2]] = {
+    // Normalize filter params
+    val provider = if (cloudProvider.isEmpty) {
+      cloudContext match {
+        case Some(cContext) => Some(cContext.cloudProvider)
+        case None           => None
+      }
+    } else cloudProvider
+
     val runtimes = clusterQuery
       .filter(_.internalId inSetBind runtimeIds.map(_.asString))
       .filterOpt(workspaceId) { case (runtime, wId) =>
         runtime.workspaceId === (Some(wId): Rep[Option[WorkspaceId]])
       }
-      .filterOpt(cloudProvider) { case (runtime, cProvider) =>
+      .filterOpt(provider) { case (runtime, cProvider) =>
         runtime.cloudProvider === cProvider
       }
       .filterOpt(cloudContext) { case (runtime, cContext) =>
