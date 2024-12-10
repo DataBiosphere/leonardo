@@ -94,6 +94,16 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
     } yield runtime.id
 
+  def mockSamForCreateRuntimeTest(userInfo: UserInfo): SamService[IO] = {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
+    when(samService.getUserEmail(userInfo.accessToken.token)).thenReturn(IO.pure(userInfo.userEmail))
+    when(samService.listResources(any(), isEq(RuntimeSamResource.resourceType))(any()))
+      .thenReturn(IO.pure(List.empty))
+    when(samService.createResource(any(), any(), any(), any(), any())(any())).thenReturn(IO.unit)
+    samService
+  }
+
   /**
    * Generate a mocked AuthProvider which will permit action on the given resource IDs by the given user.
    * TODO: cover actions beside `checkUserEnabled` and `listResourceIds`
@@ -504,12 +514,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime with existing disk if disk is attached to non-deleted runtime" in isolatedDbTest {
-    val samService = mock[SamService[IO]]
-    when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
-    when(samService.getUserEmail(userInfo.accessToken.token)).thenReturn(IO.pure(userInfo.userEmail))
-    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
-      .thenReturn(IO.pure(List.empty))
-    when(samService.createResource(any(), any(), any(), any(), any())(any())).thenReturn(IO.unit)
+    val samService = mockSamForCreateRuntimeTest(userInfo)
     val runtimeV2Service = makeInterp(samService = samService)
     val res = for {
       _ <- runtimeV2Service
@@ -537,12 +542,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime if one exists in the workspace" in isolatedDbTest {
-    val samService = mock[SamService[IO]]
-    when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
-    when(samService.getUserEmail(userInfo.accessToken.token)).thenReturn(IO.pure(userInfo.userEmail))
-    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
-      .thenReturn(IO.pure(List.empty))
-    when(samService.createResource(any(), any(), any(), any(), any())(any())).thenReturn(IO.unit)
+    val samService = mockSamForCreateRuntimeTest(userInfo)
     val runtimeV2Service = makeInterp(samService = samService)
 
     runtimeV2Service
@@ -1520,13 +1520,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName_2 = RuntimeName("clusterName2")
     val runtimeName_3 = RuntimeName("clusterName3")
     val workspaceId = WorkspaceId(UUID.randomUUID())
-    val samService = mock[SamService[IO]]
-    when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
-    when(samService.getUserEmail(userInfo.accessToken.token)).thenReturn(IO.pure(userInfo.userEmail))
+    val samService = mockSamForCreateRuntimeTest(userInfo)
     when(samService.getUserEmail(userInfo2.accessToken.token)).thenReturn(IO.pure(userInfo2.userEmail))
     when(samService.getUserEmail(userInfo3.accessToken.token)).thenReturn(IO.pure(userInfo3.userEmail))
-    when(samService.listResources(any(), isEq(RuntimeSamResource.resourceType))(any())).thenReturn(IO.pure(List.empty))
-    when(samService.createResource(any(), any(), any(), any(), any())(any())).thenReturn(IO.unit)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val azureService = makeInterp(publisherQueue, samService = samService)
@@ -1662,12 +1658,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName_2 = RuntimeName("clusterName2")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val samService = mock[SamService[IO]]
-    when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
-    when(samService.getUserEmail(userInfo.accessToken.token)).thenReturn(IO.pure(userInfo.userEmail))
+    val samService = mockSamForCreateRuntimeTest(userInfo)
     when(samService.getUserEmail(userInfo2.accessToken.token)).thenReturn(IO.pure(userInfo2.userEmail))
-    when(samService.listResources(any(), isEq(RuntimeSamResource.resourceType))(any())).thenReturn(IO.pure(List.empty))
-    when(samService.createResource(any(), any(), any(), any(), any())(any())).thenReturn(IO.unit)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val azureService = makeInterp(publisherQueue, samService = samService)
