@@ -444,25 +444,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   ): F[Unit] = for {
     ctx <- as.ask
 
-    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-      WorkspaceResourceSamResourceId(workspaceId),
-      userInfo
-    )
-    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
-    runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
-
-    hasResourcePermission <- checkPermission(
-      runtime.auditInfo.creator,
-      userInfo,
-      WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.internalId)))
-    )
-
-    _ <- F
-      .raiseError[Unit](
-        RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
-      )
-      .whenA(!hasResourcePermission)
+    runtime <- getClusterRecordWithRequiredAction(userInfo, workspaceId, runtimeName, RuntimeAction.StopStartRuntime)
     _ <-
       if (runtime.status.isStoppable) F.unit
       else

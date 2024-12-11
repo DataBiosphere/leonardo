@@ -420,56 +420,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
-      )
-      // throw 404 if not existent
-      runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
-        .transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Finish query for active runtime")))
-      runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](
-          RuntimeNotFoundException(cloudContext, runtimeName, "no active runtime found in database")
-        )
-      )(F.pure)
-      // throw 404 if no GetClusterStatus permission
-      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
-      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
-
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
-
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(
-              cloudContext,
-              runtimeName,
-              "GetRuntimeStatus permission is required for stopRuntime"
-            )
-          )
-
-      // throw 403 if no StopStartCluster permission
-      hasStopPermission = listOfPermissions._1.toSet.contains(RuntimeAction.StopStartRuntime) ||
-        listOfPermissions._2.contains(ProjectAction.StopStartRuntime)
-
-      _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-      // throw 409 if the cluster is not stoppable
-
+      runtime <- getRuntimeWithRequiredAction(userInfo, cloudContext, runtimeName, RuntimeAction.StopStartRuntime)
       _ <-
         if (runtime.status.isStopping) F.unit
         else if (runtime.status.isStoppable) {

@@ -1624,6 +1624,38 @@ class RuntimeServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "fail to stop a runtime if the user doesn't have permission" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.StopStartRuntime))(any()))
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.unit)
+
+    val runtimeService = makeRuntimeService(samService = samService)
+    val res = for {
+      context <- appContext.ask[AppContext]
+      pd <- makePersistentDisk().save()
+      testRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig
+            .GceWithPdConfig(
+              MachineTypeName("n1-standard-4"),
+              Some(pd.id),
+              bootDiskSize = DiskSize(50),
+              zone = ZoneName("us-central1-a"),
+              None
+            )
+        )
+      )
+      r <- runtimeService
+        .stopRuntime(userInfo, testRuntime.cloudContext, testRuntime.runtimeName)
+        .attempt
+    } yield r.swap.toOption.get shouldBe a[ForbiddenError]
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "start a runtime" in isolatedDbTest {
     val res = for {
       publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
