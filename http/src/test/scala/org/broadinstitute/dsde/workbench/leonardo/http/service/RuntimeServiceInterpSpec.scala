@@ -1626,7 +1626,9 @@ class RuntimeServiceInterpTest
 
   it should "fail to stop a runtime if the user doesn't have permission" in isolatedDbTest {
     val samService = mock[SamService[IO]]
-    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.StopStartRuntime))(any()))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.StopStartRuntime))(any())
+    )
       .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
     when(
       samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
@@ -1676,6 +1678,29 @@ class RuntimeServiceInterpTest
         }
       }
     } yield res
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to start a runtime if user doesn't have permission" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.StopStartRuntime))(any())
+    )
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.unit)
+
+    val runtimeService = makeRuntimeService(samService = samService)
+    val res = for {
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Stopped).save())
+
+      r <- runtimeService
+        .startRuntime(userInfo, GoogleProject(testRuntime.cloudContext.asString), testRuntime.runtimeName)
+        .attempt
+    } yield r.swap.toOption.get shouldBe a[ForbiddenError]
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

@@ -793,6 +793,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     // User is runtime creator, but does not have access to the workspace
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
     val workspaceId = WorkspaceId(UUID.randomUUID())
+    val samService = mock[SamService[IO]]
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.StopStartRuntime))(any())
+    )
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.unit)
+    val interp = makeInterp(samService = samService)
 
     val res = for {
       runtime <- IO(
@@ -804,7 +813,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      r <- runtimeV2Service
+      r <- interp
         .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
         .attempt
     } yield {
@@ -879,7 +888,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("user"), WorkbenchEmail("email"), 0)
     val workspaceId = WorkspaceId(UUID.randomUUID())
     val samService = mock[SamService[IO]]
-    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.StopStartRuntime))(any()))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.StopStartRuntime))(any())
+    )
       .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
     when(
       samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
