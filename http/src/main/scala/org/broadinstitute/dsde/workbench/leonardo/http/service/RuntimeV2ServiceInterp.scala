@@ -24,10 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.getRuntimeSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.RuntimeSamResource
 // do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-  workspaceSamResourceAction,
-  wsmResourceSamResourceAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.wsmResourceSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -267,29 +264,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
-      runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
-
-      hasPermission <-
-        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
-        else {
-          // users who have workspace level delete privileges should be able to delete all resources in the workspace
-          authProvider
-            .hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](WorkspaceResourceSamResourceId(workspaceId),
-                                                                            WorkspaceAction.Delete,
-                                                                            userInfo
-            )
-        }
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
-      _ <- F
-        .raiseError[Unit](RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied"))
-        .whenA(!hasPermission)
+      runtime <- getClusterRecordWithRequiredAction(userInfo, workspaceId, runtimeName, RuntimeAction.DeleteRuntime)
 
       diskIdOpt <- RuntimeConfigQueries.getDiskId(runtime.runtimeConfigId).transaction
       diskId <- diskIdOpt match {
@@ -573,6 +548,44 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       Some(workspaceId)
     )
   }
+
+  private def getClusterRecordWithRequiredAction(
+    userInfo: UserInfo,
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName,
+    action: RuntimeAction
+  )(implicit as: Ask[F, AppContext]): F[ClusterRecord] =
+    for {
+      ctx <- as.ask
+      runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
+      _ <- samService
+        .checkAuthorized(userInfo.accessToken.token, RuntimeSamResourceId(runtime.internalId), action)
+        .handleErrorWith {
+          // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
+          case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
+            F.raiseError(RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database"))
+          // Check if the user can read the runtime to determine which error to raise
+          case e: SamException if e.statusCode == StatusCodes.Forbidden =>
+            samService
+              .checkAuthorized(userInfo.accessToken.token,
+                               RuntimeSamResourceId(runtime.internalId),
+                               RuntimeAction.GetRuntimeStatus
+              )
+              .attempt
+              .flatMap {
+                // The user can read the runtime, but they don't have the required action. Raise the original Forbidden action from Sam
+                case Right(_) =>
+                  F.raiseError(
+                    ForbiddenError(userInfo.userEmail)
+                  )
+                // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
+                case Left(_) =>
+                  F.raiseError(
+                    RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database")
+                  )
+              }
+        }
+    } yield runtime
 
   private def checkPermission(
     creator: WorkbenchEmail,
