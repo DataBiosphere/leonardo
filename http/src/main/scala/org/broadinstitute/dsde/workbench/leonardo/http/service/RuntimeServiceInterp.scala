@@ -276,51 +276,13 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(req.userInfo.accessToken.token)
-
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        req.userInfo
+      runtime <- getRuntimeWithRequiredAction(req.userInfo,
+                                              cloudContext,
+                                              req.runtimeName,
+                                              RuntimeAction.DeleteRuntime,
+                                              userEmail.some
       )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userEmail, Some(ctx.traceId)))
 
-      // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, req.runtimeName).transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done getActiveClusterByNameMinimal")))
-      runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, req.runtimeName, "no record in database"))
-      )(F.pure)
-      // throw 404 if no GetClusterStatus permission
-      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
-      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(
-        runtime.samResource,
-        req.googleProject,
-        req.userInfo
-      )
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
-
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          log.info(ctx.loggingCtx)(s"${userEmail.value} has no permission to get runtime status") >> F
-            .raiseError[Unit](
-              RuntimeNotFoundException(
-                cloudContext,
-                req.runtimeName,
-                "no active runtime record in database",
-                Some(ctx.traceId)
-              )
-            )
-
-      // throw 403 if no DeleteCluster permission
-      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
-        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
-
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
       // throw 409 if the cluster is not deletable
       _ <-
         if (runtime.status.isDeletable) F.unit
@@ -973,6 +935,45 @@ class RuntimeServiceInterp[F[_]: Parallel](
         else Async[F].pure((mt, true))
       }
     } yield targetMachineType
+
+  private def getRuntimeWithRequiredAction(
+    userInfo: UserInfo,
+    cloudContext: CloudContext,
+    runtimeName: RuntimeName,
+    action: RuntimeAction,
+    userEmail: Option[WorkbenchEmail] = None
+  )(implicit as: Ask[F, AppContext]): F[Runtime] =
+    for {
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName).transaction
+      runtime <- runtimeOpt.fold(
+        F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
+      )(F.pure)
+
+      _ <- samService
+        .checkAuthorized(userInfo.accessToken.token, runtime.samResource, action)
+        .handleErrorWith {
+          // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
+          case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
+            F.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
+          // Check if the user can read the runtime to determine which error to raise
+          case e: SamException if e.statusCode == StatusCodes.Forbidden =>
+            samService
+              .checkAuthorized(userInfo.accessToken.token, runtime.samResource, RuntimeAction.GetRuntimeStatus)
+              .attempt
+              .flatMap {
+                // The user can read the runtime, but they don't have the required action so raise a ForbiddenError
+                case Right(_) =>
+                  F.raiseError(
+                    ForbiddenError(userEmail.getOrElse(userInfo.userEmail))
+                  )
+                // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
+                case Left(_) =>
+                  F.raiseError(
+                    RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
+                  )
+              }
+        }
+    } yield runtime
 }
 
 object RuntimeServiceInterp {
