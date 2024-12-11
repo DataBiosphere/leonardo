@@ -1200,8 +1200,16 @@ class RuntimeServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail to delete a runtime if user loses project access" in isolatedDbTest {
-    val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider2)
+  it should "fail to delete a runtime if the user doesn't have permission" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.DeleteRuntime))(any()))
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.unit)
+    when(samService.getUserEmail(isEq(userInfo.accessToken.token))(any())).thenReturn(IO.pure(userInfo.userEmail))
+
+    val runtimeService = makeRuntimeService(samService = samService)
     val res = for {
       context <- appContext.ask[AppContext]
       pd <- makePersistentDisk().save()
@@ -1222,7 +1230,42 @@ class RuntimeServiceInterpTest
           DeleteRuntimeRequest(userInfo, GoogleProject(cloudContextGcp.asString), testRuntime.runtimeName, false)
         )
         .attempt
-    } yield r shouldBe Left(ForbiddenError(userInfo.userEmail, Some(context.traceId)))
+    } yield r.swap.toOption.get shouldBe a[ForbiddenError]
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a runtime and not reveal its existence when user has no access to it" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.DeleteRuntime))(any()))
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(samService.getUserEmail(isEq(userInfo.accessToken.token))(any())).thenReturn(IO.pure(userInfo.userEmail))
+
+    val runtimeService = makeRuntimeService(samService = samService)
+    val res = for {
+      context <- appContext.ask[AppContext]
+      pd <- makePersistentDisk().save()
+      testRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig
+            .GceWithPdConfig(
+              MachineTypeName("n1-standard-4"),
+              Some(pd.id),
+              bootDiskSize = DiskSize(50),
+              zone = ZoneName("us-central1-a"),
+              None
+            )
+        )
+      )
+      r <- runtimeService
+        .deleteRuntime(
+          DeleteRuntimeRequest(userInfo, GoogleProject(cloudContextGcp.asString), testRuntime.runtimeName, false)
+        )
+        .attempt
+    } yield r.swap.toOption.get shouldBe a[RuntimeNotFoundException]
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1394,32 +1437,16 @@ class RuntimeServiceInterpTest
   it should "deleteAll runtimes" in isolatedDbTest {
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
-      readerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    when(
-      mockAuthProvider.getActionsWithProjectFallback[RuntimeSamResourceId, RuntimeAction](any, any, isEq(userInfo))(any,
-                                                                                                                    any
-      )
-    )
-      .thenReturn(
-        IO.pure(
-          (List(RuntimeAction.GetRuntimeStatus, RuntimeAction.DeleteRuntime),
-           List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime)
-          )
-        )
-      )
+
     val samService = mock[SamService[IO]]
     when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
       .thenReturn(IO.pure(runtimeIds.map(_.resourceId).toList))
     when(samService.getUserEmail(isEq(userInfo.accessToken.token))(any())).thenReturn(IO.pure(userInfo.userEmail))
+    when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
     when(samService.deleteResource(any(), any())(any())).thenReturn(IO.unit)
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service =
-      makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
+      makeRuntimeService(publisherQueue = publisherQueue, samService = samService)
 
     val res = for {
       pd1 <- makePersistentDisk().save()

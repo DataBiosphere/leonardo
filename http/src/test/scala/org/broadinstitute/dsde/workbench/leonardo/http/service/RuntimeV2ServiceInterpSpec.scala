@@ -95,7 +95,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .transaction
     } yield runtime.id
 
-  def mockSamForCreateRuntimeTest(userInfo: UserInfo): SamService[IO] = {
+  def mockSamForCreateRuntime(userInfo: UserInfo): SamService[IO] = {
     val samService = mock[SamService[IO]]
     when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
     when(samService.getUserEmail(userInfo.accessToken.token)).thenReturn(IO.pure(userInfo.userEmail))
@@ -524,7 +524,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime with existing disk if disk is attached to non-deleted runtime" in isolatedDbTest {
-    val samService = mockSamForCreateRuntimeTest(userInfo)
+    val samService = mockSamForCreateRuntime(userInfo)
     val runtimeV2Service = makeInterp(samService = samService)
     val res = for {
       _ <- runtimeV2Service
@@ -552,7 +552,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "fail to create a runtime if one exists in the workspace" in isolatedDbTest {
-    val samService = mockSamForCreateRuntimeTest(userInfo)
+    val samService = mockSamForCreateRuntime(userInfo)
     val runtimeV2Service = makeInterp(samService = samService)
 
     runtimeV2Service
@@ -688,7 +688,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     ) // this email is allowlisted
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
-    val samService = mockSamForCreateRuntimeTest(userInfo)
+    val samService = mockSamForCreateRuntime(userInfo)
     when(
       samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
     ).thenReturn(IO.unit)
@@ -738,7 +738,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val samService = mockSamForCreateRuntimeTest(userInfo)
+    val samService = mockSamForCreateRuntime(userInfo)
     when(
       samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
     ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
@@ -1330,12 +1330,18 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail to delete a runtime when caller has no permission" in isolatedDbTest {
+  it should "fail to delete a runtime when caller is missing delete permission" in isolatedDbTest {
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
+    val samService = mockSamForCreateRuntime(userInfo)
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.DeleteRuntime))(any()))
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.unit)
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
+    val azureService = makeInterp(publisherQueue, samService = samService)
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
@@ -1358,7 +1364,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       cluster = clusterOpt.get
       now <- IO.realTimeInstant
       _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Running, now).transaction
-      _ <- azureService.deleteRuntime(unauthorizedUserInfo, runtimeName, workspaceId, true)
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
     } yield ()
 
     the[ForbiddenError] thrownBy {
@@ -1366,13 +1372,18 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
-  it should "fail to delete a runtime when creator has lost workspace permission" in isolatedDbTest {
+  it should "fail to delete a runtime and not reveal its existence when user has no access to it" in isolatedDbTest {
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
+    val samService = mockSamForCreateRuntime(userInfo)
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.DeleteRuntime))(any()))
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.GetRuntimeStatus))(any())
+    ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue, allowListAuthProvider)
-    val azureService2 = makeInterp(publisherQueue, allowListAuthProvider2)
+    val azureService = makeInterp(publisherQueue, samService = samService)
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
@@ -1395,10 +1406,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       cluster = clusterOpt.get
       now <- IO.realTimeInstant
       _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Running, now).transaction
-      _ <- azureService2.deleteRuntime(userInfo, runtimeName, workspaceId, true)
+      _ <- azureService.deleteRuntime(userInfo, runtimeName, workspaceId, true)
     } yield ()
 
-    the[ForbiddenError] thrownBy {
+    the[RuntimeNotFoundByWorkspaceIdException] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
@@ -1408,7 +1419,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName_2 = RuntimeName("clusterName2")
     val runtimeName_3 = RuntimeName("clusterName3")
     val workspaceId = WorkspaceId(UUID.randomUUID())
-    val samService = mockSamForCreateRuntimeTest(userInfo)
+    val samService = mockSamForCreateRuntime(userInfo)
     when(samService.getUserEmail(userInfo2.accessToken.token)).thenReturn(IO.pure(userInfo2.userEmail))
     when(samService.getUserEmail(userInfo3.accessToken.token)).thenReturn(IO.pure(userInfo3.userEmail))
 
@@ -1546,7 +1557,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName_2 = RuntimeName("clusterName2")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val samService = mockSamForCreateRuntimeTest(userInfo)
+    val samService = mockSamForCreateRuntime(userInfo)
     when(samService.getUserEmail(userInfo2.accessToken.token)).thenReturn(IO.pure(userInfo2.userEmail))
 
     val publisherQueue = QueueFactory.makePublisherQueue()
