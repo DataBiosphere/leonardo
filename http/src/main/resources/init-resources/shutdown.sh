@@ -22,6 +22,9 @@ export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export SHOULD_DELETE_JUPYTER_DIR=$(shouldDeleteJupyterDir)
 
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    docker exec -u rstudio -i $RSTUDIO_SERVER_NAME rstudio-server stop
+fi
 
 # Remove jupyter related files if user decides to delete the VM
 if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ] ; then
