@@ -243,13 +243,12 @@ RUNTIME_NAME=${RUNTIME_NAME}
 OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
 WELDER_ENABLED=${WELDER_ENABLED}
-MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         # We only want to restart the existing container with the latest environment variables
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate -memory ${MEM_LIMIT}
         
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
@@ -277,17 +276,16 @@ RUNTIME_NAME=${RUNTIME_NAME}
 OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
 WELDER_ENABLED=${WELDER_ENABLED}
-MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         # We only want to restart the existing container with the latest environment variables
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate --memory ${MEM_LIMIT}
 
         # the docker containers need to be restarted or the R container
         # will fail to start until the appropriate volume/device exists.
-        docker restart $RSTUDIO_SERVER_NAME
+        docker restart $RSTUDIO_SERVER_NAME --memory
         docker restart $WELDER_SERVER_NAME
 
     fi
