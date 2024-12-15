@@ -255,6 +255,9 @@ END
         docker restart $JUPYTER_SERVER_NAME
         docker restart $WELDER_SERVER_NAME
 
+        # update memory size
+        docker update --memory ${MEM_LIMIT} $JUPYTER_SERVER_NAME
+
         log 'Copy Jupyter frontend notebook config...'
         $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
@@ -281,7 +284,10 @@ END
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         # We only want to restart the existing container with the latest environment variables
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate --memory ${MEM_LIMIT} --memory-swap ${MEM_LIMIT}
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate
+
+        # update memory size
+        docker update --memory ${MEM_LIMIT} $RSTUDIO_SERVER_NAME
 
         # the docker containers need to be restarted or the R container
         # will fail to start until the appropriate volume/device exists.
