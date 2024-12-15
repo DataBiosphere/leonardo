@@ -248,7 +248,7 @@ END
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         # We only want to restart the existing container with the latest environment variables
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate --memory ${MEM_LIMIT}
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_JUPYTER_DOCKER_COMPOSE} up -d --no-recreate --memory ${MEM_LIMIT} --memory-swap ${MEM_LIMIT}
         
         # the docker containers need to be restarted or the jupyter container
         # will fail to start until the appropriate volume/device exists
@@ -281,7 +281,7 @@ END
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         # We only want to restart the existing container with the latest environment variables
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate --memory ${MEM_LIMIT}
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate --memory ${MEM_LIMIT} --memory-swap ${MEM_LIMIT}
 
         # the docker containers need to be restarted or the R container
         # will fail to start until the appropriate volume/device exists.
