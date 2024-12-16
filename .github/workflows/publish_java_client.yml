@@ -29,7 +29,7 @@ jobs:
       SBT_OPTS: -Xmx3g
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # coursier cache action caches both coursier and sbt caches
       - name: coursier-cache-action
