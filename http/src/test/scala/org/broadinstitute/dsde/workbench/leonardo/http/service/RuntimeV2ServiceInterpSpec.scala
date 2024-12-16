@@ -2044,38 +2044,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
+    val samService = mockSamForCreateRuntime(userInfo)
+    when(
+      samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.ModifyRuntime))(
+        any()
+      )
+    ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
     val publisherQueue = QueueFactory.makePublisherQueue()
     val dateAccessedQueue = QueueFactory.makeDateAccessedQueue()
-    val azureService = makeInterp(publisherQueue, dateAccessedQueue = dateAccessedQueue)
-
-    val res = for {
-      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-
-      _ <- azureService
-        .createRuntime(
-          unauthorizedUserInfo, // this email is not allowlisted
-          runtimeName,
-          workspaceId,
-          false,
-          defaultCreateAzureRuntimeReq
-        )
-      _ <- azureService.updateDateAccessed(unauthorizedUserInfo, workspaceId, runtimeName)
-    } yield ()
-
-    val thrown = the[ForbiddenError] thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-
-    thrown shouldBe ForbiddenError(unauthorizedEmail)
-  }
-
-  it should "not update date accessed when user has lost access to workspace" in isolatedDbTest {
-    val runtimeName = RuntimeName("clusterName1")
-    val workspaceId = WorkspaceId(UUID.randomUUID())
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
-    val azureService2 = makeInterp(publisherQueue, allowListAuthProvider2)
+    val azureService = makeInterp(publisherQueue, dateAccessedQueue = dateAccessedQueue, samService = samService)
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
@@ -2088,15 +2065,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           false,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmClientProvider.getWorkspace("token", workspaceId).map(_.get.azureContext)
-      _ <- azureService2.updateDateAccessed(userInfo, workspaceId, runtimeName)
+      _ <- azureService.updateDateAccessed(userInfo, workspaceId, runtimeName)
     } yield ()
 
-    the[ForbiddenError] thrownBy {
+    val thrown = the[ForbiddenError] thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
-  }
 
+    thrown shouldBe ForbiddenError(userInfo.userEmail)
+  }
 }
 
 object TestContext extends Enumeration {

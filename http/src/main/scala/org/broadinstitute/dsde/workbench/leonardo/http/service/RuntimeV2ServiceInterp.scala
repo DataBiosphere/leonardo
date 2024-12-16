@@ -379,28 +379,15 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
       runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
 
-      hasResourcePermission <- checkSamPermission(
-        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+      _ <- checkRuntimeAction(
         userInfo,
-        WsmResourceAction.Write
-      ).map(_._1)
-
-      _ <- ctx.span.traverse(s =>
-        F.delay(s.addAnnotation("Done auth call for update date accessed runtime permission"))
+        workspaceId,
+        runtimeName,
+        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(runtime.samResource.resourceId))),
+        RuntimeAction.ModifyRuntime
       )
-      _ <- F
-        .raiseError[Unit](
-          RuntimeNotFoundException(runtime.cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
-        )
-        .whenA(!hasResourcePermission)
 
       _ <- dateAccessUpdaterQueue.offer(
         UpdateDateAccessedMessage(UpdateTarget.Runtime(runtimeName), runtime.cloudContext, ctx.now)
@@ -522,34 +509,39 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
-      _ <- samService
-        .checkAuthorized(userInfo.accessToken.token, RuntimeSamResourceId(runtime.internalId), action)
-        .handleErrorWith {
-          // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
-          case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
-            F.raiseError(RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database"))
-          // Check if the user can read the runtime to determine which error to raise
-          case e: SamException if e.statusCode == StatusCodes.Forbidden =>
-            samService
-              .checkAuthorized(userInfo.accessToken.token,
-                               RuntimeSamResourceId(runtime.internalId),
-                               RuntimeAction.GetRuntimeStatus
-              )
-              .attempt
-              .flatMap {
-                // The user can read the runtime, but they don't have the required action. Raise the original Forbidden action from Sam
-                case Right(_) =>
-                  F.raiseError(
-                    ForbiddenError(userInfo.userEmail)
-                  )
-                // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
-                case Left(_) =>
-                  F.raiseError(
-                    RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database")
-                  )
-              }
-        }
+      _ <- checkRuntimeAction(userInfo, workspaceId, runtimeName, RuntimeSamResourceId(runtime.internalId), action)
     } yield runtime
+
+  private def checkRuntimeAction(userInfo: UserInfo,
+                                 workspaceId: WorkspaceId,
+                                 runtimeName: RuntimeName,
+                                 samResourceId: SamResourceId,
+                                 action: RuntimeAction
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
+    samService
+      .checkAuthorized(userInfo.accessToken.token, samResourceId, action)
+      .handleErrorWith {
+        // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
+        case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
+          F.raiseError(RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database"))
+        // Check if the user can read the runtime to determine which error to raise
+        case e: SamException if e.statusCode == StatusCodes.Forbidden =>
+          samService
+            .checkAuthorized(userInfo.accessToken.token, samResourceId, RuntimeAction.GetRuntimeStatus)
+            .attempt
+            .flatMap {
+              // The user can read the runtime, but they don't have the required action. Raise the original Forbidden action from Sam
+              case Right(_) =>
+                F.raiseError(
+                  ForbiddenError(userInfo.userEmail)
+                )
+              // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
+              case Left(_) =>
+                F.raiseError(
+                  RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database")
+                )
+            }
+      }
 
   private def checkPermission(
     creator: WorkbenchEmail,

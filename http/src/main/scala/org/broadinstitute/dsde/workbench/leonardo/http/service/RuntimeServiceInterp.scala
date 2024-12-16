@@ -464,46 +464,18 @@ class RuntimeServiceInterp[F[_]: Parallel](
       // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
       cloudContext = CloudContext.Gcp(googleProject)
 
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterRecordByName(cloudContext, runtimeName).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[ClusterRecord](RuntimeNotFoundException(cloudContext, runtimeName, "no record in database"))
       )(F.pure)
-      // throw 404 if no GetClusterStatus permission
-      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
-      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(
-        RuntimeSamResourceId(runtime.internalId),
-        googleProject,
-        userInfo
+      _ <- checkRuntimeAction(userInfo,
+                              cloudContext,
+                              runtimeName,
+                              RuntimeSamResourceId(runtime.internalId),
+                              RuntimeAction.ModifyRuntime
       )
-
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(
-              cloudContext,
-              runtimeName,
-              "GetRuntimeStatus permission is required for update runtime"
-            )
-          )
-
-      // throw 403 if no ModifyCluster permission
-      hasModifyPermission = listOfPermissions._1.toSet.contains(RuntimeAction.ModifyRuntime)
-
-      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // throw 409 if the cluster is not updatable
       _ <-
         if (runtime.status.isUpdatable) F.unit
@@ -862,31 +834,40 @@ class RuntimeServiceInterp[F[_]: Parallel](
         F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
       )(F.pure)
 
-      _ <- samService
-        .checkAuthorized(userInfo.accessToken.token, runtime.samResource, action)
-        .handleErrorWith {
-          // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
-          case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
-            F.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
-          // Check if the user can read the runtime to determine which error to raise
-          case e: SamException if e.statusCode == StatusCodes.Forbidden =>
-            samService
-              .checkAuthorized(userInfo.accessToken.token, runtime.samResource, RuntimeAction.GetRuntimeStatus)
-              .attempt
-              .flatMap {
-                // The user can read the runtime, but they don't have the required action so raise a ForbiddenError
-                case Right(_) =>
-                  F.raiseError(
-                    ForbiddenError(userEmail.getOrElse(userInfo.userEmail))
-                  )
-                // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
-                case Left(_) =>
-                  F.raiseError(
-                    RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
-                  )
-              }
-        }
+      _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, runtime.samResource, action, userEmail)
     } yield runtime
+
+  private def checkRuntimeAction(userInfo: UserInfo,
+                                 cloudContext: CloudContext,
+                                 runtimeName: RuntimeName,
+                                 samResourceId: RuntimeSamResourceId,
+                                 action: RuntimeAction,
+                                 userEmail: Option[WorkbenchEmail] = None
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
+    samService
+      .checkAuthorized(userInfo.accessToken.token, samResourceId, action)
+      .handleErrorWith {
+        // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
+        case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
+          F.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
+        // Check if the user can read the runtime to determine which error to raise
+        case e: SamException if e.statusCode == StatusCodes.Forbidden =>
+          samService
+            .checkAuthorized(userInfo.accessToken.token, samResourceId, RuntimeAction.GetRuntimeStatus)
+            .attempt
+            .flatMap {
+              // The user can read the runtime, but they don't have the required action so raise a ForbiddenError
+              case Right(_) =>
+                F.raiseError(
+                  ForbiddenError(userEmail.getOrElse(userInfo.userEmail))
+                )
+              // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
+              case Left(_) =>
+                F.raiseError(
+                  RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
+                )
+            }
+      }
 }
 
 object RuntimeServiceInterp {
