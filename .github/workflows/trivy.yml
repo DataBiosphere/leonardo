@@ -7,7 +7,7 @@ jobs:
     name: DSP AppSec Trivy check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       # The Dockerfile copies this, so it needs
       # to exist for the build to succeed

@@ -34,7 +34,7 @@ jobs:
       OUTPUT_FILE_RELATIVE_PATH: jenkins/gce-custom-images/output.txt
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - id: 'auth'
       name: 'Authenticate to Google Cloud'
@@ -81,7 +81,7 @@ jobs:
       DATAPROC_IMAGE_BUCKET: gs://leo-dataproc-image-creation-logs
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
