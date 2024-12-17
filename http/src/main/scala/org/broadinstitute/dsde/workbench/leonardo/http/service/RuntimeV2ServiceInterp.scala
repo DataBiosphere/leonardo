@@ -340,13 +340,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      workspaceSamId = WorkspaceResourceSamResourceId(workspaceId)
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        workspaceSamId,
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
       samResources <- samService.listResources(userInfo.accessToken.token, RuntimeSamResource.resourceType)
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(
