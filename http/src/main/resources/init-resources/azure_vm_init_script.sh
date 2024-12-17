@@ -138,8 +138,6 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}${RELAY_SUFFIX}/;SharedAccess
 LEONARDO_URL="${18:-dummy}"
 RUNTIME_NAME="${19:-dummy}"
 VALID_HOSTS="${20:-dummy}"
-
-
 DATEACCESSED_SLEEP_SECONDS=60 # supercedes default defined in terra-azure-relay-listeners/service/src/main/resources/application.yml
 
 # Log in script output for debugging purposes.

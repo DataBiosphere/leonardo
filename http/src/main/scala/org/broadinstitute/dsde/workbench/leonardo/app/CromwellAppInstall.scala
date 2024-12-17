@@ -139,10 +139,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"postgres.user=${params.ksaName.value}",
       raw"postgres.dbnames.cromwell=${dbNames.cromwell}",
       raw"postgres.dbnames.cbas=${dbNames.cbas}",
-      raw"postgres.dbnames.tes=${dbNames.tes}",
-
-      // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
-      raw"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:84214c9d71721269f9945406d72e30a6f8aac514"
+      raw"postgres.dbnames.tes=${dbNames.tes}"
     )
   } yield Values(values.mkString(","))
 
