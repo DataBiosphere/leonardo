@@ -399,7 +399,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      ctx <- as.ask
       runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty)
       _ <- runtimes.traverse(runtime => deleteRuntimeRecords(userInfo, cloudContext, runtime))
     } yield ()

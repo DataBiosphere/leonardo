@@ -8,36 +8,20 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
-  projectSamResourceDecoder,
-  runtimeSamResourceDecoder,
-  workspaceSamResourceIdDecoder,
-  wsmResourceSamResourceIdDecoder
-}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
 }
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, defaultMockitoAnswer}
-import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.RuntimeSamResource
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-  projectSamResourceAction,
-  runtimeSamResourceAction,
-  workspaceSamResourceAction,
-  wsmResourceSamResourceAction,
-  AppSamResourceAction
-}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -49,10 +33,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, Upd
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.mockito.ArgumentMatchers.{any, argThat, eq => isEq}
+import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.mockito.Mockito.when
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar
 import org.typelevel.log4cats.StructuredLogger
 
@@ -75,12 +58,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   // used when we care about queue state
   def makeInterp(
     queue: Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue(),
-    authProvider: AllowlistAuthProvider = allowListAuthProvider,
     dateAccessedQueue: Queue[IO, UpdateDateAccessedMessage] = QueueFactory.makeDateAccessedQueue(),
     wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
     samService: SamService[IO] = MockSamService
   ) =
-    new RuntimeV2ServiceInterp[IO](serviceConfig, authProvider, queue, dateAccessedQueue, wsmClientProvider, samService)
+    new RuntimeV2ServiceInterp[IO](serviceConfig, queue, dateAccessedQueue, wsmClientProvider, samService)
 
   // need to set previous runtime to deleted status before creating next to avoid exception
   def setRuntimeDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[Long] =
@@ -105,174 +87,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     samService
   }
 
-  /**
-   * Generate a mocked AuthProvider which will permit action on the given resource IDs by the given user.
-   * TODO: cover actions beside `checkUserEnabled` and `listResourceIds`
-   * @param userInfo
-   * @param readerRuntimeSamIds
-   * @param readerWorkspaceSamIds
-   * @param readerProjectSamIds
-   * @param ownerWorkspaceSamIds
-   * @param ownerProjectSamIds
-   * @return
-   */
-  def mockAuthorize(
-    userInfo: UserInfo,
-    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
-    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
-    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
-    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
-  ): AllowlistAuthProvider = {
-    val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
-
-    when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
-    when(
-      mockAuthProvider.listResourceIds[RuntimeSamResourceId](isEq(true), isEq(userInfo))(
-        any(runtimeSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[RuntimeSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(readerRuntimeSamIds))
-    when(
-      mockAuthProvider.listResourceIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
-        any(wsmResourceSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[WsmResourceSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(readerWsmSamIds))
-    when(
-      mockAuthProvider.listResourceIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
-        any(workspaceSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[WorkspaceResourceSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(readerWorkspaceSamIds))
-    when(
-      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
-        any(projectSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[ProjectSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    )
-      .thenReturn(IO.pure(readerProjectSamIds))
-    when(
-      mockAuthProvider.listResourceIds[WorkspaceResourceSamResourceId](isEq(true), isEq(userInfo))(
-        any(workspaceSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[WorkspaceResourceSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    )
-      .thenReturn(IO.pure(ownerWorkspaceSamIds))
-    when(
-      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
-        any(projectSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[ProjectSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    )
-      .thenReturn(IO.pure(ownerProjectSamIds))
-
-    mockAuthProvider
-  }
-
-  /**
-   * Generate a mocked AuthProvider which will permit action on the given resource IDs by the given user,
-   * when the list request is restricted to one workspace. Expects isUserWorkspace* instead of listResourceIds.
-   * TODO: cover actions beside `checkUserEnabled` and `listResourceIds`
-   *
-   * @param userInfo
-   * @param readerRuntimeSamIds
-   * @param readerWorkspaceSamIds
-   * @param readerProjectSamIds
-   * @param ownerWorkspaceSamIds
-   * @param ownerProjectSamIds
-   * @return
-   */
-  def mockAuthorizeForOneWorkspace(
-    userInfo: UserInfo,
-    readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
-    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty,
-    readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-    readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
-    ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
-    ownerProjectSamIds: Set[ProjectSamResourceId] = Set.empty
-  ): AllowlistAuthProvider = {
-    val mockAuthProvider: AllowlistAuthProvider = mock[AllowlistAuthProvider](defaultMockitoAnswer[IO])
-
-    when(mockAuthProvider.checkUserEnabled(isEq(userInfo))(any)).thenReturn(IO.unit)
-    when(
-      mockAuthProvider.listResourceIds[RuntimeSamResourceId](isEq(true), isEq(userInfo))(
-        any(runtimeSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[RuntimeSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(readerRuntimeSamIds))
-    when(
-      mockAuthProvider.listResourceIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
-        any(wsmResourceSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[WsmResourceSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(readerWsmSamIds))
-    when(
-      mockAuthProvider.isUserWorkspaceReader(any, isEq(userInfo))(
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(false))
-    when(
-      mockAuthProvider.isUserWorkspaceReader(argThat(readerWorkspaceSamIds.contains(_)), isEq(userInfo))(
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(true))
-    when(
-      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(false), isEq(userInfo))(
-        any(projectSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[ProjectSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    )
-      .thenReturn(IO.pure(readerProjectSamIds))
-    when(
-      mockAuthProvider.isUserWorkspaceOwner(any, isEq(userInfo))(
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(false))
-    when(
-      mockAuthProvider.isUserWorkspaceOwner(argThat(ownerWorkspaceSamIds.contains(_)), isEq(userInfo))(
-        any(Ask[IO, TraceId].getClass)
-      )
-    ).thenReturn(IO.pure(true))
-    when(
-      mockAuthProvider.listResourceIds[ProjectSamResourceId](isEq(true), isEq(userInfo))(
-        any(projectSamResourceAction.getClass),
-        any(AppSamResourceAction.getClass),
-        any(Decoder[ProjectSamResourceId].getClass),
-        any(Ask[IO, TraceId].getClass)
-      )
-    )
-      .thenReturn(IO.pure(ownerProjectSamIds))
-
-    mockAuthProvider
-  }
-
   def mockUserInfo(email: String = userEmail.toString()): UserInfo =
     UserInfo(OAuth2BearerToken(""), WorkbenchUserId(s"userId-${email}"), WorkbenchEmail(email), 0)
 
   val runtimeV2Service =
     new RuntimeV2ServiceInterp[IO](
       serviceConfig,
-      allowListAuthProvider,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
       wsmClientProvider,
@@ -282,7 +102,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   val runtimeV2Service2 =
     new RuntimeV2ServiceInterp[IO](
       serviceConfig,
-      allowListAuthProvider2,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
       wsmClientProvider,
@@ -1638,18 +1457,10 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val projectIdGcp = cloudContextGcp.asString
     val workspaceIdAzure = UUID.randomUUID.toString
 
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      Set(RuntimeSamResourceId(runtimeId1), RuntimeSamResourceId(runtimeId2)),
-      Set.empty,
-      Set(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(workspaceIdAzure)))),
-      Set(ProjectSamResourceId(GoogleProject(projectIdGcp)))
-    )
-
     val samService = mock[SamService[IO]]
     when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
       .thenReturn(IO.pure(List(runtimeId1, runtimeId2)))
-    val testService = makeInterp(authProvider = mockAuthProvider, samService = samService)
+    val testService = makeInterp(samService = samService)
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(runtimeId1))

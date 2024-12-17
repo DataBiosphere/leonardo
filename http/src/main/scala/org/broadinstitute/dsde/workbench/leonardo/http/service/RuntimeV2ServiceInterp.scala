@@ -11,7 +11,6 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
-  ProjectSamResourceId,
   RuntimeSamResourceId,
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
@@ -23,8 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.getRuntimeSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.RuntimeSamResource
-// do not remove: `projectSamResourceAction`, `runtimeSamResourceAction`, `workspaceSamResourceAction`, `wsmResourceSamResourceAction`; `AppSamResourceAction` they are implicit
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.wsmResourceSamResourceAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
@@ -42,7 +39,6 @@ import scala.concurrent.ExecutionContext
 
 class RuntimeV2ServiceInterp[F[_]: Parallel](
   config: RuntimeServiceConfig,
-  authProvider: LeoAuthProvider[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   wsmClientProvider: WsmApiClientProvider[F],
@@ -338,8 +334,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      ctx <- as.ask
-
       samResources <- samService.listResources(userInfo.accessToken.token, RuntimeSamResource.resourceType)
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(
@@ -536,33 +530,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
             }
       }
 
-  private def checkPermission(
-    creator: WorkbenchEmail,
-    userInfo: UserInfo,
-    wsmResourceSamResourceId: WsmResourceSamResourceId
-  )(implicit ev: Ask[F, AppContext]) = if (creator == userInfo.userEmail) F.pure(true)
-  else {
-    for {
-      ctx <- ev.ask
-      res <- checkSamPermission(wsmResourceSamResourceId, userInfo, WsmResourceAction.Read).map(_._1)
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission check")))
-    } yield res
-  }
-
-  private def checkSamPermission(
-    wsmResourceSamResourceId: WsmResourceSamResourceId,
-    userInfo: UserInfo,
-    wsmResourceAction: WsmResourceAction
-  )(implicit ctx: Ask[F, AppContext]): F[(Boolean, WsmControlledResourceId)] =
-    for {
-      // TODO: generalize for google
-      res <- authProvider.hasPermission(
-        wsmResourceSamResourceId,
-        wsmResourceAction,
-        userInfo
-      )
-    } yield (res, wsmResourceSamResourceId.controlledResourceId)
-
   private def errorHandler(runtimeId: Long, ctx: AppContext): Throwable => F[Unit] =
     e =>
       clusterErrorQuery
@@ -629,14 +596,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   }
 
 }
-
-final case class AuthorizedIds(
-  val ownerGoogleProjectIds: Set[ProjectSamResourceId],
-  val ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
-  val readerGoogleProjectIds: Set[ProjectSamResourceId],
-  val readerRuntimeIds: Set[SamResourceId],
-  val readerWorkspaceIds: Set[WorkspaceResourceSamResourceId]
-)
 
 final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
