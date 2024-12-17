@@ -34,7 +34,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
-  runtimeSamResourceAction,
   workspaceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
@@ -383,22 +382,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, cloudContext.value, userInfo)
-      // throw 404 if no GetRuntime permission
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext, runtime.clusterName, "Permission Denied", Some(ctx.traceId))
-          )
-
-      // throw 403 if no DeleteApp permission
-      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
-        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+      _ <- checkRuntimeAction(userInfo,
+                              cloudContext,
+                              runtime.clusterName,
+                              runtime.samResource,
+                              RuntimeAction.DeleteRuntime
+      )
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
