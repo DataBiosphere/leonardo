@@ -68,6 +68,8 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
       )
 
       // Get the pet userToken
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
+      userToken <- tokenOpt.getOrElse("") // Empty token when running on Azure.
 
       values =
         List(
@@ -102,7 +104,7 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // provenance (app-cloning) configs
-          raw"provenance.userAccessToken=",
+          raw"provenance.userAccessToken=${userToken}",
 
           // database configs
           raw"postgres.podLocalDatabaseEnabled=false",

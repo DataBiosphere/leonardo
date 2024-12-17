@@ -69,6 +69,10 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
                                    AppCreationException("Postgres server required for Cromwell app", Some(ctx.traceId))
     )
 
+    // Get the pet userToken
+    tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
+    userToken <- tokenOpt.getOrElse("") // Empty token when running on Azure.
+
     values = List(
       // azure resources configs
       raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
@@ -124,7 +128,7 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
       // provenance (app-cloning) configs
-      raw"provenance.userAccessToken=",
+      raw"provenance.userAccessToken=${userToken}",
 
       // Database configs
       raw"postgres.podLocalDatabaseEnabled=false",

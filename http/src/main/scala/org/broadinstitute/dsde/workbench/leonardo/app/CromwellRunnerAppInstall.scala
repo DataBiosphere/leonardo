@@ -94,6 +94,10 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
           .map(v => raw"config.concurrentJobLimit=${v}")
       }
 
+      // Get the pet userToken
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
+      userToken <- tokenOpt.getOrElse("") // Empty token when running on Azure.
+
       values = List(
         // azure resources configs
         raw"config.resourceGroup=${params.cloudContext.managedResourceGroupName.value}",
@@ -138,7 +142,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
         raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
         // provenance (app-cloning) configs
-        raw"provenance.userAccessToken=",
+        raw"provenance.userAccessToken=${userToken}",
 
         // database configs
         raw"postgres.podLocalDatabaseEnabled=false",

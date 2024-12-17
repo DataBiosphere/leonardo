@@ -60,6 +60,10 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
       // Get Vpa enabled tag
       vpaEnabled <- F.pure(params.landingZoneResources.aksCluster.tags.getOrElse("aks-cost-vpa-enabled", false))
 
+      // Get the pet userToken
+      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
+      userToken <- tokenOpt.getOrElse("") // Empty token when running on Azure.
+
       valuesList =
         List(
           // pass enviiroment information to wds so it can properly pick its config
@@ -89,7 +93,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"instrumentationEnabled=${config.instrumentationEnabled}",
 
           // provenance (app-cloning) configs
-          raw"provenance.userAccessToken=",
+          raw"provenance.userAccessToken=${userToken}",
           raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
 
           // database configs
