@@ -1272,7 +1272,10 @@ class RuntimeServiceInterpTest
 
   it should "delete runtime records, update all status appropriately, and not queue messages" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider, publisherQueue = publisherQueue)
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.DeleteRuntime))(any()))
+      .thenReturn(IO.unit)
+    val runtimeService = makeRuntimeService(publisherQueue = publisherQueue, samService = samService)
     val res = for {
       pd <- makePersistentDisk().save()
       testRuntime <- IO(
@@ -1319,9 +1322,11 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to delete runtime records if user loses project access" in isolatedDbTest {
-    val runtimeService = makeRuntimeService(authProvider = allowListAuthProvider2)
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), any())(any()))
+      .thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
+    val runtimeService = makeRuntimeService(publisherQueue = publisherQueue, samService = samService)
     val res = for {
-      context <- appContext.ask[AppContext]
       pd <- makePersistentDisk().save()
       testRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
@@ -1353,9 +1358,7 @@ class RuntimeServiceInterpTest
       r <- runtimeService
         .deleteRuntimeRecords(userInfo, cloudContextGcp, listRuntimeResponse2)
         .attempt
-    } yield r shouldBe Left(
-      RuntimeNotFoundException(cloudContextGcp, testRuntime.runtimeName, "Permission Denied", Some(context.traceId))
-    )
+    } yield r.swap.toOption.get shouldBe a[RuntimeNotFoundException]
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1363,31 +1366,15 @@ class RuntimeServiceInterpTest
   it should "deleteAllRuntimeRecords, update all status appropriately, and not queue messages" in isolatedDbTest {
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
-      readerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    when(
-      mockAuthProvider.getActionsWithProjectFallback[RuntimeSamResourceId, RuntimeAction](any, any, isEq(userInfo))(any,
-                                                                                                                    any
-      )
-    )
-      .thenReturn(
-        IO.pure(
-          (List(RuntimeAction.GetRuntimeStatus, RuntimeAction.DeleteRuntime),
-           List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime)
-          )
-        )
-      )
     val samService = mock[SamService[IO]]
     when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
       .thenReturn(IO.pure(runtimeIds.map(_.resourceId).toList))
+    when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.DeleteRuntime))(any()))
+      .thenReturn(IO.unit)
     when(samService.deleteResource(any(), any())(any())).thenReturn(IO.unit)
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service =
-      makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
+      makeRuntimeService(publisherQueue = publisherQueue, samService = samService)
 
     val res = for {
       pd1 <- makePersistentDisk().save()
