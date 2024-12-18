@@ -1981,7 +1981,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     when(
       samService.listResources(isEq(userInfoCreator.accessToken.token), isEq(RuntimeSamResource.resourceType))(any())
     )
-      .thenReturn(IO.pure(List(wsmId1.resourceId)))
+      .thenReturn(IO.pure(List(wsmId1.resourceId, runtimeId3.resourceId)))
 
     val testService = makeInterp(samService = samService)
     val res = for {
@@ -1993,7 +1993,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .save()
       )
 
-      // runtime 2: I created, but in a workspace I cannot read => hidden
+      // runtime 2: I created, but I don't have permission => hidden
       samResource2 <- IO(runtimeId2)
       runtime2 <- IO(
         makeCluster(2, Some(userInfoCreator.userEmail))
@@ -2001,7 +2001,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .save()
       )
 
-      // runtime 3: someone else created, in a workspace I can read => hidden
+      // runtime 3: someone else created, but I can read => hidden if role=creator, else visible
       samResource3 <- IO(runtimeId3)
       runtime3 <- IO(
         makeCluster(3, Some(userInfoOther.userEmail))
@@ -2009,20 +2009,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           .save()
       )
 
-      // todo: Don't really understand this scenario. If I don't have permission then I shouldn't be able to see it even if I created it
-      // runtime 4: I created, in a workspace I can read, and I DO NOT HAVE SAM PERMISSION => seen if role=creator, else hid
-      samResource4 <- IO(runtimeId4)
-      runtime4 <- IO(
-        makeCluster(4, Some(userInfoCreator.userEmail))
-          .copy(samResource = samResource4, workspaceId = Some(workspaceId1))
-          .save()
-      )
-
       listResponseCreator <- testService.listRuntimes(userInfoCreator, None, None, Map("role" -> "creator"))
       listResponseAny <- testService.listRuntimes(userInfoCreator, None, None, Map.empty)
     } yield {
       listResponseCreator.map(_.samResource).toSet shouldBe Set(samResource1)
-      listResponseAny.map(_.samResource).toSet shouldBe Set(samResource1)
+      listResponseAny.map(_.samResource).toSet shouldBe Set(samResource1, samResource3)
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
