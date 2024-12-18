@@ -28,6 +28,7 @@ if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ]
     rm -rf /mnt/disks/work/.local || true
 fi
 
+
 if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
   # COS images need to run docker-compose as a container by design
   DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
