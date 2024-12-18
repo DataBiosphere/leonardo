@@ -94,7 +94,7 @@ jobs:
       fork: ${{ steps.extract-branch.outputs.fork }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Obtain branch properties
         id: extract-branch
@@ -137,7 +137,7 @@ jobs:
       pact-b64: ${{ steps.encode-pact.outputs.pact-b64 }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Run consumer tests
         run: |
           docker run --rm -v $PWD:/working \
