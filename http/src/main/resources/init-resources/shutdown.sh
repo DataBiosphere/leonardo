@@ -22,12 +22,12 @@ export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export SHOULD_DELETE_JUPYTER_DIR=$(shouldDeleteJupyterDir)
 
+
 # Remove jupyter related files if user decides to delete the VM
 if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ] ; then
     rm -rf /mnt/disks/work/.jupyter
     rm -rf /mnt/disks/work/.local || true
 fi
-
 
 if [[ "${CLOUD_SERVICE}" == 'GCE' ]]; then
   # COS images need to run docker-compose as a container by design
