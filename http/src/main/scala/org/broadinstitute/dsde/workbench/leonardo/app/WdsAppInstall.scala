@@ -62,7 +62,7 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
       // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-      userToken <- tokenOpt.getOrElse("") // Empty token when running on Azure.
+      userToken <- C(tokenOpt.getOrElse("")) // Empty token when running on Azure.
 
       valuesList =
         List(

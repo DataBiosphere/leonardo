@@ -96,7 +96,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
       // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-      userToken <- tokenOpt.getOrElse("") // Empty token when running on Azure.
+      userToken <- F.pure(tokenOpt.getOrElse("")) // Empty token when running on Azure.
 
       values = List(
         // azure resources configs
