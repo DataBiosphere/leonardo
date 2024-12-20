@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.getRuntimeSamPolicyMap
@@ -42,9 +42,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   wsmClientProvider: WsmApiClientProvider[F],
-  samService: SamService[F]
+  val samService: SamService[F]
 )(implicit F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F])
-    extends RuntimeV2Service[F] {
+    extends RuntimeV2Service[F]
+    with SamUtils[F] {
 
   override def createRuntime(
     userInfo: UserInfo,
@@ -488,41 +489,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     action: RuntimeAction
   )(implicit as: Ask[F, AppContext]): F[ClusterRecord] =
     for {
-      ctx <- as.ask
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
       _ <- checkRuntimeAction(userInfo, workspaceId, runtimeName, RuntimeSamResourceId(runtime.internalId), action)
     } yield runtime
-
-  private def checkRuntimeAction(userInfo: UserInfo,
-                                 workspaceId: WorkspaceId,
-                                 runtimeName: RuntimeName,
-                                 samResourceId: SamResourceId,
-                                 action: RuntimeAction
-  )(implicit as: Ask[F, AppContext]): F[Unit] =
-    samService
-      .checkAuthorized(userInfo.accessToken.token, samResourceId, action)
-      .handleErrorWith {
-        // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
-        case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
-          F.raiseError(RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database"))
-        // Check if the user can read the runtime to determine which error to raise
-        case e: SamException if e.statusCode == StatusCodes.Forbidden =>
-          samService
-            .checkAuthorized(userInfo.accessToken.token, samResourceId, RuntimeAction.GetRuntimeStatus)
-            .attempt
-            .flatMap {
-              // The user can read the runtime, but they don't have the required action. Raise the original Forbidden action from Sam
-              case Right(_) =>
-                F.raiseError(
-                  ForbiddenError(userInfo.userEmail)
-                )
-              // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
-              case Left(_) =>
-                F.raiseError(
-                  RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database")
-                )
-            }
-      }
 
   private def errorHandler(runtimeId: Long, ctx: AppContext): Throwable => F[Unit] =
     e =>

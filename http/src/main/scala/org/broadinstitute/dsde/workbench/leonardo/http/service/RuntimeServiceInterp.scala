@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
@@ -66,14 +66,15 @@ class RuntimeServiceInterp[F[_]: Parallel](
   googleStorageService: Option[GoogleStorageService[F]],
   googleComputeService: Option[GoogleComputeService[F]],
   publisherQueue: Queue[F, LeoPubsubMessage],
-  samService: SamService[F]
+  val samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext,
   metrics: OpenTelemetryMetrics[F]
-) extends RuntimeService[F] {
+) extends RuntimeService[F]
+    with SamUtils[F] {
 
   override def createRuntime(
     userInfo: UserInfo,
@@ -818,38 +819,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, runtime.samResource, action, userEmail)
     } yield runtime
-
-  private def checkRuntimeAction(userInfo: UserInfo,
-                                 cloudContext: CloudContext,
-                                 runtimeName: RuntimeName,
-                                 samResourceId: RuntimeSamResourceId,
-                                 action: RuntimeAction,
-                                 userEmail: Option[WorkbenchEmail] = None
-  )(implicit as: Ask[F, AppContext]): F[Unit] =
-    samService
-      .checkAuthorized(userInfo.accessToken.token, samResourceId, action)
-      .handleErrorWith {
-        // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
-        case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
-          F.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
-        // Check if the user can read the runtime to determine which error to raise
-        case e: SamException if e.statusCode == StatusCodes.Forbidden =>
-          samService
-            .checkAuthorized(userInfo.accessToken.token, samResourceId, RuntimeAction.GetRuntimeStatus)
-            .attempt
-            .flatMap {
-              // The user can read the runtime, but they don't have the required action so raise a ForbiddenError
-              case Right(_) =>
-                F.raiseError(
-                  ForbiddenError(userEmail.getOrElse(userInfo.userEmail))
-                )
-              // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
-              case Left(_) =>
-                F.raiseError(
-                  RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
-                )
-            }
-      }
 }
 
 object RuntimeServiceInterp {
