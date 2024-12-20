@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, SamDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
@@ -93,14 +93,15 @@ class ProxyService(
   samDAO: SamDAO[IO],
   googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
   samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
-  samService: SamService[IO]
+  val samService: SamService[IO]
 )(implicit
   val system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
   loggerIO: StructuredLogger[IO],
   metrics: OpenTelemetryMetrics[IO]
-) extends LazyLogging {
+) extends LazyLogging
+    with SamUtils[IO] {
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
   val clientConnectionSettings =
     ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
@@ -557,37 +558,6 @@ class ProxyService(
         response
     }
   }
-
-  private def checkRuntimeAction(userInfo: UserInfo,
-                                 cloudContext: CloudContext,
-                                 runtimeName: RuntimeName,
-                                 samResourceId: SamResourceId,
-                                 action: RuntimeAction
-  )(implicit ev: Ask[IO, AppContext]): IO[Unit] =
-    samService
-      .checkAuthorized(userInfo.accessToken.token, samResourceId, action)
-      .handleErrorWith {
-        // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
-        case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
-          IO.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
-        // Check if the user can read the runtime to determine which error to raise
-        case e: SamException if e.statusCode == StatusCodes.Forbidden =>
-          samService
-            .checkAuthorized(userInfo.accessToken.token, samResourceId, RuntimeAction.GetRuntimeStatus)
-            .attempt
-            .flatMap {
-              // The user can read the runtime, but they don't have the required action so raise a ForbiddenError
-              case Right(_) =>
-                IO.raiseError(
-                  ForbiddenError(userInfo.userEmail)
-                )
-              // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
-              case Left(_) =>
-                IO.raiseError(
-                  RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
-                )
-            }
-      }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]): immutable.Seq[HttpHeader] =
     headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
