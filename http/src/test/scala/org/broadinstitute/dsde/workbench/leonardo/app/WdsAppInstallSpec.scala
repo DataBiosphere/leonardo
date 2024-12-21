@@ -21,7 +21,8 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
     ConfigReader.appConfig.azure.tdr,
     mockSamDAO,
     mockWdsDAO,
-    mockAzureApplicationInsightsService
+    mockAzureApplicationInsightsService,
+    mockSamAuthProvider
   )
 
   val wdsAzureDbName = "wds_rtyjga"

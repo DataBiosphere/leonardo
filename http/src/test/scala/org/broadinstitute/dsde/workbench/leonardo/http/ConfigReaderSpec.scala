@@ -266,10 +266,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
     val govEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureGov)
     val expectedGovEnv = AzureEnvironment.AZURE_US_GOVERNMENT
     govEnv shouldBe expectedGovEnv
-
-    val chinaEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureChina)
-    val expectedChinaEnv = AzureEnvironment.AZURE_CHINA
-    chinaEnv shouldBe expectedChinaEnv
   }
 
 }

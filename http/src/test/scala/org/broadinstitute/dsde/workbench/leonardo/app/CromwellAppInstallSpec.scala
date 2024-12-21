@@ -19,7 +19,8 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
     mockCromwellDAO,
     mockCbasDAO,
     mockAzureBatchService,
-    mockAzureApplicationInsightsService
+    mockAzureApplicationInsightsService,
+    mockSamAuthProvider,
   )
 
   val cromwellAzureDbName = "cromwell_tghfgi"
