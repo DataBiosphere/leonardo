@@ -57,7 +57,8 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
     "instrumentationEnabled=false," +
     s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
     "postgres.podLocalDatabaseEnabled=false," +
-    s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
+    s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter
+        .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
     "postgres.pgbouncer.enabled=true," +
     "postgres.user=ksa-1," +
     s"postgres.dbnames.cromwell=$cromwellAzureDbName," +

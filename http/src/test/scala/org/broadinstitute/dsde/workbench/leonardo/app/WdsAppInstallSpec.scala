@@ -52,7 +52,8 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "provenance.sourceWorkspaceId=," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter
+          .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
       "postgres.pgbouncer.enabled=true," +
       s"postgres.dbname=$wdsAzureDbName," +
       "postgres.user=ksa-1"
@@ -83,7 +84,8 @@ class WdsAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       s"provenance.sourceWorkspaceId=${sourceWorkspaceId.value}," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter
+          .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
       "postgres.pgbouncer.enabled=true," +
       s"postgres.dbname=$wdsAzureDbName," +
       "postgres.user=ksa-1"

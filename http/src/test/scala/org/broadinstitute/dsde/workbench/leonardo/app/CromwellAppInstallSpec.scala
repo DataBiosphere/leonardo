@@ -2,7 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{azureRegion, billingProfileId, landingZoneResources, petUserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
+  azureRegion,
+  billingProfileId,
+  landingZoneResources,
+  petUserInfo
+}
 import org.broadinstitute.dsde.workbench.leonardo.{ManagedIdentityName, PostgresServer, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.AzureEnvironmentConverter
@@ -20,7 +25,7 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
     mockCbasDAO,
     mockAzureBatchService,
     mockAzureApplicationInsightsService,
-    mockSamAuthProvider,
+    mockSamAuthProvider
   )
 
   val cromwellAzureDbName = "cromwell_tghfgi"
@@ -67,7 +72,8 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter
+          .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
       "postgres.pgbouncer.enabled=true," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
@@ -123,7 +129,8 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "instrumentationEnabled=false," +
       s"provenance.userAccessToken=${petUserInfo.accessToken.token}," +
       "postgres.podLocalDatabaseEnabled=false," +
-      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
+      s"postgres.host=${lzResources.postgresServer.map(_.name).get}.postgres${AzureEnvironmentConverter
+          .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
       "postgres.pgbouncer.enabled=false," +
       "postgres.user=ksa-1," +
       s"postgres.dbnames.cromwell=$cromwellAzureDbName," +
