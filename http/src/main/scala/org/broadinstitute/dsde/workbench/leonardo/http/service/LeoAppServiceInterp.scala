@@ -170,9 +170,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                        samResourceId,
                                        Some(googleProject),
                                        None,
-                                       getAppSamPolicyMap(userEmail,
-                                         leoEmail,
-                                         req.accessScope)
+                                       getAppSamPolicyMap(userEmail, leoEmail, req.accessScope)
         )
         saveCluster <- F.fromEither(
           getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
@@ -793,9 +791,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                      samResourceId,
                                      None,
                                      Some(workspaceId),
-                                     getAppSamPolicyMap(userEmail,
-                                       leoEmail,
-                                       req.accessScope)
+                                     getAppSamPolicyMap(userEmail, leoEmail, req.accessScope)
       )
 
       // Save or retrieve a KubernetesCluster record for the app

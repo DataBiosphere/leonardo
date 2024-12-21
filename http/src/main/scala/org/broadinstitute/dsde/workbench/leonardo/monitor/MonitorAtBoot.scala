@@ -225,9 +225,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   leoAuth <- samDAO.getLeoAuthToken
                   token = leoAuth.credentials.toString().split(" ")(1)
                   workspaceDescOpt <- wsmClientProvider.getWorkspace(
-                      token,
-                      workspaceId
-                    )
+                    token,
+                    workspaceId
+                  )
                   workspaceDesc <- F.fromOption(workspaceDescOpt,
                                                 WorkspaceNotFoundException(workspaceId, appContext.traceId)
                   )
@@ -398,8 +398,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
           leoAuth <- samDAO.getLeoAuthToken
           workspaceDescOpt <- wsmClientProvider.getWorkspace(
-              leoAuth.credentials.renderString,
-              wid
+            leoAuth.credentials.renderString,
+            wid
           )
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
@@ -428,8 +428,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           leoAuth <- samDAO.getLeoAuthToken
           token = leoAuth.credentials.toString().split(" ")(1)
           workspaceDescOpt <- wsmClientProvider.getWorkspace(
-              token,
-              wid
+            token,
+            wid
           )
 
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))

@@ -97,7 +97,8 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
           raw"provenance.sourceWorkspaceId=${params.app.sourceWorkspaceId.map(_.value).getOrElse("")}",
 
           // database configs
-          raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter.postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
+          raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter
+              .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
           raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
           raw"postgres.dbname=$dbName",
           // convention is that the database user is the same as the service account name

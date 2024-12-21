@@ -136,9 +136,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
       // Get the optional storage container for the workspace
       workspaceStorageContainerOpt <- wsmDao.getWorkspaceStorageContainer(
-          msg.workspaceId,
-          leoAuth
-        )
+        msg.workspaceId,
+        leoAuth
+      )
 
       workspaceStorageContainer <- F.fromOption(
         workspaceStorageContainerOpt,
@@ -158,10 +158,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       // Get optional action managed identity from Sam for the private_azure_storage_account/read action.
       // Identities must be passed to WSM for application-managed resources.
       actionIdentityOpt <- samDAO.getAzureActionManagedIdentity(
-          leoAuth,
-          PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
-          PrivateAzureStorageAccountAction.Read
-        )
+        leoAuth,
+        PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
+        PrivateAzureStorageAccountAction.Read
+      )
 
       _ <- logger.info(
         s"[AzurePubsubHandler/createAndPollRuntime] beginning to monitor runtime creation for runtime ${msg.runtimeId}"
@@ -893,7 +893,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case JobReport.StatusEnum.SUCCEEDED =>
-            val hostIp = s"${params.landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
+            val hostIp = s"${params.landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter
+                .relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
             for {
               now <- nowInstant
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction
