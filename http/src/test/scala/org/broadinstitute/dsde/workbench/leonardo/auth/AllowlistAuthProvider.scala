@@ -168,5 +168,5 @@ class AllowlistAuthProvider(config: Config) extends LeoAuthProvider[IO] {
 
   override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = IO.pure(true)
 
-  override def getLeoAuthToken: IO[String] = ???
+  override def getLeoAuthToken: IO[String] = IO.pure("")
 }
