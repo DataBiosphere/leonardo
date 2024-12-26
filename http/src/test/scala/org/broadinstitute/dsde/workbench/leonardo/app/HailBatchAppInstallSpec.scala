@@ -29,7 +29,7 @@ class HailBatchAppInstallSpec extends BaseAppInstallSpec {
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
       s"persistence.workspaceManager.storageContainerUrl=https://${lzResources.storageAccountName.value}.blob${AzureEnvironmentConverter
           .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
-          .getSqlServerHostnameSuffix}/${storageContainer.name.value}," +
+          .getStorageEndpointSuffix}/${storageContainer.name.value}," +
       "persistence.leoAppName=app1," +
       "workloadIdentity.serviceAccountName=ksa-1," +
       s"relay.domain=relay.com," +
