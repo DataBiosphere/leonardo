@@ -306,6 +306,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val mockAuthProvider = mock[LeoAuthProvider[IO]]
     when(mockAuthProvider.hasPermission(any, any, any)(any, any)).thenReturn(IO.pure(true))
     when(mockAuthProvider.lookupOriginatingUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
+    when(mockAuthProvider.getLeoAuthToken).thenReturn(IO.pure(""))
     val publisherQueue = QueueFactory.makePublisherQueue()
     val mockSamService = mock[SamService[IO]]
     when(mockSamService.createResource(any, any, any, any, any)(any)).thenReturn(IO.unit)
