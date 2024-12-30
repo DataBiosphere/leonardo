@@ -43,17 +43,17 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
     "config.subscriptionId=sub," +
     s"config.region=${azureRegion}," +
     "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
-    s"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}" +
+    s"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}," +
     s"config.azureManagementTokenScope=${AzureEnvironmentConverter
         .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
-        .getResourceManagerEndpoint}.default" +
+        .getResourceManagerEndpoint}.default," +
     s"config.batchAccountSuffix=${AzureEnvironmentConverter
-        .batchAccountSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}" +
+        .batchAccountSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
     "relay.path=https://relay.com/app," +
     "persistence.storageAccount=storage," +
     s"persistence.storageAccountSuffix=${AzureEnvironmentConverter
         .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
-        .getStorageEndpointSuffix}" +
+        .getStorageEndpointSuffix}," +
     "persistence.blobContainer=sc-container," +
     "persistence.leoAppInstanceName=app1," +
     s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
@@ -77,7 +77,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
     s"sam.baseUri=https://sam.test.org:443," +
     s"sam.acrPullActionIdentityResourceId=spend-profile," +
     "bard.bardUrl=https://terra-bard-dev.appspot.com," +
-    "bard.enabled=false" +
+    "bard.enabled=false," +
     // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
     s"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:84214c9d71721269f9945406d72e30a6f8aac514"
 

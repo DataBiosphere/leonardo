@@ -51,18 +51,18 @@ class CromwellAppInstallSpec extends BaseAppInstallSpec {
       "config.subscriptionId=sub," +
       s"config.region=${azureRegion}," +
       "config.applicationInsightsConnectionString=applicationInsightsConnectionString," +
-      s"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}" +
+      s"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}," +
       s"config.azureManagementTokenScope=${AzureEnvironmentConverter
           .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
-          .getResourceManagerEndpoint}.default" +
+          .getResourceManagerEndpoint}.default," +
       s"config.batchAccountSuffix=${AzureEnvironmentConverter
-          .batchAccountSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}" +
+          .batchAccountSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}," +
       "relay.path=https://relay.com/app," +
       "persistence.storageResourceGroup=mrg," +
       "persistence.storageAccount=storage," +
       s"persistence.storageAccountSuffix=${AzureEnvironmentConverter
           .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
-          .getStorageEndpointSuffix}" +
+          .getStorageEndpointSuffix}," +
       "persistence.blobContainer=sc-container," +
       "persistence.leoAppInstanceName=app1," +
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
