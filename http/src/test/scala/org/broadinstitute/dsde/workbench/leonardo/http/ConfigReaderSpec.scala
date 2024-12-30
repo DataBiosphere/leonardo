@@ -74,7 +74,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/8390d25ccd761fb206cf388560a571be77a42bbd/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/f58c237b4dc235cd1c24c6dfc7500c07bdbd5bc3/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             // [IA-4997] to support CHIPS by setting partitioned cookies
