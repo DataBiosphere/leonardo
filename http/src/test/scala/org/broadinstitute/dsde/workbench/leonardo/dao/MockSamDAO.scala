@@ -445,7 +445,7 @@ class MockSamDAO extends SamDAO[IO] {
   }
 
   override def getLeoAuthToken: IO[Authorization] =
-    IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
+    IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "dummytoken")))
 
   override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
     if (token == OAuth2BearerToken(s"TokenFor${MockSamDAO.disabledUserEmail}").token)
