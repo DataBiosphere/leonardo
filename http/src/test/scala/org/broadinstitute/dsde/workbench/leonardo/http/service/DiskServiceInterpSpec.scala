@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersi
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -76,8 +76,18 @@ class DiskServiceInterpTest
     with MockitoSugar {
 
   "DiskService" should "fail with AuthorizationError if user doesn't have project level permission" in {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
     val googleProject = GoogleProject("googleProject")
+    when(samService.getUserEmail(isEq(userInfo4.accessToken.token))(any())).thenReturn(IO.pure(userInfo4.userEmail))
+    when(
+      samService.checkAuthorized(any(),
+                                 isEq(ProjectSamResourceId(googleProject)),
+                                 isEq(ProjectAction.CreatePersistentDisk)
+      )(
+        any()
+      )
+    ).thenReturn(IO.raiseError(SamException.create("forbidden", 403, TraceId(""))))
 
     val res = for {
       d <- diskService
