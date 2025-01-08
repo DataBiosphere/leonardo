@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersi
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -25,7 +26,7 @@ import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.mockito.ArgumentMatchers
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.mockito.Mockito._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
@@ -52,6 +53,7 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
                       googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
+                      samService: SamService[IO] = MockSamService,
                       allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
   ) = {
     val publisherQueue = QueueFactory.makePublisherQueue()
@@ -61,7 +63,7 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       publisherQueue,
       Some(MockGoogleDiskService),
       Some(googleProjectDAO),
-      MockSamService
+      samService
     )
     (diskService, publisherQueue)
   }
@@ -381,11 +383,14 @@ class DiskServiceInterpTest
   }
 
   it should "list disks" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
       listResponse <- diskService.listDisks(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
     } yield {
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
@@ -396,11 +401,14 @@ class DiskServiceInterpTest
   }
 
   it should "list azure and gcp disks" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
       disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextAzure)).save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
       listResponse <- diskService.listDisks(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
     } yield {
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
@@ -411,11 +419,18 @@ class DiskServiceInterpTest
   }
 
   it should "list disks with a project" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
       disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextGcp)).save()
+      disk3 <- makePersistentDisk(Some(DiskName("d3")), cloudContextOpt = Some(CloudContext.Gcp(project2))).save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(
+          IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId, disk3.samResource.resourceId))
+        )
+
       _ <- makePersistentDisk(None, cloudContextOpt = Some(CloudContext.Gcp(GoogleProject("non-default")))).save()
       listResponse <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
     } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
@@ -423,25 +438,15 @@ class DiskServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list disks with project access" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
-
-    val res = for {
-      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
-      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(CloudContext.Gcp(project2))).save()
-      _ <- makePersistentDisk(None, cloudContextOpt = Some(CloudContext.Gcp(GoogleProject("non-default")))).save()
-      listResponse <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
-    } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id)
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "list disks with parameters" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      _ <- makePersistentDisk(Some(DiskName("d2"))).save()
+      disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
       _ <- labelQuery.save(disk1.id.value, LabelResourceType.PersistentDisk, "foo", "bar").transaction
       listResponse <- diskService.listDisks(userInfo, None, Map("foo" -> "bar"))
     } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id)
@@ -450,9 +455,10 @@ class DiskServiceInterpTest
   }
 
   it should "list disks belonging to other users" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
-    // Make disks belonging to different users than the calling user
+    // Make disks belonging to different users than the calling user that the calling user has access to
     val res = for {
       disk1 <- LeoLenses.diskToCreator
         .set(WorkbenchEmail("a_different_user@example.com"))(
@@ -462,17 +468,19 @@ class DiskServiceInterpTest
       disk2 <- LeoLenses.diskToCreator
         .set(WorkbenchEmail("a_different_user2@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
     } yield
-    // Since the calling user is allow-listed in the auth provider, it should return
-    // the disks belonging to other users.
+    // Since the calling user has access to the disks, should see both when not filtering by role=creator
     listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks belonging to self and others, if not filtered by role=creator" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -480,6 +488,8 @@ class DiskServiceInterpTest
       disk2 <- LeoLenses.diskToCreator
         .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
     } yield
     // Since the calling user has access to both disks, should see both
@@ -489,7 +499,8 @@ class DiskServiceInterpTest
   }
 
   it should "list disks belonging to self only, if filtered by role=creator" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -497,6 +508,8 @@ class DiskServiceInterpTest
       disk2 <- LeoLenses.diskToCreator
         .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
       listResponse <- diskService.listDisks(userInfo, None, Map("role" -> "creator"))
     } yield
     // Since the calling user created disk1 only, only disk1 is visible when filtered by role=creator
@@ -506,7 +519,8 @@ class DiskServiceInterpTest
   }
 
   it should "fail to list disks if filtered by role=not_creator" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
@@ -514,6 +528,8 @@ class DiskServiceInterpTest
       disk2 <- LeoLenses.diskToCreator
         .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
       listResponse <- diskService.listDisks(userInfo, None, Map("role" -> "manager"))
     } yield listResponse
 
@@ -592,7 +608,10 @@ class DiskServiceInterpTest
   }
 
   it should "delete a disk records but not queue delete disk message" in isolatedDbTest {
-    val (diskService, publisherQueue) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    when(samService.deleteResource(any(), any())(any()))
+      .thenReturn(IO.unit)
+    val (diskService, publisherQueue) = makeDiskService(samService = samService)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -600,6 +619,8 @@ class DiskServiceInterpTest
       disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
         .copy(samResource = diskSamResource)
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk.samResource.resourceId)))
 
       listResponse <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
 
@@ -619,8 +640,10 @@ class DiskServiceInterpTest
   }
 
   it should "fail to delete a disk records if the user does not have permission" in isolatedDbTest {
-    val (diskService1, _) = makeDiskService()
-    val (diskService2, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2)
+    val samService = mock[SamService[IO]]
+    when(samService.deleteResource(any(), any())(any())).thenReturn(IO.unit)
+    val (diskService1, _) = makeDiskService(samService = samService)
+    val (diskService2, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2, samService = samService)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -628,6 +651,8 @@ class DiskServiceInterpTest
       disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
         .copy(samResource = diskSamResource)
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk.samResource.resourceId)))
 
       listResponse <- diskService1.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
 
@@ -645,7 +670,10 @@ class DiskServiceInterpTest
   }
 
   it should "delete all disks records but not queue delete disk messages" in isolatedDbTest {
-    val (diskService, publisherQueue) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    when(samService.deleteResource(any(), any())(any()))
+      .thenReturn(IO.unit)
+    val (diskService, publisherQueue) = makeDiskService(samService = samService)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -658,6 +686,8 @@ class DiskServiceInterpTest
       disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextGcp))
         .copy(samResource = diskSamResource2)
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
 
       _ <- diskService.deleteAllDisksRecords(userInfo, cloudContextGcp)
 
@@ -674,7 +704,8 @@ class DiskServiceInterpTest
   }
 
   it should "delete all orphaned disks" in isolatedDbTest {
-    val (diskService, publisherQueue) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, publisherQueue) = makeDiskService(samService = samService)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -689,12 +720,22 @@ class DiskServiceInterpTest
         .save()
       diskSamResource3 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk3 <- makePersistentDisk(Some(DiskName("d3")), cloudContextOpt = Some(cloudContextGcp))
-        .copy(samResource = diskSamResource1)
+        .copy(samResource = diskSamResource3)
         .save()
       diskSamResource4 <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk4 <- makePersistentDisk(Some(DiskName("d4")), cloudContextOpt = Some(cloudContextGcp))
         .copy(samResource = diskSamResource4)
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(
+          IO.pure(
+            List(disk1.samResource.resourceId,
+                 disk2.samResource.resourceId,
+                 disk3.samResource.resourceId,
+                 disk4.samResource.resourceId
+            )
+          )
+        )
 
       _ <- diskService.deleteAllOrphanedDisks(userInfo, cloudContextGcp, Vector(disk1.id), Vector(disk2.name))
 
@@ -717,7 +758,8 @@ class DiskServiceInterpTest
   }
 
   it should "fail to delete all orphaned disks if a disk is not deletable" in isolatedDbTest {
-    val (diskService, publisherQueue) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    val (diskService, publisherQueue) = makeDiskService(samService = samService)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -730,6 +772,8 @@ class DiskServiceInterpTest
       disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextGcp))
         .copy(samResource = diskSamResource2, status = DiskStatus.Deleting)
         .save()
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
 
       _ <- diskService.deleteAllOrphanedDisks(userInfo, cloudContextGcp, Vector.empty, Vector.empty)
 

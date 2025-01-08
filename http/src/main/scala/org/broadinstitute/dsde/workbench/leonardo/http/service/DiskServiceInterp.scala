@@ -4,7 +4,6 @@ package service
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
-import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -12,8 +11,9 @@ import cats.syntax.all._
 import com.google.api.services.cloudresourcemanager.model.Ancestor
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
@@ -29,9 +29,6 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 import java.time.Instant
 import java.util.UUID
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
-
 import scala.concurrent.ExecutionContext
 
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
@@ -207,72 +204,33 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
 
-      // throw 403 if user doesn't have project permission
-      hasProjectPermission <- cloudContext.traverse(cc =>
-        authProvider.isUserProjectReader(
-          cc,
-          userInfo
-        )
-      )
-      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
+      samDiskIds <- samService.listResources(userInfo.accessToken.token, SamResourceType.PersistentDisk)
       paramMap <- F.fromEither(processListParameters(params))
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
-      disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, creatorOnly, cloudContext).transaction
-      partition = disks.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB call")))
-
-      gcpDiskAndProjects = partition._1.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
-      gcpSamVisibleDisksOpt <- NonEmptyList.fromList(gcpDiskAndProjects).traverse { ds =>
-        authProvider
-          .filterResourceProjectVisible(ds, userInfo)
-      }
-
-      // TODO: use filterUserVisible (and remove old function) or make filterResourceProjectVisible handle both Azure and GCP
-      azureDiskAndProjects = partition._2.map(d => (GoogleProject(d.cloudContext.asString), d.samResource))
-      azureSamVisibleDisksOpt <- NonEmptyList.fromList(azureDiskAndProjects).traverse { ds =>
-        authProvider
-          .filterUserVisibleWithProjectFallback(ds, userInfo)
-      }
-
-      samVisibleDisksOpt = (gcpSamVisibleDisksOpt, azureSamVisibleDisksOpt) match {
-        case (Some(a), Some(b)) => Some(a ++ b)
-        case (Some(a), None)    => Some(a)
-        case (None, Some(b))    => Some(b)
-        case (None, None)       => None
-      }
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking Sam permission")))
-      res = samVisibleDisksOpt match {
-        case None => Vector.empty
-        case Some(samVisibleDisks) =>
-          val samVisibleDisksSet = samVisibleDisks.toSet
-          disks
-            .filter(d =>
-              samVisibleDisksSet.contains(
-                (GoogleProject(d.cloudContext.asString), d.samResource)
-              )
-            )
-            .map(d =>
-              ListPersistentDiskResponse(d.id,
-                                         d.cloudContext,
-                                         d.zone,
-                                         d.name,
-                                         d.status,
-                                         d.auditInfo,
-                                         d.size,
-                                         d.diskType,
-                                         d.blockSize,
-                                         d.labels.filter(l => paramMap._3.contains(l._1)),
-                                         d.workspaceId
-              )
-            )
-            .toVector
-      }
-      // We authenticate actions on resources. If there are no visible disks,
-      // we need to check if user should be able to see the empty list.
-      _ <- if (res.isEmpty) authProvider.checkUserEnabled(userInfo) else F.unit
-    } yield res
+      disks <- DiskServiceDbQueries
+        .listDisksBySamIds(samDiskIds.map(PersistentDiskSamResourceId),
+                           paramMap._1,
+                           paramMap._2,
+                           creatorOnly,
+                           cloudContext
+        )
+        .transaction
+    } yield disks
+      .map(d =>
+        ListPersistentDiskResponse(d.id,
+                                   d.cloudContext,
+                                   d.zone,
+                                   d.name,
+                                   d.status,
+                                   d.auditInfo,
+                                   d.size,
+                                   d.diskType,
+                                   d.blockSize,
+                                   d.labels.filter(l => paramMap._3.contains(l._1)),
+                                   d.workspaceId
+        )
+      )
+      .toVector
 
   override def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit
     as: Ask[F, AppContext]

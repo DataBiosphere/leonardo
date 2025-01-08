@@ -3,6 +3,7 @@ package db
 
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
@@ -15,19 +16,51 @@ import scala.concurrent.ExecutionContext
 
 object DiskServiceDbQueries {
 
-  def listDisks(labelMap: LabelMap,
-                includeDeleted: Boolean,
-                creatorOnly: Option[WorkbenchEmail],
-                cloudContextOpt: Option[CloudContext] = None,
-                workspaceOpt: Option[WorkspaceId] = None
+  def listDisksBySamIds(samDiskResourceIds: List[PersistentDiskSamResourceId],
+                        labelMap: LabelMap,
+                        includeDeleted: Boolean,
+                        creatorOnly: Option[WorkbenchEmail],
+                        cloudContextOpt: Option[CloudContext] = None,
+                        workspaceOpt: Option[WorkspaceId] = None
   )(implicit
     ec: ExecutionContext
   ): DBIO[List[PersistentDisk]] = {
+    val listDiskQuery = persistentDiskQuery.tableQuery.filter(_.samResourceId inSetBind samDiskResourceIds)
 
+    filterListDisks(listDiskQuery, labelMap, includeDeleted, creatorOnly, cloudContextOpt, workspaceOpt)
+  }
+
+  def listDisks(
+    labelMap: LabelMap,
+    includeDeleted: Boolean,
+    creatorOnly: Option[WorkbenchEmail],
+    cloudContextOpt: Option[CloudContext] = None,
+    workspaceOpt: Option[WorkspaceId] = None
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[List[PersistentDisk]] =
+    filterListDisks(persistentDiskQuery.tableQuery,
+                    labelMap,
+                    includeDeleted,
+                    creatorOnly,
+                    cloudContextOpt,
+                    workspaceOpt
+    )
+
+  private def filterListDisks(
+    baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq],
+    labelMap: LabelMap,
+    includeDeleted: Boolean,
+    creatorOnly: Option[WorkbenchEmail],
+    cloudContextOpt: Option[CloudContext] = None,
+    workspaceOpt: Option[WorkspaceId] = None
+  )(implicit
+    ec: ExecutionContext
+  ): DBIO[List[PersistentDisk]] = {
     // filtered by creator first as it may have great impact
     val diskQueryFilteredByCreator = creatorOnly match {
-      case Some(email) => persistentDiskQuery.tableQuery.filter(_.creator === email)
-      case None        => persistentDiskQuery.tableQuery
+      case Some(email) => baseQuery.filter(_.creator === email)
+      case None        => baseQuery
     }
 
     val diskQueryFilteredByDeletion =
