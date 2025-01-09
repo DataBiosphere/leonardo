@@ -243,7 +243,6 @@ RUNTIME_NAME=${RUNTIME_NAME}
 OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
 WELDER_ENABLED=${WELDER_ENABLED}
-MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
@@ -255,6 +254,9 @@ END
         # will fail to start until the appropriate volume/device exists
         docker restart $JUPYTER_SERVER_NAME
         docker restart $WELDER_SERVER_NAME
+
+        # update memory size, the memory swap must be updated as well (cannot be < memory)
+        docker update  --memory ${MEM_LIMIT} --memory-swap ${MEM_LIMIT}  $JUPYTER_SERVER_NAME
 
         log 'Copy Jupyter frontend notebook config...'
         $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
@@ -277,13 +279,15 @@ RUNTIME_NAME=${RUNTIME_NAME}
 OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
 WELDER_ENABLED=${WELDER_ENABLED}
-MEM_LIMIT=${MEM_LIMIT}
 SHM_SIZE=${SHM_SIZE}
 END
 
         # We do not want to recreate a new container, to make sure we preserve the changes that users made with the startup script
         # We only want to restart the existing container with the latest environment variables
         ${DOCKER_COMPOSE} --env-file=/var/variables.env ${COMPLETE_RSTUDIO_DOCKER_COMPOSE} up -d --no-recreate
+
+        # update memory size, the memory swap must be updated as well (cannot be < memory)
+        docker update  --memory ${MEM_LIMIT} --memory-swap ${MEM_LIMIT} $RSTUDIO_SERVER_NAME
 
         # the docker containers need to be restarted or the R container
         # will fail to start until the appropriate volume/device exists.
