@@ -202,7 +202,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
                                  WorkspaceResourceSamResourceId(workspaceId),
                                  WorkspaceAction.Compute
       )
-    ).thenReturn(IO.raiseError(ForbiddenError(unauthorizedUserInfo.userEmail)))
+    ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
     val runtimeV2Service = makeInterp(samService = samService)
 
     val thrown = the[ForbiddenError] thrownBy {

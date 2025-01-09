@@ -215,12 +215,14 @@ class RuntimeServiceInterpTest
   it should "fail if user doesn't have project level permission" in {
     val samService = mock[SamService[IO]]
     val runtimeService = makeRuntimeService(samService = samService)
+    when(samService.getUserEmail(isEq(unauthorizedUserInfo.accessToken.token))(any()))
+      .thenReturn(IO.pure(unauthorizedUserInfo.userEmail))
     when(
       samService.checkAuthorized(isEq(unauthorizedUserInfo.accessToken.token),
                                  isEq(ProjectSamResourceId(cloudContextGcp.value)),
                                  isEq(ProjectAction.CreateRuntime)
       )(any())
-    ).thenReturn(IO.raiseError(ForbiddenError(unauthorizedUserInfo.userEmail)))
+    ).thenReturn(IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId(""))))
     val res = for {
       r <- runtimeService
         .createRuntime(

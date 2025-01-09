@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamService, SamUtils}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
@@ -88,14 +88,18 @@ class RuntimeServiceInterp[F[_]: Parallel](
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         AzureUnimplementedException("Azure runtime is not supported yet")
       )
-      // Check if the user has launch_notebook_cluster on the google-project resource.
-      _ <- samService.checkAuthorized(
-        userInfo.accessToken.token,
-        ProjectSamResourceId(googleProject),
-        ProjectAction.CreateRuntime
-      )
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(userInfo.accessToken.token)
+      // Check if the user has launch_notebook_cluster on the google-project resource.
+      _ <- samService
+        .checkAuthorized(
+          userInfo.accessToken.token,
+          ProjectSamResourceId(googleProject),
+          ProjectAction.CreateRuntime
+        )
+        .adaptError {
+          case e: SamException if e.statusCode == StatusCodes.Forbidden => ForbiddenError(userEmail)
+        }
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
       // Grab the pet service account for the user
       petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
