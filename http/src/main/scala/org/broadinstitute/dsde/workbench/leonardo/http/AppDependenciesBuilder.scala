@@ -98,7 +98,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
 
     val azureService = new RuntimeV2ServiceInterp[IO](
       baselineDependencies.runtimeServicesConfig,
-      baselineDependencies.authProvider,
       baselineDependencies.publisherQueue,
       baselineDependencies.dateAccessedUpdaterQueue,
       baselineDependencies.wsmClientProvider,
