@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
@@ -11,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmClientProvider, MockWsmDAO, WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
@@ -18,7 +20,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteDiskV2Message
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.mockito.Mockito.when
+import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar.mock
 import org.typelevel.log4cats.StructuredLogger
 
 import java.util.UUID
@@ -31,12 +36,14 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   private def makeDiskV2Service(queue: Queue[IO, LeoPubsubMessage],
                                 allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
                                 wsmDao: WsmDao[IO] = wsmDao,
-                                wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider
+                                wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
+                                samService: SamService[IO] = MockSamService
   ) =
     new DiskV2ServiceInterp[IO](
       allowlistAuthProvider,
       queue,
-      wsmClientProvider
+      wsmClientProvider,
+      samService
     )
 
   val diskV2Service = makeDiskV2Service(QueueFactory.makePublisherQueue(), wsmDao = new MockWsmDAO)
@@ -48,11 +55,15 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
                             0
     ) // this email is allowlisted
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2Service = makeDiskV2Service(publisherQueue)
+    val samService = mock[SamService[IO]]
+    val diskV2Service = makeDiskV2Service(publisherQueue, samService = samService)
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       pd <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      _ = when(
+        samService.checkAuthorized(any(), isEq(pd.samResource), isEq(PersistentDiskAction.ReadPersistentDisk))(any())
+      ).thenReturn(IO.unit)
 
       getResponse <- diskV2Service
         .getDisk(
@@ -90,15 +101,19 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail with ForbiddenError if user doesn't have permission" in isolatedDbTest {
+  it should "fail with DiskNotFound if user doesn't have permission" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2Service = makeDiskV2Service(publisherQueue)
+    val samService = mock[SamService[IO]]
+    val diskV2Service = makeDiskV2Service(publisherQueue, samService = samService)
     val userInfo =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("stranger"), WorkbenchEmail("stranger@example.com"), 0)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
       pd <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      _ = when(
+        samService.checkAuthorized(any(), isEq(pd.samResource), isEq(PersistentDiskAction.ReadPersistentDisk))(any())
+      ).thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, ctx.traceId)))
 
       getResponse <- diskV2Service
         .getDisk(
@@ -106,29 +121,7 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
           pd.id
         )
         .attempt
-    } yield getResponse shouldBe Left(ForbiddenError(WorkbenchEmail("stranger@example.com")))
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "fail with DiskNotFound if creator loses workspace access" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2service2 = makeDiskV2Service(publisherQueue, allowListAuthProvider2)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is the disk creator, but NOT allow-listed in allowListAuthProvider2
-    val res = for {
-      ctx <- appContext.ask[AppContext]
-      pd <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-
-      getResponse <- diskV2service2
-        .getDisk(
-          userInfo,
-          pd.id
-        )
-        .attempt
-    } yield getResponse shouldBe Left(ForbiddenError(WorkbenchEmail("user1@example.com")))
+    } yield getResponse shouldBe Left(DiskNotFoundByIdException(pd.id, ctx.traceId))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
