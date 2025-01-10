@@ -5,6 +5,8 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.Async
 import cats.implicits.{catsSyntaxApplicativeError, toFlatMapOps}
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   ForbiddenError,
   LeoException,
@@ -14,12 +16,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   CloudContext,
+  PersistentDiskAction,
   RuntimeAction,
   RuntimeName,
+  SamResourceAction,
   SamResourceId,
   WorkspaceId
 }
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 trait SamUtils[F[_]] {
   val samService: SamService[F]
@@ -31,11 +35,12 @@ trait SamUtils[F[_]] {
                          action: RuntimeAction,
                          userEmail: Option[WorkbenchEmail] = None
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
-    checkRuntimeActionInternal(
+    checkActionInternal(
       userInfo.accessToken,
       userEmail.getOrElse(userInfo.userEmail),
       samResourceId,
       action,
+      RuntimeAction.GetRuntimeStatus,
       RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
     )
 
@@ -45,35 +50,53 @@ trait SamUtils[F[_]] {
                          samResourceId: SamResourceId,
                          action: RuntimeAction
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
-    checkRuntimeActionInternal(
+    checkActionInternal(
       userInfo.accessToken,
       userInfo.userEmail,
       samResourceId,
       action,
+      RuntimeAction.GetRuntimeStatus,
       RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database")
     )
 
-  private def checkRuntimeActionInternal(userToken: OAuth2BearerToken,
-                                         userEmail: WorkbenchEmail,
-                                         samResourceId: SamResourceId,
-                                         action: RuntimeAction,
-                                         notFoundException: LeoException
+  def checkDiskAction(userInfo: UserInfo,
+                      cloudContext: CloudContext,
+                      diskName: DiskName,
+                      samResourceId: SamResourceId,
+                      action: SamResourceAction,
+                      traceId: TraceId
+  )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
+    checkActionInternal(
+      userInfo.accessToken,
+      userInfo.userEmail,
+      samResourceId,
+      action,
+      PersistentDiskAction.ReadPersistentDisk,
+      DiskNotFoundException(cloudContext, diskName, traceId)
+    )
+
+  private def checkActionInternal(userToken: OAuth2BearerToken,
+                                  userEmail: WorkbenchEmail,
+                                  samResourceId: SamResourceId,
+                                  actionToCheck: SamResourceAction,
+                                  resourceReadAction: SamResourceAction,
+                                  notFoundException: LeoException
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
     samService
-      .checkAuthorized(userToken.token, samResourceId, action)
+      .checkAuthorized(userToken.token, samResourceId, actionToCheck)
       .handleErrorWith {
-        // If we've already checked read access and the user doesn't have it, pretend the runtime doesn't exist to avoid leaking its existence
-        case e: SamException if e.statusCode == StatusCodes.Forbidden && action == RuntimeAction.GetRuntimeStatus =>
+        // If we've already checked read access and the user doesn't have it, pretend the resource doesn't exist to avoid leaking its existence
+        case e: SamException if e.statusCode == StatusCodes.Forbidden && actionToCheck == resourceReadAction =>
           F.raiseError(notFoundException)
-        // Check if the user can read the runtime to determine which error to raise
+        // Check if the user can read the resource to determine which error to raise
         case e: SamException if e.statusCode == StatusCodes.Forbidden =>
           samService
-            .checkAuthorized(userToken.token, samResourceId, RuntimeAction.GetRuntimeStatus)
+            .checkAuthorized(userToken.token, samResourceId, resourceReadAction)
             .attempt
             .flatMap {
-              // The user can read the runtime, but they don't have the required action. Raise the original Forbidden action from Sam
+              // The user can read the resource, but they don't have the required action. Raise the original Forbidden action from Sam
               case Right(_) => F.raiseError(ForbiddenError(userEmail))
-              // The user can't read the runtime, pretend it doesn't exist to avoid leaking its existence
+              // The user can't read the resource, pretend it doesn't exist to avoid leaking its existence
               case Left(_) => F.raiseError(notFoundException)
             }
       }
