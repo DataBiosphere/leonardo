@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
@@ -547,7 +548,10 @@ class DiskServiceInterpTest
   }
 
   it should "delete a disk" in isolatedDbTest {
-    val (diskService, publisherQueue) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val (diskService, publisherQueue) = makeDiskService(samService = samService)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -570,7 +574,10 @@ class DiskServiceInterpTest
   }
 
   it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       t <- appContext.ask[AppContext]
@@ -592,8 +599,13 @@ class DiskServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail to delete a disk if user lost project access" in isolatedDbTest {
-    val (diskService, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2)
+  it should "fail to delete a disk if user can view the disk but not delete it" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.ReadPersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       t <- appContext.ask[AppContext]
@@ -609,10 +621,12 @@ class DiskServiceInterpTest
           )
         )
       )
-      err <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name).attempt
-    } yield err shouldBe Left(ForbiddenError(userInfo.userEmail, Some(t.traceId)))
+      deleteResp <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name)
+    } yield deleteResp
 
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    a[ForbiddenError] should be thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
   }
 
   it should "delete a disk records but not queue delete disk message" in isolatedDbTest {
@@ -744,6 +758,8 @@ class DiskServiceInterpTest
             )
           )
         )
+      _ = when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+        .thenReturn(IO.unit)
 
       _ <- diskService.deleteAllOrphanedDisks(userInfo, cloudContextGcp, Vector(disk1.id), Vector(disk2.name))
 
