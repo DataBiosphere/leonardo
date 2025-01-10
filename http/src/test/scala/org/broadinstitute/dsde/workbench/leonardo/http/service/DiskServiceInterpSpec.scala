@@ -852,6 +852,29 @@ class DiskServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "fail to update a disk if the user does not have permission" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.ModifyPersistentDisk))(any()))
+      .thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.ReadPersistentDisk))(any()))
+      .thenReturn(IO.unit)
+
+    val (diskService, _) = makeDiskService(samService = samService)
+
+    val res = for {
+      t <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
+      req = UpdateDiskRequest(Map.empty, DiskSize(600))
+      fail <- diskService
+        .updateDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name, req)
+    } yield fail
+
+    a[ForbiddenError] should be thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "get a correct sam policy map for disks" in {
     val map = DiskServiceInterp.getDiskSamPolicyMap(userEmail)
     map should have size 1
