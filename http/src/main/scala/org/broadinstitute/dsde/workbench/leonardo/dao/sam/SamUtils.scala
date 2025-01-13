@@ -26,17 +26,17 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
-trait SamUtils[F[_]] {
-  val samService: SamService[F]
-
-  def checkRuntimeAction(userInfo: UserInfo,
-                         cloudContext: CloudContext,
-                         runtimeName: RuntimeName,
-                         samResourceId: SamResourceId,
-                         action: RuntimeAction,
-                         userEmail: Option[WorkbenchEmail] = None
+object SamUtils {
+  def checkRuntimeAction[F[_]](samService: SamService[F],
+                               userInfo: UserInfo,
+                               cloudContext: CloudContext,
+                               runtimeName: RuntimeName,
+                               samResourceId: SamResourceId,
+                               action: RuntimeAction,
+                               userEmail: Option[WorkbenchEmail] = None
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
     checkActionInternal(
+      samService,
       userInfo.accessToken,
       userEmail.getOrElse(userInfo.userEmail),
       samResourceId,
@@ -45,13 +45,15 @@ trait SamUtils[F[_]] {
       RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database")
     )
 
-  def checkRuntimeAction(userInfo: UserInfo,
-                         workspaceId: WorkspaceId,
-                         runtimeName: RuntimeName,
-                         samResourceId: SamResourceId,
-                         action: RuntimeAction
+  def checkRuntimeAction[F[_]](samService: SamService[F],
+                               userInfo: UserInfo,
+                               workspaceId: WorkspaceId,
+                               runtimeName: RuntimeName,
+                               samResourceId: SamResourceId,
+                               action: RuntimeAction
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
     checkActionInternal(
+      samService,
       userInfo.accessToken,
       userInfo.userEmail,
       samResourceId,
@@ -60,14 +62,16 @@ trait SamUtils[F[_]] {
       RuntimeNotFoundByWorkspaceIdException(workspaceId, runtimeName, "Not found in database")
     )
 
-  def checkDiskAction(userInfo: UserInfo,
-                      cloudContext: CloudContext,
-                      diskName: DiskName,
-                      samResourceId: SamResourceId,
-                      action: SamResourceAction,
-                      traceId: TraceId
+  def checkDiskAction[F[_]](samService: SamService[F],
+                            userInfo: UserInfo,
+                            cloudContext: CloudContext,
+                            diskName: DiskName,
+                            samResourceId: SamResourceId,
+                            action: SamResourceAction,
+                            traceId: TraceId
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
     checkActionInternal(
+      samService,
       userInfo.accessToken,
       userInfo.userEmail,
       samResourceId,
@@ -76,13 +80,15 @@ trait SamUtils[F[_]] {
       DiskNotFoundException(cloudContext, diskName, traceId)
     )
 
-  def checkDiskAction(userInfo: UserInfo,
-                      diskId: DiskId,
-                      samResourceId: SamResourceId,
-                      action: SamResourceAction,
-                      traceId: TraceId
+  def checkDiskAction[F[_]](samService: SamService[F],
+                            userInfo: UserInfo,
+                            diskId: DiskId,
+                            samResourceId: SamResourceId,
+                            action: SamResourceAction,
+                            traceId: TraceId
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
     checkActionInternal(
+      samService,
       userInfo.accessToken,
       userInfo.userEmail,
       samResourceId,
@@ -91,12 +97,13 @@ trait SamUtils[F[_]] {
       DiskNotFoundByIdException(diskId, traceId)
     )
 
-  private def checkActionInternal(userToken: OAuth2BearerToken,
-                                  userEmail: WorkbenchEmail,
-                                  samResourceId: SamResourceId,
-                                  actionToCheck: SamResourceAction,
-                                  resourceReadAction: SamResourceAction,
-                                  notFoundException: LeoException
+  private def checkActionInternal[F[_]](samService: SamService[F],
+                                        userToken: OAuth2BearerToken,
+                                        userEmail: WorkbenchEmail,
+                                        samResourceId: SamResourceId,
+                                        actionToCheck: SamResourceAction,
+                                        resourceReadAction: SamResourceAction,
+                                        notFoundException: LeoException
   )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
     samService
       .checkAuthorized(userToken.token, samResourceId, actionToCheck)

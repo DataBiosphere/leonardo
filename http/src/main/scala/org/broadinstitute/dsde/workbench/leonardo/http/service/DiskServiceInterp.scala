@@ -34,13 +34,12 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         publisherQueue: Queue[F, LeoPubsubMessage],
                                         googleDiskService: Option[GoogleDiskService[F]],
                                         googleProjectDAO: Option[GoogleProjectDAO],
-                                        val samService: SamService[F]
+                                        samService: SamService[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
-) extends DiskService[F]
-    with SamUtils[F] {
+) extends DiskService[F] {
 
   override def createDisk(
     userInfo: UserInfo,
@@ -178,12 +177,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(cloudContext, diskName, ctx.traceId).transaction
-      _ <- checkDiskAction(userInfo,
-                           cloudContext,
-                           diskName,
-                           resp.samResource,
-                           PersistentDiskAction.ReadPersistentDisk,
-                           ctx.traceId
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    cloudContext,
+                                    diskName,
+                                    resp.samResource,
+                                    PersistentDiskAction.ReadPersistentDisk,
+                                    ctx.traceId
       )
     } yield resp
 
@@ -233,12 +233,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(cloudContext, diskName, ctx.traceId)))(
         F.pure
       )
-      _ <- checkDiskAction(userInfo,
-                           cloudContext,
-                           diskName,
-                           disk.samResource,
-                           PersistentDiskAction.DeletePersistentDisk,
-                           ctx.traceId
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    cloudContext,
+                                    diskName,
+                                    disk.samResource,
+                                    PersistentDiskAction.DeletePersistentDisk,
+                                    ctx.traceId
       )
       // throw 409 if the disk is not deletable
       _ <-
@@ -297,12 +298,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .getGetPersistentDiskResponse(cloudContext, disk.name, ctx.traceId)
         .transaction
 
-      _ <- checkDiskAction(userInfo,
-                           cloudContext,
-                           dbdisk.name,
-                           dbdisk.samResource,
-                           PersistentDiskAction.DeletePersistentDisk,
-                           ctx.traceId
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    cloudContext,
+                                    dbdisk.name,
+                                    dbdisk.samResource,
+                                    PersistentDiskAction.DeletePersistentDisk,
+                                    ctx.traceId
       )
 
       // Mark the resource as deleted in Leo's DB
@@ -339,12 +341,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(cloudContext, diskName, ctx.traceId)))(
         F.pure
       )
-      _ <- checkDiskAction(userInfo,
-                           cloudContext,
-                           diskName,
-                           disk.samResource,
-                           PersistentDiskAction.ModifyPersistentDisk,
-                           ctx.traceId
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    cloudContext,
+                                    diskName,
+                                    disk.samResource,
+                                    PersistentDiskAction.ModifyPersistentDisk,
+                                    ctx.traceId
       )
       // throw 400 if UpdateDiskRequest new size is smaller than disk's current size
       _ <-

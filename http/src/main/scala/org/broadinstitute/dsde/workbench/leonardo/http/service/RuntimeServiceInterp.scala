@@ -60,15 +60,14 @@ class RuntimeServiceInterp[F[_]: Parallel](
   googleStorageService: Option[GoogleStorageService[F]],
   googleComputeService: Option[GoogleComputeService[F]],
   publisherQueue: Queue[F, LeoPubsubMessage],
-  val samService: SamService[F]
+  samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext,
   metrics: OpenTelemetryMetrics[F]
-) extends RuntimeService[F]
-    with SamUtils[F] {
+) extends RuntimeService[F] {
 
   override def createRuntime(
     userInfo: UserInfo,
@@ -233,7 +232,13 @@ class RuntimeServiceInterp[F[_]: Parallel](
     for {
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
-      _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, resp.samResource, RuntimeAction.GetRuntimeStatus)
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       cloudContext,
+                                       runtimeName,
+                                       resp.samResource,
+                                       RuntimeAction.GetRuntimeStatus
+      )
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
@@ -374,11 +379,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-      _ <- checkRuntimeAction(userInfo,
-                              cloudContext,
-                              runtime.clusterName,
-                              runtime.samResource,
-                              RuntimeAction.DeleteRuntime
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       cloudContext,
+                                       runtime.clusterName,
+                                       runtime.samResource,
+                                       RuntimeAction.DeleteRuntime
       )
 
       // Mark the resource as deleted in Leo's DB
@@ -450,11 +456,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
         F.raiseError[ClusterRecord](RuntimeNotFoundException(cloudContext, runtimeName, "no record in database"))
       )(F.pure)
 
-      _ <- checkRuntimeAction(userInfo,
-                              cloudContext,
-                              runtimeName,
-                              RuntimeSamResourceId(runtime.internalId),
-                              RuntimeAction.ModifyRuntime
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       cloudContext,
+                                       runtimeName,
+                                       RuntimeSamResourceId(runtime.internalId),
+                                       RuntimeAction.ModifyRuntime
       )
       // throw 409 if the cluster is not updatable
       _ <-
@@ -814,7 +821,14 @@ class RuntimeServiceInterp[F[_]: Parallel](
         F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
       )(F.pure)
 
-      _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, runtime.samResource, action, userEmail)
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       cloudContext,
+                                       runtimeName,
+                                       runtime.samResource,
+                                       action,
+                                       userEmail
+      )
     } yield runtime
 }
 
@@ -935,7 +949,14 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
-            _ <- checkAttachAction(userInfo, samService, pd, cloudContext, req.name, ctx.traceId)
+            _ <- SamUtils.checkDiskAction(samService,
+                                          userInfo,
+                                          cloudContext,
+                                          pd.name,
+                                          pd.samResource,
+                                          PersistentDiskAction.AttachPersistentDisk,
+                                          ctx.traceId
+            )
             _ <-
               if (pd.zone == targetZone) F.unit
               else
@@ -1035,7 +1056,14 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
-            _ <- checkAttachAction(userInfo, samService, pd, cloudContext, req.name, ctx.traceId)
+            _ <- SamUtils.checkDiskAction(samService,
+                                          userInfo,
+                                          cloudContext,
+                                          pd.name,
+                                          pd.samResource,
+                                          PersistentDiskAction.AttachPersistentDisk,
+                                          ctx.traceId
+            )
             _ <-
               if (pd.zone == targetZone) F.unit
               else
@@ -1109,32 +1137,6 @@ object RuntimeServiceInterp {
           } yield PersistentDiskRequestResult(pd, true)
       }
     } yield disk
-
-  private def checkAttachAction[F[_]](userInfo: UserInfo,
-                                      samService: SamService[F],
-                                      pd: PersistentDisk,
-                                      cloudContext: CloudContext,
-                                      diskName: DiskName,
-                                      traceId: TraceId
-  )(implicit
-    as: Ask[F, AppContext],
-    F: Async[F]
-  ): F[Unit] =
-    samService
-      .checkAuthorized(userInfo.accessToken.token, pd.samResource, PersistentDiskAction.AttachPersistentDisk)
-      .handleErrorWith {
-        case e: SamException if e.statusCode == StatusCodes.Forbidden =>
-          samService
-            .checkAuthorized(userInfo.accessToken.token, pd.samResource, PersistentDiskAction.ReadPersistentDisk)
-            .attempt
-            .flatMap {
-              case Left(e: SamException) if e.statusCode == StatusCodes.Forbidden =>
-                F.raiseError(DiskNotFoundException(cloudContext, diskName, traceId))
-              case Right(_) => F.raiseError(ForbiddenError(userInfo.userEmail))
-              case Left(e)  => F.raiseError(e)
-            }
-        case e => F.raiseError(e)
-      }
 
   private[service] def calculateAutopauseThreshold(
     autopause: Option[Boolean],

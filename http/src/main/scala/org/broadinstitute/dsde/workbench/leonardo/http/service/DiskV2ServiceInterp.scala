@@ -22,14 +22,13 @@ import scala.concurrent.ExecutionContext
 class DiskV2ServiceInterp[F[_]: Parallel](
   publisherQueue: Queue[F, LeoPubsubMessage],
   wsmClientProvider: WsmApiClientProvider[F],
-  val samService: SamService[F]
+  samService: SamService[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
   ec: ExecutionContext,
   log: StructuredLogger[F]
-) extends DiskV2Service[F]
-    with SamUtils[F] {
+) extends DiskV2Service[F] {
 
   // backwards compatible with v1 getDisk route
   override def getDisk(userInfo: UserInfo, diskId: DiskId)(implicit
@@ -45,7 +44,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](
       _ <- F.fromOption(diskResp.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
 
       // check that user has read action on disk
-      _ <- checkDiskAction(userInfo, diskId, diskResp.samResource, PersistentDiskAction.ReadPersistentDisk, ctx.traceId)
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    diskId,
+                                    diskResp.samResource,
+                                    PersistentDiskAction.ReadPersistentDisk,
+                                    ctx.traceId
+      )
     } yield diskResp
 
   override def deleteDisk(userInfo: UserInfo, diskId: DiskId)(implicit
@@ -57,7 +62,13 @@ class DiskV2ServiceInterp[F[_]: Parallel](
 
       disk <- F.fromOption(diskOpt, DiskNotFoundByIdException(diskId, ctx.traceId))
 
-      _ <- checkDiskAction(userInfo, diskId, disk.samResource, PersistentDiskAction.DeletePersistentDisk, ctx.traceId)
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    diskId,
+                                    disk.samResource,
+                                    PersistentDiskAction.DeletePersistentDisk,
+                                    ctx.traceId
+      )
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure disk permission")))
 
       // check that workspaceId is not null

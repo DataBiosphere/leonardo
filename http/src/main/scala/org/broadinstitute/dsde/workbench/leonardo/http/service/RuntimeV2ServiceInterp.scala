@@ -42,10 +42,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessUpdaterQueue: Queue[F, UpdateDateAccessedMessage],
   wsmClientProvider: WsmApiClientProvider[F],
-  val samService: SamService[F]
+  samService: SamService[F]
 )(implicit F: Async[F], dbReference: DbReference[F], ec: ExecutionContext, log: StructuredLogger[F])
-    extends RuntimeV2Service[F]
-    with SamUtils[F] {
+    extends RuntimeV2Service[F] {
 
   override def createRuntime(
     userInfo: UserInfo,
@@ -238,7 +237,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       ctx <- as.ask
 
       runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
-      _ <- checkRuntimeAction(userInfo, workspaceId, runtimeName, runtime.samResource, RuntimeAction.GetRuntimeStatus)
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       workspaceId,
+                                       runtimeName,
+                                       runtime.samResource,
+                                       RuntimeAction.GetRuntimeStatus
+      )
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
     } yield runtime
 
@@ -367,7 +372,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       ctx <- as.ask
       runtime <- RuntimeServiceDbQueries.getRuntimeByWorkspaceId(workspaceId, runtimeName).transaction
 
-      _ <- checkRuntimeAction(
+      _ <- SamUtils.checkRuntimeAction(
+        samService,
         userInfo,
         workspaceId,
         runtimeName,
@@ -494,7 +500,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
   )(implicit as: Ask[F, AppContext]): F[ClusterRecord] =
     for {
       runtime <- RuntimeServiceDbQueries.getActiveRuntimeRecord(workspaceId, runtimeName).transaction
-      _ <- checkRuntimeAction(userInfo, workspaceId, runtimeName, RuntimeSamResourceId(runtime.internalId), action)
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       workspaceId,
+                                       runtimeName,
+                                       RuntimeSamResourceId(runtime.internalId),
+                                       action
+      )
     } yield runtime
 
   private def errorHandler(runtimeId: Long, ctx: AppContext): Throwable => F[Unit] =
