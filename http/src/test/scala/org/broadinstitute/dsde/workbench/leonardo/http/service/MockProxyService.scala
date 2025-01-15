@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -33,7 +34,8 @@ class MockProxyService(
   samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   googleOauth2Service: GoogleOAuth2Service[IO],
   samDAO: Option[SamDAO[IO]] = None,
-  queue: Option[Queue[IO, UpdateDateAccessedMessage]] = None
+  queue: Option[Queue[IO, UpdateDateAccessedMessage]] = None,
+  samService: SamService[IO] = MockSamService
 )(implicit
   system: ActorSystem,
   executionContext: ExecutionContext,
@@ -52,7 +54,8 @@ class MockProxyService(
       LocalProxyResolver,
       samDAO.getOrElse(new MockSamDAO()),
       googleTokenCache,
-      samResourceCache
+      samResourceCache,
+      samService
     ) {
 
   override def getRuntimeTargetHost(cloudContext: CloudContext, clusterName: RuntimeName): IO[HostStatus] =

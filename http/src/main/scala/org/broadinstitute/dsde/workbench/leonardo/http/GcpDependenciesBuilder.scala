@@ -268,7 +268,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.proxyResolver,
       baselineDependencies.samDAO,
       baselineDependencies.googleTokenCache,
-      baselineDependencies.samResourceCache
+      baselineDependencies.samResourceCache,
+      baselineDependencies.samService
     )
 
     val diskService = new DiskServiceInterp[IO](

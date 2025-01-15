@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, SamDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
@@ -91,14 +92,16 @@ class ProxyService(
   proxyResolver: ProxyResolver[IO],
   samDAO: SamDAO[IO],
   googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])]
+  samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
+  val samService: SamService[IO]
 )(implicit
   val system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
   loggerIO: StructuredLogger[IO],
   metrics: OpenTelemetryMetrics[IO]
-) extends LazyLogging {
+) extends LazyLogging
+    with SamUtils[IO] {
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
   val clientConnectionSettings =
     ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
@@ -267,38 +270,9 @@ class ProxyService(
     for {
       ctx <- ev.ask[AppContext]
 
-      hasWorkspacePermission <- workspaceId match {
-        case Some(wid) =>
-          authProvider
-            .isUserWorkspaceReader(
-              WorkspaceResourceSamResourceId(wid),
-              userInfo
-            )
-        case None => IO.pure(true)
-      }
-
-      _ <- IO.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(cloudContext, runtimeName))
-      // Note both these Sam actions are cached so it should be okay to call hasPermission twice
-      hasViewPermission <- authProvider.hasPermission[RuntimeSamResourceId, RuntimeAction](
-        samResource,
-        RuntimeAction.GetRuntimeStatus,
-        userInfo
-      )
-      _ <-
-        if (!hasViewPermission) {
-          IO.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, ctx.traceId.asString))
-        } else IO.unit
-      hasConnectPermission <- authProvider.hasPermission[RuntimeSamResourceId, RuntimeAction](
-        samResource,
-        RuntimeAction.ConnectToRuntime,
-        userInfo
-      )
-      _ <-
-        if (!hasConnectPermission) {
-          IO.raiseError(ForbiddenError(userInfo.userEmail))
-        } else IO.unit
+      _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, samResource, RuntimeAction.ConnectToRuntime)
+
       hostStatus <- getRuntimeTargetHost(cloudContext, runtimeName)
       _ <- hostStatus match {
         case HostReady(_, _, _) =>
