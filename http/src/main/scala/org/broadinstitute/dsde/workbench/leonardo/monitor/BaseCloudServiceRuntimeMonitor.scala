@@ -118,8 +118,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
+      // Delete the runtime if deleteRuntime is true
+      // Stop the runtime otherwise
       _ <- List(
-        // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
             DeleteRuntimeParams(runtimeAndRuntimeConfig, mainInstance)
@@ -131,7 +132,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             StopRuntimeParams(runtimeAndRuntimeConfig, ctx.now, true)
           )
           .void
-          .whenA(!deleteRuntime), // When we don't delete runtime, we should stop the runtime
+          .whenA(!deleteRuntime),
+
         // save cluster error in the DB
         saveRuntimeError(
           runtimeAndRuntimeConfig.runtime.id,
@@ -167,6 +169,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
                   persistentDiskQuery.getPersistentDiskRecord(did).transaction
                 )
+
+                // if there's a disk in Creating/Failed status, delete it
+                // any other state, detach from the runtime
                 _ <- persistentDiskOpt match {
                   case Some(value) =>
                     if (value.status == DiskStatus.Creating || value.status == DiskStatus.Failed) {
@@ -175,13 +180,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                           .delete(d.id, ctx.now)
                           .transaction
                       )
-                    } else F.unit
+                    } else clusterQuery.detachPersistentDisk(runtimeAndRuntimeConfig.runtime.id, ctx.now).transaction
                   case None => F.unit
                 }
               } yield ()
             }
           } yield ()
         } else F.unit
+
       // Update the cluster status to Error only if the runtime is non-Deleted.
       // If the user has explicitly deleted their runtime by this point then
       // we don't want to move it back to Error status.
@@ -191,7 +197,6 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           curStatusOpt,
           new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
         )
-        _ <- clusterQuery.detachPersistentDisk(runtimeAndRuntimeConfig.runtime.id, ctx.now).transaction
         _ <- curStatus match {
           case RuntimeStatus.Deleted =>
             logger.info(ctx.loggingCtx)(
