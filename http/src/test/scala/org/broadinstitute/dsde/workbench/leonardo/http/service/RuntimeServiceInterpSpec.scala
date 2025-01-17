@@ -1408,7 +1408,8 @@ class RuntimeServiceInterpTest
       )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
+    val service =
+      makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
 
     val res = for {
       pd1 <- makePersistentDisk().save()
@@ -1485,7 +1486,8 @@ class RuntimeServiceInterpTest
       )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
+    val service =
+      makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
 
     val res = for {
       pd1 <- makePersistentDisk().save()

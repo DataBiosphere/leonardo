@@ -80,13 +80,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
     samService: SamService[IO] = MockSamService
   ) =
-    new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   authProvider,
-                                   queue,
-                                   dateAccessedQueue,
-                                   wsmClientProvider,
-      samService
-    )
+    new RuntimeV2ServiceInterp[IO](serviceConfig, authProvider, queue, dateAccessedQueue, wsmClientProvider, samService)
 
   // need to set previous runtime to deleted status before creating next to avoid exception
   def setRuntimeDeleted(workspaceId: WorkspaceId, name: RuntimeName): IO[Long] =

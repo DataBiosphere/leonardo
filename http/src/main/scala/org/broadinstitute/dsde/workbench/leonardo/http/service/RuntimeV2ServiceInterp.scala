@@ -10,7 +10,13 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId, RuntimeSamResourceId, WorkspaceResourceSamResourceId, WsmResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  PersistentDiskSamResourceId,
+  ProjectSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId,
+  WsmResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService, SamUtils}
@@ -676,12 +682,12 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
 
 }
 final case class AuthorizedIds(
-                                val ownerGoogleProjectIds: Set[ProjectSamResourceId],
-                                val ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
-                                val readerGoogleProjectIds: Set[ProjectSamResourceId],
-                                val readerRuntimeIds: Set[SamResourceId],
-                                val readerWorkspaceIds: Set[WorkspaceResourceSamResourceId]
-                              )
+  val ownerGoogleProjectIds: Set[ProjectSamResourceId],
+  val ownerWorkspaceIds: Set[WorkspaceResourceSamResourceId],
+  val readerGoogleProjectIds: Set[ProjectSamResourceId],
+  val readerRuntimeIds: Set[SamResourceId],
+  val readerWorkspaceIds: Set[WorkspaceResourceSamResourceId]
+)
 
 final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
