@@ -33,6 +33,7 @@ object DbReference extends LazyLogging {
       changelogParameters.foreach { case (key, value) => liquibase.setChangeLogParameter(key, value) }
 
       liquibase.update(new Contexts(), new LabelExpression())
+
     } catch {
       case e: SQLTimeoutException =>
         val isCertProblem = Throwables.getRootCause(e).isInstanceOf[SunCertPathBuilderException]
@@ -54,7 +55,6 @@ object DbReference extends LazyLogging {
   ): Resource[F, DbReference[F]] = {
     val dbConfig =
       DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
-
     for {
       db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
       initLiquibase =

@@ -3295,6 +3295,10 @@ components:
         labels:
           type: object
           description: The labels of each persistent disk in the response whose key is in includeLabels in the request. Of type Map[String,String]
+        workspaceId:
+          type: string
+          description: The id of the disk's workspace
+
 
     GetPersistentDiskResponse:
       description: ""
@@ -3354,6 +3358,10 @@ components:
             - CUSTOM
             - ALLOWED
           description: App that formatted disk, missing if unformatted
+        workspaceId:
+          type: string
+          description: The id of the disk's workspace
+
 
     GetPersistentDiskV2Response:
       description: ""
@@ -4163,7 +4171,7 @@ components:
         bucketNameToMount:
           type: string
           description: >
-            The GCS bucket name (without gs://) that will be mounted in the app if present. 
+            The GCS bucket name (without gs://) that will be mounted in the app if present.
 
     UpdateAppRequest:
       description: A request to update the configuration of an app
@@ -4171,10 +4179,10 @@ components:
       properties:
         autodeleteEnabled:
           type: boolean
-          description: > 
+          description: >
             Optional: Whether to turn on autodelete.  When autodeleteEnabled is set to true but there is no
-            autodeleteThreshold supplied in this request, the existing app's configuration will be used.  If the 
-            existing configuration does not have an autodeleteThreshold with a positive integer, this would result in 
+            autodeleteThreshold supplied in this request, the existing app's configuration will be used.  If the
+            existing configuration does not have an autodeleteThreshold with a positive integer, this would result in
             an invalid autodelete configuration, and therefore this update request would be rejected.
         autodeleteThreshold:
           type: integer

@@ -3,20 +3,20 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.NonEmptyList
 import cats.effect.IO
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.typesafe.config.Config
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.dao.AuthProviderException
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
-import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, SamResourceId, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.dao.AuthProviderException
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, ProjectAction, SamResourceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
-class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[IO]) extends LeoAuthProvider[IO] {
+class AllowlistAuthProvider(config: Config) extends LeoAuthProvider[IO] {
 
   val allowlist = config.as[Set[String]]("allowlist").map(_.toLowerCase)
 
@@ -98,22 +98,6 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   )(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
     checkAllowlist(userInfo)
 
-  // Creates a resource in Sam
-  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = IO.unit
-
-  // Deletes a resource in Sam
-  def notifyResourceDeleted[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
-
-  override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
-
   override def isUserWorkspaceOwner(
     workspaceResource: WorkspaceResourceSamResourceId,
     userInfo: UserInfo
@@ -149,18 +133,6 @@ class AllowlistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   } yield ()
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = IO.pure(true)
-
-  override def notifyResourceCreatedV2[R](samResource: R,
-                                          creatorEmail: WorkbenchEmail,
-                                          cloudContext: CloudContext,
-                                          workspaceId: WorkspaceId,
-                                          userInfo: UserInfo
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
-
-  override def notifyResourceDeletedV2[R](samResource: R, userInfo: UserInfo)(implicit
-    sr: SamResource[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = IO.unit
 
   override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]

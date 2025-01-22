@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.mtl.Ask
@@ -10,21 +11,19 @@ import com.google.cloud.compute.v1.Operation
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.{BlobGetOption, BucketSourceOption}
 import fs2.Stream
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
 import org.broadinstitute.dsde.workbench.RetryConfig
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodName
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GKEModels, GcsBlobName, GetMetadataResponse, KubernetesModels, PvName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  LeoAuthProvider,
-  SamResource,
-  SamResourceAction,
-  ServiceAccountProvider
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -78,8 +77,6 @@ object NoDeleteGoogleStorage extends BaseFakeGoogleStorage {
 }
 
 class BaseMockAuthProvider extends LeoAuthProvider[IO] {
-  override def serviceAccountProvider: ServiceAccountProvider[IO] = ???
-
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
@@ -131,19 +128,6 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(GoogleProject, R)]] =
     ???
 
-  override def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = IO.unit
-
-  override def notifyResourceDeleted[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit
-    sr: SamResource[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = IO.unit
-
   override def isUserProjectReader(cloudContext: CloudContext, userInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = ???
@@ -163,18 +147,6 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def checkUserEnabled(petOrUserInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 
   override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
-
-  override def notifyResourceCreatedV2[R](samResource: R,
-                                          creatorEmail: WorkbenchEmail,
-                                          cloudContext: CloudContext,
-                                          workspaceId: WorkspaceId,
-                                          userInfo: UserInfo
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[IO, TraceId]): IO[Unit] = ???
-
-  override def notifyResourceDeletedV2[R](samResource: R, userInfo: UserInfo)(implicit
-    sr: SamResource[R],
-    ev: Ask[IO, TraceId]
-  ): IO[Unit] = ???
 
   override def filterWorkspaceOwner(resources: NonEmptyList[WorkspaceResourceSamResourceId], userInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
@@ -309,3 +281,65 @@ class MockAKSInterp extends AKSAlgebra[IO] {
 
   override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }
+
+class BaseMockSamService extends SamService[IO] {
+  override def getPetServiceAccount(bearerToken: String, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[WorkbenchEmail] = IO.pure(serviceAccountEmail)
+
+  override def getPetManagedIdentity(bearerToken: String, azureCloudContext: AzureCloudContext)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[WorkbenchEmail] = IO.pure(managedIdentityEmail)
+
+  override def getProxyGroup(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
+    IO.pure(proxyGroupEmail)
+
+  override def getPetServiceAccountToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[String] =
+    IO.pure(tokenValue)
+
+  override def getArbitraryPetServiceAccountToken(userEmail: WorkbenchEmail)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[String] =
+    IO.pure(tokenValue)
+
+  override def lookupWorkspaceParentForGoogleProject(bearerToken: String, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Option[WorkspaceId]] = IO.pure(Some(workspaceId))
+
+  override def checkAuthorized(bearerToken: String,
+                               samResourceId: SamResourceId,
+                               action: org.broadinstitute.dsde.workbench.leonardo.SamResourceAction
+  )(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Unit] = if (bearerToken.equals(unauthorizedUserInfo.accessToken.token))
+    IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId("")))
+  else IO.unit
+
+  override def listResources(bearerToken: String, samResourceType: SamResourceType)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[List[String]] = IO.pure(List.empty)
+
+  override def createResource(bearerToken: String,
+                              samResourceId: SamResourceId,
+                              parentProject: Option[GoogleProject],
+                              parentWorkspace: Option[WorkspaceId],
+                              policies: Map[String, SamPolicyData]
+  )(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  override def deleteResource(bearerToken: String, samResourceId: SamResourceId)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[Unit] = IO.unit
+
+  override def getUserEmail(bearerToken: String)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
+    bearerToken match {
+      case userInfo.accessToken.token             => IO.pure(userInfo.userEmail)
+      case userInfo2.accessToken.token            => IO.pure(userInfo2.userEmail)
+      case userInfo3.accessToken.token            => IO.pure(userInfo3.userEmail)
+      case userInfo4.accessToken.token            => IO.pure(userInfo4.userEmail)
+      case unauthorizedUserInfo.accessToken.token => IO.pure(unauthorizedUserInfo.userEmail)
+      case _                                      => IO.pure(userInfo.userEmail)
+    }
+}
+object MockSamService extends BaseMockSamService

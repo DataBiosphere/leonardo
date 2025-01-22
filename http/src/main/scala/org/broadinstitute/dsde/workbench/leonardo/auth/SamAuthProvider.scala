@@ -6,7 +6,7 @@ import cats.data.NonEmptyList
 import cats.effect.{Async, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, GroupName, SamDAO}
@@ -22,15 +22,17 @@ import scalacache.Cache
 
 import scala.concurrent.duration._
 
+/**
+ * Deprecated. Functionality should be ported to SamService, which uses the generated Sam client.
+ */
+@Deprecated
 class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   samDao: SamDAO[F],
   config: SamAuthProviderConfig,
-  saProvider: ServiceAccountProvider[F],
   authCache: Cache[F, AuthCacheKey, Boolean]
 )(implicit F: Async[F], logger: StructuredLogger[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
-  override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
@@ -313,45 +315,6 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield roles.nonEmpty
   }
 
-  override def notifyResourceCreated[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // Note: apps on GCP are defined with a google-project as a parent Sam resource.
-    // Otherwise the Sam resource has no parent.
-    if (sr.resourceType(samResource) != SamResourceType.App)
-      samDao.createResourceAsGcpPet(samResource, creatorEmail, googleProject)
-    else
-      samDao.createResourceWithGoogleProjectParent(samResource, creatorEmail, googleProject)
-
-  override def notifyResourceCreatedV2[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    cloudContext: CloudContext,
-    workspaceId: WorkspaceId,
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    // Note: V2 apps on both GCP and azure are defined with a workspace as a parent Sam resource.
-    // Otherwise the Sam resource has no parent.
-    if (List(SamResourceType.App, SamResourceType.SharedApp).contains(sr.resourceType(samResource)))
-      samDao.createResourceWithWorkspaceParent(samResource, creatorEmail, userInfo, workspaceId)
-    else
-      samDao.createResourceWithUserInfo(samResource, userInfo)
-
-  override def notifyResourceDeleted[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
-    samDao.deleteResourceAsGcpPet(samResource, creatorEmail, googleProject)
-
-  override def notifyResourceDeletedV2[R](
-    samResource: R,
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
-    samDao.deleteResourceWithUserInfo(samResource, userInfo)
-
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
     for {
       traceId <- ev.ask
@@ -421,7 +384,6 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         case _ => F.raiseError(new RuntimeException("Could not obtain Leo auth token"))
       }
     } yield token
-
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,

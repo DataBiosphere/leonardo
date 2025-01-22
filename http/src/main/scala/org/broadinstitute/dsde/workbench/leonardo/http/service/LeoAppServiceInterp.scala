@@ -29,12 +29,14 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, WsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
   checkIfCanBeDeleted,
+  getAppSamPolicyMap,
   isPatchVersionDifference
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
@@ -45,7 +47,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
-import org.http4s.{AuthScheme, Uri}
+import org.http4s.Uri
 import org.typelevel.log4cats.StructuredLogger
 import slick.jdbc.TransactionIsolation
 
@@ -55,13 +57,12 @@ import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 authProvider: LeoAuthProvider[F],
-                                                serviceAccountProvider: ServiceAccountProvider[F],
                                                 publisherQueue: Queue[F, LeoPubsubMessage],
                                                 computeService: Option[GoogleComputeService[F]],
                                                 googleResourceService: Option[GoogleResourceService[F]],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmDao: WsmDao[F],
-                                                wsmClientProvider: WsmApiClientProvider[F]
+                                                wsmClientProvider: WsmApiClientProvider[F],
+                                                samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
@@ -81,12 +82,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- as.ask
       googleProject = cloudContext.value
+
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
+
       hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
         ProjectSamResourceId(googleProject),
         ProjectAction.CreateApp,
         userInfo
       )
-      _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
+      _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userEmail))
 
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
@@ -101,14 +106,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                 case AllowedChartName.Sas =>
                   if (config.enableSasApp) {
                     if (enableIntraNodeVisibility) {
-                      checkIfSasAppCreationIsAllowed(userInfo.userEmail, googleProject)
+                      checkIfSasAppCreationIsAllowed(userEmail, googleProject)
                     } else {
-                      authProvider.isSasAppAllowed(userInfo.userEmail) flatMap { res =>
+                      authProvider.isSasAppAllowed(userEmail) flatMap { res =>
                         if (res) {
                           F.unit
                         } else
                           F.raiseError[Unit](
-                            AuthenticationError(Some(userInfo.userEmail),
+                            AuthenticationError(Some(userEmail),
                                                 "You need to obtain a license in order to create a SAS App"
                             )
                           )
@@ -117,7 +122,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                   } else
                     F.raiseError[Unit](
                       AuthenticationError(
-                        Some(userInfo.userEmail),
+                        Some(userEmail),
                         "SAS is not enabled. Please contact your administrator."
                       )
                     )
@@ -132,7 +137,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         case AppType.Custom =>
           req.descriptorPath match {
             case Some(descriptorPath) =>
-              checkIfAppCreationIsAllowed(userInfo.userEmail, googleProject, descriptorPath)
+              checkIfAppCreationIsAllowed(userEmail, googleProject, descriptorPath)
             case None =>
               F.raiseError(
                 BadRequestException(
@@ -155,19 +160,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
 
-      // Look up the original email in case this API was called by a pet SA
-      originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
+      // Retrieve parent workspaceId for the google project
+      parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
       notifySamAndCreate = for {
-        _ <- authProvider
-          .notifyResourceCreated(samResourceId, originatingUserEmail, googleProject)
-          .handleErrorWith { t =>
-            log.error(ctx.loggingCtx, t)(
-              s"Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${samResourceId.asString}"
-            ) >> F.raiseError[Unit](t)
-          }
+        _ <- samService.createResource(userInfo.accessToken.token,
+                                       samResourceId,
+                                       Some(googleProject),
+                                       None,
+                                       getAppSamPolicyMap(userEmail, req.accessScope)
+        )
         saveCluster <- F.fromEither(
-          getSavableCluster(originatingUserEmail, cloudContext, req.autopilot.isDefined, ctx.now)
+          getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
         )
 
         saveClusterResult <- KubernetesServiceDbQueries
@@ -201,7 +205,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
         // We want to know if the user already has a nodepool with the requested config that can be re-used
         userNodepoolOpt <- nodepoolQuery
-          .getMinimalByUserAndConfig(originatingUserEmail, cloudContext, machineConfig)
+          .getMinimalByUserAndConfig(userEmail, cloudContext, machineConfig)
           .transaction
         nodepool <-
           if (req.autopilot.isDefined) {
@@ -218,19 +222,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                     s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.cloudContext.asStringWithProvider}. Will create a new nodepool."
                   )
                   saveNodepool <- F.fromEither(
-                    getUserNodepool(clusterId, cloudContext, originatingUserEmail, machineConfig, ctx.now)
+                    getUserNodepool(clusterId, cloudContext, userEmail, machineConfig, ctx.now)
                   )
                   savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
                 } yield savedNodepool
             }
           }
 
-        runtimeServiceAccountOpt <- serviceAccountProvider
-          .getClusterServiceAccount(userInfo, cloudContext)
-        _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-        petSA <- F.fromEither(
-          runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-        )
+        petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
+        _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
         // Fail fast if the Galaxy disk, memory, number of CPUs is too small
         appMachineType <-
@@ -246,26 +246,31 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
             googleProject,
             userInfo,
+            userEmail,
             petSA,
             appTypeToFormattedByType(req.appType),
             authProvider,
-            config.leoKubernetesConfig.diskConfig
+            samService,
+            config.leoKubernetesConfig.diskConfig,
+            parentWorkspaceId
           )
         )
         lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
+
         saveApp <- F.fromEither(
-          getSavableApp(cloudContext,
-                        appName,
-                        originatingUserEmail,
-                        samResourceId,
-                        req,
-                        diskResultOpt.map(_.disk),
-                        lastUsedApp,
-                        petSA,
-                        nodepool.id,
-                        req.workspaceId,
-                        req.autopilot,
-                        ctx
+          getSavableApp(
+            cloudContext,
+            appName,
+            userEmail,
+            samResourceId,
+            req,
+            diskResultOpt.map(_.disk),
+            lastUsedApp,
+            petSA,
+            nodepool.id,
+            parentWorkspaceId,
+            req.autopilot,
+            ctx
           )
         )
         app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
@@ -297,8 +302,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         _ <- publisherQueue.offer(createAppMessage)
       } yield ()
       _ <- notifySamAndCreate.handleErrorWith { t =>
-        authProvider
-          .notifyResourceDeleted(samResourceId, originatingUserEmail, googleProject) >> metrics.incrementCounter(
+        samService.deleteResource(userInfo.accessToken.token, samResourceId) >> metrics.incrementCounter(
           "frontLeoCreateAppFailure",
           1,
           Map("isAoU" -> enableIntraNodeVisibility.toString)
@@ -428,11 +432,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <-
         if (appResult.app.status == AppStatus.Error) {
           for {
-            // we only need to delete Sam record for clusters in Google. Sam record for Azure is managed by WSM
-            _ <- authProvider.notifyResourceDeleted(appResult.app.samResourceId,
-                                                    appResult.app.auditInfo.creator,
-                                                    cloudContext.value
-            )
+            // Delete kubernetes-app Sam resource
+            _ <- samService.deleteResource(userInfo.accessToken.token, appResult.app.samResourceId)
             _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
           } yield ()
         } else {
@@ -510,12 +511,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- dbReference.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
       _ <- dbReference.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
       _ <- dbReference.inTransaction(kubernetesClusterQuery.markAsDeleted(dbApp.cluster.id, ctx.now))
-      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
-      _ <- authProvider
-        .notifyResourceDeletedV2(
-          dbApp.app.samResourceId,
-          userInfo
-        )
+      // Delete kubernetes-app Sam resource
+      _ <- samService.deleteResource(userInfo.accessToken.token, dbApp.app.samResourceId)
       // Stop the usage of the SAS app
       _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).recoverWith { case e: FailToRecordStoptime =>
         log.error(ctx.loggingCtx)(e.getMessage)
@@ -729,13 +726,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- as.ask
 
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
+
       // Check the calling user has permission on the workspace
       hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
         WorkspaceResourceSamResourceId(workspaceId),
         WorkspaceAction.CreateControlledUserResource,
         userInfo
       )
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
+      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
 
       // Validate shared access scope apps against an allow-list. No-op for private apps.
       _ <- req.accessScope match {
@@ -747,10 +747,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       }
 
       // Resolve the workspace in WSM to get the cloud context
-      userToken = org.http4s.headers.Authorization(
-        org.http4s.Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token)
-      )
-      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, userToken)
+      workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
@@ -783,21 +780,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           )
       }
 
-      // Create a new Sam resource for the app (either shared or not)
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
-      // Note: originatingUserEmail is only used for GCP to set up app Sam resources with a parent google project.
-      originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
-      _ <- authProvider
-        .notifyResourceCreatedV2(samResourceId, originatingUserEmail, cloudContext, workspaceId, userInfo)
-        .handleErrorWith { t =>
-          log.error(ctx.loggingCtx, t)(
-            s"Failed to notify the AuthProvider for creation of kubernetes app ${cloudContext.asStringWithProvider} / ${appName.value}"
-          ) >> F.raiseError[Unit](t)
-        }
+
+      // Create kubernetes-app Sam resource with a creator policy and the workspace as the parent
+      _ <- samService.createResource(userInfo.accessToken.token,
+                                     samResourceId,
+                                     None,
+                                     Some(workspaceId),
+                                     getAppSamPolicyMap(userEmail, req.accessScope)
+      )
 
       // Save or retrieve a KubernetesCluster record for the app
       saveCluster <- F.fromEither(
-        getSavableCluster(originatingUserEmail, cloudContext, false, ctx.now)
+        getSavableCluster(userEmail, cloudContext, false, ctx.now)
       )
       saveClusterResult <- KubernetesServiceDbQueries
         .saveOrGetClusterForApp(saveCluster, ctx.traceId)
@@ -818,11 +813,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       nodepool = saveClusterResult.defaultNodepool.toNodepool()
 
       // Retrieve a pet identity from Sam
-      runtimeServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, cloudContext)
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getClusterServiceAccount")))
-      petSA <- F.fromEither(
-        runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
+      petSA <- samService.getPetServiceAccountOrManagedIdentity(userInfo.accessToken.token, cloudContext)
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
 
       // Process persistent disk in the request, check if the disk was previously attached to any other app
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
@@ -832,9 +824,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           cloudContext,
           workspaceId,
           userInfo,
+          userEmail,
           petSA,
           appTypeToFormattedByType(req.appType),
           authProvider,
+          samService,
           config.leoKubernetesConfig.diskConfig
         )
       )
@@ -845,7 +839,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         getSavableApp(
           cloudContext,
           appName,
-          originatingUserEmail,
+          userEmail,
           samResourceId,
           req,
           diskResultOpt.map(_.disk),
@@ -1659,8 +1653,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 }
 
 object LeoAppServiceInterp {
-  case class LeoKubernetesConfig(serviceAccountConfig: ServiceAccountProviderConfig,
-                                 clusterConfig: KubernetesClusterConfig,
+  case class LeoKubernetesConfig(clusterConfig: KubernetesClusterConfig,
                                  nodepoolConfig: NodepoolConfig,
                                  ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,
@@ -1693,6 +1686,20 @@ object LeoAppServiceInterp {
     if (deletable) Right(())
     else Left(s"${appType} can not be deleted in ${appStatus} status.")
   }
+
+  /**
+   * Shared apps are represented as kubernetes-app-shared resources in Sam and have an "owner" role.
+   * Private apps are represented as kubernetes-app resources in Sam and have a "creator" role.
+   */
+  private[http] def getAppSamPolicyMap(userEmail: WorkbenchEmail,
+                                       accessScope: Option[AppAccessScope]
+  ): Map[String, SamPolicyData] =
+    accessScope match {
+      case Some(AppAccessScope.WorkspaceShared) =>
+        Map("owner" -> SamPolicyData(List(userEmail), List(SharedAppRole.Owner.asString)))
+      case _ =>
+        Map("creator" -> SamPolicyData(List(userEmail), List(AppRole.Creator.asString)))
+    }
 }
 
 case class AppNotFoundException(cloudContext: CloudContext, appName: AppName, traceId: TraceId, extraMsg: String)
@@ -1744,17 +1751,6 @@ case class AppCannotBeDeletedException(cloudContext: CloudContext,
       StatusCodes.Conflict,
       traceId = Some(traceId),
       extraMessageInLogging = extraMsg
-    )
-
-case class AppCannotBeDeletedByWorkspaceIdException(workspaceId: WorkspaceId,
-                                                    appName: AppName,
-                                                    status: AppStatus,
-                                                    traceId: TraceId
-) extends LeoException(
-      s"App ${workspaceId.value.toString}/${appName.value} cannot be deleted in ${status} status." +
-        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
     )
 
 case class DeleteAllAppsCannotBePerformed(workspaceId: WorkspaceId, apps: List[App], traceId: TraceId)
@@ -1836,12 +1832,6 @@ case class SharedAppNotAllowedException(appType: AppType, traceId: TraceId)
 case class AppTypeNotEnabledException(appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App with type ${appType.toString} is not enabled. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-case class AppWithoutWorkspaceIdException(appName: AppName, traceId: TraceId)
-    extends LeoException(
-      s"App ${appName.value} is missing a workspaceId. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

@@ -1,9 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
+
 import akka.actor.ActorSystem
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{appServiceConfig, gkeCustomAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  DiskService,
+  DiskServiceInterp,
+  LeoAppServiceInterp,
+  RuntimeService
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorAtBoot
 import org.broadinstitute.dsde.workbench.leonardo.util.ServicesRegistry
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -46,7 +52,7 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
         baselineDependencies.publisherQueue,
         None, // no GCP dependency
         baselineDependencies.samDAO,
-        baselineDependencies.wsmDAO
+        baselineDependencies.wsmClientProvider
       )
 
     List(monitorAtBoot.process)
@@ -76,18 +82,40 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       new LeoAppServiceInterp(
         appServiceConfig,
         baselineDependencies.authProvider,
-        baselineDependencies.serviceAccountProvider,
         baselineDependencies.publisherQueue,
         None,
         None,
         gkeCustomAppConfig,
-        baselineDependencies.wsmDAO,
-        baselineDependencies.wsmClientProvider
+        baselineDependencies.wsmClientProvider,
+        baselineDependencies.samService
       )
+
+    // Needed for v1 APIs
+    val diskService = new DiskServiceInterp[IO](
+      ConfigReader.appConfig.persistentDisk,
+      baselineDependencies.authProvider,
+      baselineDependencies.publisherQueue,
+      None,
+      None,
+      baselineDependencies.samService
+    )
+
+    val runtimeService = RuntimeService(
+      baselineDependencies.runtimeServicesConfig,
+      ConfigReader.appConfig.persistentDisk,
+      baselineDependencies.authProvider,
+      baselineDependencies.dockerDAO,
+      None,
+      None,
+      baselineDependencies.publisherQueue,
+      baselineDependencies.samService
+    )
 
     var servicesRegistry = ServicesRegistry()
 
     servicesRegistry.register[LeoAppServiceInterp[IO]](leoKubernetesService)
+    servicesRegistry.register[DiskService[IO]](diskService)
+    servicesRegistry.register[RuntimeService[IO]](runtimeService)
 
     Resource.make(IO(servicesRegistry))(_ => IO.unit)
   }

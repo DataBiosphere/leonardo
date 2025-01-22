@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 import akka.actor.ActorSystem
 import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
+import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor
 import org.broadinstitute.dsde.workbench.leonardo.app._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
@@ -26,19 +27,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.http.api.StandardUserInfoDirectives
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  AutoDeleteAppMonitor,
-  AutopauseMonitor,
-  DateAccessedUpdater,
-  LeoMetricsMonitor,
-  LeoPubsubMessageSubscriber
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
-import fs2.Stream
 
 /**
  * This is the main entry point to start building the dependencies required to start the Leonardo application.
@@ -97,10 +91,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
   ): Resource[IO, ServicesDependencies] = {
     val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
     val diskV2Service = new DiskV2ServiceInterp[IO](
-      ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.wsmDAO,
-      baselineDependencies.samDAO,
       baselineDependencies.publisherQueue,
       baselineDependencies.wsmClientProvider
     )
@@ -108,10 +99,10 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     val azureService = new RuntimeV2ServiceInterp[IO](
       baselineDependencies.runtimeServicesConfig,
       baselineDependencies.authProvider,
-      baselineDependencies.wsmDAO,
       baselineDependencies.publisherQueue,
       baselineDependencies.dateAccessedUpdaterQueue,
-      baselineDependencies.wsmClientProvider
+      baselineDependencies.wsmClientProvider,
+      baselineDependencies.samService
     )
     val adminService =
       new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
@@ -162,7 +153,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     val autodeleteAppMonitorProcess = AutoDeleteAppMonitor.process(
       autodeleteConfig,
       baselineDependencies.publisherQueue,
-      baselineDependencies.authProvider
+      baselineDependencies.authProvider,
+      baselineDependencies.samService
     )
 
     // LeoMetricsMonitor collects metrics from both runtimes and apps.
@@ -256,7 +248,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       kubeAlg,
       baselineDependencies.wsmClientProvider,
       baselineDependencies.wsmDAO,
-      baselineDependencies.authProvider
+      baselineDependencies.authProvider,
+      baselineDependencies.samService
     )
 
     val azureAlg = new AzurePubsubHandlerInterp[IO](
@@ -282,7 +275,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.authProvider,
       azureAlg,
       baselineDependencies.operationFutureCache,
-      cloudSpecificDependencies
+      cloudSpecificDependencies,
+      baselineDependencies.samService
     )
 
     val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, baselineDependencies.asyncTasksQueue)

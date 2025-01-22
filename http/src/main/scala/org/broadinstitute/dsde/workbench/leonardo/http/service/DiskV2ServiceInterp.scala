@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   WorkspaceResourceSamResourceId
 }
-import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -23,12 +22,10 @@ import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
-class DiskV2ServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
-                                          authProvider: LeoAuthProvider[F],
-                                          wsmDao: WsmDao[F],
-                                          samDAO: SamDAO[F],
-                                          publisherQueue: Queue[F, LeoPubsubMessage],
-                                          wsmClientProvider: WsmApiClientProvider[F]
+class DiskV2ServiceInterp[F[_]: Parallel](
+  authProvider: LeoAuthProvider[F],
+  publisherQueue: Queue[F, LeoPubsubMessage],
+  wsmClientProvider: WsmApiClientProvider[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],

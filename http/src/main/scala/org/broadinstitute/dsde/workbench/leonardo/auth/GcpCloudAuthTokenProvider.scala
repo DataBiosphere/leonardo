@@ -5,7 +5,7 @@ import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.CloudProvider
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 
 import scala.jdk.CollectionConverters.SeqHasAsJava
 
@@ -14,7 +14,7 @@ import scala.jdk.CollectionConverters.SeqHasAsJava
  * Gets a token using the service account json file and the scopes.
 
  */
-class GcpCloudAuthTokenProvider[F[_]](config: ServiceAccountProviderConfig)(implicit F: Async[F])
+class GcpCloudAuthTokenProvider[F[_]](config: ApplicationConfig)(implicit F: Async[F])
     extends CloudServiceAuthTokenProvider[F](CloudProvider.Gcp) {
   // TODO:  The scopes were hardcoded in the previous implementation as well
   // Perhaps we should consider adding them to the configuration.

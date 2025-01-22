@@ -5,5 +5,5 @@ final case class WelderConfig(
   deployWelderLabel: Option[String],
   updateWelderLabel: Option[String],
   deployWelderCutoffDate: Option[String],
-  welderReservedMemory: Option[MemorySize]
+  welderReservedMemory: Option[MemorySizeBytes]
 )

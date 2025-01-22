@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.AppType.appTypeToFormattedByType
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AllowedAppConfig, KubernetesAppConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -44,6 +45,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.{ChartVersion, HelmException}
 import org.broadinstitute.dsde.workbench.leonardo.db.LabelResourceType
+
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
@@ -67,7 +69,8 @@ class LeoPubsubMessageSubscriber[F[_]](
   authProvider: LeoAuthProvider[F],
   azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
   operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]],
-  cloudSpecificDependenciesRegistry: ServicesRegistry
+  cloudSpecificDependenciesRegistry: ServicesRegistry,
+  samService: SamService[F]
 )(implicit
   executionContext: ExecutionContext,
   F: Async[F],
@@ -342,12 +345,10 @@ class LeoPubsubMessageSubscriber[F[_]](
           disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
           deleteDiskOp <- getGoogleDiskServiceFromRegistry().deleteDisk(googleProject, disk.zone, disk.name)
           _ <- deleteDiskOp.traverse(x => F.blocking(x.get()))
-          _ <- persistentDiskQuery.delete(id, now).transaction.void >> authProvider
-            .notifyResourceDeleted(
-              disk.samResource,
-              disk.creator,
-              googleProject
-            )
+          _ <- persistentDiskQuery.delete(id, now).transaction.void
+          // Delete the persistent-disk Sam resource
+          petToken <- samService.getPetServiceAccountToken(disk.creator, googleProject)
+          _ <- samService.deleteResource(petToken, disk.samResource)
         } yield ()
 
         deleteDisk.handleErrorWith(e =>
@@ -866,15 +867,12 @@ class LeoPubsubMessageSubscriber[F[_]](
             operationAttempt <- F.blocking(v.get()).attempt
             _ <- operationAttempt match {
               case Left(error: java.util.concurrent.ExecutionException) if error.getMessage.contains("Not Found") =>
-                logger.info(ctx.loggingCtx)("disk is already deleted") >> persistentDiskQuery
-                  .delete(diskId, ctx.now)
-                  .transaction[F]
-                  .void >> authProvider
-                  .notifyResourceDeleted(
-                    disk.samResource,
-                    disk.auditInfo.creator,
-                    googleProject
-                  )
+                for {
+                  _ <- logger.info(ctx.loggingCtx)("disk is already deleted")
+                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void
+                  petToken <- samService.getPetServiceAccountToken(disk.auditInfo.creator, googleProject)
+                  _ <- samService.deleteResource(petToken, disk.samResource)
+                } yield ()
               case Left(error) =>
                 F.raiseError(
                   new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name}", error)
@@ -884,12 +882,9 @@ class LeoPubsubMessageSubscriber[F[_]](
                   _ <- F.raiseUnless(isSuccess(op.getHttpErrorStatusCode))(
                     new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${op}")
                   )
-                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider
-                    .notifyResourceDeleted(
-                      disk.samResource,
-                      disk.auditInfo.creator,
-                      googleProject
-                    )
+                  _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void
+                  petToken <- samService.getPetServiceAccountToken(disk.auditInfo.creator, googleProject)
+                  _ <- samService.deleteResource(petToken, disk.samResource)
                 } yield ()
             }
           } yield ()
@@ -1341,9 +1336,11 @@ class LeoPubsubMessageSubscriber[F[_]](
               // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
               case AppStatus.Deleted => F.unit
               case _ =>
-                appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
-                  .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
-                  .void
+                for {
+                  _ <- appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void
+                  petToken <- samService.getPetServiceAccountToken(dbApp.app.auditInfo.creator, msg.project)
+                  _ <- samService.deleteResource(petToken, dbApp.app.samResourceId)
+                } yield ()
             }
           else F.unit
       } yield ()

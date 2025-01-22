@@ -25,11 +25,11 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, ConfigReader}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsp.mocks.MockHelm
-import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmException, Release, Values}
+import org.broadinstitute.dsp._
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
+import org.mockito.Mockito._
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.Succeeded
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -79,7 +79,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockKube,
       mockWsm,
       mockWsmDAO,
-      mockSamAuthProvider
+      mockSamAuthProvider,
+      MockSamService
     )
 
   val aksInterp = newAksInterp(config)
@@ -241,7 +242,8 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       mockKube,
       mockWsm,
       mockWsmDAO,
-      mockSamAuthProvider
+      mockSamAuthProvider,
+      MockSamService
     )
     val res = for {
       cluster <- IO(makeKubeCluster(1).copy(cloudContext = CloudContext.Azure(cloudContext)).save())
@@ -1048,9 +1050,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       sam.getCachedArbitraryPetAccessToken(any)(any)
     } thenReturn IO.pure(Some("token"))
     when {
-      sam.deleteResourceInternal(any, any)(any, any)
-    } thenReturn IO.unit
-    when {
       sam.getLeoAuthToken
     } thenReturn IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "leotoken")))
     sam
@@ -1060,12 +1059,12 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                                             namespaceExists: Boolean = true,
                                             identityExists: Boolean = true
   ): (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
-    val wsm = mock[WsmApiClientProvider[IO]]
     val api = mock[ControlledAzureResourceApi]
     val resourceApi = mock[ResourceApi]
     val workspaceApi = mock[WorkspaceApi]
     val dbsByJob = mutable.Map.empty[String, CreateControlledAzureDatabaseRequestBody]
     val namespacesByJob = mutable.Map.empty[String, CreateControlledAzureKubernetesNamespaceRequestBody]
+
     // Create managed identity
     when {
       api.createAzureManagedIdentity(any, any)
@@ -1218,9 +1217,6 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     } thenReturn {
       new DeleteControlledAzureResourceResult().jobReport(new JobReport().status(JobReport.StatusEnum.SUCCEEDED))
     }
-    when {
-      wsm.getControlledAzureResourceApi(any)(any)
-    } thenReturn IO.pure(api)
 
     // "ns-name" workspace database resource
 
@@ -1359,13 +1355,7 @@ class AKSInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       new bio.terra.workspace.model.WorkspaceDescription().createdDate(workspaceCreatedDate);
     }
 
-    when {
-      wsm.getResourceApi(any)(any)
-    } thenReturn IO.pure(resourceApi)
-
-    when {
-      wsm.getWorkspaceApi(any)(any)
-    } thenReturn IO.pure(workspaceApi)
+    val wsm = new MockWsmClientProvider(api, resourceApi, workspaceApi)
 
     (wsm, api, resourceApi, workspaceApi)
 

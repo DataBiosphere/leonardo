@@ -3,8 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import cats.effect.{Async, Ref}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.CloudProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.AzureHostingModeConfig
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, AzureHostingModeConfig}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 
@@ -55,12 +54,12 @@ abstract class CloudServiceAuthTokenProvider[F[_]](cloudProvider: CloudProvider)
 
 object CloudAuthTokenProvider {
   def apply[F[_]: Async](hostingModeConfig: AzureHostingModeConfig,
-                         serviceAccountProviderConfig: ServiceAccountProviderConfig
+                         applicationConfig: ApplicationConfig
   ): CloudAuthTokenProvider[F] =
     if (hostingModeConfig.enabled) {
       new AzureCloudAuthTokenProvider[F](hostingModeConfig)
     } else {
-      new GcpCloudAuthTokenProvider[F](serviceAccountProviderConfig)
+      new GcpCloudAuthTokenProvider[F](applicationConfig)
     }
 }
 

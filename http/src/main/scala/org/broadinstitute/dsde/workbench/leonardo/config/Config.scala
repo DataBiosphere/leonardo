@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{GroupName, HttpSamDaoConf
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   CreateDiskTimeout,
@@ -137,7 +136,7 @@ object Config {
       config.as[GceCustomImage]("customGceImage"),
       config.as[DeviceName]("userDiskDeviceName"),
       config.getStringList("defaultScopes").asScala.toSet,
-      config.getAs[MemorySize]("gceReservedMemory"),
+      config.getAs[MemorySizeBytes]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults"),
       config.as[FiniteDuration]("setMetadataPollDelay"),
       config.as[Int]("setMetadataPollMaxAttempts")
@@ -192,7 +191,7 @@ object Config {
       config.getAs[String]("deployWelderLabel"),
       config.getAs[String]("updateWelderLabel"),
       config.getAs[String]("deployWelderCutoffDate"),
-      config.getAs[MemorySize]("welderReservedMemory")
+      config.getAs[MemorySizeBytes]("welderReservedMemory")
     )
   }
 
@@ -381,14 +380,6 @@ object Config {
       )
   }
 
-  implicit private val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
-    ValueReader.relative { config =>
-      ServiceAccountProviderConfig(
-        config.as[Path]("leoServiceAccountJsonFile"),
-        config.as[WorkbenchEmail]("leoServiceAccountEmail")
-      )
-    }
-
   implicit private val httpSamDao2ConfigValueReader: ValueReader[HttpSamDaoConfig] = ValueReader.relative { config =>
     HttpSamDaoConfig(
       Uri.unsafeFromString(config.as[String]("samServer")),
@@ -420,8 +411,8 @@ object Config {
     ContainerImage.fromImageUrl(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )
   implicit private val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
-  implicit private val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
-    MemorySize(config.getBytes(path))
+  implicit private val memorySizeReader: ValueReader[MemorySizeBytes] = (config: TypeSafeConfig, path: String) =>
+    MemorySizeBytes(config.getBytes(path))
   implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
   implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
   implicit private val firewallAllowHttpsLabelKeyReader: ValueReader[FirewallAllowHttpsLabelKey] =
@@ -515,8 +506,6 @@ object Config {
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val autodeleteConfig = config.as[AutoDeleteConfig]("autodelete")
-  val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
-  val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy")
   val refererConfig = config.as[RefererConfig]("refererConfig")
   val vpcConfig = config.as[VPCConfig]("vpc")
@@ -796,7 +785,6 @@ object Config {
     }
 
   val leoKubernetesConfig = LeoKubernetesConfig(
-    kubeServiceAccountProviderConfig,
     gkeClusterConfig,
     gkeNodepoolConfig,
     gkeIngressConfig,

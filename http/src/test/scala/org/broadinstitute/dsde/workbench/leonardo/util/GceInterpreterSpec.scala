@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   DiskSize,
   FakeGoogleStorageService,
   LeonardoTestSuite,
+  MockSamService,
   RuntimeAndRuntimeConfig,
   RuntimeProjectAndName,
   RuntimeStatus
@@ -38,7 +39,7 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, MockSamService)
 
   val mockGoogleResourceService = new FakeGoogleResourceService {
     override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =

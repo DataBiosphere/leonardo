@@ -3,8 +3,9 @@ package model
 
 import cats.data.NonEmptyList
 import cats.mtl.Ask
-import io.circe.{Decoder, Encoder}
+import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   AppSamResource,
   PersistentDiskSamResource,
@@ -13,14 +14,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   WorkspaceResource,
   WsmResource
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 /**
+ * Deprecated: port functionality to SamService, which uses the generated Sam client and models.
+ *
  * Typeclass representing a Sam resource and associated policies.
  * @tparam R SamResourceId
- * @deprecated Prefer the Sam resource type config retrieved directly from Sam's Config API at `/api/config/v1/resourceTypes`.
  */
 @Deprecated
 sealed trait SamResource[R] {
@@ -128,8 +129,13 @@ object SamResource {
   implicit object WsmResource extends WsmResource
 }
 
-// Typeclass representing an action on a Sam resource
-// Constrains at compile time which actions can be checked against which resource types
+/**
+ * Deprecated: port functionality to SamService, which uses the generated Sam client and models.
+ *
+ * Typeclass representing an action on a Sam resource
+ * Constrains at compile time which actions can be checked against which resource types
+ */
+@Deprecated
 sealed trait SamResourceAction[R, ActionCategory] extends SamResource[R] {
   def decoder: Decoder[ActionCategory]
   def allActions: List[ActionCategory]
@@ -196,10 +202,11 @@ object SamResourceAction {
     }
 }
 
-// TODO: https://broadworkbench.atlassian.net/browse/IA-2093 will allow us to remove the *WithProjectFallback methods
+/**
+ * Deprecated: port functionality to SamService, which uses the generated Sam client and models.
+ */
+@Deprecated
 trait LeoAuthProvider[F[_]] {
-  def serviceAccountProvider: ServiceAccountProvider[F]
-
   def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
@@ -275,36 +282,6 @@ trait LeoAuthProvider[F[_]] {
   )(implicit
     ev: Ask[F, TraceId]
   ): F[Set[WorkspaceResourceSamResourceId]]
-
-  // Creates a resource in Sam
-  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  def notifyResourceCreatedV2[R](samResource: R,
-                                 creatorEmail: WorkbenchEmail,
-                                 cloudContext: CloudContext,
-                                 workspaceId: WorkspaceId,
-                                 userInfo: UserInfo
-  )(implicit
-    sr: SamResource[R],
-    encoder: Encoder[R],
-    ev: Ask[F, TraceId]
-  ): F[Unit]
-
-  // Deletes a resource in Sam
-  def notifyResourceDeleted[R](
-    samResource: R,
-    creatorEmail: WorkbenchEmail,
-    googleProject: GoogleProject
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
-
-  def notifyResourceDeletedV2[R](
-    samResource: R,
-    userInfo: UserInfo
-  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit]
 
   def isUserWorkspaceOwner(
     workspaceResource: WorkspaceResourceSamResourceId,

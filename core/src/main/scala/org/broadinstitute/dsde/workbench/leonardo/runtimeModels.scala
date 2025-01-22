@@ -525,17 +525,26 @@ object WelderAction extends Enum[WelderAction] {
   case object DisableDelocalization extends WelderAction
 }
 
-final case class MemorySize(bytes: Long) extends AnyVal {
+final case class MemorySizeBytes(bytes: Long) extends AnyVal {
   override def toString: String = bytes.toString + "b"
 }
-object MemorySize {
+object MemorySizeBytes {
   val kbInBytes = 1024
   val mbInBytes = 1048576
   val gbInBytes = 1073741824
 
-  def fromKb(kb: Double): MemorySize = MemorySize((kb * kbInBytes).toLong)
-  def fromMb(mb: Double): MemorySize = MemorySize((mb * mbInBytes).toLong)
-  def fromGb(gb: Double): MemorySize = MemorySize((gb * gbInBytes).toLong)
+  def fromKb(kb: Double): MemorySizeBytes = MemorySizeBytes((kb * kbInBytes).toLong)
+  def fromMb(mb: Double): MemorySizeBytes = MemorySizeBytes((mb * mbInBytes).toLong)
+  def fromGb(gb: Double): MemorySizeBytes = MemorySizeBytes((gb * gbInBytes).toLong)
+}
+
+final case class MemorySizeMegaBytes(megabytes: Long) extends AnyVal {
+  override def toString: String = megabytes.toString + "m"
+}
+object MemorySizeMegaBytes {
+  val mbInBytes = 1048576
+
+  def fromB(b: Double): MemorySizeMegaBytes = MemorySizeMegaBytes((b / mbInBytes).toLong)
 }
 
 /**
@@ -548,9 +557,10 @@ object MemorySize {
  * Note that the memory limit includes all the sub-procesess of the Notebook server including the
  * Notebook kernel and the Spark driver process, if any.
  */
-final case class RuntimeResourceConstraints(memoryLimit: MemorySize,
-                                            totalMachineMemory: MemorySize,
-                                            driverMemory: Option[MemorySize]
+final case class RuntimeResourceConstraints(memoryLimit: MemorySizeBytes,
+                                            shmSize: MemorySizeMegaBytes,
+                                            totalMachineMemory: MemorySizeBytes,
+                                            driverMemory: Option[MemorySizeBytes]
 )
 
 final case class RuntimeMetrics(cloudContext: CloudContext,

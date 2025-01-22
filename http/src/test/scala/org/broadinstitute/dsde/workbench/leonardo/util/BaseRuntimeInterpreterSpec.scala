@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   CommonTestData,
   FakeGoogleStorageService,
   LeonardoTestSuite,
+  MockSamService,
   RuntimeAndRuntimeConfig
 }
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -50,7 +51,7 @@ class BaseRuntimeInterpreterSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, MockSamService)
 
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                          bucketHelper,

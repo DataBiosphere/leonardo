@@ -11,9 +11,10 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
 import java.time.Instant
+import java.util.UUID
 
 class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
-  it should "decode DataprocConfig properly" in {
+  it should "decode GetPersistentDiskResponse properly" in {
     val inputString =
       """
         |{
@@ -41,7 +42,8 @@ class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with A
         |        "creator": "ron.weasley@test.firecloud.org",
         |        "googleProject": "gpalloc-dev-master-tzprbkr",
         |        "serviceAccount": "b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"
-        |    }
+        |    },
+        |    "workspaceId": "5955382f-c8be-464b-b5b9-2c9260cd2661"
         |}
         |""".stripMargin
 
@@ -69,7 +71,8 @@ class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with A
         "googleProject" -> "gpalloc-dev-master-tzprbkr",
         "serviceAccount" -> "b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"
       ),
-      None
+      None,
+      Some(WorkspaceId(UUID.fromString("5955382f-c8be-464b-b5b9-2c9260cd2661")))
     )
     res shouldBe (Right(expected))
   }

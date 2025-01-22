@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.refererConfig
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -46,7 +47,8 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
                            kubeAlg: KubernetesAlgebra[F],
                            wsmClientProvider: WsmApiClientProvider[F],
                            legacyWsmDao: WsmDao[F],
-                           authProvider: SamAuthProvider[F]
+                           authProvider: SamAuthProvider[F],
+                           samService: SamService[F]
 )(implicit
   appTypeToAppInstall: AppType => AppInstall[F],
   executionContext: ExecutionContext,
@@ -300,6 +302,10 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
     for {
       ctx <- ev.ask
 
+      // Build WSM client
+      wsmControlledResourceApi <- buildWsmControlledResourceApiClient
+      wsmResourceApi <- buildWsmResourceApiClient
+
       workspaceId <- F.fromOption(
         params.workspaceId,
         AppUpdateException(
@@ -323,16 +329,16 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in workspace ${params.workspaceId}")
 
       app = dbApp.app
-
-      // Resolve the workspace in WSM
       leoAuth <- samDao.getLeoAuthToken
-      workspaceDescOpt <- childSpan("getWorkspace").use { implicit ev =>
-        legacyWsmDao.getWorkspace(workspaceId, leoAuth)
-      }
-      workspaceDesc <- F.fromOption(workspaceDescOpt,
-                                    AppUpdateException(s"Workspace ${workspaceId} not found in WSM", Some(ctx.traceId))
-      )
+      token <- authProvider.getLeoAuthToken
 
+      workspaceDescOpt <- childSpan("getWorkspace").use { implicit ev =>
+        wsmClientProvider.getWorkspace(token, workspaceId)
+      }
+      workspaceDesc <- F.fromOption(
+        workspaceDescOpt,
+        AppUpdateException(s"Workspace ${workspaceId.value.toString} not found in WSM", Some(ctx.traceId))
+      )
       // Query the Landing Zone service for the landing zone resources
       billingProfileId = BillingProfileId(workspaceDesc.spendProfile)
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
@@ -347,19 +353,14 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         )
       }
 
-      // Build WSM client
-      wsmApi <- buildWsmControlledResourceApiClient
-
       // Call WSM to get the managed identity for the app.
       // This is optional because a WSM identity is only created for shared apps.
       wsmIdentities <- appControlledResourceQuery
         .getAllForAppByType(app.id.id, WsmResourceType.AzureManagedIdentity)
         .transaction
       wsmIdentityOpt <- wsmIdentities.headOption.traverse { wsmIdentity =>
-        F.blocking(wsmApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
+        F.blocking(wsmControlledResourceApi.getAzureManagedIdentity(workspaceId.value, wsmIdentity.resourceId.value))
       }
-
-      wsmResourceApi <- buildWsmResourceApiClient
 
       // create any missing AppControlledResources
       _ <- createMissingAppControlledResources(
@@ -376,7 +377,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .transaction
       // Call WSM to get more info about each database (by resourceId) that exists in APP_CONTROLLED_RESOURCE
       wsmDatabases <- controlledDatabases.traverse { controlledDatabase =>
-        F.blocking(wsmApi.getAzureDatabase(workspaceId.value, controlledDatabase.resourceId.value))
+        F.blocking(wsmControlledResourceApi.getAzureDatabase(workspaceId.value, controlledDatabase.resourceId.value))
           .map(db =>
             WsmControlledDatabaseResource(db.getMetadata.getName,
                                           db.getAttributes.getDatabaseName,
@@ -397,7 +398,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
         .getAllForAppByType(app.id.id, WsmResourceType.AzureKubernetesNamespace)
         .transaction
       wsmNamespaceOpt <- wsmNamespaces.headOption.traverse { wsmNamespace =>
-        F.blocking(wsmApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value))
+        F.blocking(
+          wsmControlledResourceApi.getAzureKubernetesNamespace(workspaceId.value, wsmNamespace.resourceId.value)
+        )
       }
       wsmNamespace <- F.fromOption(wsmNamespaceOpt,
                                    AppUpdateException("WSM namespace required for app", Some(ctx.traceId))
@@ -631,18 +634,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Delete the Sam resource
       userEmail = app.auditInfo.creator
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
+      petToken <- samService.getArbitraryPetServiceAccountToken(userEmail)
       _ <- childSpan("deleteSamResource").use { implicit ev =>
-        tokenOpt match {
-          case Some(token) =>
-            samDao.deleteResourceInternal(dbApp.app.samResourceId,
-                                          Authorization(Credentials.Token(AuthScheme.Bearer, token))
-            )
-          case None =>
-            logger.warn(
-              s"Could not find pet service account for user ${userEmail} in Sam. Skipping resource deletion in Sam."
-            )
-        }
+        samService.deleteResource(petToken, dbApp.app.samResourceId)
       }
 
       _ <- logger.info(
@@ -896,7 +890,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       _ <- F.raiseWhen(landingZoneResources.postgresServer.isEmpty)(
         AppCreationException("Postgres server not found in landing zone", Some(ctx.traceId))
       )
-      wsmApi <- buildWsmControlledResourceApiClient
 
       // get a list of database types required for this app
       controlledDbsRequiredForApp = appInstall.databases.collect { case d @ ControlledDatabase(_, _, _) => d }
@@ -1056,14 +1049,6 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           }
         )
         .toList
-    )
-
-  private[util] def getWorkspaceDescription(workspaceApi: WorkspaceApi,
-                                            workspaceId: UUID
-  ): F[bio.terra.workspace.model.WorkspaceDescription] =
-    F.blocking(
-      workspaceApi
-        .getWorkspace(workspaceId, IamRole.READER)
     )
 
   private[util] def createOrFetchWsmManagedIdentity(app: App,

@@ -36,21 +36,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.{googleDataprocRetryPolicy, CloudService}
 import org.broadinstitute.dsde.workbench.leonardo.http.Boot.workbenchMetricsBaseName
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  CloudServiceRuntimeMonitor,
-  DataprocRuntimeMonitor,
-  GceRuntimeMonitor,
-  MonitorAtBoot,
-  NonLeoMessage,
-  NonLeoMessageSubscriber,
-  NonLeoMessageSubscriberConfig,
-  RuntimeMonitor
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.leonardo.{googleDataprocRetryPolicy, CloudService}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
 import org.typelevel.log4cats.StructuredLogger
@@ -98,7 +89,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         baselineDependencies.publisherQueue,
         Some(gcpDependencies.googleComputeService),
         baselineDependencies.samDAO,
-        baselineDependencies.wsmDAO
+        baselineDependencies.wsmClientProvider
       )
 
     val nonLeoMessageSubscriber =
@@ -110,7 +101,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         baselineDependencies.authProvider,
         gcpDependencies.nonLeoMessageSubscriber,
         gcpDependencies.cryptoMiningUserPublisher,
-        baselineDependencies.asyncTasksQueue
+        baselineDependencies.asyncTasksQueue,
+        baselineDependencies.samService
       )
 
     List(
@@ -210,7 +202,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         securityFilesConfig
       )
 
-      bucketHelper = new BucketHelper[F](bucketHelperConfig, googleStorage, baselineDependencies.serviceAccountProvider)
+      bucketHelper = new BucketHelper[F](bucketHelperConfig, googleStorage, baselineDependencies.samService)
 
       vpcInterp = new VPCInterpreter(vpcInterpreterConfig, googleResourceService, googleComputeService)
 
@@ -276,27 +268,28 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       baselineDependencies.proxyResolver,
       baselineDependencies.samDAO,
       baselineDependencies.googleTokenCache,
-      baselineDependencies.samResourceCache
+      baselineDependencies.samResourceCache,
+      baselineDependencies.samService
     )
 
     val diskService = new DiskServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.publisherQueue,
-      gcpDependencies.googleDiskService,
-      gcpDependencies.googleProjectDAO
+      Some(gcpDependencies.googleDiskService),
+      Some(gcpDependencies.googleProjectDAO),
+      baselineDependencies.samService
     )
 
     val runtimeService = RuntimeService(
       baselineDependencies.runtimeServicesConfig,
       ConfigReader.appConfig.persistentDisk,
       baselineDependencies.authProvider,
-      baselineDependencies.serviceAccountProvider,
       baselineDependencies.dockerDAO,
-      gcpDependencies.googleStorageService,
-      gcpDependencies.googleComputeService,
-      baselineDependencies.publisherQueue
+      Some(gcpDependencies.googleStorageService),
+      Some(gcpDependencies.googleComputeService),
+      baselineDependencies.publisherQueue,
+      baselineDependencies.samService
     )
 
     val dataprocInterp = new DataprocInterpreter(
@@ -325,13 +318,12 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       new LeoAppServiceInterp(
         appServiceConfig,
         baselineDependencies.authProvider,
-        baselineDependencies.serviceAccountProvider,
         baselineDependencies.publisherQueue,
         Some(gcpDependencies.googleComputeService),
         Some(gcpDependencies.googleResourceService),
         gkeCustomAppConfig,
-        baselineDependencies.wsmDAO,
-        baselineDependencies.wsmClientProvider
+        baselineDependencies.wsmClientProvider,
+        baselineDependencies.samService
       )
 
     val resourcesService = new ResourcesServiceInterp[IO](
@@ -371,7 +363,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       gcpDependencies.googleStorageService,
       gcpDependencies.googleDiskService,
       baselineDependencies.publisherQueue,
-      gceInterp
+      gceInterp,
+      baselineDependencies.samService
     )
 
     val dataprocRuntimeMonitor = new DataprocRuntimeMonitor[IO](
@@ -381,7 +374,8 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       gcpDependencies.googleStorageService,
       gcpDependencies.googleDiskService,
       dataprocInterp,
-      gcpDependencies.googleDataproc
+      gcpDependencies.googleDataproc,
+      baselineDependencies.samService
     )
 
     val cloudServiceRuntimeMonitor =

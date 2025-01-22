@@ -69,7 +69,7 @@ class DataprocInterpreterSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, MockSamService)
 
   val mockGoogleResourceService = new FakeGoogleResourceService {
     override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
@@ -289,7 +289,8 @@ class DataprocInterpreterSpec
 
       val expectedDriverMemory =
         if (machineType == MachineTypeName("n1-standard-4")) (104 - 7) * 0.9 * 1024 else (104 - 11) * 0.9 * 1024
-      resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(expectedDriverMemory + 4 * 1024)
+      resourceConstraints.memoryLimit shouldBe MemorySizeBytes.fromMb(expectedDriverMemory + 4 * 1024)
+      resourceConstraints.shmSize shouldBe MemorySizeMegaBytes((0.5 * (expectedDriverMemory + 4 * 1024)).toLong)
 
       propertyMap.get(
         "spark:spark.driver.memory"

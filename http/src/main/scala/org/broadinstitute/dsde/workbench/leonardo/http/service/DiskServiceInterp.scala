@@ -11,7 +11,6 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.cloudresourcemanager.model.Ancestor
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
@@ -31,18 +30,18 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 
 import scala.concurrent.ExecutionContext
 
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
-                                        serviceAccountProvider: ServiceAccountProvider[F],
                                         publisherQueue: Queue[F, LeoPubsubMessage],
-                                        googleDiskService: GoogleDiskService[F],
-                                        googleProjectDAO: GoogleProjectDAO
+                                        googleDiskService: Option[GoogleDiskService[F]],
+                                        googleProjectDAO: Option[GoogleProjectDAO],
+                                        samService: SamService[F]
 )(implicit
   F: Async[F],
-  log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends DiskService[F] {
@@ -56,18 +55,18 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
 
+      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
+      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
+
       hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
         ProjectSamResourceId(googleProject),
         ProjectAction.CreatePersistentDisk,
         userInfo
       )
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-      // Grab the service accounts from serviceAccountProvider for use later
-      serviceAccountOpt <- serviceAccountProvider
-        .getClusterServiceAccount(userInfo, CloudContext.Gcp(googleProject))
-      petSA <- F.fromEither(
-        serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
-      )
+      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
+
+      // Grab the pet service account for the user
+      petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
 
       _ <- req.sourceDisk.traverse(sd => verifyOkToClone(sd.googleProject, googleProject))
 
@@ -80,8 +79,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         case None =>
           for {
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
+
+            // Retrieve parent workspaceId for the google project
+            parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token,
+                                                                                  googleProject
+            )
+
             disk <- F.fromEither(
-              convertToDisk(userInfo.userEmail,
+              convertToDisk(userEmail,
                             petSA,
                             cloudContext,
                             diskName,
@@ -89,16 +94,17 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                             config,
                             req,
                             ctx.now,
-                            sourceDiskOpt
+                            sourceDiskOpt,
+                            parentWorkspaceId
               )
             )
-            _ <- authProvider
-              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
-              .handleErrorWith { t =>
-                log.error(t)(
-                  s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${disk.projectNameString}"
-                ) >> F.raiseError(t)
-              }
+            // Create a persistent-disk Sam resource with a creator policy and the google project as the parent
+            _ <- samService.createResource(userInfo.accessToken.token,
+                                           samResource,
+                                           Some(googleProject),
+                                           None,
+                                           getDiskSamPolicyMap(userEmail)
+            )
             // TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
             _ <- publisherQueue.offer(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
@@ -122,10 +128,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
-      sourceAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(sourceGoogleProject.value)))
+      sourceAncestry <- F.fromFuture(F.delay(googleProjectDAO.get.getAncestry(sourceGoogleProject.value)))
       sourceAncestor <- immediateAncestor(sourceAncestry)
 
-      targetAncestry <- F.fromFuture(F.delay(googleProjectDAO.getAncestry(targetGoogleProject.value)))
+      targetAncestry <- F.fromFuture(F.delay(googleProjectDAO.get.getAncestry(targetGoogleProject.value)))
       targetAncestor <- immediateAncestor(targetAncestry)
 
       _ <- F.raiseWhen(
@@ -160,7 +166,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         case _: DiskNotFoundException =>
           F.raiseError(BadRequestException("source disk does not exist", Option(ctx.traceId)))
       }
-      maybeGoogleDisk <- googleDiskService.getDisk(sourceDiskReq.googleProject, sourceDisk.zone, sourceDisk.name)
+      maybeGoogleDisk <- googleDiskService.get.getDisk(sourceDiskReq.googleProject, sourceDisk.zone, sourceDisk.name)
       googleDisk <- maybeGoogleDisk.toOptionT.getOrElseF(
         F.raiseError(
           LeoInternalServerError(s"Source disk $sourceDiskReq does not exist in google", Option(ctx.traceId))
@@ -257,7 +263,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                          d.size,
                                          d.diskType,
                                          d.blockSize,
-                                         d.labels.filter(l => paramMap._3.contains(l._1))
+                                         d.labels.filter(l => paramMap._3.contains(l._1)),
+                                         d.workspaceId
               )
             )
             .toVector
@@ -375,12 +382,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
-      // Notify SAM that the resource has been deleted using the user info, not the pet SA that was likely deleted
-      _ <- authProvider
-        .notifyResourceDeletedV2(
-          dbdisk.samResource,
-          userInfo
-        )
+      // Delete the persistent-disk Sam resource
+      _ <- samService.deleteResource(userInfo.accessToken.token, dbdisk.samResource)
     } yield ()
 
   def deleteAllDisksRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
@@ -460,9 +463,21 @@ object DiskServiceInterp {
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant,
-                                     sourceDisk: Option[SourceDisk]
+                                     sourceDisk: Option[SourceDisk],
+                                     workspaceId: Option[WorkspaceId]
   ): Either[Throwable, PersistentDisk] =
-    convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false, sourceDisk)
+    convertToDisk(userEmail,
+                  serviceAccount,
+                  cloudContext,
+                  diskName,
+                  samResource,
+                  config,
+                  req,
+                  now,
+                  false,
+                  sourceDisk,
+                  workspaceId
+    )
 
   private[service] def convertToDisk(userEmail: WorkbenchEmail,
                                      serviceAccount: WorkbenchEmail,
@@ -473,7 +488,8 @@ object DiskServiceInterp {
                                      req: CreateDiskRequest,
                                      now: Instant,
                                      willBeUsedByGalaxy: Boolean,
-                                     sourceDisk: Option[SourceDisk]
+                                     sourceDisk: Option[SourceDisk],
+                                     workspaceId: Option[WorkspaceId]
   ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
@@ -511,9 +527,12 @@ object DiskServiceInterp {
       labels,
       sourceDisk.map(_.diskLink),
       None,
-      None // TODO: workspace must be present for V2 routes
+      workspaceId
     )
   }
+
+  private[service] def getDiskSamPolicyMap(userEmail: WorkbenchEmail): Map[String, SamPolicyData] =
+    Map("creator" -> SamPolicyData(List(userEmail), List(PersistentDiskRole.Creator.asString)))
 }
 
 case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject,

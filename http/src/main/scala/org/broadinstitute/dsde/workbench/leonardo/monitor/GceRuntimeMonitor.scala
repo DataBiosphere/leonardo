@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleDi
 import org.broadinstitute.dsde.workbench.leonardo.GceInstanceStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.getInstanceIP
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
@@ -33,7 +34,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
   googleStorageService: GoogleStorageService[F],
   googleDiskService: GoogleDiskService[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
-  override val runtimeAlg: RuntimeAlgebra[F]
+  override val runtimeAlg: RuntimeAlgebra[F],
+  samService: SamService[F]
 )(implicit
   override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
@@ -403,13 +405,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
         s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
       )
 
-      // TODO: this call is only needed for non-WSM resources
-      _ <- authProvider
-        .notifyResourceDeleted(
-          runtimeAndRuntimeConfig.runtime.samResource,
-          runtimeAndRuntimeConfig.runtime.auditInfo.creator,
-          googleProject
-        )
+      // Delete the notebook-cluster Sam resource
+      petToken <- samService.getPetServiceAccountToken(runtimeAndRuntimeConfig.runtime.auditInfo.creator, googleProject)
+      _ <- samService.deleteResource(petToken, runtimeAndRuntimeConfig.runtime.samResource)
 
       // Record metrics in NewRelic
       _ <- recordStatusTransitionMetrics(

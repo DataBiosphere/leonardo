@@ -227,7 +227,7 @@ object RuntimeFixtureSpec {
       case CloudService.Dataproc =>
         RuntimeConfigRequest.DataprocConfig(
           numberOfWorkers = Some(0),
-          masterDiskSize = Some(DiskSize(130)),
+          masterDiskSize = Some(DiskSize(150)),
           masterMachineType = Some(MachineTypeName("n1-standard-8")),
           workerMachineType = Some(MachineTypeName("n1-standard-8")),
           workerDiskSize = None,

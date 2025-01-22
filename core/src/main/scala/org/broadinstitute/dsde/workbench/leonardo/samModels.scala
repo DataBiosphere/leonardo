@@ -5,12 +5,12 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResour
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+/** A Sam resource type and resource ID */
 sealed trait SamResourceId {
   def resourceId: String
   def resourceType: SamResourceType
   def asString: String = resourceId
 }
-
 object SamResourceId {
   final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId {
     override def resourceType: SamResourceType = SamResourceType.Runtime
@@ -48,6 +48,7 @@ object SamResourceId {
   }
 }
 
+/** Enumeration of Sam resource types known to Leonardo */
 sealed trait SamResourceType extends Product with Serializable {
   def asString: String
 }
@@ -81,9 +82,13 @@ object SamResourceType {
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap
 }
 
-sealed trait ProjectAction extends Product with Serializable {
+/** Enumeration of Sam resource actions known to Leonardo */
+sealed trait SamResourceAction extends Product with Serializable {
   def asString: String
+  override def toString = asString
 }
+
+sealed trait ProjectAction extends SamResourceAction
 object ProjectAction {
   final case object CreateRuntime extends ProjectAction {
     val asString = "launch_notebook_cluster"
@@ -94,12 +99,13 @@ object ProjectAction {
   final case object CreateApp extends ProjectAction {
     val asString = "create_kubernetes_app"
   }
+
+  // TODO the below actions will be removed after we migrate to Sam hierarchical resources
+  //  for notebook-cluster and persistent-disk. See: https://broadworkbench.atlassian.net/browse/IA-5059
+
   // Other exists because there are other project actions not used by Leo
   final case class Other(asString: String) extends ProjectAction
 
-  // TODO we'd like to remove the below actions at the project level, and control these
-  // actions with policies at the resource level instead.
-  // See https://broadworkbench.atlassian.net/browse/IA-2093
   final case object GetRuntimeStatus extends ProjectAction {
     val asString = "list_notebook_cluster"
   }
@@ -120,9 +126,7 @@ object ProjectAction {
     sealerate.collect[ProjectAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait RuntimeAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait RuntimeAction extends SamResourceAction
 object RuntimeAction {
   final case object GetRuntimeStatus extends RuntimeAction {
     val asString = "status"
@@ -145,15 +149,19 @@ object RuntimeAction {
   final case object SetParent extends RuntimeAction {
     val asString = "set_parent"
   }
+  final case object GetParent extends RuntimeAction {
+    val asString = "get_parent"
+  }
+  final case object CanAccess extends RuntimeAction {
+    val asString = "can_access"
+  }
 
   val allActions = sealerate.values[RuntimeAction]
   val stringToAction: Map[String, RuntimeAction] =
     sealerate.collect[RuntimeAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait PersistentDiskAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait PersistentDiskAction extends SamResourceAction
 object PersistentDiskAction {
   final case object ReadPersistentDisk extends PersistentDiskAction {
     val asString = "read"
@@ -173,15 +181,19 @@ object PersistentDiskAction {
   final case object SetParent extends PersistentDiskAction {
     val asString = "set_parent"
   }
+  final case object GetParent extends PersistentDiskAction {
+    val asString = "get_parent"
+  }
+  final case object CanAccess extends PersistentDiskAction {
+    val asString = "can_access"
+  }
 
   val allActions = sealerate.values[PersistentDiskAction]
   val stringToAction: Map[String, PersistentDiskAction] =
     sealerate.collect[PersistentDiskAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait AppAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait AppAction extends SamResourceAction
 object AppAction {
   final case object GetAppStatus extends AppAction {
     val asString = "status"
@@ -207,15 +219,16 @@ object AppAction {
   final case object SetParent extends AppAction {
     val asString = "set_parent"
   }
+  final case object CanAccess extends AppAction {
+    val asString = "can_access"
+  }
 
   val allActions = sealerate.values[AppAction]
   val stringToAction: Map[String, AppAction] =
     sealerate.collect[AppAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait WorkspaceAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait WorkspaceAction extends SamResourceAction
 object WorkspaceAction {
   final case object CreateControlledApplicationResource extends WorkspaceAction {
     val asString = "create_controlled_application_private"
@@ -226,15 +239,16 @@ object WorkspaceAction {
   final case object Delete extends WorkspaceAction {
     val asString = "delete"
   }
+  final case object Compute extends WorkspaceAction {
+    val asString = "compute"
+  }
 
   val allActions = sealerate.values[WorkspaceAction]
   val stringToAction: Map[String, WorkspaceAction] =
     sealerate.collect[WorkspaceAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait WsmResourceAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait WsmResourceAction extends SamResourceAction
 object WsmResourceAction {
   final case object Write extends WsmResourceAction {
     val asString = "write"
@@ -247,9 +261,7 @@ object WsmResourceAction {
     sealerate.collect[WsmResourceAction].map(a => (a.asString, a)).toMap
 }
 
-sealed trait PrivateAzureStorageAccountAction extends Product with Serializable {
-  def asString: String
-}
+sealed trait PrivateAzureStorageAccountAction extends SamResourceAction
 object PrivateAzureStorageAccountAction {
   final case object Write extends PrivateAzureStorageAccountAction {
     val asString = "write"
@@ -262,8 +274,61 @@ object PrivateAzureStorageAccountAction {
     sealerate.collect[PrivateAzureStorageAccountAction].map(a => (a.asString, a)).toMap
 }
 
-// TODO [IA-4608] merge with SamPolicyName
-/** Represents a role in Sam, permitting a set of actions on a resource of a certain type. */
+/** Enumeration of Sam resource roles known to Leonardo. */
+sealed trait SamResourceRole extends Product with Serializable {
+  def asString: String
+  override def toString = asString
+}
+
+sealed trait RuntimeRole extends SamResourceRole
+object RuntimeRole {
+  final case object Creator extends RuntimeRole {
+    val asString = "creator"
+  }
+
+  final case object Manager extends RuntimeRole {
+    val asString = "manager"
+  }
+}
+
+sealed trait PersistentDiskRole extends SamResourceRole
+object PersistentDiskRole {
+  final case object Creator extends PersistentDiskRole {
+    val asString = "creator"
+  }
+
+  final case object Manager extends PersistentDiskRole {
+    val asString = "manager"
+  }
+}
+
+sealed trait AppRole extends SamResourceRole
+object AppRole {
+  final case object Creator extends AppRole {
+    val asString = "creator"
+  }
+
+  final case object Manager extends AppRole {
+    val asString = "manager"
+  }
+}
+
+sealed trait SharedAppRole extends SamResourceRole
+object SharedAppRole {
+  final case object Owner extends SharedAppRole {
+    val asString = "owner"
+  }
+
+  final case object User extends SharedAppRole {
+    val asString = "user"
+  }
+}
+
+/**
+ * Deprecated: use resource-type specific role enums (RuntimeRole, PersistentDiskRole, etc).
+ * See: https://broadworkbench.atlassian.net/browse/IA-5063
+ */
+@Deprecated
 sealed trait SamRole extends Product with Serializable {
   def asString: String
   override def toString = asString
@@ -289,8 +354,11 @@ object SamRole {
   val stringToRole = sealerate.collect[SamRole].map(p => (p.asString, p)).toMap
 }
 
-// TODO [IA-4608] merge with SamRole
-/** Represents a role in Sam, permitting a set of actions on a resource of a certain type. */
+/**
+ * Deprecated: don't use an enum to represent policy names.
+ * See: https://broadworkbench.atlassian.net/browse/IA-5063
+ */
+@Deprecated
 sealed trait SamPolicyName extends Serializable with Product
 object SamPolicyName {
   final case object Creator extends SamPolicyName {
@@ -316,7 +384,7 @@ object SamPolicyName {
 }
 
 final case class SamPolicyEmail(email: WorkbenchEmail) extends AnyVal
-final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[SamRole])
+final case class SamPolicyData(memberEmails: List[WorkbenchEmail], roles: List[String])
 
 sealed abstract class AppAccessScope
 object AppAccessScope {

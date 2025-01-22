@@ -13,7 +13,8 @@ import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates.{standardGoogleRetryPredicate, whenStatusCode}
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoInternalServerError, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoInternalServerError
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
@@ -23,16 +24,16 @@ import scala.io.Source
 class BucketHelper[F[_]](
   config: BucketHelperConfig,
   google2StorageDAO: GoogleStorageService[F],
-  serviceAccountProvider: ServiceAccountProvider[F]
+  samService: SamService[F]
 )(implicit val logger: Logger[F], F: Async[F], files: Files[F]) {
 
-  val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
+  val leoEntity = serviceAccountIdentity(Config.applicationConfig.leoServiceAccountEmail)
 
   /**
    * Creates the dataproc init bucket and sets the necessary ACLs.
    */
   def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit
-    ev: Ask[F, TraceId]
+    ev: Ask[F, AppContext]
   ): Stream[F, Unit] =
     for {
       ctx <- Stream.eval(ev.ask)
@@ -46,8 +47,8 @@ class BucketHelper[F[_]](
         .getOrElse(Map.empty)
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList.one(leoEntity))
 
-      _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx))
-      _ <- google2StorageDAO.setIamPolicy(bucketName, (readerAcl ++ ownerAcl).toMap, traceId = Some(ctx))
+      _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx.traceId))
+      _ <- google2StorageDAO.setIamPolicy(bucketName, (readerAcl ++ ownerAcl).toMap, traceId = Some(ctx.traceId))
     } yield ()
 
   /**
@@ -58,28 +59,20 @@ class BucketHelper[F[_]](
     googleProject: GoogleProject,
     bucketName: GcsBucketName,
     serviceAccountInfo: WorkbenchEmail
-  )(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
+  )(implicit ev: Ask[F, AppContext]): Stream[F, Unit] =
     for {
       ctx <- Stream.eval(ev.ask)
       // The staging bucket is created in the cluster's project.
       // Leo service account -> Owner
       // Available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
-      // Additional readers (users and groups) are specified by the service account provider.
+      // User proxy group -> Reader
       bucketSAs <- getBucketSAs(serviceAccountInfo)
-      providerReaders <- Stream.eval(
-        serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userIdentity))
-      )
-      providerGroups <- Stream.eval(
-        serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupIdentity))
-      )
+      proxyGroup <- Stream.eval(samService.getProxyGroup(userEmail)).map(groupIdentity)
 
-      readerAcl = NonEmptyList
-        .fromList(providerReaders ++ providerGroups)
-        .map(readers => Map(StorageRole.ObjectViewer -> readers))
-        .getOrElse(Map.empty)
+      readerAcl = Map(StorageRole.ObjectViewer -> NonEmptyList.one(proxyGroup))
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList(leoEntity, bucketSAs))
 
-      _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx))
+      _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx.traceId))
       // sometimes GCP will throw 404 when setIamPolicy happens too soon
       retryConfig = RetryPredicates.retryConfigWithPredicates(
         RetryPredicates.combine(List(standardGoogleRetryPredicate, whenStatusCode(404)))
@@ -87,7 +80,7 @@ class BucketHelper[F[_]](
       _ <- google2StorageDAO.setIamPolicy(bucketName,
                                           (readerAcl ++ ownerAcl).toMap,
                                           retryConfig = retryConfig,
-                                          traceId = Some(ctx)
+                                          traceId = Some(ctx.traceId)
       )
     } yield ()
 
@@ -133,7 +126,7 @@ class BucketHelper[F[_]](
     customClusterEnvironmentVariables: Map[String, String],
     clusterResourcesConfig: ClusterResourcesConfig,
     gpuConfig: Option[GpuConfig]
-  )(implicit ev: Ask[F, TraceId]): Stream[F, Unit] = {
+  )(implicit ev: Ask[F, AppContext]): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = templateValues.toMap
 
@@ -185,12 +178,12 @@ class BucketHelper[F[_]](
         .mkString("", "", "\n")
 
       for {
-        traceId <- ev.ask
+        ctx <- ev.ask
         gpuDockerCompose <- F.fromEither(
           clusterResourcesConfig.gpuDockerCompose.toRight(
             LeoInternalServerError(
               "This is impossible. If GPU config is defined, then gpuDockerCompose should be defined as well",
-              Some(traceId)
+              Some(ctx.traceId)
             )
           )
         )

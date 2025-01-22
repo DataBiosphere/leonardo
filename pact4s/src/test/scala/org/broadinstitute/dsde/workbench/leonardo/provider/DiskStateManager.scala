@@ -19,7 +19,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   DiskStatus,
   DiskType,
   FormattedBy,
-  SamResourceId
+  SamResourceId,
+  WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -29,6 +30,7 @@ import org.mockito.stubbing.OngoingStubbing
 import pact4s.provider._
 
 import java.time.Instant
+import java.util.UUID
 
 object DiskStateManager {
   object States {
@@ -50,7 +52,8 @@ object DiskStateManager {
     DiskType.SSD,
     BlockSize(1024),
     Map("labelA" -> "first"),
-    Some(FormattedBy.GCE)
+    Some(FormattedBy.GCE),
+    Some(WorkspaceId(UUID.randomUUID))
   )
 
   private val mockedListDiskResponse = ListPersistentDiskResponse(
@@ -63,7 +66,8 @@ object DiskStateManager {
     DiskSize(100),
     DiskType.SSD,
     BlockSize(1024),
-    Map("labelA" -> "first")
+    Map("labelA" -> "first"),
+    Some(WorkspaceId(UUID.randomUUID))
   )
 
   private def mockGetDisk(mockDiskService: DiskService[IO],

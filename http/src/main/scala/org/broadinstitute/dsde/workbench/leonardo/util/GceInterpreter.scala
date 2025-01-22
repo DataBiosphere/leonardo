@@ -538,13 +538,15 @@ class GceInterpreter[F[_]](
       // Resolve the machine type in Google to get the total available memory
       machineType <- googleComputeService.getMachineType(googleProject, zoneName, machineTypeName)
       total <- machineType.fold(
-        F.raiseError[MemorySize](InstanceResourceConstraintsException(googleProject, machineTypeName))
-      )(mt => F.pure(MemorySize.fromMb(mt.getMemoryMb.toDouble)))
+        F.raiseError[MemorySizeBytes](InstanceResourceConstraintsException(googleProject, machineTypeName))
+      )(mt => F.pure(MemorySizeBytes.fromMb(mt.getMemoryMb.toDouble)))
       // result = total - os allocated - welder allocated
       gceAllocated = config.gceConfig.gceReservedMemory.map(_.bytes).getOrElse(0L)
       welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
-      result = MemorySize(total.bytes - gceAllocated - welderAllocated)
-    } yield RuntimeResourceConstraints(result, total, None)
+      result = MemorySizeBytes(total.bytes - gceAllocated - welderAllocated)
+      // Setting the shared docker memory to 50% of the allocated memory limit, converting from byte to mb
+      shmSize = MemorySizeMegaBytes.fromB(0.5 * result.bytes)
+    } yield RuntimeResourceConstraints(result, shmSize, total, None)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
                                      subnetwork: SubnetworkName,
