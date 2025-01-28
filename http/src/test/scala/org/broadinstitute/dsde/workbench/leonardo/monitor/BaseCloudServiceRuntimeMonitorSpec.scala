@@ -101,6 +101,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       disk <- makePersistentDisk().save()
       start <- IO.realTimeInstant
       tid <- traceId.ask[TraceId]
+      implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
       runtime <- IO(
         makeCluster(0)
           .copy(status = RuntimeStatus.Creating)
@@ -115,12 +116,14 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtimeConfig <- RuntimeConfigQueries
         .getRuntimeConfig(runtime.runtimeConfigId)(scala.concurrent.ExecutionContext.Implicits.global)
         .transaction
+      diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
     } yield {
       // handleCheckTools should have been interrupted after 10 seconds and moved the runtime to Error status
       elapsed shouldBe 10000L +- 2000L
       status shouldBe Some(RuntimeStatus.Error)
       res shouldBe (((), None))
-      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(disk.id)
+      diskStatus shouldBe (Some(DiskStatus.Ready))
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -141,6 +144,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       disk <- makePersistentDisk().save()
       start <- IO.realTimeInstant
       tid <- traceId.ask[TraceId]
+      implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
+
       runtime <- IO(
         makeCluster(0)
           .copy(status = RuntimeStatus.Creating)
@@ -161,13 +166,16 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtimeConfig <- RuntimeConfigQueries
         .getRuntimeConfig(runtime.runtimeConfigId)(scala.concurrent.ExecutionContext.Implicits.global)
         .transaction
+      diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
     } yield {
       customInterval shouldBe 1.seconds
       // handleCheckTools should have been interrupted after 5 seconds and moved the runtime to Error status
       elapsed shouldBe 5000L +- 1000L
       status shouldBe Some(RuntimeStatus.Error)
       res shouldBe (((), None))
-      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(disk.id)
+      diskStatus shouldBe (Some(DiskStatus.Ready))
+
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -298,6 +306,47 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       elapsed should be >= 10000L
       status shouldBe Some(RuntimeStatus.Deleted)
       diskStatus shouldBe (Some(DiskStatus.Deleted))
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "detach Ready disk on failed runtime create" in isolatedDbTest {
+    val runtimeMonitor = baseRuntimeMonitor(false)
+
+    val res = for {
+      start <- IO.realTimeInstant
+      tid <- traceId.ask[TraceId]
+      implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
+      disk <- makePersistentDisk().save()
+      _ <- persistentDiskQuery.updateStatus(disk.id, DiskStatus.Ready, Instant.now()).transaction
+      runtime <- IO(
+        makeCluster(0)
+          .copy(status = RuntimeStatus.Creating)
+          .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeWithPDConfig(Some(disk.id)))
+      )
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, runtimeConfig)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+      runCheckTools = Stream.eval(
+        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true, None)
+      )
+      deleteRuntime = Stream.sleep[IO](2 seconds) ++ Stream.eval(
+        clusterQuery.completeDeletion(runtime.id, start).transaction
+      )
+      // run above tasks concurrently and wait for both to terminate
+      _ <- Stream(runCheckTools, deleteRuntime).parJoin(2).compile.drain.timeout(15 seconds)
+
+      end <- IO.realTimeInstant
+      elapsed = end.toEpochMilli - start.toEpochMilli
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      diskStatus <- persistentDiskQuery.getStatus(disk.id).transaction
+    } yield {
+      // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
+      elapsed should be >= 10000L
+      status shouldBe Some(RuntimeStatus.Deleted)
+      diskStatus shouldBe (Some(DiskStatus.Ready))
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
