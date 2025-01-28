@@ -8,11 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabas
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  AzureEnvironmentConverter,
-  AzureHostingModeConfig,
-  CoaAppConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, CoaAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
