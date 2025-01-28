@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   DeleteAppMessage,
   DeleteAppV2Message
 }
+import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
@@ -222,8 +223,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                       appContext.traceId
                     )
                   )
-                  leoAuth <- samDAO.getLeoAuthToken
-                  token = leoAuth.credentials.toString().split(" ")(1)
+                  token <- getAuthToken(app.auditInfo.creator)
                   workspaceDescOpt <- wsmClientProvider.getWorkspace(
                     token,
                     workspaceId
@@ -266,8 +266,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                               appContext.traceId
                                             )
                 )
-                leoAuth <- samDAO.getLeoAuthToken
-                token = leoAuth.credentials.toString().split(" ")(1)
+                token <- getAuthToken(app.auditInfo.creator)
                 workspaceDescOpt <- wsmClientProvider.getWorkspace(
                   token,
                   workspaceId
@@ -442,6 +441,26 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           BillingProfileId(workspaceDesc.spendProfile)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
+    }
+
+  private def getAuthToken(creator: WorkbenchEmail)(implicit
+    ev: Ask[F, TraceId]
+  ): F[String] =
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        for {
+          traceId <- ev.ask
+          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(creator)
+          token <- F.fromOption(
+            tokenOpt,
+            MonitorAtBootException(s"Pet not found for user ${creator}", traceId)
+          )
+        } yield token
+      case true =>
+        for {
+          leoAuth <- samDAO.getLeoAuthToken
+          token = leoAuth.credentials.toString().split(" ")(1)
+        } yield token
     }
 }
 

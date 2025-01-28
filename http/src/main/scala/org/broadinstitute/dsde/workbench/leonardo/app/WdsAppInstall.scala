@@ -62,7 +62,15 @@ class WdsAppInstall[F[_]](config: WdsAppConfig,
 
       // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-      userToken <- F.pure(tokenOpt.getOrElse("")) // Empty token when running on Azure.
+      userToken <- ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+        case false =>
+          F.fromOption(
+            tokenOpt,
+            AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
+          )
+        case true =>
+          F.pure("") // No pet user token in Azure.
+      }
 
       valuesList =
         List(

@@ -163,6 +163,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Retrieve parent workspaceId for the google project
       parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
+      // Leo email used to give permissions when running in Azure.
       leoToken <- authProvider.getLeoAuthToken
       leoEmail <- samService.getUserEmail(leoToken)
       notifySamAndCreate = for {

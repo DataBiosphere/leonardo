@@ -8,7 +8,11 @@ import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabas
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, CoaAppConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{
+  AzureEnvironmentConverter,
+  AzureHostingModeConfig,
+  CoaAppConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -71,7 +75,15 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
 
     // Get the pet userToken
     tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-    userToken <- F.pure(tokenOpt.getOrElse("")) // Empty token when running on Azure.
+    userToken <- ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        F.fromOption(
+          tokenOpt,
+          AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
+        )
+      case true =>
+        F.pure("") // No pet user token in Azure.
+    }
 
     values = List(
       // azure resources configs
