@@ -167,11 +167,22 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
               appDAO.isProxyAvailable(project, app.appName, serviceName, ctx.traceId)
             case CloudContext.Azure(_) =>
               for {
-                tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                token <- F.fromOption(
-                  tokenOpt,
-                  AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
-                )
+                token <- ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+                  case false =>
+                    for {
+                      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
+                      token <- F.fromOption(
+                        tokenOpt,
+                        AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
+                      )
+                    } yield token
+                  case true =>
+                    for {
+                      leoAuth <- samDAO.getLeoAuthToken
+                      token = leoAuth.credentials.toString().split(" ")(1)
+                    } yield token
+                }
+
                 authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
                 relayPath = Uri
                   .unsafeFromString(baseUri.asString) / s"${app.appName.value}-${app.workspaceId.map(_.value.toString).getOrElse("")}"
