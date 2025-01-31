@@ -172,10 +172,7 @@ class CromwellRunnerAppInstall[F[_]](config: CromwellRunnerAppConfig,
 
         // Bard configs
         raw"bard.bardUrl=${config.bardBaseUri}",
-        raw"bard.enabled=${config.bardEnabled}",
-
-        // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
-        raw"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:84214c9d71721269f9945406d72e30a6f8aac514"
+        raw"bard.enabled=${config.bardEnabled}"
       )
 
       finalList = maybeLimits match {
