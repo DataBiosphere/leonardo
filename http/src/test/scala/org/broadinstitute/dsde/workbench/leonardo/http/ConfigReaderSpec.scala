@@ -266,6 +266,29 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
     val govEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureGov)
     val expectedGovEnv = AzureEnvironment.AZURE_US_GOVERNMENT
     govEnv shouldBe expectedGovEnv
-  }
 
+    val govRelay = AzureEnvironmentConverter.relaySuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expectedGovRelay = AzureEnvironmentConverter.relaySuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govRelay shouldBe expectedGovRelay
+
+    val govPostgres = AzureEnvironmentConverter.postgresSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expectedGovPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govPostgres shouldBe expectedGovPostgres
+
+    val govBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expectedGovBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govBatch shouldBe expectedGovBatch
+
+    val defaultRelay = AzureEnvironmentConverter.relaySuffixFromString("")
+    val expectedDefaultRelay = AzureEnvironmentConverter.relaySuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultRelay shouldBe expectedDefaultRelay
+
+    val defaultPostgres = AzureEnvironmentConverter.postgresSuffixFromString("")
+    val expectedDefaultPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultPostgres shouldBe expectedDefaultPostgres
+
+    val defaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expectedDefaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultBatch shouldBe expectedDefaultBatch
+  }
 }
