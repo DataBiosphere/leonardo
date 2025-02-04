@@ -287,7 +287,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
     val expectedDefaultPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE)
     defaultPostgres shouldBe expectedDefaultPostgres
 
-    val defaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val defaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.Azure)
     val expectedDefaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE)
     defaultBatch shouldBe expectedDefaultBatch
   }
