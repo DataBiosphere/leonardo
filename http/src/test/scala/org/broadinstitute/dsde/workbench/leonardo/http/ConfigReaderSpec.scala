@@ -272,12 +272,12 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
     govRelay shouldBe expectedGovRelay
 
     val govPostgres = AzureEnvironmentConverter.postgresSuffixFromString(AzureEnvironmentConverter.AzureGov)
-    val expectedGovPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
-    govPostgres shouldBe expectedGovPostgres
+    val expGovPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govPostgres shouldBe expGovPostgres
 
     val govBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.AzureGov)
-    val expectedGovBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
-    govBatch shouldBe expectedGovBatch
+    val expGovBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govBatch shouldBe expGovBatch
 
     val defaultRelay = AzureEnvironmentConverter.relaySuffixFromString("")
     val expectedDefaultRelay = AzureEnvironmentConverter.relaySuffixFromEnvironment(AzureEnvironment.AZURE)
