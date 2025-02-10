@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
@@ -38,6 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   workspaceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.RuntimeSamResource
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -249,36 +249,19 @@ class RuntimeServiceInterp[F[_]: Parallel](
     for {
       ctx <- as.ask
 
-      // throw 403 if user doesn't have project permission
-      hasProjectPermission <- cloudContext.traverse(cc =>
-        authProvider.isUserProjectReader(
-          cc,
-          userInfo
-        )
-      )
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done checking project permission with Sam")))
-
-      _ <- F.raiseWhen(!hasProjectPermission.getOrElse(true))(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
+      samResources <- samService.listResources(userInfo.accessToken.token, RuntimeSamResource.resourceType)
 
       (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
 
-      authorizedIds <- getAuthorizedIds(userInfo, creatorOnly)
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Start DB query for listRuntimes")))
       runtimes <- RuntimeServiceDbQueries
-        .listRuntimes(
-          // Authorization scopes
-          ownerGoogleProjectIds = authorizedIds.ownerGoogleProjectIds,
-          ownerWorkspaceIds = authorizedIds.ownerWorkspaceIds,
-          readerGoogleProjectIds = authorizedIds.readerGoogleProjectIds,
-          readerRuntimeIds = authorizedIds.readerRuntimeIds,
-          readerWorkspaceIds = authorizedIds.readerWorkspaceIds,
-          // Filters
-          excludeStatuses = excludeStatuses,
-          creatorEmail = creatorOnly,
-          cloudContext = cloudContext,
-          labelMap = labelMap
+        .listRuntimes(samResources.map(RuntimeSamResourceId).toSet,
+                      excludeStatuses = excludeStatuses,
+                      creatorEmail = creatorOnly,
+                      cloudContext = cloudContext,
+                      labelMap = labelMap
         )
         .transaction
 
@@ -840,55 +823,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, runtime.samResource, action, userEmail)
     } yield runtime
-
-  private[service] def getAuthorizedIds(
-    userInfo: UserInfo,
-    creatorEmail: Option[WorkbenchEmail] = None
-  )(implicit ev: Ask[F, AppContext]): F[AuthorizedIds] = for {
-    // Authorize: user has an active account and has accepted terms of service
-    _ <- authProvider.checkUserEnabled(userInfo)
-
-    // Authorize: get resource IDs the user can see
-    // HACK: leonardo is modeling access control here, handling inheritance
-    // of workspace and project-level permissions. Sam and WSM already do this,
-    // and should be considered the point of truth.
-
-    // HACK: leonardo short-circuits access control to grant access to runtime creators.
-    // This supports the use case where `terra-ui` requests status of runtimes that have
-    // not yet been provisioned in Sam.
-    creatorRuntimeIdsBackdoor: Set[RuntimeSamResourceId] <- creatorEmail match {
-      case Some(email: WorkbenchEmail) =>
-        RuntimeServiceDbQueries
-          .listRuntimeIdsForCreator(email)
-          .map(_.map(_.samResource).toSet)
-          .transaction
-      case None => F.pure(Set.empty: Set[RuntimeSamResourceId])
-    }
-
-    // v1 runtimes (sam resource type `notebook-cluster`) are readable only
-    // by their creators (`Creator` is the SamResource.Runtime `ownerRoleName`),
-    // if the creator also has read access to the corresponding SamResource.Project
-    creatorV1RuntimeIds: Set[RuntimeSamResourceId] <- authProvider
-      .listResourceIds[RuntimeSamResourceId](hasOwnerRole = true, userInfo)
-    readerProjectIds: Set[ProjectSamResourceId] <- authProvider
-      .listResourceIds[ProjectSamResourceId](hasOwnerRole = false, userInfo)
-
-    // v1 runtimes are discoverable by owners on the corresponding Project
-    ownerProjectIds: Set[ProjectSamResourceId] <- authProvider
-      .listResourceIds[ProjectSamResourceId](hasOwnerRole = true, userInfo)
-
-    // combine: to read a runtime, user needs to be at least one of:
-    // - creator of a v1 runtime (Sam-authenticated)
-    // - any role on a v2 runtime (Sam-authenticated)
-    // - creator of a runtime (in Leo db) and filtering their request by creator-only
-    readerRuntimeIds: Set[SamResourceId] = creatorV1RuntimeIds ++ creatorRuntimeIdsBackdoor
-  } yield AuthorizedIds(
-    ownerGoogleProjectIds = ownerProjectIds,
-    ownerWorkspaceIds = Set.empty,
-    readerGoogleProjectIds = readerProjectIds,
-    readerRuntimeIds = readerRuntimeIds,
-    readerWorkspaceIds = Set.empty
-  )
 }
 
 object RuntimeServiceInterp {
