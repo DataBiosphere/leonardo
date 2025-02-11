@@ -418,7 +418,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       ctx <- as.ask
 
       // Parameters: parse search filters from request
-      (labelMap, _) <- F.fromEither(processListParameters(params))
+      (labelMap, _, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = List(RuntimeStatus.Deleted)
       creatorEmail <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
 

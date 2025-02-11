@@ -404,7 +404,7 @@ trait LeonardoTestUtils
     implicit val patienceConfig: PatienceConfig = clusterPatience
     eventually {
       val allStatus: Set[ClusterStatus] = Leonardo.cluster
-        .listIncludingDeletedRuntime(googleProject)
+        .listRuntime(googleProject)
         .filter(c => c.runtimeName == runtimeName && c.googleProject == googleProject)
         .map(_.status)
         .toSet

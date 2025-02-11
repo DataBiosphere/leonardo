@@ -46,18 +46,26 @@ package object service {
 
   private[service] def processListParameters(
     params: LabelMap
-  ): Either[ParseLabelsException, (LabelMap, List[String])] =
+  ): Either[ParseLabelsException, (LabelMap, Boolean, List[String])] =
     // returns a tuple made of three elements:
     // 1) LabelMap - represents the labels to filter the request by
+    // 2) includeDeleted - Boolean which determines if we include deleted resources in the response
     // 3) includeLabels - List of label keys which represent the labels (key, value pairs) that will be returned in response
     // Note that optional parameter `role` or `creator` (represented by creatorOnlyKey and creatorOnlyValue) is omitted.
     for {
-      labelMap <- processLabelMap(params - includeLabelsKey - creatorOnlyKey - creatorOnlyValue)
+      labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey - creatorOnlyKey - creatorOnlyValue)
+      includeDeleted = params.get(includeDeletedKey) match {
+        case Some(includeDeletedValue) =>
+          if (includeDeletedValue.toLowerCase == "true")
+            true
+          else false
+        case None => false
+      }
       includeLabels <- params.get(includeLabelsKey) match {
         case Some(includeLabelsValue) => processLabelsToReturn(includeLabelsValue)
         case None                     => Either.right(List.empty[String])
       }
-    } yield (labelMap, includeLabels)
+    } yield (labelMap, includeDeleted, includeLabels)
 
   /**
    * Top-level query string parameter for apps and disks: GET /api/apps?includeLabels=foo,bar

@@ -251,7 +251,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       samResources <- samService.listResources(userInfo.accessToken.token, RuntimeSamResource.resourceType)
 
-      (labelMap, _) <- F.fromEither(processListParameters(params))
+      (labelMap, _, _) <- F.fromEither(processListParameters(params))
       excludeStatuses = List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
 
