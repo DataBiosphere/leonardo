@@ -1653,31 +1653,31 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         userInfo,
         None,
         None,
-        Map("foo" -> "bar", "includeDeleted" -> "true")
+        Map("foo" -> "bar")
       ) // hit
       listResponse2 <- testService.listRuntimes(
         userInfo,
         None,
         None,
-        Map("FOO" -> "BAR", "includeDeleted" -> "true")
+        Map("FOO" -> "BAR")
       ) // hit, case insensitive
       listResponse3 <- testService.listRuntimes(
         userInfo,
         None,
         None,
-        Map("foo!@#$%^&*()_+=';:\"" -> "!@#$%^&*()_+=';:\"bar", "includeDeleted" -> "true")
+        Map("foo!@#$%^&*()_+=';:\"" -> "!@#$%^&*()_+=';:\"bar")
       ) // miss, with weird characters
       listResponse4 <- testService.listRuntimes(
         userInfo,
         None,
         None,
-        Map("foo" -> "not-bar", "includeDeleted" -> "true")
+        Map("foo" -> "not-bar")
       ) // miss value
       listResponse5 <- testService.listRuntimes(
         userInfo,
         None,
         None,
-        Map("not-foo" -> "bar", "includeDeleted" -> "true")
+        Map("not-foo" -> "bar")
       ) // miss key
       listResponse6 <- testService.listRuntimes(
         userInfo,

@@ -423,12 +423,6 @@ object RuntimeRoutes {
   implicit val createRuntimeRequestDecoder: Decoder[CreateRuntimeRequest] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
-      _ <- l.fold(().asRight[DecodingFailure]) { labelMap =>
-        if (labelMap.contains(includeDeletedKey))
-          DecodingFailure(s"${includeDeletedKey} is not a valid label. Remove it from request and retry", List.empty)
-            .asLeft[Unit]
-        else ().asRight[DecodingFailure]
-      }
       // Note jupyterUserScriptUri and jupyterStartUserScriptUri are deprecated
       jus <- c.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jsus <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]

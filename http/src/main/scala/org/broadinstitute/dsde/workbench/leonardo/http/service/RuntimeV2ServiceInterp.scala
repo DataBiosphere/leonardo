@@ -418,8 +418,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       ctx <- as.ask
 
       // Parameters: parse search filters from request
-      (labelMap, includeDeleted, _) <- F.fromEither(processListParameters(params))
-      excludeStatuses = if (includeDeleted) List.empty else List(RuntimeStatus.Deleted)
+      (labelMap, _) <- F.fromEither(processListParameters(params))
+      excludeStatuses = List(RuntimeStatus.Deleted)
       creatorEmail <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
 
       samResources <- samService.listResources(userInfo.accessToken.token, RuntimeSamResource.resourceType)
@@ -479,7 +479,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       config.defaultBlockSizeBytes,
       None,
       None,
-      labels,
+      allLabels,
       None,
       None,
       Some(workspaceId)
