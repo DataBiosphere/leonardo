@@ -1647,8 +1647,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       )
       _ <- setRuntimeDeleted(workspaceId1, runtime1.runtimeName)
 
-      _ <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
-      _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
+      runtime2 <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = Some(workspaceId1)).save())
+      _ <- labelQuery.save(runtime2.id, LabelResourceType.Runtime, "foo", "bar").transaction
       listResponse1 <- testService.listRuntimes(
         userInfo,
         None,
@@ -1683,11 +1683,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         userInfo,
         None,
         None,
-        Map("foo" -> "bar")
-      ) // miss because includeDeleted defaults false
+        Map.empty
+      ) // miss because runtime has been deleted
     } yield {
-      listResponse1.map(_.samResource).toSet shouldBe Set(samResource1)
-      listResponse2.map(_.samResource).toSet shouldBe Set(samResource1)
+      listResponse1.map(_.samResource).toSet shouldBe Set(samResource2)
+      listResponse2.map(_.samResource).toSet shouldBe Set(samResource2)
       listResponse3.map(_.samResource).toSet shouldBe Set.empty
       listResponse4.map(_.samResource).toSet shouldBe Set.empty
       listResponse5.map(_.samResource).toSet shouldBe Set.empty

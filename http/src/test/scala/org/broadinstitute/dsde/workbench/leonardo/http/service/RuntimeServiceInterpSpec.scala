@@ -1412,11 +1412,11 @@ class RuntimeServiceInterpTest
 
       _ <- service.deleteAllRuntimesRecords(userInfo, cloudContextGcp)
 
-      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map("includeDeleted" -> "true"))
+      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
       messages <- publisherQueue.tryTakeN(Some(2))
 
     } yield {
-      runtimes.map(_.status) shouldEqual List(RuntimeStatus.Deleted, RuntimeStatus.Deleted)
+      runtimes.map(_.status) shouldEqual List.empty
       messages shouldBe List.empty
     }
 
