@@ -130,6 +130,7 @@ trait TestLeoRoutes {
   val runtimev2Service =
     new RuntimeV2ServiceInterp[IO](
       serviceConfig,
+      allowListAuthProvider,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
       wsmClientProvider,

@@ -2,7 +2,7 @@
 #   1. Build the Helm client Go lib
 #   2. Deploy Leonardo pointing to the Go lib
 
-FROM golang:1.20 AS helm-go-lib-builder
+FROM golang:1.23 AS helm-go-lib-builder
 
 # TODO Consider moving repo set-up to the build script to make CI versioning easier
 RUN mkdir /helm-go-lib-build && \
@@ -42,7 +42,7 @@ COPY --from=helm-go-lib-builder /helm-go-lib-build/helm-scala-sdk/helm-go-lib /l
 # Install the Helm3 CLI client using a provided script because installing it via the RHEL package managing didn't work
 RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 && \
     chmod 700 get_helm.sh && \
-    ./get_helm.sh --version v3.11.2 && \
+    ./get_helm.sh --version v3.15.3 && \
     rm get_helm.sh
 
 # Add the repos containing nginx, galaxy, setup apps, custom apps, cromwell and aou charts
