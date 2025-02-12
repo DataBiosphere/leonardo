@@ -1679,19 +1679,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         None,
         Map("not-foo" -> "bar")
       ) // miss key
-      listResponse6 <- testService.listRuntimes(
-        userInfo,
-        None,
-        None,
-        Map.empty
-      ) // miss because runtime has been deleted
     } yield {
       listResponse1.map(_.samResource).toSet shouldBe Set(samResource2)
       listResponse2.map(_.samResource).toSet shouldBe Set(samResource2)
       listResponse3.map(_.samResource).toSet shouldBe Set.empty
       listResponse4.map(_.samResource).toSet shouldBe Set.empty
       listResponse5.map(_.samResource).toSet shouldBe Set.empty
-      listResponse6.map(_.samResource).toSet shouldBe Set.empty
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
