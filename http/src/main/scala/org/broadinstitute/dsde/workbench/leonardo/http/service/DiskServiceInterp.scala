@@ -37,13 +37,12 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         publisherQueue: Queue[F, LeoPubsubMessage],
                                         googleDiskService: Option[GoogleDiskService[F]],
                                         googleProjectDAO: Option[GoogleProjectDAO],
-                                        val samService: SamService[F]
+                                        samService: SamService[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
-) extends DiskService[F]
-    with SamUtils[F] {
+) extends DiskService[F] {
 
   override def createDisk(
     userInfo: UserInfo,
@@ -181,24 +180,15 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
 
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
       resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(cloudContext, diskName, ctx.traceId).transaction
-      hasPermission <- authProvider.hasPermissionWithProjectFallback[PersistentDiskSamResourceId, PersistentDiskAction](
-        resp.samResource,
-        PersistentDiskAction.ReadPersistentDisk,
-        ProjectAction.ReadPersistentDisk,
-        userInfo,
-        GoogleProject(cloudContext.asString)
-      ) // TODO: update this to support azure
-      _ <-
-        if (hasPermission) F.unit
-        else F.raiseError[Unit](DiskNotFoundException(cloudContext, diskName, ctx.traceId))
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    cloudContext,
+                                    diskName,
+                                    resp.samResource,
+                                    PersistentDiskAction.ReadPersistentDisk,
+                                    ctx.traceId
+      )
 
     } yield resp
 

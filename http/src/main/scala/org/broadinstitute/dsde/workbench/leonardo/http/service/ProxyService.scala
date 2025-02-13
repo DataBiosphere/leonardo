@@ -93,15 +93,14 @@ class ProxyService(
   samDAO: SamDAO[IO],
   googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
   samResourceCache: Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
-  val samService: SamService[IO]
+  samService: SamService[IO]
 )(implicit
   val system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
   loggerIO: StructuredLogger[IO],
   metrics: OpenTelemetryMetrics[IO]
-) extends LazyLogging
-    with SamUtils[IO] {
+) extends LazyLogging {
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
   val clientConnectionSettings =
     ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
@@ -271,7 +270,13 @@ class ProxyService(
       ctx <- ev.ask[AppContext]
 
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(cloudContext, runtimeName))
-      _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, samResource, RuntimeAction.ConnectToRuntime)
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       cloudContext,
+                                       runtimeName,
+                                       samResource,
+                                       RuntimeAction.ConnectToRuntime
+      )
 
       hostStatus <- getRuntimeTargetHost(cloudContext, runtimeName)
       _ <- hostStatus match {

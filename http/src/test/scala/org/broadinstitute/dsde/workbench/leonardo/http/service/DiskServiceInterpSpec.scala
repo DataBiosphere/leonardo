@@ -282,7 +282,7 @@ class DiskServiceInterpTest
     val dummyDiskLink = "dummyDiskLink"
     val authProviderMock = mock[LeoAuthProvider[IO]](defaultMockitoAnswer[IO])
     val googleDiskServiceMock = mock[GoogleDiskService[IO]](defaultMockitoAnswer[IO])
-
+    val samService = mock[SamService[IO]]
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk,
@@ -290,7 +290,7 @@ class DiskServiceInterpTest
       publisherQueue,
       Some(googleDiskServiceMock),
       Some(new MockGoogleProjectDAO),
-      MockSamService
+      samService = samService
     )
     val userInfoCreator =
       UserInfo(OAuth2BearerToken(""), WorkbenchUserId("creator"), WorkbenchEmail("creator@example.com"), 0)
@@ -300,26 +300,18 @@ class DiskServiceInterpTest
     val googleProject = GoogleProject("project1")
     val diskName = DiskName("diskName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
-    when(
-      authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
-                                     ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),
-                                     ArgumentMatchers.eq(userInfoCreator)
-      )(any(), any())
-    ).thenReturn(IO.pure(true))
-
-    when(
-      authProviderMock.hasPermission(ArgumentMatchers.eq(ProjectSamResourceId(googleProject)),
-                                     ArgumentMatchers.eq(ProjectAction.CreatePersistentDisk),
-                                     ArgumentMatchers.eq(userInfoCloner)
-      )(any(), any())
-    ).thenReturn(IO.pure(true))
-
-    when(
-      authProviderMock.isUserProjectReader(ArgumentMatchers.eq(CloudContext.Gcp(googleProject)),
-                                           ArgumentMatchers.eq(userInfoCloner)
-      )(any())
-    ).thenReturn(IO.pure(true))
-
+    when(samService.getUserEmail(isEq(userInfoCreator.accessToken.token))(any()))
+      .thenReturn(IO.pure(userInfoCreator.userEmail))
+    when(samService.getPetServiceAccount(isEq(userInfoCreator.accessToken.token), isEq(googleProject))(any()))
+      .thenReturn(IO.pure(WorkbenchEmail("creatorPet@example.com")))
+    when(samService.getUserEmail(isEq(userInfoCloner.accessToken.token))(any()))
+      .thenReturn(IO.pure(userInfoCloner.userEmail))
+    when(samService.getPetServiceAccount(isEq(userInfoCloner.accessToken.token), isEq(googleProject))(any()))
+      .thenReturn(IO.pure(WorkbenchEmail("clonerPet@example.com")))
+    when(samService.checkAuthorized(isEq(userInfoCreator.accessToken.token), any(), any())(any())).thenReturn(IO.unit)
+    when(samService.lookupWorkspaceParentForGoogleProject(isEq(userInfoCreator.accessToken.token), any())(any()))
+      .thenReturn(IO.pure(Option(workspaceId)))
+    when(samService.createResource(any(), any(), any(), any(), any())(any())).thenReturn(IO.unit)
     when(
       googleDiskServiceMock.getDisk(googleProject, ConfigReader.appConfig.persistentDisk.defaultZone, diskName)
     ).thenReturn(IO.pure(Some(Disk.newBuilder().setSelfLink(dummyDiskLink).build())))
@@ -339,14 +331,12 @@ class DiskServiceInterpTest
         .transaction
         .map { r =>
           when(
-            authProviderMock.hasPermissionWithProjectFallback(
-              ArgumentMatchers.eq(r.samResource),
-              ArgumentMatchers.eq(PersistentDiskAction.ReadPersistentDisk),
-              ArgumentMatchers.eq(ProjectAction.ReadPersistentDisk),
-              ArgumentMatchers.eq(userInfoCloner),
-              ArgumentMatchers.eq(googleProject)
-            )(any[SamResourceAction[PersistentDiskSamResourceId, ReadPersistentDisk.type]], any[Ask[IO, TraceId]])
-          ).thenReturn(IO.pure(false))
+            samService.checkAuthorized(isEq(userInfoCloner.accessToken.token),
+                                       isEq(r.samResource),
+                                       isEq(PersistentDiskAction.ReadPersistentDisk)
+            )(any())
+          )
+            .thenReturn(IO.raiseError(SamException.create("forbidden", 403, TraceId(""))))
         }
 
       cloneAttempt <- diskService
@@ -377,16 +367,23 @@ class DiskServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail to get a disk when user doesn't have project access" in isolatedDbTest {
-    val (diskService, _) = makeDiskService()
+  it should "fail to get a disk when user doesn't have access" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = samResource).save()
+      _ = when(
+        samService.checkAuthorized(isEq(unauthorizedUserInfo.accessToken.token),
+                                   isEq(disk.samResource),
+                                   isEq(PersistentDiskAction.ReadPersistentDisk)
+        )(any())
+      ).thenReturn(IO.raiseError(SamException.create("forbidden", 403, TraceId(""))))
       getResponse <- diskService.getDisk(unauthorizedUserInfo, disk.cloudContext, disk.name)
     } yield getResponse
 
-    a[ForbiddenError] should be thrownBy {
+    a[DiskNotFoundException] should be thrownBy {
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
