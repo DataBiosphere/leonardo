@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.mtl.Ask
@@ -21,7 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{GKEModels, GcsBlobName, GetMetadataResponse, KubernetesModels, PvName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{AppSamResourceId, WorkspaceResourceSamResourceId}
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
@@ -312,7 +313,9 @@ class BaseMockSamService extends SamService[IO] {
                                action: org.broadinstitute.dsde.workbench.leonardo.SamResourceAction
   )(implicit
     ev: Ask[IO, AppContext]
-  ): IO[Unit] = IO.unit
+  ): IO[Unit] = if (bearerToken.equals(unauthorizedUserInfo.accessToken.token))
+    IO.raiseError(SamException.create("no access", StatusCodes.Forbidden.intValue, TraceId("")))
+  else IO.unit
 
   override def listResources(bearerToken: String, samResourceType: SamResourceType)(implicit
     ev: Ask[IO, AppContext]

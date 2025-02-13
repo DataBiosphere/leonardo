@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
     <changeSet logicalFilePath="leonardo" author="thibault" id="label">
+        <validCheckSum>8:1d8581dc0977ea88b1f006f6bc00f5b9</validCheckSum>
+        <comment>
+            Mysql 8.4+ does not allow partial keys to be referenced for a foreign key anymore, see https://bugs.mysql.com/bug.php?id=114838.
+            This changeSet has been modified to reflect that; the validCheckSum is the checksum from when the flag did not need to be set because the default was OFF.
+        </comment>
+        <sql> SET restrict_fk_on_non_standard_key = OFF; </sql>
         <createTable tableName="LABEL">
             <column name="clusterId" type="BIGINT">
                 <constraints nullable="false"/>

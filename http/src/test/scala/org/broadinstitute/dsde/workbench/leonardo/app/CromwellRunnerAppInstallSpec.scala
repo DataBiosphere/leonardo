@@ -77,9 +77,7 @@ class CromwellRunnerAppInstallSpec extends BaseAppInstallSpec {
     s"sam.baseUri=https://sam.test.org:443," +
     s"sam.acrPullActionIdentityResourceId=spend-profile," +
     "bard.bardUrl=https://terra-bard-dev.appspot.com," +
-    "bard.enabled=false," +
-    // TEMPORARY HELM OVERRIDE VALUES WHILE WAITING FOR PR
-    s"cromwell.image=potomacdevap.azurecr.us/broadinstitute/cromwell:84214c9d71721269f9945406d72e30a6f8aac514"
+    "bard.enabled=false"
 
   it should "build cromwell-runner override values" in {
     val params = buildHelmOverrideValuesParams(cromwellRunnerAzureDatabases)

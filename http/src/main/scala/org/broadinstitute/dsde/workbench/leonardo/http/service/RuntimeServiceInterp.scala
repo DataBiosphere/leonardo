@@ -30,12 +30,11 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
   projectSamResourceAction,
-  runtimeSamResourceAction,
   workspaceSamResourceAction
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
@@ -67,14 +66,15 @@ class RuntimeServiceInterp[F[_]: Parallel](
   googleStorageService: Option[GoogleStorageService[F]],
   googleComputeService: Option[GoogleComputeService[F]],
   publisherQueue: Queue[F, LeoPubsubMessage],
-  samService: SamService[F]
+  val samService: SamService[F]
 )(implicit
   F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext,
   metrics: OpenTelemetryMetrics[F]
-) extends RuntimeService[F] {
+) extends RuntimeService[F]
+    with SamUtils[F] {
 
   override def createRuntime(
     userInfo: UserInfo,
@@ -90,13 +90,17 @@ class RuntimeServiceInterp[F[_]: Parallel](
       )
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(userInfo.accessToken.token)
-      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
-        ProjectSamResourceId(googleProject),
-        ProjectAction.CreateRuntime,
-        userInfo
-      )
+      // Check if the user has launch_notebook_cluster on the google-project resource.
+      _ <- samService
+        .checkAuthorized(
+          userInfo.accessToken.token,
+          ProjectSamResourceId(googleProject),
+          ProjectAction.CreateRuntime
+        )
+        .adaptError {
+          case e: SamException if e.statusCode == StatusCodes.Forbidden => ForbiddenError(userEmail)
+        }
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for cluster permission")))
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
       // Grab the pet service account for the user
       petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
@@ -234,31 +238,9 @@ class RuntimeServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
-      ctx <- as.ask
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
       // throws 404 if not existent
       resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
-
-      // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasPermissionWithProjectFallback[RuntimeSamResourceId, RuntimeAction](
-        resp.samResource,
-        RuntimeAction.GetRuntimeStatus,
-        ProjectAction.GetRuntimeStatus,
-        userInfo,
-        GoogleProject(cloudContext.asString)
-      )
-      _ <-
-        if (hasPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext, runtimeName, "permission denied")
-          )
+      _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, resp.samResource, RuntimeAction.GetRuntimeStatus)
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
@@ -309,51 +291,13 @@ class RuntimeServiceInterp[F[_]: Parallel](
 
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(req.userInfo.accessToken.token)
-
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        req.userInfo
+      runtime <- getRuntimeWithRequiredAction(req.userInfo,
+                                              cloudContext,
+                                              req.runtimeName,
+                                              RuntimeAction.DeleteRuntime,
+                                              userEmail.some
       )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userEmail, Some(ctx.traceId)))
 
-      // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, req.runtimeName).transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done getActiveClusterByNameMinimal")))
-      runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, req.runtimeName, "no record in database"))
-      )(F.pure)
-      // throw 404 if no GetClusterStatus permission
-      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
-      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(
-        runtime.samResource,
-        req.googleProject,
-        req.userInfo
-      )
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
-
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          log.info(ctx.loggingCtx)(s"${userEmail.value} has no permission to get runtime status") >> F
-            .raiseError[Unit](
-              RuntimeNotFoundException(
-                cloudContext,
-                req.runtimeName,
-                "no active runtime record in database",
-                Some(ctx.traceId)
-              )
-            )
-
-      // throw 403 if no DeleteCluster permission
-      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
-        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
-
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
       // throw 409 if the cluster is not deletable
       _ <-
         if (runtime.status.isDeletable) F.unit
@@ -454,22 +398,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, cloudContext.value, userInfo)
-      // throw 404 if no GetRuntime permission
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext, runtime.clusterName, "Permission Denied", Some(ctx.traceId))
-          )
-
-      // throw 403 if no DeleteApp permission
-      hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
-        listOfPermissions._2.contains(ProjectAction.DeleteRuntime)
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+      _ <- checkRuntimeAction(userInfo,
+                              cloudContext,
+                              runtime.clusterName,
+                              runtime.samResource,
+                              RuntimeAction.DeleteRuntime
+      )
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(clusterQuery.completeDeletion(runtime.id, ctx.now))
@@ -481,7 +415,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      ctx <- as.ask
       runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty)
       _ <- runtimes.traverse(runtime => deleteRuntimeRecords(userInfo, cloudContext, runtime))
     } yield ()
@@ -491,56 +424,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
-      )
-      // throw 404 if not existent
-      runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
-        .transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Finish query for active runtime")))
-      runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](
-          RuntimeNotFoundException(cloudContext, runtimeName, "no active runtime found in database")
-        )
-      )(F.pure)
-      // throw 404 if no GetClusterStatus permission
-      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
-      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
-
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
-
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(
-              cloudContext,
-              runtimeName,
-              "GetRuntimeStatus permission is required for stopRuntime"
-            )
-          )
-
-      // throw 403 if no StopStartCluster permission
-      hasStopPermission = listOfPermissions._1.toSet.contains(RuntimeAction.StopStartRuntime) ||
-        listOfPermissions._2.contains(ProjectAction.StopStartRuntime)
-
-      _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-      // throw 409 if the cluster is not stoppable
-
+      runtime <- getRuntimeWithRequiredAction(userInfo, cloudContext, runtimeName, RuntimeAction.StopStartRuntime)
       _ <-
         if (runtime.status.isStopping) F.unit
         else if (runtime.status.isStoppable) {
@@ -561,45 +445,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
       // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
       cloudContext = CloudContext.Gcp(googleProject)
 
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
-      // throw 404 if not existent
-      runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
-        .transaction
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done query for active runtime")))
-      runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, runtimeName, "no record in database"))
-      )(F.pure)
-      // throw 404 if no GetClusterStatus permission
-      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
-      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
-
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource, googleProject, userInfo)
-
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(cloudContext, runtimeName, "GetRuntimeStatus permission is required")
-          )
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
-
-      hasStartPermission = listOfPermissions._1.toSet.contains(RuntimeAction.StopStartRuntime) ||
-        listOfPermissions._2.toSet.contains(ProjectAction.StopStartRuntime)
-
-      // throw 403 if no StopStartCluster permission
-      _ <- if (hasStartPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-
+      runtime <- getRuntimeWithRequiredAction(userInfo, cloudContext, runtimeName, RuntimeAction.StopStartRuntime)
       // throw 409 if the cluster is not startable
       _ <-
         if (runtime.status.isStartable) F.unit
@@ -622,46 +468,18 @@ class RuntimeServiceInterp[F[_]: Parallel](
       // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
       cloudContext = CloudContext.Gcp(googleProject)
 
-      // throw 403 if no project-level permission
-      hasProjectPermission <- authProvider.isUserProjectReader(
-        cloudContext,
-        userInfo
-      )
-      _ <- F.raiseWhen(!hasProjectPermission)(ForbiddenError(userInfo.userEmail, Some(ctx.traceId)))
-
       // throw 404 if not existent
       runtimeOpt <- clusterQuery.getActiveClusterRecordByName(cloudContext, runtimeName).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[ClusterRecord](RuntimeNotFoundException(cloudContext, runtimeName, "no record in database"))
       )(F.pure)
-      // throw 404 if no GetClusterStatus permission
-      // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
-      // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
 
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(
-        RuntimeSamResourceId(runtime.internalId),
-        googleProject,
-        userInfo
+      _ <- checkRuntimeAction(userInfo,
+                              cloudContext,
+                              runtimeName,
+                              RuntimeSamResourceId(runtime.internalId),
+                              RuntimeAction.ModifyRuntime
       )
-
-      hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
-        listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
-
-      _ <-
-        if (hasStatusPermission) F.unit
-        else
-          F.raiseError[Unit](
-            RuntimeNotFoundException(
-              cloudContext,
-              runtimeName,
-              "GetRuntimeStatus permission is required for update runtime"
-            )
-          )
-
-      // throw 403 if no ModifyCluster permission
-      hasModifyPermission = listOfPermissions._1.toSet.contains(RuntimeAction.ModifyRuntime)
-
-      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // throw 409 if the cluster is not updatable
       _ <-
         if (runtime.status.isUpdatable) F.unit
@@ -1007,6 +825,22 @@ class RuntimeServiceInterp[F[_]: Parallel](
       }
     } yield targetMachineType
 
+  private def getRuntimeWithRequiredAction(
+    userInfo: UserInfo,
+    cloudContext: CloudContext,
+    runtimeName: RuntimeName,
+    action: RuntimeAction,
+    userEmail: Option[WorkbenchEmail] = None
+  )(implicit as: Ask[F, AppContext]): F[Runtime] =
+    for {
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName).transaction
+      runtime <- runtimeOpt.fold(
+        F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
+      )(F.pure)
+
+      _ <- checkRuntimeAction(userInfo, cloudContext, runtimeName, runtime.samResource, action, userEmail)
+    } yield runtime
+
   private[service] def getAuthorizedIds(
     userInfo: UserInfo,
     creatorEmail: Option[WorkbenchEmail] = None
@@ -1055,7 +889,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
     readerRuntimeIds = readerRuntimeIds,
     readerWorkspaceIds = Set.empty
   )
-
 }
 
 object RuntimeServiceInterp {

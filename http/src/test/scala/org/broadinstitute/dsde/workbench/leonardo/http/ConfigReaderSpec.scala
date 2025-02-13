@@ -152,7 +152,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.197.0"),
+          ChartVersion("0.198.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -266,6 +266,29 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
     val govEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureGov)
     val expectedGovEnv = AzureEnvironment.AZURE_US_GOVERNMENT
     govEnv shouldBe expectedGovEnv
-  }
 
+    val govRelay = AzureEnvironmentConverter.relaySuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expectedGovRelay = AzureEnvironmentConverter.relaySuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govRelay shouldBe expectedGovRelay
+
+    val govPostgres = AzureEnvironmentConverter.postgresSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expGovPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govPostgres shouldBe expGovPostgres
+
+    val govBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expGovBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govBatch shouldBe expGovBatch
+
+    val defaultRelay = AzureEnvironmentConverter.relaySuffixFromString("")
+    val expectedDefaultRelay = AzureEnvironmentConverter.relaySuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultRelay shouldBe expectedDefaultRelay
+
+    val defaultPostgres = AzureEnvironmentConverter.postgresSuffixFromString("")
+    val expectedDefaultPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultPostgres shouldBe expectedDefaultPostgres
+
+    val defaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.Azure)
+    val expectedDefaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultBatch shouldBe expectedDefaultBatch
+  }
 }
