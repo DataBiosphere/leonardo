@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabas
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   AzureEnvironmentConverter,
-  AzureHostingModeConfig,
   CoaAppConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao._
