@@ -93,7 +93,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
     // Needed for v1 APIs
     val diskService = new DiskServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
-      baselineDependencies.authProvider,
       baselineDependencies.publisherQueue,
       None,
       None,

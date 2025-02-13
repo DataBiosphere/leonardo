@@ -53,13 +53,11 @@ trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   def makeDiskService(dontCloneFromTheseGoogleFolders: Vector[String] = Vector.empty,
                       googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
-                      samService: SamService[IO] = MockSamService,
-                      allowListAuthProvider: AllowlistAuthProvider = allowListAuthProvider
+                      samService: SamService[IO] = MockSamService
   ) = {
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = dontCloneFromTheseGoogleFolders),
-      allowListAuthProvider,
       publisherQueue,
       Some(MockGoogleDiskService),
       Some(googleProjectDAO),
@@ -162,7 +160,6 @@ class DiskServiceInterpTest
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk.copy(dontCloneFromTheseGoogleFolders = forbiddenFolders),
-      allowListAuthProvider,
       publisherQueue,
       Some(new MockGoogleDiskService {
         override def getDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(implicit
@@ -281,13 +278,11 @@ class DiskServiceInterpTest
 
   it should "fail with BadRequestException if user doesn't have permission to source disk" in isolatedDbTest {
     val dummyDiskLink = "dummyDiskLink"
-    val authProviderMock = mock[LeoAuthProvider[IO]](defaultMockitoAnswer[IO])
     val googleDiskServiceMock = mock[GoogleDiskService[IO]](defaultMockitoAnswer[IO])
     val samService = mock[SamService[IO]]
     val publisherQueue = QueueFactory.makePublisherQueue()
     val diskService = new DiskServiceInterp(
       ConfigReader.appConfig.persistentDisk,
-      authProviderMock,
       publisherQueue,
       Some(googleDiskServiceMock),
       Some(new MockGoogleProjectDAO),
@@ -627,6 +622,8 @@ class DiskServiceInterpTest
 
   it should "delete a disk records but not queue delete disk message" in isolatedDbTest {
     val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
     when(samService.deleteResource(any(), any())(any()))
       .thenReturn(IO.unit)
     val (diskService, publisherQueue) = makeDiskService(samService = samService)
@@ -658,9 +655,10 @@ class DiskServiceInterpTest
 
   it should "fail to delete a disk records if the user does not have permission" in isolatedDbTest {
     val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), any())(any()))
+      .thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, TraceId(""))))
     when(samService.deleteResource(any(), any())(any())).thenReturn(IO.unit)
-    val (diskService1, _) = makeDiskService(samService = samService)
-    val (diskService2, _) = makeDiskService(allowListAuthProvider = allowListAuthProvider2, samService = samService)
+    val (diskService, _) = makeDiskService(samService = samService)
 
     val res = for {
       context <- appContext.ask[AppContext]
@@ -670,9 +668,9 @@ class DiskServiceInterpTest
         .save()
       _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
         .thenReturn(IO.pure(List(disk.samResource.resourceId)))
-      listResponse <- diskService1.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
+      listResponse <- diskService.listDisks(userInfo, Some(cloudContextGcp), Map.empty)
 
-      err <- diskService2.deleteDiskRecords(userInfo, cloudContextGcp, listResponse.head).attempt
+      err <- diskService.deleteDiskRecords(userInfo, cloudContextGcp, listResponse.head).attempt
       status <- persistentDiskQuery
         .getStatus(disk.id)
         .transaction
@@ -687,6 +685,8 @@ class DiskServiceInterpTest
 
   it should "delete all disks records but not queue delete disk messages" in isolatedDbTest {
     val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
     when(samService.deleteResource(any(), any())(any()))
       .thenReturn(IO.unit)
     val (diskService, publisherQueue) = makeDiskService(samService = samService)

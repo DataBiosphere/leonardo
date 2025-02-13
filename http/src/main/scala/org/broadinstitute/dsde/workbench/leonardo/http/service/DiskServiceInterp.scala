@@ -14,7 +14,6 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -33,7 +32,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamServ
 import scala.concurrent.ExecutionContext
 
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
-                                        authProvider: LeoAuthProvider[F],
                                         publisherQueue: Queue[F, LeoPubsubMessage],
                                         googleDiskService: Option[GoogleDiskService[F]],
                                         googleProjectDAO: Option[GoogleProjectDAO],
@@ -299,20 +297,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .getGetPersistentDiskResponse(cloudContext, disk.name, ctx.traceId)
         .transaction
 
-      listOfPermissions <- authProvider.getActions(dbdisk.samResource, userInfo)
-
-      // throw 404 if no ReadDiskStatus permission
-      hasPermission = listOfPermissions.toSet.contains(PersistentDiskAction.ReadPersistentDisk)
-      _ <-
-        if (hasPermission) F.unit
-        else
-          F.raiseError[Unit](
-            DiskNotFoundException(cloudContext, disk.name, ctx.traceId)
-          )
-
-      // throw 403 if no DeleteDisk permission
-      hasDeletePermission = listOfPermissions.toSet.contains(PersistentDiskAction.DeletePersistentDisk)
-      _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    cloudContext,
+                                    dbdisk.name,
+                                    dbdisk.samResource,
+                                    PersistentDiskAction.DeletePersistentDisk,
+                                    ctx.traceId
+      )
 
       // Mark the resource as deleted in Leo's DB
       _ <- dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
