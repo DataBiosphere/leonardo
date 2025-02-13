@@ -32,13 +32,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp.getDiskSamPolicyMap
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction.{
-  projectSamResourceAction,
-  workspaceSamResourceAction
-}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.RuntimeSamResource
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -61,7 +56,6 @@ import scala.concurrent.ExecutionContext
 class RuntimeServiceInterp[F[_]: Parallel](
   config: RuntimeServiceConfig,
   diskConfig: PersistentDiskConfig,
-  authProvider: LeoAuthProvider[F],
   dockerDAO: DockerDAO[F],
   googleStorageService: Option[GoogleStorageService[F]],
   googleComputeService: Option[GoogleComputeService[F]],
@@ -162,7 +156,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
                           userEmail,
                           petSA,
                           FormattedBy.GCE,
-                          authProvider,
                           samService,
                           diskConfig,
                           parentWorkspaceId
@@ -463,11 +456,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
         F.raiseError[ClusterRecord](RuntimeNotFoundException(cloudContext, runtimeName, "no record in database"))
       )(F.pure)
 
-      _ <- checkRuntimeAction(userInfo,
-                              cloudContext,
-                              runtimeName,
-                              RuntimeSamResourceId(runtime.internalId),
-                              RuntimeAction.ModifyRuntime
+      _ <- SamUtils.checkRuntimeAction(samService,
+                                       userInfo,
+                                       cloudContext,
+                                       runtimeName,
+                                       RuntimeSamResourceId(runtime.internalId),
+                                       RuntimeAction.ModifyRuntime
       )
       // throw 409 if the cluster is not updatable
       _ <-
@@ -939,7 +933,6 @@ object RuntimeServiceInterp {
     userEmail: WorkbenchEmail,
     serviceAccount: WorkbenchEmail,
     willBeUsedBy: FormattedBy,
-    authProvider: LeoAuthProvider[F],
     samService: SamService[F],
     diskConfig: PersistentDiskConfig,
     workspaceId: Option[WorkspaceId]
@@ -956,6 +949,14 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
+            _ <- SamUtils.checkDiskAction(samService,
+                                          userInfo,
+                                          cloudContext,
+                                          pd.name,
+                                          pd.samResource,
+                                          PersistentDiskAction.AttachPersistentDisk,
+                                          ctx.traceId
+            )
             _ <-
               if (pd.zone == targetZone) F.unit
               else
@@ -990,23 +991,18 @@ object RuntimeServiceInterp {
               if (isAttached)
                 F.raiseError[Unit](DiskAlreadyAttachedException(CloudContext.Gcp(googleProject), req.name, ctx.traceId))
               else F.unit
-            hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
-              pd.samResource,
-              PersistentDiskAction.AttachPersistentDisk,
-              userInfo
-            )
-
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
           } yield PersistentDiskRequestResult(pd, false)
 
         case None =>
           for {
-            hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
-              ProjectSamResourceId(googleProject),
-              ProjectAction.CreatePersistentDisk,
-              userInfo
-            )
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
+            _ <- samService
+              .checkAuthorized(userInfo.accessToken.token,
+                               ProjectSamResourceId(googleProject),
+                               ProjectAction.CreatePersistentDisk
+              )
+              .adaptError {
+                case e: SamException if e.statusCode == StatusCodes.Forbidden => ForbiddenError(userEmail)
+              }
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(
@@ -1045,7 +1041,6 @@ object RuntimeServiceInterp {
     userEmail: WorkbenchEmail,
     serviceAccount: WorkbenchEmail,
     willBeUsedBy: FormattedBy,
-    authProvider: LeoAuthProvider[F],
     samService: SamService[F],
     diskConfig: PersistentDiskConfig
   )(implicit
@@ -1060,6 +1055,14 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
+            _ <- SamUtils.checkDiskAction(samService,
+                                          userInfo,
+                                          cloudContext,
+                                          pd.name,
+                                          pd.samResource,
+                                          PersistentDiskAction.AttachPersistentDisk,
+                                          ctx.traceId
+            )
             _ <-
               if (pd.zone == targetZone) F.unit
               else
@@ -1094,23 +1097,19 @@ object RuntimeServiceInterp {
               if (isAttached)
                 F.raiseError[Unit](DiskAlreadyAttachedException(cloudContext, req.name, ctx.traceId))
               else F.unit
-            hasPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
-              pd.samResource,
-              PersistentDiskAction.AttachPersistentDisk,
-              userInfo
-            )
 
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
           } yield PersistentDiskRequestResult(pd, false)
 
         case None =>
           for {
-            hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
-              WorkspaceResourceSamResourceId(workspaceId),
-              WorkspaceAction.CreateControlledApplicationResource,
-              userInfo
-            ) // TODO: Correct check?
-            _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
+            _ <- samService
+              .checkAuthorized(userInfo.accessToken.token,
+                               WorkspaceResourceSamResourceId(workspaceId),
+                               WorkspaceAction.Compute
+              )
+              .adaptError {
+                case e: SamException if e.statusCode == StatusCodes.Forbidden => ForbiddenError(userEmail)
+              }
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(

@@ -283,7 +283,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     val runtimeService = RuntimeService(
       baselineDependencies.runtimeServicesConfig,
       ConfigReader.appConfig.persistentDisk,
-      baselineDependencies.authProvider,
       baselineDependencies.dockerDAO,
       Some(gcpDependencies.googleStorageService),
       Some(gcpDependencies.googleComputeService),

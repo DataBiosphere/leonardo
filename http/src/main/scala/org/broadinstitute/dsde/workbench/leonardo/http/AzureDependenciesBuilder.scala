@@ -102,7 +102,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
     val runtimeService = RuntimeService(
       baselineDependencies.runtimeServicesConfig,
       ConfigReader.appConfig.persistentDisk,
-      baselineDependencies.authProvider,
       baselineDependencies.dockerDAO,
       None,
       None,
