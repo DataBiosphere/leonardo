@@ -4,7 +4,6 @@ package service
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
-import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -12,7 +11,6 @@ import cats.syntax.all._
 import com.google.api.services.cloudresourcemanager.model.Ancestor
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService}
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
@@ -30,7 +28,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService, SamUtils}
 
 import scala.concurrent.ExecutionContext
 
@@ -39,12 +37,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         publisherQueue: Queue[F, LeoPubsubMessage],
                                         googleDiskService: Option[GoogleDiskService[F]],
                                         googleProjectDAO: Option[GoogleProjectDAO],
-                                        samService: SamService[F]
+                                        val samService: SamService[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
-) extends DiskService[F] {
+) extends DiskService[F]
+    with SamUtils[F] {
 
   override def createDisk(
     userInfo: UserInfo,
@@ -58,12 +57,14 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(userInfo.accessToken.token)
 
-      hasPermission <- authProvider.hasPermission[ProjectSamResourceId, ProjectAction](
-        ProjectSamResourceId(googleProject),
-        ProjectAction.CreatePersistentDisk,
-        userInfo
-      )
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userEmail))
+      _ <- samService
+        .checkAuthorized(userInfo.accessToken.token,
+                         ProjectSamResourceId(googleProject),
+                         ProjectAction.CreatePersistentDisk
+        )
+        .adaptError {
+          case e: SamException if e.statusCode == StatusCodes.Forbidden => ForbiddenError(userEmail)
+        }
 
       // Grab the pet service account for the user
       petSA <- samService.getPetServiceAccount(userInfo.accessToken.token, googleProject)
@@ -447,7 +448,7 @@ object DiskServiceInterp {
                                      willBeUsedByGalaxy: Boolean,
                                      sourceDisk: Option[SourceDisk],
                                      workspaceId: Option[WorkspaceId]
-  ): Either[Throwable, PersistentDisk] = {
+  ): PersistentDisk = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
       diskName,
@@ -459,14 +460,7 @@ object DiskServiceInterp {
     // combine default and given labels
     val allLabels = req.labels ++ defaultLabels
 
-    for {
-      // check the labels do not contain forbidden keys
-      labels <-
-        if (allLabels.contains(includeDeletedKey))
-          Left(IllegalLabelKeyException(includeDeletedKey))
-        else
-          Right(allLabels)
-    } yield PersistentDisk(
+    PersistentDisk(
       DiskId(0),
       cloudContext,
       req.zone.getOrElse(config.defaultZone),
@@ -481,7 +475,7 @@ object DiskServiceInterp {
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
       sourceDisk.flatMap(_.formattedBy),
       None,
-      labels,
+      allLabels,
       sourceDisk.map(_.diskLink),
       None,
       workspaceId

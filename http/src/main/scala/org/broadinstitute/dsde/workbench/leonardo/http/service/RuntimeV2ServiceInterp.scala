@@ -446,7 +446,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     req: CreateAzureRuntimeRequest,
     workspaceId: WorkspaceId,
     now: Instant
-  ): Either[Throwable, PersistentDisk] = {
+  ): PersistentDisk = {
     // create a LabelMap of default labels
     val defaultLabelMap: LabelMap =
       Map(
@@ -458,14 +458,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
     // combine default and given labels
     val allLabels = req.azureDiskConfig.labels ++ defaultLabelMap
 
-    for {
-      // check the labels do not contain forbidden keys
-      labels <-
-        if (allLabels.contains(includeDeletedKey))
-          Left(IllegalLabelKeyException(includeDeletedKey))
-        else
-          Right(allLabels)
-    } yield PersistentDisk(
+    PersistentDisk(
       DiskId(0),
       cloudContext,
       ZoneName("unset"),
