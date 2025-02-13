@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmClientProvider, MockWsmDAO, WsmApiClientProvider, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -34,13 +33,11 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   val wsmClientProvider = new MockWsmClientProvider
 
   private def makeDiskV2Service(queue: Queue[IO, LeoPubsubMessage],
-                                allowlistAuthProvider: AllowlistAuthProvider = allowListAuthProvider,
                                 wsmDao: WsmDao[IO] = wsmDao,
                                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
                                 samService: SamService[IO] = MockSamService
   ) =
     new DiskV2ServiceInterp[IO](
-      allowlistAuthProvider,
       queue,
       wsmClientProvider,
       samService
@@ -127,7 +124,10 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
   it should "delete a disk" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2Service = makeDiskV2Service(publisherQueue)
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val diskV2Service = makeDiskV2Service(publisherQueue, samService = samService)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -167,12 +167,11 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
         IO.pure(WsmState(Some("CREATING")))
     }
 
-    val diskV2Service = makeDiskV2Service(publisherQueue, wsmClientProvider = wsmClientProvider)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val diskV2Service =
+      makeDiskV2Service(publisherQueue, wsmClientProvider = wsmClientProvider, samService = samService)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -198,12 +197,11 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
         IO.pure(WsmState(None))
     }
 
-    val diskV2Service = makeDiskV2Service(publisherQueue, wsmClientProvider = wsmClientProvider)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val diskV2Service =
+      makeDiskV2Service(publisherQueue, wsmClientProvider = wsmClientProvider, samService = samService)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -225,12 +223,10 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
   it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2Service = makeDiskV2Service(publisherQueue)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val diskV2Service = makeDiskV2Service(publisherQueue, samService = samService)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -255,12 +251,10 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
   it should "fail to delete a disk if it has no workspaceId" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2Service = makeDiskV2Service(publisherQueue)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is allow-listed
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+      .thenReturn(IO.unit)
+    val diskV2Service = makeDiskV2Service(publisherQueue, samService = samService)
 
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -280,18 +274,26 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "fail to delete a disk if its creator lost access to the workspace" in isolatedDbTest {
+  it should "ffail to delete a disk if the user does not have delete access and not reveal its existence if the user cannot read it" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val diskV2service2 = makeDiskV2Service(publisherQueue, allowListAuthProvider2)
-    val userInfo = UserInfo(OAuth2BearerToken(""),
-                            WorkbenchUserId("userId"),
-                            WorkbenchEmail("user1@example.com"),
-                            0
-    ) // this email is the disk creator, but NOT allow-listed in allowListAuthProvider2
+    val samService = mock[SamService[IO]]
+    val diskV2service2 = makeDiskV2Service(publisherQueue, samService = samService)
+
     val res = for {
       ctx <- appContext.ask[AppContext]
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-
+      _ = when(
+        samService.checkAuthorized(isEq(userInfo.accessToken.token),
+                                   isEq(disk.samResource),
+                                   isEq(PersistentDiskAction.DeletePersistentDisk)
+        )(any())
+      ).thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, ctx.traceId)))
+      _ = when(
+        samService.checkAuthorized(isEq(userInfo.accessToken.token),
+                                   isEq(disk.samResource),
+                                   isEq(PersistentDiskAction.ReadPersistentDisk)
+        )(any())
+      ).thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, ctx.traceId)))
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), None)
@@ -300,6 +302,39 @@ class DiskV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       err <- diskV2service2.deleteDisk(userInfo, disk.id).attempt
     } yield err shouldBe Left(
       DiskNotFoundByIdException(disk.id, ctx.traceId)
+    )
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "fail to delete a disk if the user does not have delete access" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val samService = mock[SamService[IO]]
+    val diskV2service2 = makeDiskV2Service(publisherQueue, samService = samService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+      _ = when(
+        samService.checkAuthorized(isEq(userInfo.accessToken.token),
+                                   isEq(disk.samResource),
+                                   isEq(PersistentDiskAction.DeletePersistentDisk)
+        )(any())
+      ).thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, ctx.traceId)))
+      _ = when(
+        samService.checkAuthorized(isEq(userInfo.accessToken.token),
+                                   isEq(disk.samResource),
+                                   isEq(PersistentDiskAction.ReadPersistentDisk)
+        )(any())
+      ).thenReturn(IO.unit)
+      _ <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig.AzureConfig(MachineTypeName("n1-standard-4"), Some(disk.id), None)
+        )
+      )
+      err <- diskV2service2.deleteDisk(userInfo, disk.id).attempt
+    } yield err shouldBe Left(
+      ForbiddenError(userInfo.userEmail)
     )
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
