@@ -6,7 +6,7 @@ import cats.effect.Async
 import cats.implicits.{catsSyntaxApplicativeError, toFlatMapOps}
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskNotFoundByIdException, DiskNotFoundException}
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   ForbiddenError,
   LeoException,
@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   CloudContext,
+  DiskId,
   PersistentDiskAction,
   RuntimeAction,
   RuntimeName,
@@ -77,6 +78,23 @@ object SamUtils {
       action,
       PersistentDiskAction.ReadPersistentDisk,
       DiskNotFoundException(cloudContext, diskName, traceId)
+    )
+
+  def checkDiskAction[F[_]](samService: SamService[F],
+                            userInfo: UserInfo,
+                            diskId: DiskId,
+                            samResourceId: SamResourceId,
+                            action: SamResourceAction,
+                            traceId: TraceId
+  )(implicit F: Async[F], as: Ask[F, AppContext]): F[Unit] =
+    checkActionInternal(
+      samService,
+      userInfo.accessToken,
+      userInfo.userEmail,
+      samResourceId,
+      action,
+      PersistentDiskAction.ReadPersistentDisk,
+      DiskNotFoundByIdException(diskId, traceId)
     )
 
   private def checkActionInternal[F[_]](samService: SamService[F],

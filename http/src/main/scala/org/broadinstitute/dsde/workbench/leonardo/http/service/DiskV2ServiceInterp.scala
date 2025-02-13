@@ -8,11 +8,9 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  PersistentDiskSamResourceId,
-  WorkspaceResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamService, SamUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
@@ -25,7 +23,8 @@ import scala.concurrent.ExecutionContext
 class DiskV2ServiceInterp[F[_]: Parallel](
   authProvider: LeoAuthProvider[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
-  wsmClientProvider: WsmApiClientProvider[F]
+  wsmClientProvider: WsmApiClientProvider[F],
+  samService: SamService[F]
 )(implicit
   F: Async[F],
   dbReference: DbReference[F],
@@ -44,27 +43,16 @@ class DiskV2ServiceInterp[F[_]: Parallel](
         .transaction
 
       // check that workspaceId is not null
-      workspaceId <- F.fromOption(diskResp.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
+      _ <- F.fromOption(diskResp.workspaceId, DiskWithoutWorkspaceException(diskId, ctx.traceId))
 
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
+      // check that user has read action on disk
+      _ <- SamUtils.checkDiskAction(samService,
+                                    userInfo,
+                                    diskId,
+                                    diskResp.samResource,
+                                    PersistentDiskAction.ReadPersistentDisk,
+                                    ctx.traceId
       )
-
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
-      hasDiskPermission <- authProvider.hasPermission[PersistentDiskSamResourceId, PersistentDiskAction](
-        diskResp.samResource,
-        PersistentDiskAction.ReadPersistentDisk,
-        userInfo
-      )
-
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure disk permission")))
-      _ <- F
-        .raiseError[Unit](
-          DiskNotFoundByIdException(diskId, ctx.traceId)
-        )
-        .whenA(!hasDiskPermission)
 
     } yield diskResp
 

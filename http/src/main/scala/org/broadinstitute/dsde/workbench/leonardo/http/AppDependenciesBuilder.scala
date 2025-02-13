@@ -93,7 +93,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     val diskV2Service = new DiskV2ServiceInterp[IO](
       baselineDependencies.authProvider,
       baselineDependencies.publisherQueue,
-      baselineDependencies.wsmClientProvider
+      baselineDependencies.wsmClientProvider,
+      baselineDependencies.samService
     )
 
     val azureService = new RuntimeV2ServiceInterp[IO](
