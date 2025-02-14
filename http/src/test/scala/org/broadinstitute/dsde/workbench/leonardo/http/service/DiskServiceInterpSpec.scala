@@ -711,7 +711,7 @@ class DiskServiceInterpTest
       message <- publisherQueue.tryTake
 
     } yield {
-      disks.map(_.status) shouldEqual List(DiskStatus.Deleted, DiskStatus.Deleted)
+      disks shouldEqual List.empty
       message shouldBe None
     }
 
