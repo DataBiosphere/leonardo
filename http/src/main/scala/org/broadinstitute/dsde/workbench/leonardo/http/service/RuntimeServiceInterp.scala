@@ -1004,20 +1004,18 @@ object RuntimeServiceInterp {
                 case e: SamException if e.statusCode == StatusCodes.Forbidden => ForbiddenError(userEmail)
               }
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
-            diskBeforeSave <- F.fromEither(
-              DiskServiceInterp.convertToDisk(
-                userEmail,
-                serviceAccount,
-                cloudContext,
-                req.name,
-                samResource,
-                diskConfig,
-                CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
-                ctx.now,
-                willBeUsedBy == FormattedBy.Galaxy,
-                None,
-                workspaceId
-              )
+            diskBeforeSave = DiskServiceInterp.convertToDisk(
+              userEmail,
+              serviceAccount,
+              cloudContext,
+              req.name,
+              samResource,
+              diskConfig,
+              CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
+              ctx.now,
+              willBeUsedBy == FormattedBy.Galaxy,
+              None,
+              workspaceId
             )
             // Create a persistent-disk Sam resource with a creator policy and the google project as the parent
             _ <- samService.createResource(
@@ -1111,7 +1109,7 @@ object RuntimeServiceInterp {
                 case e: SamException if e.statusCode == StatusCodes.Forbidden => ForbiddenError(userEmail)
               }
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
-            diskBeforeSave <- F.fromEither(
+            diskBeforeSave =
               DiskServiceInterp.convertToDisk(
                 userEmail,
                 serviceAccount,
@@ -1125,7 +1123,6 @@ object RuntimeServiceInterp {
                 None,
                 Some(workspaceId)
               )
-            )
             // Create a persistent-disk Sam resource with a creator policy and the workspace as the parent
             _ <- samService.createResource(userInfo.accessToken.token,
                                            samResource,

@@ -83,18 +83,16 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                                                                   googleProject
             )
 
-            disk <- F.fromEither(
-              convertToDisk(userEmail,
-                            petSA,
-                            cloudContext,
-                            diskName,
-                            samResource,
-                            config,
-                            req,
-                            ctx.now,
-                            sourceDiskOpt,
-                            parentWorkspaceId
-              )
+            disk = convertToDisk(userEmail,
+                                 petSA,
+                                 cloudContext,
+                                 diskName,
+                                 samResource,
+                                 config,
+                                 req,
+                                 ctx.now,
+                                 sourceDiskOpt,
+                                 parentWorkspaceId
             )
             // Create a persistent-disk Sam resource with a creator policy and the google project as the parent
             _ <- samService.createResource(userInfo.accessToken.token,
@@ -379,7 +377,7 @@ object DiskServiceInterp {
                                      now: Instant,
                                      sourceDisk: Option[SourceDisk],
                                      workspaceId: Option[WorkspaceId]
-  ): Either[Throwable, PersistentDisk] =
+  ): PersistentDisk =
     convertToDisk(userEmail,
                   serviceAccount,
                   cloudContext,

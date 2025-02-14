@@ -162,7 +162,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
               case false =>
                 for {
                   samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
-                  pd <- F.fromEither(
+                  pd =
                     convertToDisk(
                       userEmail,
                       cloudContext,
@@ -173,7 +173,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                       workspaceId,
                       ctx.now
                     )
-                  )
                   // Create a persistent-disk Sam resource with a creator policy and the workspace as the parent
                   _ <- samService.createResource(userInfo.accessToken.token,
                                                  samResource,
