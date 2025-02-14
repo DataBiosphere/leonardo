@@ -289,7 +289,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
 
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       now <- IO.realTimeInstant
@@ -318,7 +318,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
 
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       now <- IO.realTimeInstant
@@ -350,7 +350,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         .createRuntime(userInfo, name0, workspaceId, false, defaultCreateAzureRuntimeReq)
 
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       now <- IO.realTimeInstant
@@ -792,7 +792,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           defaultCreateAzureRuntimeReq
         )
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
@@ -856,7 +856,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           defaultCreateAzureRuntimeReq
         )
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
@@ -1020,7 +1020,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           defaultCreateAzureRuntimeReq
         )
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
@@ -1062,7 +1062,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           defaultCreateAzureRuntimeReq
         )
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
       disk = disks.head
       _ <- persistentDiskQuery.updateWSMResourceId(disk.id, wsmResourceId, context.now).transaction
@@ -1300,7 +1300,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         )
 
       disks <- DiskServiceDbQueries
-        .listDisks(Map.empty, includeDeleted = false, Some(userInfo.userEmail), None, Some(workspaceId))
+        .listDisks(Map.empty, Some(userInfo.userEmail), None, Some(workspaceId))
         .transaction
 
       disk1 <- persistentDiskQuery.getActiveByName(azureCloudContext, DiskName("diskName1")).transaction

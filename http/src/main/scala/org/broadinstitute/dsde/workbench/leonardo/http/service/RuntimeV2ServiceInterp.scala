@@ -136,7 +136,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
                   disks <- DiskServiceDbQueries
                     .listDisks(
                       Map.empty,
-                      includeDeleted = false,
                       Some(userEmail),
                       Some(cloudContext),
                       Some(workspaceId)
