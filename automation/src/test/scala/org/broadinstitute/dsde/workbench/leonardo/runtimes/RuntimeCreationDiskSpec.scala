@@ -174,9 +174,8 @@ class RuntimeCreationDiskSpec extends BillingProjectFixtureSpec with ParallelTes
         _ <- IO(disk.size shouldBe diskSize)
         _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
         listofDisks <- LeonardoApiClient.listDisk(googleProject)
-      } yield listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
-        DiskStatus.Deleted
-      ) // assume we won't have multiple disks with same name in the same project in tests
+      } yield listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List.empty
+      // assume we won't have multiple disks with same name in the same project in tests
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
