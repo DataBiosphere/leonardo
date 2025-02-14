@@ -2306,7 +2306,6 @@ class RuntimeServiceInterpTest
         userEmail,
         serviceAccount,
         FormattedBy.GCE,
-        allowListAuthProvider,
         MockSamService,
         ConfigReader.appConfig.persistentDisk,
         Some(workspaceId)
