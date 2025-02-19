@@ -96,7 +96,6 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         azureServiceConfig
       ),
       ConfigReader.appConfig.persistentDisk,
-      authProvider,
       new MockDockerDAO,
       Some(FakeGoogleStorageInterpreter),
       Some(computeService),
@@ -2307,7 +2306,6 @@ class RuntimeServiceInterpTest
         userEmail,
         serviceAccount,
         FormattedBy.GCE,
-        allowListAuthProvider,
         MockSamService,
         ConfigReader.appConfig.persistentDisk,
         Some(workspaceId)
@@ -2361,7 +2359,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2391,7 +2388,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2418,7 +2414,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2442,7 +2437,6 @@ class RuntimeServiceInterpTest
           unauthorizedEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2478,7 +2472,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2503,7 +2496,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.Galaxy,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2520,7 +2512,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2539,6 +2530,11 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to attach a disk when caller has no attach permission" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.AttachPersistentDisk))(any()))
+      .thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.ReadPersistentDisk))(any()))
+      .thenReturn(IO.unit)
     val res = for {
       savedDisk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
@@ -2550,8 +2546,7 @@ class RuntimeServiceInterpTest
         unauthorizedEmail,
         serviceAccount,
         FormattedBy.GCE,
-        allowListAuthProvider,
-        MockSamService,
+        samService,
         ConfigReader.appConfig.persistentDisk,
         Some(workspaceId)
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)
