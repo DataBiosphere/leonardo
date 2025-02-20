@@ -249,7 +249,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             userEmail,
             petSA,
             appTypeToFormattedByType(req.appType),
-            authProvider,
             samService,
             config.leoKubernetesConfig.diskConfig,
             parentWorkspaceId
@@ -827,7 +826,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           userEmail,
           petSA,
           appTypeToFormattedByType(req.appType),
-          authProvider,
           samService,
           config.leoKubernetesConfig.diskConfig
         )

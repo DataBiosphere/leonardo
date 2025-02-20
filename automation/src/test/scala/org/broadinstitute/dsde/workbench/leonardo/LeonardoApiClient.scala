@@ -458,15 +458,10 @@ object LeonardoApiClient {
     } yield r
 
   def listDisk(
-    googleProject: GoogleProject,
-    includeDeleted: Boolean = false
+    googleProject: GoogleProject
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[List[ListPersistentDiskResponse]] = {
     val uriWithoutQueryParam = rootUri
       .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}"))
-
-    val uri =
-      if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
-      else uriWithoutQueryParam
 
     for {
       traceIdHeader <- genTraceIdHeader()
@@ -475,7 +470,7 @@ object LeonardoApiClient {
         Request[IO](
           method = Method.GET,
           headers = Headers(authHeader, traceIdHeader),
-          uri = uri
+          uri = uriWithoutQueryParam
         )
       )(onError(s"Failed to list disks in project ${googleProject.value}"))
     } yield r

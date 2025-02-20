@@ -91,14 +91,13 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
   ): Resource[IO, ServicesDependencies] = {
     val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
     val diskV2Service = new DiskV2ServiceInterp[IO](
-      baselineDependencies.authProvider,
       baselineDependencies.publisherQueue,
-      baselineDependencies.wsmClientProvider
+      baselineDependencies.wsmClientProvider,
+      baselineDependencies.samService
     )
 
     val azureService = new RuntimeV2ServiceInterp[IO](
       baselineDependencies.runtimeServicesConfig,
-      baselineDependencies.authProvider,
       baselineDependencies.publisherQueue,
       baselineDependencies.dateAccessedUpdaterQueue,
       baselineDependencies.wsmClientProvider,

@@ -274,7 +274,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
 
     val diskService = new DiskServiceInterp[IO](
       ConfigReader.appConfig.persistentDisk,
-      baselineDependencies.authProvider,
       baselineDependencies.publisherQueue,
       Some(gcpDependencies.googleDiskService),
       Some(gcpDependencies.googleProjectDAO),
@@ -284,7 +283,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     val runtimeService = RuntimeService(
       baselineDependencies.runtimeServicesConfig,
       ConfigReader.appConfig.persistentDisk,
-      baselineDependencies.authProvider,
       baselineDependencies.dockerDAO,
       Some(gcpDependencies.googleStorageService),
       Some(gcpDependencies.googleComputeService),

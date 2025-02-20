@@ -532,7 +532,7 @@ class HttpRoutesSpec
   // Tests only parameter parsing, not service logic.
   it should "list runtimes v2 with labels" in isolatedDbTest {
     Get(
-      s"/api/v2/runtimes/${workspaceId.value.toString}/azure?foo=bar&includeDeleted=true"
+      s"/api/v2/runtimes/${workspaceId.value.toString}/azure?foo=bar"
     ) ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
 
