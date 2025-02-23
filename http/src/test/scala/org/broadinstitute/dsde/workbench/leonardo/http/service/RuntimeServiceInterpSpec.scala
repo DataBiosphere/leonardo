@@ -96,7 +96,6 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         azureServiceConfig
       ),
       ConfigReader.appConfig.persistentDisk,
-      authProvider,
       new MockDockerDAO,
       Some(FakeGoogleStorageInterpreter),
       Some(computeService),
@@ -840,7 +839,7 @@ class RuntimeServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
+  it should "throw RuntimeNotFoundException for nonexistent clusters" in isolatedDbTest {
     val exc = runtimeService
       .getRuntime(userInfo, CloudContext.Gcp(GoogleProject("nonexistent")), RuntimeName("cluster"))
       .attempt
@@ -874,13 +873,10 @@ class RuntimeServiceInterpTest
     val userInfo = mockUserInfo("grendel@mom.mere")
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
-      readerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    val service = makeRuntimeService(authProvider = mockAuthProvider)
+    val samService = mock[SamService[IO]]
+    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
+      .thenReturn(IO.pure(runtimeIds.map(_.resourceId).toList))
+    val service = makeRuntimeService(samService = samService)
 
     val res = for {
       _ <- IO(makeCluster(1, samResource = runtimeIds(0)).save())
@@ -897,13 +893,10 @@ class RuntimeServiceInterpTest
                             RuntimeSamResourceId(UUID.randomUUID.toString),
                             RuntimeSamResourceId(UUID.randomUUID.toString)
     )
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
-      readerProjectSamIds = Set(ProjectSamResourceId(project), ProjectSamResourceId(project2))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    val service = makeRuntimeService(authProvider = mockAuthProvider)
+    val samService = mock[SamService[IO]]
+    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
+      .thenReturn(IO.pure(runtimeIds.map(_.resourceId).toList))
+    val service = makeRuntimeService(samService = samService)
 
     val res = for {
       _ <- IO(makeCluster(1).copy(samResource = runtimeIds(0)).save())
@@ -919,13 +912,10 @@ class RuntimeServiceInterpTest
     val userInfo = mockUserInfo("grendel@mom.mere")
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
-      readerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    val service = makeRuntimeService(authProvider = mockAuthProvider)
+    val samService = mock[SamService[IO]]
+    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
+      .thenReturn(IO.pure(runtimeIds.map(_.resourceId).toList))
+    val service = makeRuntimeService(samService = samService)
 
     val res = for {
       runtime1 <- IO(makeCluster(1).copy(samResource = runtimeIds(0)).save())
@@ -944,12 +934,10 @@ class RuntimeServiceInterpTest
     val userInfo = mockUserInfo("grendel@mere.mom")
     val runtimeIds =
       Vector(RuntimeSamResourceId(UUID.randomUUID.toString), RuntimeSamResourceId(UUID.randomUUID.toString))
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      ownerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    val service = makeRuntimeService(authProvider = mockAuthProvider)
+    val samService = mock[SamService[IO]]
+    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
+      .thenReturn(IO.pure(runtimeIds.map(_.resourceId).toList))
+    val service = makeRuntimeService(samService = samService)
 
     // Make runtimes belonging to different users than the calling user
     val res = for {
@@ -1021,13 +1009,10 @@ class RuntimeServiceInterpTest
       runtime2.patchInProgress
     )
 
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtime1.samResource, runtime2.samResource),
-      readerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    val service = makeRuntimeService(authProvider = mockAuthProvider)
+    val samService = mock[SamService[IO]]
+    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
+      .thenReturn(IO.pure(List(runtime1.samResource.resourceId, runtime2.samResource.resourceId)))
+    val service = makeRuntimeService(samService = samService)
 
     service
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar"))
@@ -1388,28 +1373,9 @@ class RuntimeServiceInterpTest
     when(samService.checkAuthorized(isEq(userInfo.accessToken.token), any(), isEq(RuntimeAction.DeleteRuntime))(any()))
       .thenReturn(IO.unit)
     when(samService.deleteResource(any(), any())(any())).thenReturn(IO.unit)
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
-      readerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    when(
-      mockAuthProvider.getActionsWithProjectFallback[RuntimeSamResourceId, RuntimeAction](any, any, isEq(userInfo))(any,
-                                                                                                                    any
-      )
-    )
-      .thenReturn(
-        IO.pure(
-          (List(RuntimeAction.GetRuntimeStatus, RuntimeAction.DeleteRuntime),
-           List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime)
-          )
-        )
-      )
-
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service =
-      makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
+      makeRuntimeService(publisherQueue = publisherQueue, samService = samService)
 
     val res = for {
       pd1 <- makePersistentDisk().save()
@@ -1445,11 +1411,11 @@ class RuntimeServiceInterpTest
 
       _ <- service.deleteAllRuntimesRecords(userInfo, cloudContextGcp)
 
-      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map("includeDeleted" -> "true"))
+      runtimes <- service.listRuntimes(userInfo, Some(cloudContextGcp), Map.empty)
       messages <- publisherQueue.tryTakeN(Some(2))
 
     } yield {
-      runtimes.map(_.status) shouldEqual List(RuntimeStatus.Deleted, RuntimeStatus.Deleted)
+      runtimes.map(_.status) shouldEqual List.empty
       messages shouldBe List.empty
     }
 
@@ -1466,28 +1432,9 @@ class RuntimeServiceInterpTest
     when(samService.getUserEmail(isEq(userInfo.accessToken.token))(any())).thenReturn(IO.pure(userInfo.userEmail))
     when(samService.checkAuthorized(any(), any(), any())(any())).thenReturn(IO.unit)
     when(samService.deleteResource(any(), any())(any())).thenReturn(IO.unit)
-    val mockAuthProvider = mockAuthorize(
-      userInfo,
-      readerRuntimeSamIds = Set(runtimeIds(0), runtimeIds(1)),
-      readerProjectSamIds = Set(ProjectSamResourceId(project))
-    )
-    when(mockAuthProvider.isUserProjectReader(any, isEq(userInfo))(any)).thenReturn(IO.pure(true))
-    when(
-      mockAuthProvider.getActionsWithProjectFallback[RuntimeSamResourceId, RuntimeAction](any, any, isEq(userInfo))(any,
-                                                                                                                    any
-      )
-    )
-      .thenReturn(
-        IO.pure(
-          (List(RuntimeAction.GetRuntimeStatus, RuntimeAction.DeleteRuntime),
-           List(ProjectAction.GetRuntimeStatus, ProjectAction.DeleteRuntime)
-          )
-        )
-      )
-
     val publisherQueue = QueueFactory.makePublisherQueue()
     val service =
-      makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
+      makeRuntimeService(publisherQueue = publisherQueue, samService = samService)
 
     val res = for {
       pd1 <- makePersistentDisk().save()
@@ -1561,8 +1508,13 @@ class RuntimeServiceInterpTest
         )
       )
 
+    val samService = mock[SamService[IO]]
+    when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
+      .thenReturn(IO.pure(runtimeIds.map(_.resourceId).toList))
+
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val service = makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue)
+    val service =
+      makeRuntimeService(authProvider = mockAuthProvider, publisherQueue = publisherQueue, samService = samService)
 
     val res = for {
       pd1 <- makePersistentDisk().save()
@@ -2354,7 +2306,6 @@ class RuntimeServiceInterpTest
         userEmail,
         serviceAccount,
         FormattedBy.GCE,
-        allowListAuthProvider,
         MockSamService,
         ConfigReader.appConfig.persistentDisk,
         Some(workspaceId)
@@ -2408,7 +2359,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2438,7 +2388,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2465,7 +2414,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2489,7 +2437,6 @@ class RuntimeServiceInterpTest
           unauthorizedEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2525,7 +2472,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2550,7 +2496,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.Galaxy,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2567,7 +2512,6 @@ class RuntimeServiceInterpTest
           userEmail,
           serviceAccount,
           FormattedBy.GCE,
-          allowListAuthProvider,
           MockSamService,
           ConfigReader.appConfig.persistentDisk,
           Some(workspaceId)
@@ -2586,6 +2530,11 @@ class RuntimeServiceInterpTest
   }
 
   it should "fail to attach a disk when caller has no attach permission" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.AttachPersistentDisk))(any()))
+      .thenReturn(IO.raiseError(SamException.create("forbidden", StatusCodes.Forbidden.intValue, TraceId(""))))
+    when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.ReadPersistentDisk))(any()))
+      .thenReturn(IO.unit)
     val res = for {
       savedDisk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
@@ -2597,8 +2546,7 @@ class RuntimeServiceInterpTest
         unauthorizedEmail,
         serviceAccount,
         FormattedBy.GCE,
-        allowListAuthProvider,
-        MockSamService,
+        samService,
         ConfigReader.appConfig.persistentDisk,
         Some(workspaceId)
       )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global)

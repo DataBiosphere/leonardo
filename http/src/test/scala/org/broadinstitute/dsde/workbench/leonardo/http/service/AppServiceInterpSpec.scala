@@ -310,6 +310,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val publisherQueue = QueueFactory.makePublisherQueue()
     val mockSamService = mock[SamService[IO]]
     when(mockSamService.createResource(any, any, any, any, any)(any)).thenReturn(IO.unit)
+    when(mockSamService.checkAuthorized(any, any, any)(any)).thenReturn(IO.unit)
     when(mockSamService.deleteResource(any, any)(any)).thenReturn(IO.unit)
     when(mockSamService.getUserEmail(any)(any)).thenReturn(IO.pure(userInfo.userEmail))
     when(mockSamService.lookupWorkspaceParentForGoogleProject(any, any)(any)).thenReturn(IO.none)

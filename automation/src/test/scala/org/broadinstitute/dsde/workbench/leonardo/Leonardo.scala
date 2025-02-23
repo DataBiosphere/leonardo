@@ -64,11 +64,11 @@ object Leonardo extends RestClient with LazyLogging {
       s"api/google${versionPath}/runtimes/${googleProject.value}/${runtimeName.asString}"
     }
 
-    def listIncludingDeletedRuntime(
+    def listRuntime(
       googleProject: GoogleProject
     )(implicit token: AuthToken): Seq[ListRuntimeResponseCopy] = {
-      val path = s"api/google/v1/runtimes/${googleProject.value}?includeDeleted=true"
-      logger.info(s"Listing runtimes including deleted in project: GET /$path")
+      val path = s"api/google/v1/runtimes/${googleProject.value}"
+      logger.info(s"Listing runtimes in project: GET /$path")
       val parsedRequest = parseResponse(getRequest(s"$url/$path"))
       handleListRuntimeResponse(parsedRequest)
     }

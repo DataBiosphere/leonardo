@@ -130,7 +130,6 @@ trait TestLeoRoutes {
   val runtimev2Service =
     new RuntimeV2ServiceInterp[IO](
       serviceConfig,
-      allowListAuthProvider,
       QueueFactory.makePublisherQueue(),
       QueueFactory.makeDateAccessedQueue(),
       wsmClientProvider,
@@ -188,7 +187,6 @@ trait TestLeoRoutes {
   val runtimeService = RuntimeService(
     serviceConfig,
     ConfigReader.appConfig.persistentDisk,
-    allowListAuthProvider,
     new MockDockerDAO,
     Some(FakeGoogleStorageInterpreter),
     Some(FakeGoogleComputeService),
