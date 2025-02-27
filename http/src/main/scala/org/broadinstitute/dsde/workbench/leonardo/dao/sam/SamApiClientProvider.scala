@@ -26,7 +26,8 @@ trait SamApiClientProvider[F[_]] {
   def azureApi(token: String)(implicit ev: Ask[F, AppContext]): F[AzureApi]
 }
 
-class HttpSamApiClientProvider[F[_]](samUrl: String, maxConcurrentRequests: Int)(implicit F: Async[F]) extends SamApiClientProvider[F] {
+class HttpSamApiClientProvider[F[_]](samUrl: String, maxConcurrentRequests: Int)(implicit F: Async[F])
+    extends SamApiClientProvider[F] {
   private val okHttpClient = buildOkHttpClient
   private val timeout = 30 seconds
 
