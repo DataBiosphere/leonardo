@@ -120,7 +120,7 @@ class BaselineDependenciesBuilder {
                                                          applicationConfig
       )
 
-      samClientProvider = new HttpSamApiClientProvider(httpSamDaoConfig.samUri.renderString)
+      samClientProvider = new HttpSamApiClientProvider(httpSamDaoConfig.samUri.renderString, httpSamDaoConfig.maxConcurrentRequests)
       samService = new SamServiceInterp(samClientProvider, cloudAuthTokenProvider)
 
       samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import okhttp3.Protocol
+import okhttp3.{Dispatcher, Protocol}
 import org.broadinstitute.dsde.workbench.client.sam.ApiClient
 import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi, UsersApi}
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
@@ -26,16 +26,25 @@ trait SamApiClientProvider[F[_]] {
   def azureApi(token: String)(implicit ev: Ask[F, AppContext]): F[AzureApi]
 }
 
-class HttpSamApiClientProvider[F[_]](samUrl: String)(implicit F: Async[F]) extends SamApiClientProvider[F] {
-  private val okHttpClient = new ApiClient().getHttpClient
+class HttpSamApiClientProvider[F[_]](samUrl: String, maxConcurrentRequests: Int)(implicit F: Async[F]) extends SamApiClientProvider[F] {
+  private val okHttpClient = buildOkHttpClient
   private val timeout = 30 seconds
+
+  private def buildOkHttpClient = {
+    val dispatcher = new Dispatcher()
+    dispatcher.setMaxRequests(maxConcurrentRequests)
+    dispatcher.setMaxRequestsPerHost(maxConcurrentRequests)
+    new ApiClient().getHttpClient.newBuilder
+      .readTimeout(timeout.toJava)
+      .protocols(Seq(Protocol.HTTP_1_1).asJava)
+      .dispatcher(dispatcher)
+      .build()
+  }
 
   private def getApiClient(token: String)(implicit ev: Ask[F, AppContext]): F[ApiClient] =
     for {
       ctx <- ev.ask
       okHttpClientBuilder = okHttpClient.newBuilder
-        .readTimeout(timeout.toJava)
-        .protocols(Seq(Protocol.HTTP_1_1).asJava)
       // TODO add otel interceptors
       //  See https://broadworkbench.atlassian.net/browse/IA-5052
       apiClient = new ApiClient(okHttpClientBuilder.build()).setBasePath(samUrl)
