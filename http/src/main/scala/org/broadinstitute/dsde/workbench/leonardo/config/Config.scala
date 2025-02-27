@@ -385,7 +385,8 @@ object Config {
       Uri.unsafeFromString(config.as[String]("samServer")),
       config.getOrElse("petKeyCacheEnabled", true),
       config.getAs[FiniteDuration]("petKeyCacheExpiryTime").getOrElse(60 minutes),
-      config.getAs[Int]("petKeyCacheMaxSize").getOrElse(1000)
+      config.getAs[Int]("petKeyCacheMaxSize").getOrElse(1000),
+      config.getAs[Int]("maxConcurrentRequests").getOrElse(15)
     )
   }
 

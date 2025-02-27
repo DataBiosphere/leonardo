@@ -578,7 +578,8 @@ final case class ListResourceRolesItem[R](samResourceId: R, samRoles: Set[SamRol
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
-                                  petCacheMaxSize: Int
+                                  petCacheMaxSize: Int,
+                                  maxConcurrentRequests: Int
 )
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
