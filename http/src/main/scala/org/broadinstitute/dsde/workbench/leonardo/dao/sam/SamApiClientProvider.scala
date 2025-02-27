@@ -28,10 +28,8 @@ trait SamApiClientProvider[F[_]] {
 
 class HttpSamApiClientProvider[F[_]](samUrl: String, maxConcurrentRequests: Int)(implicit F: Async[F])
     extends SamApiClientProvider[F] {
-  private val okHttpClient = buildOkHttpClient
   private val timeout = 30 seconds
-
-  private def buildOkHttpClient = {
+  private val okHttpClient = {
     val dispatcher = new Dispatcher()
     dispatcher.setMaxRequests(maxConcurrentRequests)
     dispatcher.setMaxRequestsPerHost(maxConcurrentRequests)
