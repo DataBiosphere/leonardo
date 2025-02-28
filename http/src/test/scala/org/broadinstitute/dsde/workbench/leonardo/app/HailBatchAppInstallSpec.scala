@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.app
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.leonardo.config.AzureEnvironmentConverter
 import org.broadinstitute.dsde.workbench.leonardo.dao.HailBatchDAO
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.mockito.ArgumentMatchers.any
@@ -26,7 +27,9 @@ class HailBatchAppInstallSpec extends BaseAppInstallSpec {
       s"persistence.workspaceManager.url=${ConfigReader.appConfig.azure.wsm.uri.renderString}," +
       s"persistence.workspaceManager.workspaceId=${workspaceId.value}," +
       s"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}," +
-      s"persistence.workspaceManager.storageContainerUrl=https://${lzResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}," +
+      s"persistence.workspaceManager.storageContainerUrl=https://${lzResources.storageAccountName.value}.blob${AzureEnvironmentConverter
+          .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+          .getStorageEndpointSuffix}/${storageContainer.name.value}," +
       "persistence.leoAppName=app1," +
       "workloadIdentity.serviceAccountName=ksa-1," +
       s"relay.domain=relay.com," +

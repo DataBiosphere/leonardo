@@ -7,7 +7,8 @@ import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService,
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
-import org.broadinstitute.dsde.workbench.leonardo.config.CoaAppConfig
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, CoaAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -25,7 +26,8 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
                                cromwellDao: CromwellDAO[F],
                                cbasDao: CbasDAO[F],
                                azureBatchService: AzureBatchService[F],
-                               azureApplicationInsightsService: AzureApplicationInsightsService[F]
+                               azureApplicationInsightsService: AzureApplicationInsightsService[F],
+                               authProvider: SamAuthProvider[F]
 )(implicit
   F: Async[F]
 ) extends AppInstall[F] {
@@ -69,10 +71,15 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
 
     // Get the pet userToken
     tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-    userToken <- F.fromOption(
-      tokenOpt,
-      AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
-    )
+    userToken <- ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        F.fromOption(
+          tokenOpt,
+          AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
+        )
+      case true =>
+        F.pure("") // No pet user token in Azure.
+    }
 
     values = List(
       // azure resources configs
@@ -85,6 +92,12 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       raw"config.subscriptionId=${params.cloudContext.subscriptionId.value}",
       raw"config.region=${params.landingZoneResources.region}",
       raw"config.applicationInsightsConnectionString=${applicationInsightsComponent.connectionString()}",
+      raw"config.azureEnvironment=${ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment}",
+      raw"config.azureManagementTokenScope=${AzureEnvironmentConverter
+          .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+          .getResourceManagerEndpoint}.default",
+      raw"config.batchAccountSuffix=${AzureEnvironmentConverter
+          .batchAccountSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
 
       // relay configs
       raw"relay.path=${params.relayPath.renderString}",
@@ -92,6 +105,9 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
       // persistence configs
       raw"persistence.storageResourceGroup=${params.cloudContext.managedResourceGroupName.value}",
       raw"persistence.storageAccount=${params.landingZoneResources.storageAccountName.value}",
+      raw"persistence.storageAccountSuffix=${AzureEnvironmentConverter
+          .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+          .getStorageEndpointSuffix}",
       raw"persistence.blobContainer=${storageContainer.name.value}",
       raw"persistence.leoAppInstanceName=${params.app.appName.value}",
       raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
@@ -124,7 +140,8 @@ class CromwellAppInstall[F[_]](config: CoaAppConfig,
 
       // Database configs
       raw"postgres.podLocalDatabaseEnabled=false",
-      raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
+      raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter
+          .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
       raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
       // convention is that the database user is the same as the service account name
       raw"postgres.user=${params.ksaName.value}",

@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.azure.{AzureApplicationInsightsService,
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WsmControlledDatabaseResource}
 import org.broadinstitute.dsde.workbench.leonardo.app.AppInstall.getAzureDatabaseName
 import org.broadinstitute.dsde.workbench.leonardo.app.Database.ControlledDatabase
-import org.broadinstitute.dsde.workbench.leonardo.config.WorkflowsAppConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, WorkflowsAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
@@ -69,10 +69,15 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
 
       // Get the pet userToken
       tokenOpt <- samDao.getCachedArbitraryPetAccessToken(params.app.auditInfo.creator)
-      userToken <- F.fromOption(
-        tokenOpt,
-        AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
-      )
+      userToken <- ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+        case false =>
+          F.fromOption(
+            tokenOpt,
+            AppCreationException(s"Pet not found for user ${params.app.auditInfo.creator}", Some(ctx.traceId))
+          )
+        case true =>
+          F.pure("") // No pet user token in Azure.
+      }
 
       values =
         List(
@@ -111,7 +116,8 @@ class WorkflowsAppInstall[F[_]](config: WorkflowsAppConfig,
 
           // database configs
           raw"postgres.podLocalDatabaseEnabled=false",
-          raw"postgres.host=${postgresServer.name}.postgres.database.azure.com",
+          raw"postgres.host=${postgresServer.name}.postgres${AzureEnvironmentConverter
+              .postgresSuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
           raw"postgres.pgbouncer.enabled=${postgresServer.pgBouncerEnabled}",
           // convention is that the database user is the same as the service account name
           raw"postgres.user=${params.ksaName.value}",

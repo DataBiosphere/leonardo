@@ -51,7 +51,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
 import org.broadinstitute.dsp.ChartVersion
-import org.http4s.AuthScheme
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
@@ -136,13 +135,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         s"[AzurePubsubHandler/createAndPollRuntime] getting workspace storage container from WSM for runtime ${msg.runtimeId}"
       )
       // Get the optional storage container for the workspace
-      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-      workspaceStorageContainerOpt <- tokenOpt.flatTraverse { token =>
-        wsmDao.getWorkspaceStorageContainer(
-          msg.workspaceId,
-          org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-        )
-      }
+      workspaceStorageContainerOpt <- wsmDao.getWorkspaceStorageContainer(
+        msg.workspaceId,
+        leoAuth
+      )
+
       workspaceStorageContainer <- F.fromOption(
         workspaceStorageContainerOpt,
         AzureRuntimeCreationError(
@@ -160,14 +157,11 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       // Get optional action managed identity from Sam for the private_azure_storage_account/read action.
       // Identities must be passed to WSM for application-managed resources.
-      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-      actionIdentityOpt <- tokenOpt.flatTraverse { token =>
-        samDAO.getAzureActionManagedIdentity(
-          org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token)),
-          PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
-          PrivateAzureStorageAccountAction.Read
-        )
-      }
+      actionIdentityOpt <- samDAO.getAzureActionManagedIdentity(
+        leoAuth,
+        PrivateAzureStorageAccountSamResourceId(msg.billingProfileId.value),
+        PrivateAzureStorageAccountAction.Read
+      )
 
       _ <- logger.info(
         s"[AzurePubsubHandler/createAndPollRuntime] beginning to monitor runtime creation for runtime ${msg.runtimeId}"
@@ -234,7 +228,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       wsStorageContainerUrl,
       applicationConfig.leoUrlBase,
       params.runtime.runtimeName.asString,
-      s"'${refererConfig.validHosts.mkString("','")}'"
+      s"'${refererConfig.validHosts.mkString("','")}'",
+      AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
     )
 
     val cmdToExecute = s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
@@ -898,7 +893,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
             )
           case JobReport.StatusEnum.SUCCEEDED =>
-            val hostIp = s"${params.landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+            val hostIp = s"${params.landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter
+                .relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
             for {
               now <- nowInstant
               _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), now).transaction

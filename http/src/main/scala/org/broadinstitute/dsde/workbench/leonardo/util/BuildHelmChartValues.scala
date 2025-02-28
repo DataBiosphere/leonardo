@@ -8,9 +8,9 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, SamConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
-import org.broadinstitute.dsde.workbench.leonardo.http.kubernetesProxyHost
+import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, ConfigReader}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsp.{Release, Values}
@@ -275,9 +275,12 @@ private[leonardo] object BuildHelmChartValues {
     Values(
       List(
         raw"""connection.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"connection.connectionString=Endpoint=sb://${relayNamespace.value}.servicebus.windows.net/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
+        raw"connection.connectionString=Endpoint=sb://${relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(
+            ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment
+          )}/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
         raw"connection.connectionName=${relayHcName.value}",
-        raw"connection.endpoint=https://${relayNamespace.value}.servicebus.windows.net",
+        raw"connection.endpoint=https://${relayNamespace.value}${AzureEnvironmentConverter
+            .relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
         raw"connection.targetHost=$relayTargetHost",
         raw"sam.url=${samConfig.server}",
         raw"sam.resourceId=${samResourceId.resourceId}",

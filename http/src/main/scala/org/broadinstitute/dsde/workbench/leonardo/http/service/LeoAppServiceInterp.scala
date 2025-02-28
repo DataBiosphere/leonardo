@@ -163,12 +163,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Retrieve parent workspaceId for the google project
       parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
+      // Leo email used to give permissions when running in Azure.
+      leoToken <- authProvider.getLeoAuthToken
+      leoEmail <- samService.getUserEmail(leoToken)
       notifySamAndCreate = for {
         _ <- samService.createResource(userInfo.accessToken.token,
                                        samResourceId,
                                        Some(googleProject),
                                        None,
-                                       getAppSamPolicyMap(userEmail, req.accessScope)
+                                       getAppSamPolicyMap(userEmail, leoEmail, req.accessScope)
         )
         saveCluster <- F.fromEither(
           getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
@@ -782,11 +785,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
 
       // Create kubernetes-app Sam resource with a creator policy and the workspace as the parent
+      leoToken <- authProvider.getLeoAuthToken
+      leoEmail <- samService.getUserEmail(leoToken)
       _ <- samService.createResource(userInfo.accessToken.token,
                                      samResourceId,
                                      None,
                                      Some(workspaceId),
-                                     getAppSamPolicyMap(userEmail, req.accessScope)
+                                     getAppSamPolicyMap(userEmail, leoEmail, req.accessScope)
       )
 
       // Save or retrieve a KubernetesCluster record for the app
@@ -1690,13 +1695,14 @@ object LeoAppServiceInterp {
    * Private apps are represented as kubernetes-app resources in Sam and have a "creator" role.
    */
   private[http] def getAppSamPolicyMap(userEmail: WorkbenchEmail,
+                                       leoEmail: WorkbenchEmail,
                                        accessScope: Option[AppAccessScope]
   ): Map[String, SamPolicyData] =
     accessScope match {
       case Some(AppAccessScope.WorkspaceShared) =>
-        Map("owner" -> SamPolicyData(List(userEmail), List(SharedAppRole.Owner.asString)))
+        Map("owner" -> SamPolicyData(List(userEmail, leoEmail), List(SharedAppRole.Owner.asString)))
       case _ =>
-        Map("creator" -> SamPolicyData(List(userEmail), List(AppRole.Creator.asString)))
+        Map("creator" -> SamPolicyData(List(userEmail, leoEmail), List(AppRole.Creator.asString)))
     }
 }
 

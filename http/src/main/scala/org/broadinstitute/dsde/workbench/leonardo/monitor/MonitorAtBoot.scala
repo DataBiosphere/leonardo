@@ -222,10 +222,11 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                       appContext.traceId
                     )
                   )
-                  tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                  workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-                    wsmClientProvider.getWorkspace(token, workspaceId)
-                  }
+                  token <- getAuthToken(app.auditInfo.creator)
+                  workspaceDescOpt <- wsmClientProvider.getWorkspace(
+                    token,
+                    workspaceId
+                  )
                   workspaceDesc <- F.fromOption(workspaceDescOpt,
                                                 WorkspaceNotFoundException(workspaceId, appContext.traceId)
                   )
@@ -264,10 +265,11 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                                               appContext.traceId
                                             )
                 )
-                tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-                  wsmClientProvider.getWorkspace(token, workspaceId)
-                }
+                token <- getAuthToken(app.auditInfo.creator)
+                workspaceDescOpt <- wsmClientProvider.getWorkspace(
+                  token,
+                  workspaceId
+                )
                 workspaceDesc <- F.fromOption(workspaceDescOpt,
                                               WorkspaceNotFoundException(workspaceId, appContext.traceId)
                 )
@@ -375,9 +377,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 
-  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId)(implicit
-    ev: Ask[F, TraceId]
-  ): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(
@@ -394,10 +394,11 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
           controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
-          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-          workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-            wsmClientProvider.getWorkspace(token, wid)
-          }
+          leoAuth <- samDAO.getLeoAuthToken
+          workspaceDescOpt <- wsmClientProvider.getWorkspace(
+            leoAuth.credentials.renderString,
+            wid
+          )
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
           runtimeId = runtime.id,
@@ -422,10 +423,13 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           wid <- F.fromOption(runtime.workspaceId,
                               MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
           )
-          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(runtime.auditInfo.creator)
-          workspaceDescOpt <- tokenOpt.flatTraverse { token =>
-            wsmClientProvider.getWorkspace(token, wid)
-          }
+          leoAuth <- samDAO.getLeoAuthToken
+          token = leoAuth.credentials.toString().split(" ")(1)
+          workspaceDescOpt <- wsmClientProvider.getWorkspace(
+            token,
+            wid
+          )
+
           workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
         } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
           runtime.id,
@@ -436,6 +440,26 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           BillingProfileId(workspaceDesc.spendProfile)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
+    }
+
+  private def getAuthToken(creator: WorkbenchEmail)(implicit
+    ev: Ask[F, TraceId]
+  ): F[String] =
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        for {
+          traceId <- ev.ask
+          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(creator)
+          token <- F.fromOption(
+            tokenOpt,
+            MonitorAtBootException(s"Pet not found for user ${creator}", traceId)
+          )
+        } yield token
+      case true =>
+        for {
+          leoAuth <- samDAO.getLeoAuthToken
+          token = leoAuth.credentials.toString().split(" ")(1)
+        } yield token
     }
 }
 

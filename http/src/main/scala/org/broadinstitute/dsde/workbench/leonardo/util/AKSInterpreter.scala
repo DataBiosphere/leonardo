@@ -28,8 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp._
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials, Uri}
+import org.http4s.Uri
 import org.typelevel.log4cats.StructuredLogger
 
 import java.net.URL
@@ -110,14 +109,11 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       }
 
       // Get the optional storage container for the workspace
-      tokenOpt <- samDao.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
       storageContainerOpt <- childSpan("getWorkspaceStorageContainer").use { implicit ev =>
-        tokenOpt.flatTraverse { token =>
-          wsmDao.getWorkspaceStorageContainer(
-            params.workspaceId,
-            org.http4s.headers.Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, token))
-          )
-        }
+        wsmDao.getWorkspaceStorageContainer(
+          params.workspaceId,
+          leoAuth
+        )
       }
 
       wsmResourceApi <- buildWsmResourceApiClient
@@ -187,7 +183,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
       relayPrimaryKey <- childSpan("createRelayHybridConnection").use { implicit ev =>
         azureRelayService.createRelayHybridConnection(landingZoneResources.relayNamespace, hcName, params.cloudContext)
       }
-      relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayDomain = s"${landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
 
@@ -421,7 +417,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Get relay hybrid connection information
       hcName = RelayHybridConnectionName(s"${params.appName.value}-${workspaceId.value}")
-      relayDomain = s"${landingZoneResources.relayNamespace.value}.servicebus.windows.net"
+      relayDomain = s"${landingZoneResources.relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}"
       relayEndpoint = s"https://${relayDomain}/"
       relayPath = Uri.unsafeFromString(relayEndpoint) / hcName.value
       relayPrimaryKey <- azureRelayService.getRelayHybridConnectionKey(landingZoneResources.relayNamespace,
@@ -543,6 +539,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
 
       // Query the Landing Zone service for the landing zone resources
       leoAuth <- samDao.getLeoAuthToken
+      token = leoAuth.credentials.toString().split(" ")(1)
       landingZoneResources <- childSpan("getLandingZoneResources").use { implicit ev =>
         legacyWsmDao.getLandingZoneResources(billingProfileId, leoAuth)
       }
@@ -632,11 +629,9 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
           }
       }
 
-      // Delete the Sam resource
-      userEmail = app.auditInfo.creator
-      petToken <- samService.getArbitraryPetServiceAccountToken(userEmail)
+      // Delete the Sam resource getCachedArbitraryPetAccessToken
       _ <- childSpan("deleteSamResource").use { implicit ev =>
-        samService.deleteResource(petToken, dbApp.app.samResourceId)
+        samService.deleteResource(token, dbApp.app.samResourceId)
       }
 
       _ <- logger.info(
@@ -652,10 +647,7 @@ class AKSInterpreter[F[_]](config: AKSInterpreterConfig,
   private[util] def pollApp(userEmail: WorkbenchEmail, relayBaseUri: Uri, appInstall: AppInstall[F])(implicit
     ev: Ask[F, AppContext]
   ): F[Boolean] = for {
-    ctx <- ev.ask
-    tokenOpt <- samDao.getCachedArbitraryPetAccessToken(userEmail)
-    token <- F.fromOption(tokenOpt, AppCreationException(s"Pet not found for user ${userEmail}", Some(ctx.traceId)))
-    authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+    authHeader <- samDao.getLeoAuthToken
 
     res <- appInstall.checkStatus(relayBaseUri, authHeader)
   } yield res

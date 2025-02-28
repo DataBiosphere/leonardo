@@ -3,8 +3,9 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.AppContext
-import org.broadinstitute.dsde.workbench.leonardo.config.HailBatchAppConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, HailBatchAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HailBatchDAO
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.util.AppCreationException
 import org.broadinstitute.dsp.Values
 import org.http4s.Uri
@@ -34,7 +35,9 @@ class HailBatchAppInstall[F[_]](config: HailBatchAppConfig, hailBatchDao: HailBa
           raw"persistence.workspaceManager.url=${params.config.wsmConfig.uri.renderString}",
           raw"persistence.workspaceManager.workspaceId=${params.workspaceId.value}",
           raw"persistence.workspaceManager.containerResourceId=${storageContainer.resourceId.value.toString}",
-          raw"persistence.workspaceManager.storageContainerUrl=https://${params.landingZoneResources.storageAccountName.value}.blob.core.windows.net/${storageContainer.name.value}",
+          raw"persistence.workspaceManager.storageContainerUrl=https://${params.landingZoneResources.storageAccountName.value}.blob${AzureEnvironmentConverter
+              .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+              .getStorageEndpointSuffix}/${storageContainer.name.value}",
           raw"persistence.leoAppName=${params.app.appName.value}",
 
           // identity configs

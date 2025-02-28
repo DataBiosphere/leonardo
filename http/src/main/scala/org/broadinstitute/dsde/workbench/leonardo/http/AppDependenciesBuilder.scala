@@ -188,7 +188,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.cromwellDAO,
       baselineDependencies.cbasDAO,
       baselineDependencies.azureBatchService,
-      baselineDependencies.azureApplicationInsightsService
+      baselineDependencies.azureApplicationInsightsService,
+      baselineDependencies.authProvider
     )
 
     val cromwellRunnerAppInstall =
@@ -210,7 +211,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       ConfigReader.appConfig.azure.tdr,
       baselineDependencies.samDAO,
       baselineDependencies.wdsDAO,
-      baselineDependencies.azureApplicationInsightsService
+      baselineDependencies.azureApplicationInsightsService,
+      baselineDependencies.authProvider
     )
     val workflowsAppInstall =
       new WorkflowsAppInstall[IO](

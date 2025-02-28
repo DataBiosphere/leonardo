@@ -74,7 +74,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/8390d25ccd761fb206cf388560a571be77a42bbd/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/f58c237b4dc235cd1c24c6dfc7500c07bdbd5bc3/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             // [IA-4997] to support CHIPS by setting partitioned cookies
@@ -152,7 +152,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         ),
         CromwellRunnerAppConfig(
           ChartName("terra-helm/cromwell-runner-app"),
-          ChartVersion("0.197.0"),
+          ChartVersion("0.198.0"),
           ReleaseNameSuffix("cra-rls"),
           NamespaceNameSuffix("cra-ns"),
           KsaName("cra-ksa"),
@@ -267,9 +267,28 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
     val expectedGovEnv = AzureEnvironment.AZURE_US_GOVERNMENT
     govEnv shouldBe expectedGovEnv
 
-    val chinaEnv = AzureEnvironmentConverter.fromString(AzureEnvironmentConverter.AzureChina)
-    val expectedChinaEnv = AzureEnvironment.AZURE_CHINA
-    chinaEnv shouldBe expectedChinaEnv
-  }
+    val govRelay = AzureEnvironmentConverter.relaySuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expectedGovRelay = AzureEnvironmentConverter.relaySuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govRelay shouldBe expectedGovRelay
 
+    val govPostgres = AzureEnvironmentConverter.postgresSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expGovPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govPostgres shouldBe expGovPostgres
+
+    val govBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.AzureGov)
+    val expGovBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE_US_GOVERNMENT)
+    govBatch shouldBe expGovBatch
+
+    val defaultRelay = AzureEnvironmentConverter.relaySuffixFromString("")
+    val expectedDefaultRelay = AzureEnvironmentConverter.relaySuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultRelay shouldBe expectedDefaultRelay
+
+    val defaultPostgres = AzureEnvironmentConverter.postgresSuffixFromString("")
+    val expectedDefaultPostgres = AzureEnvironmentConverter.postgresSuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultPostgres shouldBe expectedDefaultPostgres
+
+    val defaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromString(AzureEnvironmentConverter.Azure)
+    val expectedDefaultBatch = AzureEnvironmentConverter.batchAccountSuffixFromEnvironment(AzureEnvironment.AZURE)
+    defaultBatch shouldBe expectedDefaultBatch
+  }
 }
