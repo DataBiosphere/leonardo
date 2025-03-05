@@ -110,6 +110,7 @@ SAMRESOURCEID=$7
 CONTENTSECURITYPOLICY_FILE=$8
 
 RELAY_SUFFIX=${21:-".servicebus.windows.net"}
+AZURE_MANAGEMENT_URL=${22:-"https://management.azure.com/"}
 
 # Envs for welder
 WELDER_WSM_URL=${9:-localhost}
@@ -277,6 +278,7 @@ echo "docker run -d --restart always --network host --name welder \
      -e LOCKING_ENABLED=false \
      -e STAGING_BUCKET=\"$WELDER_STAGING_BUCKET\" \
      -e SHOULD_BACKGROUND_SYNC=\"false\" \
+     -e AZURE_MANAGEMENT_URL=$AZURE_MANAGEMENT_URL \
      $WELDER_WELDER_DOCKER_IMAGE"
 
 docker run -d --restart always --network host --name welder \
@@ -291,6 +293,7 @@ docker run -d --restart always --network host --name welder \
 --env LOCKING_ENABLED=false \
 --env STAGING_BUCKET=$WELDER_STAGING_BUCKET \
 --env SHOULD_BACKGROUND_SYNC="false" \
+--env AZURE_MANAGEMENT_URL=$AZURE_MANAGEMENT_URL \
 $WELDER_WELDER_DOCKER_IMAGE
 
 echo "------ Welder done ------"
