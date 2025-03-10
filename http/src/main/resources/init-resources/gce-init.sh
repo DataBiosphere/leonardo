@@ -407,6 +407,12 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
+  # custom code only for AoU image
+  if [[ $JUPYTER_DOCKER_IMAGE == *terra-jupyter-aou* ]]; then
+    retry 3 docker exec ${JUPYTER_SERVER_NAME} pip install --upgrade jupyter-server
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} jupyter server extension enable --py qiime2 --sys-prefix
+  fi
+
   # Install everything after having mounted the empty PD
   # This should not be needed anymore if the jupyter home is a directory of the PD mount point
   # See: https://github.com/DataBiosphere/leonardo/pull/4465/files
