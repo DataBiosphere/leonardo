@@ -110,7 +110,7 @@ SAMRESOURCEID=$7
 CONTENTSECURITYPOLICY_FILE=$8
 
 RELAY_SUFFIX=${21:-".servicebus.windows.net"}
-AZURE_MANAGEMENT_URL=${22:-"https://management.azure.com/"}
+AZURE_MANAGEMENT_URL="${22:-"https://management.azure.com/"}"
 
 # Envs for welder
 WELDER_WSM_URL=${9:-localhost}
