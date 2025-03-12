@@ -230,7 +230,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       params.runtime.runtimeName.asString,
       s"'${refererConfig.validHosts.mkString("','")}'",
       AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment),
-      AzureEnvironmentConverter.fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment).getManagementEndpoint()
+      AzureEnvironmentConverter
+        .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
+        .getManagementEndpoint()
     )
 
     val cmdToExecute = s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
