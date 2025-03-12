@@ -411,6 +411,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   if [[ $JUPYTER_DOCKER_IMAGE == *terra-jupyter-aou* ]]; then
     retry 3 docker exec ${JUPYTER_SERVER_NAME} pip install --upgrade jupyter-server
     retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} jupyter server extension enable --py qiime2 --sys-prefix
+    retry 3 docker exec -u root chown -R jupyter:users $JUPYTER_USER_HOME/.config
   fi
 
   # Install everything after having mounted the empty PD
