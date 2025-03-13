@@ -410,8 +410,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # custom code only for AoU image. We can remove this after AoU maintenance mode is over in 2026.
   if [[ $JUPYTER_DOCKER_IMAGE == *terra-jupyter-aou* ]]; then
     retry 3 docker exec ${JUPYTER_SERVER_NAME} pip install --upgrade jupyter-server
-    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} jupyter server extension enable --py qiime2 --sys-prefix
-    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/.config
+    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} sudo -E -u jupyter jupyter serverextension enable --py qiime2 --sys-prefix
+#    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/.config
   fi
 
   # Install everything after having mounted the empty PD
