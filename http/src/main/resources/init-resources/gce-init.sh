@@ -413,9 +413,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 #    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} sudo -E -u jupyter jupyter serverextension enable --py qiime2
 #    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/.config
     retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/
-    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/bin/pip install --upgrade jupyter-server
-    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter:users /opt/conda/etc/jupyter/
-    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/bin/jupyter server extension enable --py qiime2 --sys-prefix
+    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/envs/qiime2-2024.10/bin/pip install --upgrade jupyter-server
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter:users /opt/conda/envs/qiime2-2024.10/etc/jupyter/
+    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/envs/qiime2-2024.10/bin/jupyter server extension enable --py qiime2 --sys-prefix
   fi
 
   # Install everything after having mounted the empty PD
