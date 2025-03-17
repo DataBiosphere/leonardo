@@ -407,17 +407,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
-  # custom code only for AoU image. We can remove this after AoU maintenance mode is over in 2026.
-  if [[ $JUPYTER_DOCKER_IMAGE == *terra-jupyter-aou* ]]; then
-#    retry 3 docker exec ${JUPYTER_SERVER_NAME} pip install --upgrade jupyter-server
-#    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} sudo -E -u jupyter jupyter serverextension enable --py qiime2
-#    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/.config
-    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/
-    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/envs/qiime2-2024.10/bin/pip install --upgrade jupyter-server
-    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter:users /opt/conda/envs/qiime2-2024.10/etc/jupyter/
-    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/envs/qiime2-2024.10/bin/jupyter server extension enable --py qiime2 --sys-prefix
-  fi
-
   # Install everything after having mounted the empty PD
   # This should not be needed anymore if the jupyter home is a directory of the PD mount point
   # See: https://github.com/DataBiosphere/leonardo/pull/4465/files
@@ -574,6 +563,17 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
   # This is to make it so that older images will still work after we change notebooks location to home dir
   docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
+
+  # custom code only for AoU image. We can remove this after AoU maintenance mode is over in 2026.
+  if [[ $JUPYTER_DOCKER_IMAGE == *terra-jupyter-aou* ]]; then
+#    retry 3 docker exec ${JUPYTER_SERVER_NAME} pip install --upgrade jupyter-server
+#    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} sudo -E -u jupyter jupyter serverextension enable --py qiime2
+#    retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/.config
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter:users $JUPYTER_USER_HOME/
+    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/envs/qiime2-2024.10/bin/pip install --upgrade jupyter-server
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter:users /opt/conda/envs/qiime2-2024.10/etc/jupyter/
+    retry 3 docker exec ${JUPYTER_SERVER_NAME} /opt/conda/envs/qiime2-2024.10/bin/jupyter server extension enable --py qiime2 --sys-prefix
+  fi
 
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
