@@ -80,19 +80,10 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       ctx <- ev.ask
       call =
         F.blocking(
-          client.listNamespacedPod(namespace.name.value,
-                                   "true",
-                                   null,
-                                   null,
-                                   null,
-                                   null,
-                                   null,
-                                   null,
-                                   null,
-                                   null,
-                                   null,
-                                   null
-          )
+          client
+            .listNamespacedPod(namespace.name.value)
+            .pretty("true")
+            .execute()
         )
 
       response <- withLogging(
@@ -115,12 +106,10 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       ctx <- ev.ask
       call = F
         .blocking(
-          client.createNamespace(new V1Namespace().metadata(new V1ObjectMeta().name(namespace.name.value)),
-                                 "true",
-                                 null,
-                                 null,
-                                 null
-          )
+          client
+            .createNamespace(new V1Namespace().metadata(new V1ObjectMeta().name(namespace.name.value)))
+            .pretty("true")
+            .execute()
         )
         .void
       _ <- withLogging(
@@ -138,15 +127,10 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       call =
         recoverF(
           F.blocking(
-            client.deleteNamespace(
-              namespace.name.value,
-              "true",
-              null,
-              null,
-              null,
-              null,
-              null
-            )
+            client
+              .deleteNamespace(namespace.name.value)
+              .pretty("true")
+              .execute()
           ).void
             .recoverWith {
               case e: com.google.gson.JsonSyntaxException
@@ -180,14 +164,14 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       call =
         recoverF(
           F.blocking(
-            client.listNamespace("true", false, null, null, null, null, null, null, null, null, false)
+            client.listNamespace.pretty("true").allowWatchBookmarks(false).execute()
           ),
           whenStatusCode(409)
         )
       v1NamespaceList <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespace(true, false, null, null, null, null, null, null, null, null, false)",
+        s"io.kubernetes.client.apis.CoreV1Api.listNamespace.pretty(true).allowWatchBookmarks(false).execute()",
         Show.show[Option[V1NamespaceList]](
           _.fold("No namespace found")(x => x.getItems.asScala.toList.map(_.getMetadata.getName).mkString(","))
         )

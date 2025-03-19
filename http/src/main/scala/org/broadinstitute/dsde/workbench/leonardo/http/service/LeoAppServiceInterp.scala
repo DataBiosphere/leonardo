@@ -1442,7 +1442,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // decouple this string from UI-generated Leo app names because of hidden k8s/Galaxy constraints.
       //
       // There are DB constraints to handle potential name collisions.
-      uid = s"${RandomStringUtils.randomAlphabetic(1)}${RandomStringUtils.randomAlphanumeric(5)}".toLowerCase
+      uid = s"${RandomStringUtils.secureStrong().nextAlphanumeric(1)}${RandomStringUtils.secureStrong().nextAlphanumeric(5)}".toLowerCase
       namespaceName <- lastUsedApp.fold(
         KubernetesName.withValidation(
           s"${uid}-${gkeAppConfig.namespaceNameSuffix.value}",

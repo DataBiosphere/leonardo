@@ -21,7 +21,7 @@ object Dependencies {
   val serviceTestV = s"5.0-$workbenchLibsHash"
   val workbenchModelV = s"0.20-$workbenchLibsHash"
   val workbenchGoogleV = s"0.32-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.36-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.4-39b4ef35-SNAP"
   val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
   val workbenchOauth2V = "0.8-3e0cf25"
   val workbenchAzureV = s"0.10-b25c29d"
@@ -141,7 +141,7 @@ object Dependencies {
   // See the relevant PRs from TCL, the fix suggested in there does not fully cover the leo use cases
   //  https://github.com/DataBiosphere/terra-common-lib/commit/d9c2eca9510596def6553a63b6fe1eaa0d364163
   //  https://github.com/DataBiosphere/terra-common-lib/commit/431ad29aeb2275ce3415b22ff4447fc7a34386f7
-  val terraCommonLibV = "1.1.4-SNAPSHOT"
+  val terraCommonLibV = "1.1.38-SNAPSHOT"
   val bpmV = "0.1.548-SNAPSHOT"
   val samV = "v0.0.274"
 
