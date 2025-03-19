@@ -89,7 +89,7 @@ class KubernetesInterpreter[F[_]](azureContainerService: AzureContainerService[F
       response <- withLogging(
         call,
         Some(ctx.traceId),
-        s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}, true, null, null, null, null, null, null, null, null)"
+        s"io.kubernetes.client.apis.CoreV1Api.listNamespacedPod(${namespace.name.value}).pretty(true).execute()"
       )
 
       listPodStatus: List[PodStatus] = response.getItems.asScala.toList.flatMap(v1Pod =>
