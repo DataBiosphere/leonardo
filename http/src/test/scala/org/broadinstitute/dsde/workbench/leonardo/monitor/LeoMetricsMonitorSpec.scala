@@ -744,6 +744,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val client = mock[CoreV1Api]
     val podList = mock[V1PodList]
     val pod = mock[V1Pod]
+    val mockRequest = mock[CoreV1Api#APIlistNamespacedPodRequest]
     val spec = mock[V1PodSpec]
     val container = mock[V1Container]
     val kube = mock[KubernetesAlgebra[IO]]
@@ -769,8 +770,25 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       podList.getItems
     } thenReturn List(pod).asJava
     when {
-
-      client.listNamespacedPod(any).execute()
+      client
+        .listNamespacedPod(any)
+    } thenReturn mockRequest
+    when {
+      client
+        .listNamespacedPod(any)
+        .pretty(any)
+    } thenReturn mockRequest
+    when {
+      client
+        .listNamespacedPod(any)
+        .labelSelector(any)
+    } thenReturn mockRequest
+    when {
+      client
+        .listNamespacedPod(any)
+        .pretty(any)
+        .labelSelector(any)
+        .execute()
     } thenReturn podList
     when {
       kube.createAzureClient(any, any[String].asInstanceOf[AKSClusterName])(any)
