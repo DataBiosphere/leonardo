@@ -100,6 +100,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           handleDeleteDiskMessage(msg)
         case msg: UpdateDiskMessage =>
           handleUpdateDiskMessage(msg)
+        // Saloni - here
         case msg: CreateAppMessage =>
           handleCreateAppMessage(msg)
         case msg: DeleteAppMessage =>
@@ -961,6 +962,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
     } yield ()
 
+  // Saloni - CreateAppMessage object contains enableIntraNodeVisibility
   private[monitor] def handleCreateAppMessage(msg: CreateAppMessage)(implicit
     ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -991,6 +993,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         } yield d
       }
 
+      // Saloni - this is where the cluster might be created
       // The "create app" flow potentially does a number of things:
       //  1. creates a Kubernetes cluster if it doesn't exist
       //  2. creates a nodepool within the cluster if it doesn't exist
@@ -1003,6 +1006,8 @@ class LeoPubsubMessageSubscriber[F[_]](
       // handler.
       createClusterOrNodepoolOp = msg.clusterNodepoolAction match {
         case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
+          // Saloni - the first case is the one we care about
+          // enableIntraNodeVisibility passed in 'msg'
           createClusterAndNodepools(msg, clusterId, autopilotEnabled = false, List(defaultNodepoolId, nodepoolId))
         case Some(ClusterNodepoolAction.CreateCluster(clusterId)) =>
           createClusterAndNodepools(msg, clusterId, autopilotEnabled = true, List.empty)
@@ -1100,6 +1105,8 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
     } yield ()
 
+  // Saloni - this creates and polls for cluster until it is created (or error)
+  // CreateAppMessage has enableIntraNodeVisibility
   private def createClusterAndNodepools(msg: CreateAppMessage,
                                         clusterId: KubernetesClusterLeoId,
                                         autopilotEnabled: Boolean,
@@ -1133,7 +1140,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     // monitor cluster creation asynchronously
     monitorOp <- createClusterResultOpt.traverse_(createClusterResult =>
       getGkeAlgFromRegistry()
-        .pollCluster(PollClusterParams(clusterId, msg.project, createClusterResult))
+        .pollCluster(PollClusterParams(clusterId, msg.project, createClusterResult), msg.enableIntraNodeVisibility) // polling here
         .adaptError { case e =>
           PubsubKubernetesError(
             AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),

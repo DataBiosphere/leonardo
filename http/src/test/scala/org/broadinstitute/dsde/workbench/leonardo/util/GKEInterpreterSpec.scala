@@ -297,7 +297,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Mockito
           PollClusterParams(savedCluster1.id,
                             savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
                             createResult.get
-          )
+          ),
+          false
         )
         .attempt
     } yield r shouldBe (Left(

@@ -30,7 +30,7 @@ trait GKEAlgebra[F[_]] {
    * Polls a creating GKE cluster for its completion and also does other cluster-wide set-up like
    * install nginx ingress controller.
    */
-  def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def pollCluster(params: PollClusterParams, enableIntraNodeVisibility: Boolean)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   /**
    * Creates a GKE nodepool and polls it for completion.

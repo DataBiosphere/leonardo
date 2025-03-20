@@ -244,7 +244,7 @@ class MockGKEService extends GKEAlgebra[IO] {
    * Polls a creating GKE cluster for its completion and also does other cluster-wide set-up like
    * install nginx ingress controller.
    */
-  override def pollCluster(params: PollClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+  override def pollCluster(params: PollClusterParams, enableIntraNodeVisibility: Boolean)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
   /** Creates a GKE nodepool but doesn't wait for its completion. */
   override def createAndPollNodepool(params: CreateNodepoolParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
