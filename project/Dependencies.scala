@@ -17,12 +17,12 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "3cea4eb"
-  val serviceTestV = s"5.0-$workbenchLibsHash"
-  val workbenchModelV = s"0.20-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.32-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.4-39b4ef35-SNAP"
-  val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
+  private val workbenchLibsHash = "f0fa3901-SNAP"
+  val serviceTestV = s"5.1-$workbenchLibsHash"
+  val workbenchModelV = s"0.21-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.35-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
   val workbenchOauth2V = "0.8-3e0cf25"
   val workbenchAzureV = s"0.10-b25c29d"
 
