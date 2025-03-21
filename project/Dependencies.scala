@@ -53,6 +53,7 @@ object Dependencies {
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
+  val excludeOpenTelemetry = ExclusionRule(organization = "io.opentelemetry")
 
   val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.4"
 
@@ -98,7 +99,8 @@ object Dependencies {
     excludeBigQuery,
     excludeCloudBilling,
     excludeSundrCodegen,
-    excludeGuava
+    excludeGuava,
+    excludeOpenTelemetry
   )
   val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
@@ -154,7 +156,6 @@ object Dependencies {
   def excludePostgresql = ExclusionRule("org.postgresql", "postgresql")
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
   def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
-  def excludeOpenTelemetry = ExclusionRule("io.opentelemetry")
   def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
 
 
