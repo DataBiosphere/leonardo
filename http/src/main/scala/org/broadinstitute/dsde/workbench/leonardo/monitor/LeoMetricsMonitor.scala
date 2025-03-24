@@ -376,19 +376,10 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                 val labelSelector = s"leoAppName=${app.appName.value}"
                 for {
                   pods <- F.blocking(
-                    client.listNamespacedPod(namespace.value,
-                                             null,
-                                             null,
-                                             null,
-                                             null,
-                                             labelSelector,
-                                             null,
-                                             null,
-                                             null,
-                                             null,
-                                             null,
-                                             null
-                    )
+                    client
+                      .listNamespacedPod(namespace.value)
+                      .labelSelector(labelSelector)
+                      .execute()
                   )
 
                   res = pods.getItems.asScala.flatMap { pod =>
