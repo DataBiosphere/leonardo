@@ -232,7 +232,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       AzureEnvironmentConverter.relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment),
       AzureEnvironmentConverter
         .fromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)
-        .getManagementEndpoint()
+        .getResourceManagerEndpoint()
     )
 
     val cmdToExecute = s"touch /var/log/azure_vm_init_script.log && chmod 400 /var/log/azure_vm_init_script.log &&" +
