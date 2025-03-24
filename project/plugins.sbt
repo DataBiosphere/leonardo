@@ -9,3 +9,4 @@ addSbtPlugin(
 ) // Use `unusedCompileDependencies` to see unused dependencies
 
 addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.11.1")
+addDependencyTreePlugin
