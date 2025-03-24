@@ -17,12 +17,12 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "3cea4eb"
-  val serviceTestV = s"5.0-$workbenchLibsHash"
-  val workbenchModelV = s"0.20-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.32-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.36-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.8-$workbenchLibsHash"
+  private val workbenchLibsHash = "ad2b686"
+  val serviceTestV = s"6.1-$workbenchLibsHash"
+  val workbenchModelV = s"0.21-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.35-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
   val workbenchOauth2V = "0.8-3e0cf25"
   val workbenchAzureV = s"0.10-b25c29d"
 
@@ -53,6 +53,7 @@ object Dependencies {
   val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
+  val excludeOpenTelemetry = ExclusionRule(organization = "io.opentelemetry")
 
   val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.4"
 
@@ -73,7 +74,7 @@ object Dependencies {
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
-  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-4-1" % "3.2.12.1" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-4-21" % "3.2.19.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbench-metrics pulls in workbench-util.
@@ -98,7 +99,8 @@ object Dependencies {
     excludeBigQuery,
     excludeCloudBilling,
     excludeSundrCodegen,
-    excludeGuava
+    excludeGuava,
+    excludeOpenTelemetry
   )
   val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
@@ -137,11 +139,7 @@ object Dependencies {
 
   val workSpaceManagerV = "0.254.1127-SNAPSHOT"
 
-  // Sticking to the legacy kubernetes java client for now
-  // See the relevant PRs from TCL, the fix suggested in there does not fully cover the leo use cases
-  //  https://github.com/DataBiosphere/terra-common-lib/commit/d9c2eca9510596def6553a63b6fe1eaa0d364163
-  //  https://github.com/DataBiosphere/terra-common-lib/commit/431ad29aeb2275ce3415b22ff4447fc7a34386f7
-  val terraCommonLibV = "1.1.4-SNAPSHOT"
+  val terraCommonLibV = "1.1.38-SNAPSHOT"
   val bpmV = "0.1.548-SNAPSHOT"
   val samV = "v0.0.274"
 
@@ -158,7 +156,6 @@ object Dependencies {
   def excludePostgresql = ExclusionRule("org.postgresql", "postgresql")
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
   def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
-  def excludeOpenTelemetry = ExclusionRule("io.opentelemetry")
   def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
 
 
@@ -232,7 +229,7 @@ object Dependencies {
     "com.azure" % "azure-identity" % "1.10.4"
   )
 
-  val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
+  val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD, excludeOpenTelemetry)
   val leonardoClient: ModuleID =  "org.broadinstitute.dsde.workbench" %% "leonardo-client" % "1.3.6-35973f1-SNAP"
   // You should not be using SSH functionality outside of the tests according to security team's guidance
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
@@ -241,7 +238,7 @@ object Dependencies {
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.17.1" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.18.0" % "test",
     logbackClassic % "test",
     leonardoClient,
     ssh,
