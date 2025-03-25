@@ -46,7 +46,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           Uri.unsafeFromString("https://sam.test.org:443"),
           Uri.unsafeFromString("https://localhost:8000"),
           "terradevacrpublic.azurecr.io/welder-server",
-          "51ef0f4",
+          "0c1d0eb",
           PollMonitorConfig(1 seconds, 10, 1 seconds),
           PollMonitorConfig(1 seconds, 20, 1 seconds),
           PollMonitorConfig(1 seconds, 10, 1 seconds),
@@ -74,7 +74,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/f58c237b4dc235cd1c24c6dfc7500c07bdbd5bc3/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/4ae6ec54e73d3fb20e8c3a142488bd09db814160/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             // [IA-4997] to support CHIPS by setting partitioned cookies

@@ -26,6 +26,7 @@ services:
       WORKSPACE_ID: "dummy"
       STORAGE_CONTAINER_RESOURCE_ID: "dummy"
       STAGING_STORAGE_CONTAINER_RESOURCE_ID: "dummy"
+      AZURE_MANAGEMENT_URL: "dummy"
     volumes:
       # shared with jupyter
       - ${WORK_DIRECTORY}:/work
