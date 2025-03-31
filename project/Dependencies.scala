@@ -24,7 +24,7 @@ object Dependencies {
   val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
   val workbenchOauth2V = "0.8-3e0cf25"
-  val workbenchAzureV = s"0.10-b25c29d"
+  val workbenchAzureV = "1.0-bfb53189-SNAP"
 
   val helmScalaSdkV = "0.0.9.1"
 
