@@ -17,14 +17,14 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val pact4sV = "0.10.0"
 
-  private val workbenchLibsHash = "ad2b686"
+  private val workbenchLibsHash = "5382beb"
   val serviceTestV = s"6.1-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
   val workbenchGoogleV = s"0.35-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
   val workbenchOauth2V = "0.8-3e0cf25"
-  val workbenchAzureV = "1.0-bfb53189-SNAP"
+  val workbenchAzureV = s"1.0-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.9.1"
 
