@@ -1415,7 +1415,7 @@ class RuntimeServiceInterpTest
       messages <- publisherQueue.tryTakeN(Some(2))
 
     } yield {
-      runtimes.map(_.status) shouldEqual List.empty
+      runtimes.map(_.status) shouldEqual List(RuntimeStatus.Deleted, RuntimeStatus.Deleted)
       messages shouldBe List.empty
     }
 
