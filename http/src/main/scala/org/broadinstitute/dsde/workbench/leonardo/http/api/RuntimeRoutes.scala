@@ -56,7 +56,7 @@ class RuntimeRoutes(saturnIframeExtensionHostConfig: RefererConfig,
                   complete(
                     listRuntimesHandler(
                       userInfo,
-                      None,,
+                      None,
                       params,
                       List(RuntimeStatus.Deleted)
                     )
