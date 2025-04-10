@@ -56,8 +56,9 @@ class RuntimeRoutes(saturnIframeExtensionHostConfig: RefererConfig,
                   complete(
                     listRuntimesHandler(
                       userInfo,
-                      None,
-                      params
+                      None,,
+                      params,
+                      List(RuntimeStatus.Deleted)
                     )
                   )
                 }
@@ -72,7 +73,8 @@ class RuntimeRoutes(saturnIframeExtensionHostConfig: RefererConfig,
                         listRuntimesHandler(
                           userInfo,
                           Some(cloudContext),
-                          params
+                          params,
+                          List.empty
                         )
                       )
                     }
@@ -197,13 +199,14 @@ class RuntimeRoutes(saturnIframeExtensionHostConfig: RefererConfig,
 
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        cloudContext: Option[CloudContext],
-                                       params: Map[String, String]
+                                       params: Map[String, String],
+                                       excludeStatuses: List[RuntimeStatus]
   )(implicit
     ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeService.listRuntimes(userInfo, cloudContext, params)
+      apiCall = runtimeService.listRuntimes(userInfo, cloudContext, params, excludeStatuses)
       _ <- metrics.incrementCounter("listRuntime")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "listRuntime")
