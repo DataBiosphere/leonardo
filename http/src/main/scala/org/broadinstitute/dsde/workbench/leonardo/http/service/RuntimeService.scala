@@ -31,10 +31,14 @@ trait RuntimeService[F[_]] {
   ): F[GetRuntimeResponse]
 
   def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(implicit
-                                                                                                                                               as: Ask[F, AppContext]
+    as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 
-  def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String], excludeStatuses: List[RuntimeStatus])(implicit
+  def listRuntimes(userInfo: UserInfo,
+                   cloudContext: Option[CloudContext],
+                   params: Map[String, String],
+                   excludeStatuses: List[RuntimeStatus]
+  )(implicit
     as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 

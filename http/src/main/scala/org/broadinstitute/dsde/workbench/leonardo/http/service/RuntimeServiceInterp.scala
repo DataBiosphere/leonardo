@@ -248,8 +248,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
     listRuntimes(userInfo, cloudContext, params, excludeStatuses)
   }
 
-  override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String], excludeStatuses: List[RuntimeStatus])(
-    implicit as: Ask[F, AppContext]
+  override def listRuntimes(userInfo: UserInfo,
+                            cloudContext: Option[CloudContext],
+                            params: Map[String, String],
+                            excludeStatuses: List[RuntimeStatus]
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
