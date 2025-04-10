@@ -407,7 +407,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      runtimes <- listRuntimes(userInfo, Some(cloudContext), List(RuntimeStatus.Deleted), Map.empty)
+      runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty, List(RuntimeStatus.Deleted))
       _ <- runtimes.traverse(runtime => deleteRuntimeRecords(userInfo, cloudContext, runtime))
     } yield ()
 
