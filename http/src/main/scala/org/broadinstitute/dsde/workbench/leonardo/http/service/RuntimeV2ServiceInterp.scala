@@ -340,6 +340,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](
       runtimes <- RuntimeServiceDbQueries
         .listRuntimes(
           runtimeIds = samResources.map(RuntimeSamResourceId).toSet,
+          excludeStatuses = List(RuntimeStatus.Deleted),
           workspaceId = Some(workspaceId)
         )
         .map(_.toList)
