@@ -648,7 +648,8 @@ object Config {
   implicit private val releaseNameSuffixReader: ValueReader[ReleaseNameSuffix] =
     stringValueReader.map(ReleaseNameSuffix)
   implicit private val dbPasswordReader: ValueReader[DbPassword] = stringValueReader.map(DbPassword)
-  implicit private val cromwellBackendNameReader: ValueReader[CromwellBackendName] = stringValueReader.map(CromwellBackendName)
+  implicit private val cromwellBackendNameReader: ValueReader[CromwellBackendName] =
+    stringValueReader.map(CromwellBackendName)
   implicit private val galaxyOrchUrlReader: ValueReader[GalaxyOrchUrl] = stringValueReader.map(GalaxyOrchUrl)
   implicit private val galaxyDrsUrlReader: ValueReader[GalaxyDrsUrl] = stringValueReader.map(GalaxyDrsUrl)
 
