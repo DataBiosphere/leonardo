@@ -28,7 +28,7 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
   override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
     implicit as: Ask[IO, AppContext]
   ): IO[Vector[ListRuntimeResponse2]] =
-    listRuntimes(userInfo, cloudContext, params, List.empty)
+    listRuntimes(userInfo, cloudContext, params, List(RuntimeStatus.Deleted))
 
   override def listRuntimes(userInfo: UserInfo,
                             cloudContext: Option[CloudContext],
