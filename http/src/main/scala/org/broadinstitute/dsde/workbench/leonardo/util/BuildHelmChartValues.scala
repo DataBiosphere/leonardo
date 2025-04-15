@@ -163,6 +163,8 @@ private[leonardo] object BuildHelmChartValues {
       // cromwellConfig
       raw"""config.gcsProject=${cluster.cloudContext.asString}""",
       raw"""config.gcsBucket=$gcsBucket/cromwell-execution""",
+      raw"""config.gcsRegion=us-central1""",
+      raw"""config.backend=${config.cromwellAppConfig.backend.value}""",
       // Service Account
       raw"""config.serviceAccount.name=${ksaName.value}""",
       raw"""config.serviceAccount.annotations.gcpServiceAccount=${gsa.value}"""
