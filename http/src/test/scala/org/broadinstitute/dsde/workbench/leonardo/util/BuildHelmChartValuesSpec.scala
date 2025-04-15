@@ -214,6 +214,8 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service/cromwell,""" +
       """config.gcsProject=dsp-leo-test1,""" +
       """config.gcsBucket=gs://test-bucket/cromwell-execution,""" +
+      """config.gcsRegion=us-central1,""" +
+      """config.backend=replace-me,""" +
       """config.serviceAccount.name=app1-cromwell-ksa,""" +
       """config.serviceAccount.annotations.gcpServiceAccount=pet123-abc@terra-test-abc.iam.gserviceaccount.com,""" +
       """ingress.enabled=true,""" +
