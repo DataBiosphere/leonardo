@@ -122,6 +122,7 @@ function apply_start_user_script() {
 # UPDATE THIS IF YOU ADD MORE STEPS:
 # currently the steps are:
 # START init,
+# .. after gcloud Ops Agent
 # .. after env setup
 # .. after copying files from google and into docker
 # .. after docker compose
@@ -135,6 +136,41 @@ function apply_start_user_script() {
 # .. after jupyter notebook start
 # END
 STEP_TIMINGS=($(date +%s))
+
+
+### Installs Google Cloud Ops Agent that is now required for Datapoc 2.2.X ###
+# See https://github.com/GoogleCloudDataproc/initialization-actions/tree/master/opsagent
+# Installs the Google Cloud Ops Agent on each node in the cluster.
+# It also provides an override to the built-in logging config to set empty
+# receivers i.e. not collect any logs.
+# If you need to collect syslogs, you can use the other script in this directory,
+# opsagent.sh which uses the built-in configuration of Ops Agent.
+# See https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/configuration#default.
+
+# Detect dataproc image version from its various names
+if (! test -v DATAPROC_IMAGE_VERSION) && test -v DATAPROC_VERSION; then
+  DATAPROC_IMAGE_VERSION="${DATAPROC_VERSION}"
+fi
+
+if [[ $(echo "${DATAPROC_IMAGE_VERSION} < 2.2" | bc -l) == 1  ]]; then
+  echo "This Dataproc cluster node runs image version ${DATAPROC_IMAGE_VERSION} with pre-installed legacy monitoring agent. Skipping Ops Agent installation."
+  exit 0
+fi
+
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+bash add-google-cloud-ops-agent-repo.sh --also-install
+
+cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
+logging:
+  service:
+    pipelines:
+      default_pipeline:
+        receivers: []
+EOF
+
+systemctl restart google-cloud-ops-agent
+###
+
 # temp workaround for https://github.com/docker/compose/issues/5930
 export CLOUDSDK_PYTHON=python3
 
