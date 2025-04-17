@@ -318,7 +318,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       disks <- listDisks(
         userInfo,
         Some(cloudContext),
-        Map.empty
+        Map(includeDeletedKey -> "true")
       )
       _ <- disks.traverse(disk => deleteDiskRecords(userInfo, cloudContext, disk))
     } yield ()

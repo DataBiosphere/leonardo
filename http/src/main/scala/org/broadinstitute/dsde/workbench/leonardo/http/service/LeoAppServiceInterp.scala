@@ -528,7 +528,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       apps <- listApp(
         userInfo,
         Some(cloudContext),
-        Map.empty
+        Map(includeDeletedKey -> "true")
       )
       _ <- apps.traverse(app => deleteAppRecords(userInfo, cloudContext, app.appName))
     } yield ()
