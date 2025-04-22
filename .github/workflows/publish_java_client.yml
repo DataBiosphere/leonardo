@@ -34,7 +34,7 @@ jobs:
 
       # coursier cache action caches both coursier and sbt caches
       - name: coursier-cache-action
-        uses: coursier/cache-action@v6
+        uses: actions/cache@v3
 
       - name: Extract branch name
         shell: bash
