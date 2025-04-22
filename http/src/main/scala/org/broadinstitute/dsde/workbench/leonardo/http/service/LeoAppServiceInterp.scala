@@ -523,6 +523,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
               log.error(ctx.loggingCtx)(e.getMessage)
             }
           } yield ()
+        case None => log.info("Deleting orphaned app " + appName)
       }
       // Delete kubernetes-app Sam resource
       _ <- samService.deleteResource(userInfo.accessToken.token, dbApp.samResourceId)
