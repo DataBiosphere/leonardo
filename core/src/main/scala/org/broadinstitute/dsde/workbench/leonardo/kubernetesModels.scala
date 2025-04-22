@@ -572,6 +572,7 @@ final case class DbPassword(value: String) extends AnyVal
 final case class ReleaseNameSuffix(value: String) extends AnyVal
 final case class NamespaceNameSuffix(value: String) extends AnyVal
 
+final case class CromwellBackendName(value: String) extends AnyVal
 final case class GalaxyOrchUrl(value: String) extends AnyVal
 final case class GalaxyDrsUrl(value: String) extends AnyVal
 final case class AppMachineType(memorySizeInGb: Int, numOfCpus: Int)

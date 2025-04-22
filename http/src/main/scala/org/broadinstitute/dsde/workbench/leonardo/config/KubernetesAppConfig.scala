@@ -80,6 +80,7 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    serviceAccountName: ServiceAccountName,
                                    dbPassword: DbPassword,
                                    enabled: Boolean,
+                                   backend: CromwellBackendName,
                                    chartVersionsToExcludeFromUpdates: List[ChartVersion]
 ) extends KubernetesAppConfig {
   override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))

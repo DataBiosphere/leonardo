@@ -70,7 +70,7 @@ jobs:
         version: "v0.1.15"
 
     - name: Setup Cache
-      uses: coursier/cache-action@v5
+      uses: actions/cache@v3
     - name: Cache resources
       run: |
         rm -rf "$HOME/.ivy2/local" || true
