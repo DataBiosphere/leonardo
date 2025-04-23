@@ -145,12 +145,15 @@ dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
 # The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
 # NOTE: If it fails with another legitimate error, this `|| true` could mask it. It was used as a last resort after a lot of attempts to fix.
-apt-get install -y -q docker-ce || true
+# apt-get install -y -q docker-ce || true
 log 'Installing Docker Compose...'
+
+# start docker
+systemctl start docker
 
 # Install docker-compose
 # https://docs.docker.com/compose/install/#install-compose
-docker_compose_version_number="1.22.0"
+docker_compose_version_number="2.28.1"
 docker_compose_kernel_name="$(uname -s)"
 docker_compose_machine_hardware_name="$(uname -m)"
 docker_compose_binary_download_url="https://github.com/docker/compose/releases/download/${docker_compose_version_number:?}/docker-compose-${docker_compose_kernel_name:?}-${docker_compose_machine_hardware_name:?}"
