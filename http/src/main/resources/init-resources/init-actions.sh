@@ -159,16 +159,16 @@ fi
 
 curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
 bash add-google-cloud-ops-agent-repo.sh --also-install
-
-cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
-logging:
-  service:
-    pipelines:
-      default_pipeline:
-        receivers: []
-EOF
-
-systemctl restart google-cloud-ops-agent
+#
+#cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
+#logging:
+#  service:
+#    pipelines:
+#      default_pipeline:
+#        receivers: []
+#EOF
+#
+#systemctl restart google-cloud-ops-agent
 ###
 
 # temp workaround for https://github.com/docker/compose/issues/5930
@@ -266,44 +266,65 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch auth_openidc.conf
 
 
+    # Add ops agent configuration for welder, jupyter, user startup and shutdown scripts
+    cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
+    logging:
+      receivers:
+        welder
+          type: files
+          include_paths: [/work/welder.log]
+        jupyter
+          type: files
+          include_paths: [/work/jupyter.log]
+        daemon
+          type: files
+          include_paths: [/var/log/daemon.log]
+      service:
+        pipelines:
+          default_pipeline:
+            receivers: [welder, jupyter, daemon]
+EOF
+
+    systemctl restart google-cloud-ops-agent
+
     ## Note that the stack driver configuration is changing in later versions of Dataproc, see https://broadworkbench.atlassian.net/browse/IA-5023
     # Add stack driver configuration for welder
-    tee /etc/google-fluentd/config.d/welder.conf << END
-<source>
- @type tail
- format json
- path /work/welder.log
- pos_file /var/tmp/fluentd.welder.pos
- read_from_head true
- tag welder
-</source>
-END
-
-    # Add stack driver configuration for jupyter
-    tee /etc/google-fluentd/config.d/jupyter.conf << END
-<source>
- @type tail
- format none
- path /work/jupyter.log
- pos_file /var/tmp/fluentd.jupyter.pos
- read_from_head true
- tag jupyter
-</source>
-END
-
-    # Add stack driver configuration for user startup and shutdown scripts
-    tee /etc/google-fluentd/config.d/daemon.conf << END
-<source>
- @type tail
- format none
- path /var/log/daemon.log
- pos_file /var/tmp/fluentd.google.user.daemon.pos
- read_from_head true
- tag daemon
-</source>
-END
-
-    service google-fluentd reload
+#    tee /etc/google-fluentd/config.d/welder.conf << END
+#<source>
+# @type tail
+# format json
+# path /work/welder.log
+# pos_file /var/tmp/fluentd.welder.pos
+# read_from_head true
+# tag welder
+#</source>
+#END
+#
+#    # Add stack driver configuration for jupyter
+#    tee /etc/google-fluentd/config.d/jupyter.conf << END
+#<source>
+# @type tail
+# format none
+# path /work/jupyter.log
+# pos_file /var/tmp/fluentd.jupyter.pos
+# read_from_head true
+# tag jupyter
+#</source>
+#END
+#
+#    # Add stack driver configuration for user startup and shutdown scripts
+#    tee /etc/google-fluentd/config.d/daemon.conf << END
+#<source>
+# @type tail
+# format none
+# path /var/log/daemon.log
+# pos_file /var/tmp/fluentd.google.user.daemon.pos
+# read_from_head true
+# tag daemon
+#</source>
+#END
+#
+#    service google-fluentd reload
 
     # Install env var config
     if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
