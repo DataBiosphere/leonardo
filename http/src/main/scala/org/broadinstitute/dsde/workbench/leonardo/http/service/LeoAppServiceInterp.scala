@@ -538,16 +538,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         Some(cloudContext),
         Map(includeDeletedKey -> "true")
       )
-      _ <- apps.traverse(app => deleteAppRecords(userInfo, cloudContext, app.appName).handleErrorWith { err =>
-        if (app.status == AppStatus.Deleted) {
-          log.warn(s"App ${app.appName.value} is already fully deleted. Skipping delete. Error: ${err.getMessage}")
+      _ <- apps.traverse(app =>
+        deleteAppRecords(userInfo, cloudContext, app.appName).handleErrorWith { err =>
+          if (app.status == AppStatus.Deleted) {
+            log.warn(s"App ${app.appName.value} is already fully deleted. Skipping delete. Error: ${err.getMessage}")
+            F.unit
+          } else {
+            // Re-raise the error to fail the whole operation
+            F.raiseError(err)
+          }
           F.unit
-        } else {
-          // Re-raise the error to fail the whole operation
-          F.raiseError(err)
         }
-        F.unit
-        })
+      )
     } yield ()
 
   def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit

@@ -16,7 +16,11 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateDiskMessage, DeleteDiskMessage, UpdateDiskMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateDiskMessage,
+  DeleteDiskMessage,
+  UpdateDiskMessage
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -307,10 +311,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
 
       // Mark the resource as deleted in Leo's DB
-      _ <- if (dbdisk.status != DiskStatus.Deleted)
-        dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
-      else
-        F.unit
+      _ <-
+        if (dbdisk.status != DiskStatus.Deleted)
+          dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
+        else
+          F.unit
       // Delete the persistent-disk Sam resource
       _ <- samService.deleteResource(userInfo.accessToken.token, dbdisk.samResource)
     } yield ()
@@ -325,16 +330,18 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         Some(cloudContext),
         Map(includeDeletedKey -> "true")
       )
-      _ <- disks.traverse(disk => deleteDiskRecords(userInfo, cloudContext, disk).handleErrorWith { err =>
-        if (disk.status == DiskStatus.Deleted) {
-          log.warn(s"Disk ${disk.name.value} is already fully deleted. Skipping delete. Error: ${err.getMessage}")
+      _ <- disks.traverse(disk =>
+        deleteDiskRecords(userInfo, cloudContext, disk).handleErrorWith { err =>
+          if (disk.status == DiskStatus.Deleted) {
+            log.warn(s"Disk ${disk.name.value} is already fully deleted. Skipping delete. Error: ${err.getMessage}")
+            F.unit
+          } else {
+            // Re-raise the error to fail the whole operation
+            F.raiseError(err)
+          }
           F.unit
-        } else {
-          // Re-raise the error to fail the whole operation
-          F.raiseError(err)
         }
-        F.unit
-      })
+      )
     } yield ()
 
   override def updateDisk(

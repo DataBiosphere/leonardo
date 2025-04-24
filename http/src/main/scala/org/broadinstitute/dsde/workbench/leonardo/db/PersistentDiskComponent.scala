@@ -222,7 +222,7 @@ object persistentDiskQuery {
   def getById(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findByIdQuery(id)).result.map(aggregateLabels).map(_.headOption)
 
-  def getByName(name: DiskName)(implicit ec: ExecutionContext): DBIO[Option[PersistentDiskRecord]] =
+  def getByName(name: DiskName): DBIO[Option[PersistentDiskRecord]] =
     findByNameQuery(name).result.headOption
 
   def getStatus(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[DiskStatus]] =
