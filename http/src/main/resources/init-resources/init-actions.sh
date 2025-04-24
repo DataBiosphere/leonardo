@@ -267,23 +267,30 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
 
     # Add ops agent configuration for welder, jupyter, user startup and shutdown scripts
+#    cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
+#    logging:
+#      receivers:
+#        welder
+#          type: files
+#          include_paths: [/work/welder.log]
+#        jupyter
+#          type: files
+#          include_paths: [/work/jupyter.log]
+#        daemon
+#          type: files
+#          include_paths: [/var/log/daemon.log]
+#      service:
+#        pipelines:
+#          default_pipeline:
+#            receivers: [welder, jupyter, daemon]
+#EOF
     cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
     logging:
-      receivers:
-        welder
-          type: files
-          include_paths: [/work/welder.log]
-        jupyter
-          type: files
-          include_paths: [/work/jupyter.log]
-        daemon
-          type: files
-          include_paths: [/var/log/daemon.log]
       service:
         pipelines:
           default_pipeline:
-            receivers: [welder, jupyter, daemon]
-EOF
+            receivers: []
+    EOF
 
     systemctl restart google-cloud-ops-agent
 
