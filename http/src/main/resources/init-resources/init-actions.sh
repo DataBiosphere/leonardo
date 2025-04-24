@@ -290,7 +290,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         pipelines:
           default_pipeline:
             receivers: []
-    EOF
+EOF
 
     systemctl restart google-cloud-ops-agent
 
