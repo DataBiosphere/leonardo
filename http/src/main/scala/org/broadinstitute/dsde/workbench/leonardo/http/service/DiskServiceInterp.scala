@@ -16,11 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateDiskMessage,
-  DeleteDiskMessage,
-  UpdateDiskMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateDiskMessage, DeleteDiskMessage, UpdateDiskMessage}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -28,6 +24,7 @@ import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService, SamUtils}
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
@@ -38,6 +35,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         samService: SamService[F]
 )(implicit
   F: Async[F],
+  log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends DiskService[F] {
@@ -327,7 +325,16 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         Some(cloudContext),
         Map(includeDeletedKey -> "true")
       )
-      _ <- disks.traverse(disk => deleteDiskRecords(userInfo, cloudContext, disk))
+      _ <- disks.traverse(disk => deleteDiskRecords(userInfo, cloudContext, disk).handleErrorWith { err =>
+        if (disk.status == DiskStatus.Deleted) {
+          log.warn(s"Disk ${disk.name.value} is already fully deleted. Skipping delete. Error: ${err.getMessage}")
+          F.unit
+        } else {
+          // Re-raise the error to fail the whole operation
+          F.raiseError(err)
+        }
+        F.unit
+      })
     } yield ()
 
   override def updateDisk(
