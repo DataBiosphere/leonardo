@@ -291,9 +291,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       // Find the disk's Sam resource id
-      dbdisk <- DiskServiceDbQueries
-        .getGetPersistentDiskResponse(cloudContext, disk.name, ctx.traceId)
+      dbdiskOpt <- persistentDiskQuery
+        .getByName(disk.name)
         .transaction
+      dbdisk <- F.fromOption(
+        dbdiskOpt,
+        DiskNotFoundException(cloudContext, disk.name, ctx.traceId)
+      )
 
       _ <- SamUtils.checkDiskAction(samService,
                                     userInfo,
@@ -305,7 +309,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
 
       // Mark the resource as deleted in Leo's DB
-      _ <- dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
+      _ <- if (dbdisk.status != DiskStatus.Deleted)
+        dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
+      else
+        F.unit
       // Delete the persistent-disk Sam resource
       _ <- samService.deleteResource(userInfo.accessToken.token, dbdisk.samResource)
     } yield ()
