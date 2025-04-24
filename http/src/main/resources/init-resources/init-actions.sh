@@ -368,10 +368,11 @@ EOF
       cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
 
+    retry 5 docker-compose "${COMPOSE_FILES[@]}" config
+
     # restart docker
     systemctl restart docker
 
-    retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
 
