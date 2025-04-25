@@ -2,7 +2,7 @@ version: '2.4'
 services:
   proxy:
     container_name: "${PROXY_SERVER_NAME}"
-    image: "${PROXY_DOCKER_IMAGE}"
+    image: "mirror.gcr.io/${PROXY_DOCKER_IMAGE}"
     network_mode: host
     volumes:
     - ${CERT_DIRECTORY}/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
