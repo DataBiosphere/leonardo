@@ -718,6 +718,35 @@ class DiskServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "log an error but not fail when deleteDiskRecords fails for already deleted disk" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource, status = DiskStatus.Deleted)
+        .save()
+
+      // Mock checkAuthorized to throw a DiskNotFoundException
+      _ = when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+        .thenAnswer(_ => IO.raiseError(DiskNotFoundException(cloudContextGcp, disk.name, ctx.traceId)))
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk.samResource.resourceId)))
+
+      // Should skip the error and continue
+      _ <- diskService.deleteAllDisksRecords(userInfo, cloudContextGcp)
+
+      dbDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+    } yield {
+      dbDiskOpt shouldBe defined
+      dbDiskOpt.get.status shouldBe DiskStatus.Deleted
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "delete all orphaned disks" in isolatedDbTest {
     val samService = mock[SamService[IO]]
     val (diskService, publisherQueue) = makeDiskService(samService = samService)
