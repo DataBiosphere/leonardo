@@ -44,7 +44,7 @@
             ]
         },
         "wait-for-instance": {
-            "TimeOut": "1h",
+            "TimeOut": "2h",
             "WaitForInstancesSignal": [
                 {
                     "Name": "inst-install",
