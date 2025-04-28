@@ -1462,14 +1462,13 @@ class GKEInterpreter[F[_]](
     gsa: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    // TODO: Use the chart from the database instead of re-looking it up in config:
     val chart = config.cromwellAppConfig.chart
 
     for {
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getClusterId.toString}"
+        s"Installing helm chart ${chart} for Cromwell app ${appName.value} in cluster ${cluster.getClusterId.toString}"
       )
 
       chartValues = buildCromwellAppChartOverrideValuesString(config,
