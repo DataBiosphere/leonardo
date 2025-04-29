@@ -584,7 +584,7 @@ EOF
 #
 #      # Start RStudio server
 #      retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
-#    fi
+    fi
 
     # Remove any unneeded cached images to save disk space.
     # Do this asynchronously so it doesn't hold up cluster creation
