@@ -339,7 +339,6 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
             // Re-raise the error to fail the whole operation
             F.raiseError(err)
           }
-          F.unit
         }
       )
     } yield ()

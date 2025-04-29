@@ -2074,6 +2074,62 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     messages.map(_.messageType) shouldBe List.empty
   }
 
+  it should "V1 GCP - deleteAllAppsRecords, should re-raise error from app deletion" in isolatedDbTest {
+    val appName = AppName("app-to-delete")
+    val diskName = DiskName("disk-to-delete")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
+                                       appType = AppType.Galaxy,
+                                       diskConfig = Some(createDiskConfig)
+    )
+
+    // Create an app
+    appServiceInterp
+      .createApp(userInfo, cloudContextGcp, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getFullAppByName(CloudContext.Gcp(project), appName)
+    }.get
+    // we can't delete/create another while its creating, so set it to Running
+    dbFutureValue(appQuery.updateStatus(appResult.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResult.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(
+      kubernetesClusterQuery.updateStatus(appResult.cluster.id, KubernetesClusterStatus.Running)
+    )
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val mockSamService = mock[SamService[IO]]
+    val mockAuthProvider = mock[LeoAuthProvider[IO]]
+
+    when(mockAuthProvider.getActions(any, any)(any, any)).thenReturn(IO.pure(List.empty))
+    when(mockAuthProvider.isUserProjectReader(any, any)(any)).thenReturn(IO.pure(true))
+    // mock google app visibility
+    when(mockAuthProvider.filterResourceProjectVisible(any, any)(any, any, any))
+      .thenAnswer { invocation =>
+        val resources = invocation.getArgument(0).asInstanceOf[NonEmptyList[(GoogleProject, Any)]]
+        IO.pure(resources.toList)
+      }
+    // mock azure app visibility
+    when(mockAuthProvider.checkUserEnabled(any)(any)).thenReturn(IO.unit)
+    when(mockAuthProvider.filterUserVisible(any, any)(any, any, any)).thenReturn(IO.pure(List.empty))
+
+    val interp = new LeoAppServiceInterp[IO](
+      appServiceConfig,
+      mockAuthProvider,
+      publisherQueue,
+      Some(FakeGoogleComputeService),
+      Some(FakeGoogleResourceService),
+      gkeCustomAppConfig,
+      wsmClientProvider,
+      mockSamService
+    )
+
+    a[AppNotFoundException] should be thrownBy {
+      interp.deleteAllAppsRecords(userInfo, cloudContextGcp).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "V1 GCP - deleteAllAppsRecords, log an error but not fail when cleaning up already deleted app" in isolatedDbTest {
     val appName = AppName("app-to-delete")
     val diskName = DiskName("disk-to-delete")
@@ -2098,7 +2154,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val mockSamService = mock[SamService[IO]]
-    val mockAuthProvider = mock[SamAuthProvider[IO]]
+    val mockAuthProvider = mock[LeoAuthProvider[IO]]
 
     when(mockAuthProvider.getActions(any, any)(any, any)).thenAnswer { invocation =>
       val arg = invocation.getArgument(0) // 0 is the first argument
