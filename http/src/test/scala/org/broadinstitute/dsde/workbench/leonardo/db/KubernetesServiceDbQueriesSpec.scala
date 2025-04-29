@@ -591,6 +591,21 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     getApp.get.app.appResources.services.size shouldBe 2
   }
 
+  "getFullAppByName" should "get a full app" in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+    val nodepool1 = makeNodepool(1, cluster1.id).save()
+    val app1 = makeApp(1, nodepool1.id, status = AppStatus.Deleted).save()
+
+    val getApp1 = dbFutureValue {
+      KubernetesServiceDbQueries.getFullAppByName(cluster1.cloudContext, app1.appName)
+    }
+    getApp1 shouldBe defined
+    getApp1.get.cluster.cloudContext shouldEqual cluster1.cloudContext
+    getApp1.get.cluster.clusterName shouldEqual cluster1.clusterName
+    getApp1.get.nodepool.copy(apps = List()) shouldEqual nodepool1
+    getApp1.get.app shouldEqual app1
+  }
+
   "getActiveFullAppByWorkspaceIdAndAppName" should "get an active app by workspace id" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()
     val nodepool1 = makeNodepool(1, cluster1.id).save()
