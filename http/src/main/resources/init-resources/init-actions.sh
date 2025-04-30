@@ -525,23 +525,23 @@ EOF
       # This is to make it so that older images will still work after we change notebooks location to home dir
       docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
-      # Copy gitignore into jupyter container
-      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
-
-      # Install nbstripout and set gitignore in Git Config
-      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
-            && python -m nbstripout --install --global \
-            && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
-
-      # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
-      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
-           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
-           && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
-           && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && mkdir -p $JUPYTER_HOME/nbconfig"
+#      # Copy gitignore into jupyter container
+#      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
+#
+#      # Install nbstripout and set gitignore in Git Config
+#      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
+#            && python -m nbstripout --install --global \
+#            && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
+#
+#      # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
+#      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+#           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
+#           && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+#           && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && mkdir -p $JUPYTER_HOME/nbconfig"
 
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
