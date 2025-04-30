@@ -8,6 +8,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import com.google.api.services.cloudresourcemanager.model.{Ancestor, ResourceId}
 import com.google.cloud.compute.v1.Disk
+import org.broadinstitute.dsde.workbench.client.sam.ApiException
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.mock.MockGoogleDiskService
@@ -713,6 +714,60 @@ class DiskServiceInterpTest
     } yield {
       disks shouldEqual List.empty
       message shouldBe None
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "should re-raise error from disk deletion" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource, status = DiskStatus.Ready)
+        .save()
+
+      _ = when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+        .thenReturn(IO.unit)
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk.samResource.resourceId)))
+      _ = when(samService.deleteResource(any(), any())(any()))
+        .thenReturn(IO.raiseError(SamException.create("error", StatusCodes.InternalServerError.intValue, TraceId(""))))
+      _ <- diskService.deleteAllDisksRecords(userInfo, cloudContextGcp)
+    } yield ()
+
+    intercept[SamException] {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "log an error but not fail when deleteDiskRecords fails for already deleted disk" in isolatedDbTest {
+    val samService = mock[SamService[IO]]
+    val (diskService, _) = makeDiskService(samService = samService)
+
+    val res = for {
+      ctx <- appContext.ask[AppContext]
+      diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
+      disk <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp))
+        .copy(samResource = diskSamResource, status = DiskStatus.Deleted)
+        .save()
+
+      // Mock checkAuthorized to throw a DiskNotFoundException
+      _ = when(samService.checkAuthorized(any(), any(), isEq(PersistentDiskAction.DeletePersistentDisk))(any()))
+        .thenAnswer(_ => IO.raiseError(DiskNotFoundException(cloudContextGcp, disk.name, ctx.traceId)))
+      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
+        .thenReturn(IO.pure(List(disk.samResource.resourceId)))
+
+      // Should skip the error and continue
+      _ <- diskService.deleteAllDisksRecords(userInfo, cloudContextGcp)
+
+      dbDiskOpt <- persistentDiskQuery.getById(disk.id).transaction
+    } yield {
+      dbDiskOpt shouldBe defined
+      dbDiskOpt.get.status shouldBe DiskStatus.Deleted
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

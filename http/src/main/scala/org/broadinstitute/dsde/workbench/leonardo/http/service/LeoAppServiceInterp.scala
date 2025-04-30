@@ -487,12 +487,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     for {
       ctx <- as.ask
       // Find the app ID and Sam resource id
-      dbAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(cloudContext, appName)
-        .transaction
+      dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(cloudContext, appName).transaction
       dbApp <- F.fromOption(
         dbAppOpt,
-        AppNotFoundException(cloudContext, appName, ctx.traceId, "No active app found in DB")
+        AppNotFoundException(cloudContext, appName, ctx.traceId, "No app found in DB")
       )
       listOfPermissions <- authProvider.getActions(dbApp.app.samResourceId, userInfo)
 
@@ -509,16 +507,24 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
-      // Mark the app, nodepool and cluster as deleted in Leo's DB
-      _ <- dbReference.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
-      _ <- dbReference.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
-      _ <- dbReference.inTransaction(kubernetesClusterQuery.markAsDeleted(dbApp.cluster.id, ctx.now))
+      // check if the app is active
+      _ <-
+        if (dbApp.app.status != AppStatus.Deleted) {
+          for {
+            // Mark the app, nodepool and cluster as deleted in Leo's DB
+            _ <- dbReference.inTransaction(appQuery.markAsDeleted(dbApp.app.id, ctx.now))
+            _ <- dbReference.inTransaction(nodepoolQuery.markAsDeleted(dbApp.nodepool.id, ctx.now))
+            _ <- dbReference.inTransaction(kubernetesClusterQuery.markAsDeleted(dbApp.cluster.id, ctx.now))
+            // Stop the usage of the SAS app
+            _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).recoverWith { case e: FailToRecordStoptime =>
+              log.error(ctx.loggingCtx)(e.getMessage)
+            }
+          } yield ()
+        } else {
+          log.info("Deleting orphaned app " + appName)
+        }
       // Delete kubernetes-app Sam resource
       _ <- samService.deleteResource(userInfo.accessToken.token, dbApp.app.samResourceId)
-      // Stop the usage of the SAS app
-      _ <- appUsageQuery.recordStop(dbApp.app.id, ctx.now).recoverWith { case e: FailToRecordStoptime =>
-        log.error(ctx.loggingCtx)(e.getMessage)
-      }
     } yield ()
 
   override def deleteAllAppsRecords(userInfo: UserInfo, cloudContext: CloudContext.Gcp)(implicit
@@ -528,9 +534,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       apps <- listApp(
         userInfo,
         Some(cloudContext),
-        Map.empty
+        Map(includeDeletedKey -> "true")
       )
-      _ <- apps.traverse(app => deleteAppRecords(userInfo, cloudContext, app.appName))
+      _ <- apps.traverse(app =>
+        deleteAppRecords(userInfo, cloudContext, app.appName).handleErrorWith { err =>
+          if (app.status == AppStatus.Deleted) {
+            log.warn(s"App ${app.appName.value} is already fully deleted. Skipping delete. Error: ${err.getMessage}")
+            F.unit
+          } else {
+            // Re-raise the error to fail the whole operation
+            F.raiseError(err)
+          }
+        }
+      )
     } yield ()
 
   def stopApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit

@@ -25,8 +25,12 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
       GetRuntimeResponse.fromRuntime(CommonTestData.testCluster, CommonTestData.defaultDataprocRuntimeConfig, None)
     )
 
-  override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
-    implicit as: Ask[IO, AppContext]
+  override def listRuntimes(userInfo: UserInfo,
+                            cloudContext: Option[CloudContext],
+                            params: Map[String, String],
+                            excludeStatuses: List[RuntimeStatus] = List(RuntimeStatus.Deleted)
+  )(implicit
+    as: Ask[IO, AppContext]
   ): IO[Vector[ListRuntimeResponse2]] =
     IO.pure(
       Vector(
