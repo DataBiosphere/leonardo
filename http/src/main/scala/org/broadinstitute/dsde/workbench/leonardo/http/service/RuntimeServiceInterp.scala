@@ -241,8 +241,12 @@ class RuntimeServiceInterp[F[_]: Parallel](
       )
     } yield resp
 
-  override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
-    implicit as: Ask[F, AppContext]
+  override def listRuntimes(userInfo: UserInfo,
+                            cloudContext: Option[CloudContext],
+                            params: Map[String, String],
+                            excludeStatuses: List[RuntimeStatus] = List(RuntimeStatus.Deleted)
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
@@ -250,7 +254,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
       samResources <- samService.listResources(userInfo.accessToken.token, RuntimeSamResource.resourceType)
 
       (labelMap, _, _) <- F.fromEither(processListParameters(params))
-      excludeStatuses = List(RuntimeStatus.Deleted)
       creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Start DB query for listRuntimes")))
@@ -397,7 +400,7 @@ class RuntimeServiceInterp[F[_]: Parallel](
     as: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty)
+      runtimes <- listRuntimes(userInfo, Some(cloudContext), Map.empty, List.empty)
       _ <- runtimes.traverse(runtime => deleteRuntimeRecords(userInfo, cloudContext, runtime))
     } yield ()
 

@@ -28,6 +28,7 @@ import java.time.Instant
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService, SamUtils}
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
@@ -38,6 +39,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         samService: SamService[F]
 )(implicit
   F: Async[F],
+  log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends DiskService[F] {
@@ -291,9 +293,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       ctx <- as.ask
       // Find the disk's Sam resource id
-      dbdisk <- DiskServiceDbQueries
-        .getGetPersistentDiskResponse(cloudContext, disk.name, ctx.traceId)
+      dbdiskOpt <- persistentDiskQuery
+        .getByName(disk.name)
         .transaction
+      dbdisk <- F.fromOption(
+        dbdiskOpt,
+        DiskNotFoundException(cloudContext, disk.name, ctx.traceId)
+      )
 
       _ <- SamUtils.checkDiskAction(samService,
                                     userInfo,
@@ -305,7 +311,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       )
 
       // Mark the resource as deleted in Leo's DB
-      _ <- dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
+      _ <-
+        if (dbdisk.status != DiskStatus.Deleted)
+          dbReference.inTransaction(persistentDiskQuery.delete(disk.id, ctx.now))
+        else
+          F.unit
       // Delete the persistent-disk Sam resource
       _ <- samService.deleteResource(userInfo.accessToken.token, dbdisk.samResource)
     } yield ()
@@ -318,9 +328,19 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       disks <- listDisks(
         userInfo,
         Some(cloudContext),
-        Map.empty
+        Map(includeDeletedKey -> "true")
       )
-      _ <- disks.traverse(disk => deleteDiskRecords(userInfo, cloudContext, disk))
+      _ <- disks.traverse(disk =>
+        deleteDiskRecords(userInfo, cloudContext, disk).handleErrorWith { err =>
+          if (disk.status == DiskStatus.Deleted) {
+            log.warn(s"Disk ${disk.name.value} is already fully deleted. Skipping delete. Error: ${err.getMessage}")
+            F.unit
+          } else {
+            // Re-raise the error to fail the whole operation
+            F.raiseError(err)
+          }
+        }
+      )
     } yield ()
 
   override def updateDisk(

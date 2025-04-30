@@ -163,6 +163,20 @@ object KubernetesServiceDbQueries {
     )
 
   /**
+   * Gets an app by name and cloud context.
+   * Unlike getActiveFullAppByName, this does not filter for active apps.
+   */
+  def getFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[GetAppResult]] =
+    getActiveFullApp(
+      listClustersByCloudContext(Some(cloudContext)),
+      nodepoolQuery,
+      appQuery.findByNameQuery(appName),
+      labelFilter
+    )
+
+  /**
     * Gets an active app by name and workspace.
     * This method should be used by v2 app routes.
     */

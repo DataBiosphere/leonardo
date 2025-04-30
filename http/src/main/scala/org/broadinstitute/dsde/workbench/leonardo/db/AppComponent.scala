@@ -413,6 +413,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def getAppType(appName: AppName): DBIO[Option[AppType]] =
     findActiveByNameQuery(appName).map(_.appType).result.headOption
 
+  def getAppByName(appName: AppName): DBIO[Option[AppRecord]] =
+    findByNameQuery(appName).result.headOption
+
   def getAppsReadyToAutoDelete(implicit ec: ExecutionContext): DBIO[Seq[AppToAutoDelete]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, AutodeleteThreshold]("TIMESTAMPDIFF")
@@ -448,6 +451,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)
+
+  private[db] def findByNameQuery(appName: AppName): Query[AppTable, AppRecord, Seq] =
+    appQuery.filter(_.appName === appName)
 
   private[db] def findActiveByNameQuery(
     appName: AppName
