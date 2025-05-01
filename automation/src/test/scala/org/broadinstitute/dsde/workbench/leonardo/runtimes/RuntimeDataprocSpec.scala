@@ -95,9 +95,9 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
             RuntimeConfigRequest.DataprocConfig(
               Some(2),
               Some(MachineTypeName("n1-standard-4")),
-              Some(DiskSize(180)),
+              Some(DiskSize(150)),
               Some(MachineTypeName("n1-standard-4")),
-              Some(DiskSize(180)),
+              Some(DiskSize(150)),
               None,
               Some(5),
               Map.empty,
@@ -158,9 +158,9 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
         RuntimeConfigRequest.DataprocConfig(
           Some(2),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(180)),
+          Some(DiskSize(150)),
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(180)),
+          Some(DiskSize(150)),
           None,
           None,
           Map.empty,
