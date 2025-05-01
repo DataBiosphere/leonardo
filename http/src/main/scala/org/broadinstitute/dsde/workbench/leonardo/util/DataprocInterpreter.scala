@@ -204,7 +204,8 @@ class DataprocInterpreter[F[_]: Parallel](
           } else {
             List(config.vpcConfig.networkTag.value)
           }
-
+        // Dataproc 2.2.X changed the default behavior to not assign an external ip address by default
+        // https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/network#create-a-dataproc-cluster-with-internal-IP-addresses-only
         gceClusterConfig = {
           val bldr = GceClusterConfig
             .newBuilder()
@@ -212,6 +213,7 @@ class DataprocInterpreter[F[_]: Parallel](
             .setSubnetworkUri(subnetwork.value)
             .setServiceAccount(params.serviceAccountInfo.value)
             .addAllServiceAccountScopes(params.scopes.asJava)
+            .setInternalIpOnly(false)
           bldr.build()
         }
 

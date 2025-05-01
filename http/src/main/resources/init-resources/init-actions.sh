@@ -138,7 +138,7 @@ function apply_start_user_script() {
 STEP_TIMINGS=($(date +%s))
 
 
-### Installs Google Cloud Ops Agent that is now required for Datapoc 2.2.X ###
+## Installs Google Cloud Ops Agent that is now required for Datapoc 2.2.X ###
 # See https://github.com/GoogleCloudDataproc/initialization-actions/tree/master/opsagent
 # Installs the Google Cloud Ops Agent on each node in the cluster.
 # It also provides an override to the built-in logging config to set empty
@@ -146,19 +146,19 @@ STEP_TIMINGS=($(date +%s))
 # If you need to collect syslogs, you can use the other script in this directory,
 # opsagent.sh which uses the built-in configuration of Ops Agent.
 # See https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/configuration#default.
-
+#
 # Detect dataproc image version from its various names
-#if (! test -v DATAPROC_IMAGE_VERSION) && test -v DATAPROC_VERSION; then
-#  DATAPROC_IMAGE_VERSION="${DATAPROC_VERSION}"
-#fi
-#
-#if [[ $(echo "${DATAPROC_IMAGE_VERSION} < 2.2" | bc -l) == 1  ]]; then
-#  echo "This Dataproc cluster node runs image version ${DATAPROC_IMAGE_VERSION} with pre-installed legacy monitoring agent. Skipping Ops Agent installation."
-#  exit 0
-#fi
-#
-#curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
-#bash add-google-cloud-ops-agent-repo.sh --also-install
+if (! test -v DATAPROC_IMAGE_VERSION) && test -v DATAPROC_VERSION; then
+  DATAPROC_IMAGE_VERSION="${DATAPROC_VERSION}"
+fi
+
+if [[ $(echo "${DATAPROC_IMAGE_VERSION} < 2.2" | bc -l) == 1  ]]; then
+  echo "This Dataproc cluster node runs image version ${DATAPROC_IMAGE_VERSION} with pre-installed legacy monitoring agent. Skipping Ops Agent installation."
+  exit 0
+fi
+
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+bash add-google-cloud-ops-agent-repo.sh --also-install
 
 # temp workaround for https://github.com/docker/compose/issues/5930
 export CLOUDSDK_PYTHON=python3
@@ -236,305 +236,305 @@ if [[ "${ROLE}" == 'Master' ]]; then
     INIT_BUCKET_NAME=$(initBucketName)
 
     STEP_TIMINGS+=($(date +%s))
-#
-#    log 'Copying secrets from GCS...'
-#
-#    mkdir /work
-#    mkdir /certs
-#    chmod a+rwx /work
-#
-#    # Add the certificates from the bucket to the VM. They are used by the docker-compose file
-#    gsutil cp ${SERVER_CRT} /certs
-#    gsutil cp ${SERVER_KEY} /certs
-#    gsutil cp ${ROOT_CA} /certs
-#    gsutil cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
-#
-#
-#    # GCP connector is used by dataproc to connect with the staging bucket to read the logs
-#    touch /hadoop_gcs_connector_metadata_cache
-#    touch auth_openidc.conf
-#
-#
-#    # Add ops agent configuration for welder, jupyter, user startup and shutdown scripts
-#    cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
-#    logging:
-#      receivers:
-#        welder:
-#          type: files
-#          include_paths: [/work/welder.log]
-#        jupyter:
-#          type: files
-#          include_paths: [/work/jupyter.log]
-#        daemon:
-#          type: files
-#          include_paths: [/var/log/daemon.log]
-#      service:
-#        pipelines:
-#          default_pipeline:
-#            receivers: [welder, jupyter, daemon]
-#EOF
-#    systemctl restart google-cloud-ops-agent
-#
-#    # Install env var config
-#    if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
-#      log 'Copy custom env vars config...'
-#      gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
-#    fi
-#
-#
-#    # If any image is hosted in a GAR registry (detected by regex) then
-#    # authorize docker to interact with gcr.io.
-#    # NOTE: GCR images are now hosted on GAR, but the file paths haven't changed, they automatically redirect.
-#    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
-#      log 'Authorizing GCR/GAR...'
-#      gcloud auth configure-docker
-#    fi
-#
-#    STEP_TIMINGS+=($(date +%s))
-#
-#    log 'Starting up the Jupyter docker...'
-#
-#    # Run docker-compose for each specified compose file.
-#    # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
-#    # `docker-compose up` is not retried.
-#    COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
-#
-#    cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
-#
-#    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-#      COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
-#      cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
-#    fi
-#
-#    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-#      TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
-#      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
-#      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
-#    fi
-#
-#    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
-#      TOOL_SERVER_NAME=${RSTUDIO_SERVER_NAME}
-#      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
-#      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
-#    fi
-#
-#    retry 5 docker-compose "${COMPOSE_FILES[@]}" config
-#
-#    # restart docker
-#    systemctl restart docker
-#
-#    retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
-#    retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
-#
-#    # Start up crypto detector, if enabled.
-#    # This should be started after other containers.
-#    # Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
-#    # See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
-#    if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
-#      docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
-#        --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
-#    fi
-#
-#    STEP_TIMINGS+=($(date +%s))
-#
-#    # Jupyter-specific setup, only do if Jupyter is installed
-#    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-#      log 'Installing Jupydocker kernelspecs...'
-#
-#      # Install notebook.json
-#      if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
-#        log 'Copy Jupyter frontend notebook config...'
-#        gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
-#        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
-#        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
-#        docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
-#      fi
-#
-#      STEP_TIMINGS+=($(date +%s))
-#
-#      # Install NbExtensions. These are user-specified Jupyter extensions.
-#      # For instance Terra UI is passing
-#      #  {
-#      #    "nbExtensions": {
-#      #      "saturn-iframe-extension": "https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"
-#      #    },
-#      #    "labExtensions": {},
-#      #    "serverExtensions": {},
-#      #    "combinedExtensions": {}
-#      #  }
-#      if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
-#        for ext in ${JUPYTER_NB_EXTENSIONS}
-#        do
-#          log 'Installing Jupyter NB extension [$ext]...'
-#          if [[ $ext == 'gs://'* ]]; then
-#            gsutil cp $ext /etc
-#            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#          elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
-#            JUPYTER_EXTENSION_FILE=`basename $ext`
-#            curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
-#            docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#          else
-#            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
-#          fi
-#        done
-#      fi
-#
-#      STEP_TIMINGS+=($(date +%s))
-#
-#      # Install serverExtensions if provided by the user
-#      if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
-#        for ext in ${JUPYTER_SERVER_EXTENSIONS}
-#        do
-#          log 'Installing Jupyter server extension [$ext]...'
-#          if [[ $ext == 'gs://'* ]]; then
-#            gsutil cp $ext /etc
-#            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#          else
-#            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
-#          fi
-#        done
-#      fi
-#
-#      STEP_TIMINGS+=($(date +%s))
-#
-#      # Install combined extensions if provided by the user
-#      if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
-#        for ext in ${JUPYTER_COMBINED_EXTENSIONS}
-#        do
-#          log 'Installing Jupyter combined extension [$ext]...'
-#          log $ext
-#          if [[ $ext == 'gs://'* ]]; then
-#            gsutil cp $ext /etc
-#            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
-#          else
-#            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
-#          fi
-#        done
-#      fi
-#
-#      STEP_TIMINGS+=($(date +%s))
-#
-#      # If a user script was specified, copy it into the docker container and execute it.
-#      if [ ! -z "$USER_SCRIPT_URI" ] ; then
-#        apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
-#      fi
-#
-#      # done user script
-#      STEP_TIMINGS+=($(date +%s))
-#
-#      # If a start user script was specified, copy it into the docker container for consumption during startups.
-#      if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
-#        apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
-#      fi
-#
-#      # done start user script
-#      STEP_TIMINGS+=($(date +%s))
-#
-#      # Install lab extensions if provided by the user
-#      # Note: lab extensions need to installed as jupyter user, not root
-#      if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
-#        for ext in ${JUPYTER_LAB_EXTENSIONS}
-#        do
-#          log 'Installing JupyterLab extension [$ext]...'
-#          pwd
-#          if [[ $ext == 'gs://'* ]]; then
-#            gsutil cp -r $ext /etc
-#            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#          elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
-#            JUPYTER_EXTENSION_FILE=`basename $ext`
-#            curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
-#            docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#          else
-#            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
-#          fi
-#        done
-#      fi
-#
-#      STEP_TIMINGS+=($(date +%s))
-#
-#      # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
-#      # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
-#      # kernel tries to connect to it.
-#      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
-#
-#      # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
-#      # A better to do this might be to take welder host as an argument to the script
-#      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
-#
-#      # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
-#      # This is to make it so that older images will still work after we change notebooks location to home dir
-#      docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
-#
-#      # Copy gitignore into jupyter container
-#      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
-#
-#      # Install nbstripout and set gitignore in Git Config
-#      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
-#            && python -m nbstripout --install --global \
-#            && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
-#
-#      # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
-#      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
-#           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
-#           && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-#           && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
-#           && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
-#           && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-#           && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-#           && mkdir -p $JUPYTER_HOME/nbconfig"
-#
-#      log 'Starting Jupyter Notebook...'
-#      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
-#      STEP_TIMINGS+=($(date +%s))
-#    fi
-#
-#    # RStudio specific setup; only do if RStudio is installed
-#    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-#      EXIT_CODE=0
-#      retry 3 docker exec ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/set_up_package_dir.sh || EXIT_CODE=$?
-#      if [ $EXIT_CODE -ne 0 ]; then
-#        echo "RStudio user package installation directory creation failed, creating /packages directory"
-#        docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
-#      fi
-#
-#      # Add the EVs specified in rstudio-docker-compose.yaml to Renviron.site
-#      retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
-#CLUSTER_NAME=$CLUSTER_NAME
-#RUNTIME_NAME=$RUNTIME_NAME
-#OWNER_EMAIL=$OWNER_EMAIL
-#SHOULD_BACKGROUND_SYNC=$SHOULD_BACKGROUND_SYNC" >> /usr/local/lib/R/etc/Renviron.site'
-#
-#      # Add custom_env_vars.env to Renviron.site
-#      CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
-#      if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
-#        retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/var/custom_env_vars.env
-#        retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/var/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
-#      fi
-#
-#      # If a user script was specified, copy it into the docker container and execute it.
-#      if [ ! -z "$USER_SCRIPT_URI" ] ; then
-#        apply_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
-#      fi
-#
-#      # If a start user script was specified, copy it into the docker container for consumption during startups.
-#      if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
-#        apply_start_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
-#      fi
-#
-#      # Start RStudio server
-#      retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
-#    fi
+    log 'Copying secrets from GCS...'
+
+    mkdir /work
+    mkdir /certs
+    chmod a+rwx /work
+
+    # Add the certificates from the bucket to the VM. They are used by the docker-compose file
+    gsutil cp ${SERVER_CRT} /certs
+    gsutil cp ${SERVER_KEY} /certs
+    gsutil cp ${ROOT_CA} /certs
+    gsutil cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
+
+
+    # GCP connector is used by dataproc to connect with the staging bucket to read the logs
+    touch /hadoop_gcs_connector_metadata_cache
+    touch auth_openidc.conf
+
+
+    # Add ops agent configuration for welder, jupyter, user startup and shutdown scripts
+    cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
+    logging:
+      receivers:
+        welder:
+          type: files
+          include_paths: [/work/welder.log]
+        jupyter:
+          type: files
+          include_paths: [/work/jupyter.log]
+        daemon:
+          type: files
+          include_paths: [/var/log/daemon.log]
+      service:
+        pipelines:
+          default_pipeline:
+            receivers: [welder, jupyter, daemon]
+EOF
+    systemctl restart google-cloud-ops-agent
+
+    # Install env var config
+    if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
+      log 'Copy custom env vars config...'
+      gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
+    fi
+
+
+    # If any image is hosted in a GAR registry (detected by regex) then
+    # authorize docker to interact with gcr.io.
+    # NOTE: GCR images are now hosted on GAR, but the file paths haven't changed, they automatically redirect.
+    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
+      log 'Authorizing GCR/GAR...'
+      gcloud auth configure-docker
+    fi
+
+    STEP_TIMINGS+=($(date +%s))
+
+    log 'Starting up the Jupyter docker...'
+
+    # Run docker-compose for each specified compose file.
+    # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
+    # `docker-compose up` is not retried.
+    COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
+
+    cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
+
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
+    fi
+
+    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+      TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
+      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
+    fi
+
+    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+      TOOL_SERVER_NAME=${RSTUDIO_SERVER_NAME}
+      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
+    fi
+
+    retry 5 docker-compose "${COMPOSE_FILES[@]}" config
+
+    # restart docker
+    systemctl restart docker
+
+    retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
+    retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
+
+    # Start up crypto detector, if enabled.
+    # This should be started after other containers.
+    # Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
+    # See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
+    if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
+      docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
+        --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
+    fi
+
+    STEP_TIMINGS+=($(date +%s))
+
+    # Jupyter-specific setup, only do if Jupyter is installed
+    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+      log 'Installing Jupydocker kernelspecs...'
+
+      # Install notebook.json
+      if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
+        log 'Copy Jupyter frontend notebook config...'
+        gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
+        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
+        docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+      fi
+
+      STEP_TIMINGS+=($(date +%s))
+
+      # Install NbExtensions. These are user-specified Jupyter extensions.
+      # For instance Terra UI is passing
+      #  {
+      #    "nbExtensions": {
+      #      "saturn-iframe-extension": "https://bvdp-saturn-dev.appspot.com/jupyter-iframe-extension.js"
+      #    },
+      #    "labExtensions": {},
+      #    "serverExtensions": {},
+      #    "combinedExtensions": {}
+      #  }
+      if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
+        for ext in ${JUPYTER_NB_EXTENSIONS}
+        do
+          log 'Installing Jupyter NB extension [$ext]...'
+          if [[ $ext == 'gs://'* ]]; then
+            gsutil cp $ext /etc
+            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+            JUPYTER_EXTENSION_FILE=`basename $ext`
+            curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
+            docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+          else
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
+          fi
+        done
+      fi
+
+      STEP_TIMINGS+=($(date +%s))
+
+      # Install serverExtensions if provided by the user
+      if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
+        for ext in ${JUPYTER_SERVER_EXTENSIONS}
+        do
+          log 'Installing Jupyter server extension [$ext]...'
+          if [[ $ext == 'gs://'* ]]; then
+            gsutil cp $ext /etc
+            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          else
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
+          fi
+        done
+      fi
+
+      STEP_TIMINGS+=($(date +%s))
+
+      # Install combined extensions if provided by the user
+      if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
+        for ext in ${JUPYTER_COMBINED_EXTENSIONS}
+        do
+          log 'Installing Jupyter combined extension [$ext]...'
+          log $ext
+          if [[ $ext == 'gs://'* ]]; then
+            gsutil cp $ext /etc
+            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
+          else
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
+          fi
+        done
+      fi
+
+      STEP_TIMINGS+=($(date +%s))
+
+      # If a user script was specified, copy it into the docker container and execute it.
+      if [ ! -z "$USER_SCRIPT_URI" ] ; then
+        apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
+      fi
+
+      # done user script
+      STEP_TIMINGS+=($(date +%s))
+
+      # If a start user script was specified, copy it into the docker container for consumption during startups.
+      if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
+        apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
+      fi
+
+      # done start user script
+      STEP_TIMINGS+=($(date +%s))
+
+      # Install lab extensions if provided by the user
+      # Note: lab extensions need to installed as jupyter user, not root
+      if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
+        for ext in ${JUPYTER_LAB_EXTENSIONS}
+        do
+          log 'Installing JupyterLab extension [$ext]...'
+          pwd
+          if [[ $ext == 'gs://'* ]]; then
+            gsutil cp -r $ext /etc
+            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+            JUPYTER_EXTENSION_FILE=`basename $ext`
+            curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
+            docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+          else
+            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
+          fi
+        done
+      fi
+
+      STEP_TIMINGS+=($(date +%s))
+
+      # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
+      # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
+      # kernel tries to connect to it.
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
+
+      # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
+      # A better to do this might be to take welder host as an argument to the script
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
+
+      # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
+      # This is to make it so that older images will still work after we change notebooks location to home dir
+      docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
+
+      # Copy gitignore into jupyter container
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
+
+      # Install nbstripout and set gitignore in Git Config
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
+            && python -m nbstripout --install --global \
+            && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
+
+      # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
+      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
+           && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+           && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && mkdir -p $JUPYTER_HOME/nbconfig"
+
+      log 'Starting Jupyter Notebook...'
+      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
+
+      STEP_TIMINGS+=($(date +%s))
+    fi
+
+    # RStudio specific setup; only do if RStudio is installed
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      EXIT_CODE=0
+      retry 3 docker exec ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/set_up_package_dir.sh || EXIT_CODE=$?
+      if [ $EXIT_CODE -ne 0 ]; then
+        echo "RStudio user package installation directory creation failed, creating /packages directory"
+        docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
+      fi
+
+      # Add the EVs specified in rstudio-docker-compose.yaml to Renviron.site
+      retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
+CLUSTER_NAME=$CLUSTER_NAME
+RUNTIME_NAME=$RUNTIME_NAME
+OWNER_EMAIL=$OWNER_EMAIL
+SHOULD_BACKGROUND_SYNC=$SHOULD_BACKGROUND_SYNC" >> /usr/local/lib/R/etc/Renviron.site'
+
+      # Add custom_env_vars.env to Renviron.site
+      CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
+      if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
+        retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/var/custom_env_vars.env
+        retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/var/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+      fi
+
+      # If a user script was specified, copy it into the docker container and execute it.
+      if [ ! -z "$USER_SCRIPT_URI" ] ; then
+        apply_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
+      fi
+
+      # If a start user script was specified, copy it into the docker container for consumption during startups.
+      if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
+        apply_start_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
+      fi
+
+      # Start RStudio server
+      retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
+    fi
 
     # Remove any unneeded cached images to save disk space.
     # Do this asynchronously so it doesn't hold up cluster creation
