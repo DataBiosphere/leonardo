@@ -385,45 +385,49 @@ class DataprocInterpreter[F[_]: Parallel](
           new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
         )
         metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
-        _ <- params.masterInstance.traverse { instance =>
-          for {
-            opFutureAttempt <- googleComputeService
-              .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
-              .attempt
-            _ <- opFutureAttempt match {
-              case Left(e) if e.getMessage.contains("Instance not found") =>
-                logger.info(ctx.loggingCtx)("Instance is already deleted").as(None)
-              case Left(e) =>
-                F.raiseError(e)
-              case Right(opFuture) =>
-                val deleteDatprocCluster = for {
-                  googleProject <- F.fromOption(
-                    LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
-                    new RuntimeException(
-                      "this should never happen. Dataproc runtime's cloud context should be a google project"
-                    )
-                  )
-                  _ <- googleDataprocService.deleteCluster(
-                    googleProject,
-                    region,
-                    DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-                  )
-                } yield ()
-
-                opFuture match {
-                  case None => deleteDatprocCluster
-                  case Some(v) =>
-                    for {
-                      res <- F.delay(v.get())
-                      _ <- F.raiseUnless(google2.isSuccess(res.getHttpErrorStatusCode))(
-                        new Exception(s"addInstanceMetadata failed")
-                      )
-                      _ <- deleteDatprocCluster
-                    } yield ()
+        deleteDatprocCluster = for {
+          googleProject <- F.fromOption(
+            LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+            new RuntimeException(
+              "this should never happen. Dataproc runtime's cloud context should be a google project"
+            )
+          )
+          _ <- googleDataprocService.deleteCluster(
+            googleProject,
+            region,
+            DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+          )
+        } yield ()
+        _ <- params.masterInstance match {
+          // See AN-502 https://broadworkbench.atlassian.net/browse/AN-502
+          // Even if the master node does not exist, the dataproc cluster deletion should still proceed
+          case None => deleteDatprocCluster
+          case Some(v) =>
+            params.masterInstance.traverse { instance =>
+              for {
+                opFutureAttempt <- googleComputeService
+                  .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
+                  .attempt
+                _ <- opFutureAttempt match {
+                  case Left(e) if e.getMessage.contains("no master instance found") =>
+                    logger.info(ctx.loggingCtx)("Instance is already deleted").as(None)
+                  case Left(e) =>
+                    F.raiseError(e)
+                  case Right(opFuture) =>
+                    opFuture match {
+                      case None => deleteDatprocCluster
+                      case Some(v) =>
+                        for {
+                          res <- F.delay(v.get())
+                          _ <- F.raiseUnless(google2.isSuccess(res.getHttpErrorStatusCode))(
+                            new Exception(s"addInstanceMetadata failed")
+                          )
+                          _ <- deleteDatprocCluster
+                        } yield ()
+                    }
                 }
+              } yield ()
             }
-          } yield ()
-
         }
       } yield None
     } else F.pure(None)
