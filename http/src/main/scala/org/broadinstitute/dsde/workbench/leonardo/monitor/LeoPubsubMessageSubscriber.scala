@@ -1690,7 +1690,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             case ee: com.google.api.gax.rpc.AbortedException
                 if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
               None // this could happen when pubsub redelivers an event unexpectedly
-            case ee: com.google.api.gax.rpc.AlreadyExistsException => None
+            case _: com.google.api.gax.rpc.AlreadyExistsException => None
             // this could happen when leo reboots when a cluster was creating,
             // in this case we should continue monitoring the creation of the original cluster,
             // see AN-509 https://broadworkbench.atlassian.net/browse/AN-509

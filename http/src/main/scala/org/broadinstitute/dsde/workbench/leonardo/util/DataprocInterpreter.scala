@@ -402,7 +402,7 @@ class DataprocInterpreter[F[_]: Parallel](
           // See AN-502 https://broadworkbench.atlassian.net/browse/AN-502
           // Even if the master node does not exist, the dataproc cluster deletion should still proceed
           case None => deleteDatprocCluster
-          case Some(v) =>
+          case Some(_) =>
             params.masterInstance.traverse { instance =>
               for {
                 opFutureAttempt <- googleComputeService
