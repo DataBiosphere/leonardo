@@ -144,15 +144,11 @@ retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/d
 retry 5 apt-get update
 
 dpkg --configure -a
-# This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
-# The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
-# NOTE: If it fails with another legitimate error, this `|| true` could mask it. It was used as a last resort after a lot of attempts to fix.
-# apt-get install -y -q docker-ce || true
-log 'Installing Docker Compose...'
 
 # start docker
 systemctl start docker
 
+log 'Installing Docker Compose...'
 # Install docker-compose
 # https://docs.docker.com/compose/install/#install-compose
 docker_compose_version_number="v2.28.1"
