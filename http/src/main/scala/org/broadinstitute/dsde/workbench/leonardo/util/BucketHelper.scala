@@ -209,6 +209,7 @@ class BucketHelper[F[_]](
         .emits(
           List(
             clusterResourcesConfig.initScript,
+            clusterResourcesConfig.legacyAOUInitScript,
             clusterResourcesConfig.jupyterNotebookFrontendConfigUri
           )
         )
