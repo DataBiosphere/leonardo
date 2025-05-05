@@ -26,7 +26,7 @@ openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.20.1"
 
 # Note that this is the version used currently by AOU in production, the one above can be staged for testing
-# AN-503: Note that AOU 2.2.13 is using a hail version that still requires dataproc 2.1.x
+# You can check which version of the AOU image is used in prod here: https://github.com/all-of-us/workbench/blob/main/api/config/config_prod.json#L15C1-L16C1
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.1.9"
