@@ -28,8 +28,8 @@ openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.20.1"
 
 # Note that this is the version used currently by AOU in production, the one above can be staged for testing
-# AN-503: Note that AOU 2.2.15 is using a hail version that still requires dataproc 2.1.x, which won't be provided by leonardo anymore
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.15"
+# AN-503: Note that AOU 2.2.13 is using a hail version that still requires dataproc 2.1.x
+terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 
 # If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
