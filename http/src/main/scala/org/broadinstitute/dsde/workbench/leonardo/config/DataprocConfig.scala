@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImag
 final case class DataprocConfig(
   defaultScopes: Set[String],
   customDataprocImage: DataprocCustomImage,
+  legacyAouCustomDataprocImage: DataprocCustomImage,
   sparkMemoryConfigRatio: Option[Double],
   minimumRuntimeMemoryInGb: Option[Double],
   runtimeConfigDefaults: RuntimeConfig.DataprocConfig,
