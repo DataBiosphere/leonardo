@@ -184,16 +184,19 @@ class DataprocInterpreter[F[_]: Parallel](
           .compile
           .drain
 
-        // build cluster configuration
-        initScriptResources = List(config.clusterResourcesConfig.initScript)
-        initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
-
-        // If we need to support 2 version of dataproc custom image, we'll update this
-//        dataprocImage = config.dataprocConfig.customDataprocImage
-
-        // We need to maintain the old version of the dataproc image to uncouple the terra from the aou release
         imageUrls = params.runtimeImages.map(_.imageUrl)
-        dataprocImage = config.dataprocConfig.customDataprocImage
+
+        // build cluster configuration
+        // We need to maintain the old version of the dataproc image to uncouple the terra from the aou release
+        // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
+        (dataprocImage, initScriptResources) =
+          if (imageUrls.contains("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"))
+            (config.dataprocConfig.legacyAouCustomDataprocImage,
+             List(config.clusterResourcesConfig.legacyAOUInitScript)
+            )
+          else (config.dataprocConfig.customDataprocImage, List(config.clusterResourcesConfig.initScript))
+
+        initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
 
         // If the cluster is configured with worker private access, then specify the
         // `leonardo-private` network tag. This tag will be removed from the master node
@@ -204,7 +207,9 @@ class DataprocInterpreter[F[_]: Parallel](
           } else {
             List(config.vpcConfig.networkTag.value)
           }
-
+        // Dataproc 2.2.X changed the default behavior to not assign an external ip address anymore,
+        // but a combination of Internal IP only and Private Google Access instead, see:
+        // https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/network#create-a-dataproc-cluster-with-internal-IP-addresses-only
         gceClusterConfig = {
           val bldr = GceClusterConfig
             .newBuilder()
@@ -212,6 +217,7 @@ class DataprocInterpreter[F[_]: Parallel](
             .setSubnetworkUri(subnetwork.value)
             .setServiceAccount(params.serviceAccountInfo.value)
             .addAllServiceAccountScopes(params.scopes.asJava)
+            .setInternalIpOnly(false)
           bldr.build()
         }
 
