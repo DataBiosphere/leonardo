@@ -35,9 +35,12 @@ terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 # If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
 
-# this array determines which of the above images are baked into the custom image
+# this array determines which of the above images are baked into the custom dataproc 2.2.x image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+
+# Comment the above and uncomment this to create the dataproc 2.1.x image
+# docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
 
 # The version of python to install
 # Note: this should match the version of python in the terra-jupyter-hail image.
