@@ -209,6 +209,7 @@ class BucketHelper[F[_]](
         .emits(
           List(
             clusterResourcesConfig.initScript,
+            // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
             clusterResourcesConfig.legacyAOUInitScript,
             clusterResourcesConfig.jupyterNotebookFrontendConfigUri
           )

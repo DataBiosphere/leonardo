@@ -201,6 +201,7 @@ object Config {
     config =>
       ClusterResourcesConfig(
         config.as[RuntimeResource]("initScript"),
+        // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
         config.as[RuntimeResource]("legacyAOUInitScript"),
         config.getAs[RuntimeResource]("cloudInit"),
         config.as[RuntimeResource]("startupScript"),
