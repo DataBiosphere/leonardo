@@ -124,6 +124,8 @@ object Config {
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("customDataprocImage"),
+      // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
+      config.as[DataprocCustomImage]("legacyAouCustomDataprocImage"),
       config.getAs[Double]("sparkMemoryConfigRatio"),
       config.getAs[Double]("minimumRuntimeMemoryInGb"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
@@ -199,6 +201,8 @@ object Config {
     config =>
       ClusterResourcesConfig(
         config.as[RuntimeResource]("initScript"),
+        // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
+        config.as[RuntimeResource]("legacyAOUInitScript"),
         config.getAs[RuntimeResource]("cloudInit"),
         config.as[RuntimeResource]("startupScript"),
         config.as[RuntimeResource]("shutdownScript"),

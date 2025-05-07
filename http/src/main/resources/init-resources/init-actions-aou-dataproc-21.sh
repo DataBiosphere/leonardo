@@ -2,6 +2,8 @@
 
 set -e -x
 
+# AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
+
 # This is the very first script as we started on Dataproc
 #
 # This init script instantiates the tool (e.g. Jupyter) docker images on the Dataproc cluster master node.
@@ -122,7 +124,6 @@ function apply_start_user_script() {
 # UPDATE THIS IF YOU ADD MORE STEPS:
 # currently the steps are:
 # START init,
-# .. after gcloud Ops Agent
 # .. after env setup
 # .. after copying files from google and into docker
 # .. after docker compose
@@ -136,20 +137,6 @@ function apply_start_user_script() {
 # .. after jupyter notebook start
 # END
 STEP_TIMINGS=($(date +%s))
-
-
-## Installs Google Cloud Ops Agent that is now required for Datapoc 2.2.X ###
-# See https://github.com/GoogleCloudDataproc/initialization-actions/tree/master/opsagent
-# Installs the Google Cloud Ops Agent on each node in the cluster.
-# It also provides an override to the built-in logging config to set empty
-# receivers i.e. not collect any logs.
-# If you need to collect syslogs, you can use the other script in this directory,
-# opsagent.sh which uses the built-in configuration of Ops Agent.
-# See https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/configuration#default.
-#
-curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
-bash add-google-cloud-ops-agent-repo.sh --also-install
-
 # temp workaround for https://github.com/docker/compose/issues/5930
 export CLOUDSDK_PYTHON=python3
 
@@ -245,25 +232,44 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch auth_openidc.conf
 
 
-    # Add ops agent configuration for welder, jupyter, user startup and shutdown scripts
-    cat <<EOF >> /etc/google-cloud-ops-agent/config.yaml
-    logging:
-      receivers:
-        welder:
-          type: files
-          include_paths: [/work/welder.log]
-        jupyter:
-          type: files
-          include_paths: [/work/jupyter.log]
-        daemon:
-          type: files
-          include_paths: [/var/log/daemon.log]
-      service:
-        pipelines:
-          default_pipeline:
-            receivers: [welder, jupyter, daemon]
-EOF
-    systemctl restart google-cloud-ops-agent
+    ## Note that the stack driver configuration is changing in later versions of Dataproc, see https://broadworkbench.atlassian.net/browse/IA-5023
+    # Add stack driver configuration for welder
+    tee /etc/google-fluentd/config.d/welder.conf << END
+<source>
+ @type tail
+ format json
+ path /work/welder.log
+ pos_file /var/tmp/fluentd.welder.pos
+ read_from_head true
+ tag welder
+</source>
+END
+
+    # Add stack driver configuration for jupyter
+    tee /etc/google-fluentd/config.d/jupyter.conf << END
+<source>
+ @type tail
+ format none
+ path /work/jupyter.log
+ pos_file /var/tmp/fluentd.jupyter.pos
+ read_from_head true
+ tag jupyter
+</source>
+END
+
+    # Add stack driver configuration for user startup and shutdown scripts
+    tee /etc/google-fluentd/config.d/daemon.conf << END
+<source>
+ @type tail
+ format none
+ path /var/log/daemon.log
+ pos_file /var/tmp/fluentd.google.user.daemon.pos
+ read_from_head true
+ tag daemon
+</source>
+END
+
+    service google-fluentd reload
 
     # Install env var config
     if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
@@ -309,10 +315,6 @@ EOF
     fi
 
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
-
-    # restart docker
-    systemctl restart docker
-
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
 

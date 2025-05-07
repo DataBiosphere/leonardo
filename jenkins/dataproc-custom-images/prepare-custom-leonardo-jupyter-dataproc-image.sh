@@ -19,25 +19,30 @@ set -e -x
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.6"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.7"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.7"
-terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.1.13"
+terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.1.14"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.9"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.15"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.16"
+
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.20.1"
 
 # Note that this is the version used currently by AOU in production, the one above can be staged for testing
+# AN-503: Note that AOU 2.2.13 is using a hail version that still requires dataproc 2.1.x
+# You can check which version of the AOU image is used in prod here: https://github.com/all-of-us/workbench/blob/main/api/config/config_prod.json#L15C1-L16C1
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 
 # If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
 
-# this array determines which of the above images are baked into the custom image
+# This array determines which of the above images are baked into the custom dataproc 2.2.x image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
 
-# NOTE - UNCOMMENT TO REGENERATE THE AOU LEGACY DATAPROC IMAGE
-# You would also need to change the debian version, see https://github.com/DataBiosphere/leonardo/pull/3871
+# Comment the above and uncomment this to create the dataproc 2.1.x image
+# You would also need to revert the dataproc versions in the create_dataproc_image.sh like this:
+# DP_VERSION_FORMATTED="2-1-11-debian11"
+# --dataproc-version "2.1.11-debian11"
 #docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
 
 # The version of python to install
@@ -142,15 +147,14 @@ retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/d
 retry 5 apt-get update
 
 dpkg --configure -a
-# This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
-# The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
-# NOTE: If it fails with another legitimate error, this `|| true` could mask it. It was used as a last resort after a lot of attempts to fix.
-apt-get install -y -q docker-ce || true
-log 'Installing Docker Compose...'
 
+# start docker
+systemctl start docker
+
+log 'Installing Docker Compose...'
 # Install docker-compose
 # https://docs.docker.com/compose/install/#install-compose
-docker_compose_version_number="1.22.0"
+docker_compose_version_number="v2.28.1"
 docker_compose_kernel_name="$(uname -s)"
 docker_compose_machine_hardware_name="$(uname -m)"
 docker_compose_binary_download_url="https://github.com/docker/compose/releases/download/${docker_compose_version_number:?}/docker-compose-${docker_compose_kernel_name:?}-${docker_compose_machine_hardware_name:?}"
