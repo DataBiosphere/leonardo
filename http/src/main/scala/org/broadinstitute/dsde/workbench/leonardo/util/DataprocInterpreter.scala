@@ -415,7 +415,7 @@ class DataprocInterpreter[F[_]: Parallel](
                   .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
                   .attempt
                 _ <- opFutureAttempt match {
-                  case Left(e) if e.getMessage.contains("no master instance found") =>
+                  case Left(e) if e.getMessage.contains("Instance not found:") =>
                     logger.info(ctx.loggingCtx)("Instance is already deleted").as(None)
                   case Left(e) =>
                     F.raiseError(e)
