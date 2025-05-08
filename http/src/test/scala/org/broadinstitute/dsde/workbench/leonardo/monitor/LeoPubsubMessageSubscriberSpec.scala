@@ -389,7 +389,10 @@ class LeoPubsubMessageSubscriberSpec
       for {
         runtime <- IO(
           makeCluster(1)
-            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
+            .copy(serviceAccount = serviceAccount,
+                  asyncRuntimeFields = Some(asyncFields),
+                  status = RuntimeStatus.Creating
+            )
             .saveWithRuntimeConfig(CommonTestData.defaultDataprocRuntimeConfig)
         )
         tr <- traceId.ask[TraceId]
