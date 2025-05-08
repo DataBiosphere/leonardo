@@ -320,7 +320,8 @@ class LeoPubsubMessageSubscriber[F[_]](
             .flatMap {
               // See AN-502 https://broadworkbench.atlassian.net/browse/AN-502
               // We should not throw an error when the master instance is not found, and continue processing the cluster deletion
-              case Left(_) => F.pure(none[DataprocInstance])
+              case Left(_)  => F.pure(none[DataprocInstance])
+              case Right(d) => F.pure(d.some)
             }
         case _ => F.pure(none[DataprocInstance])
       }
