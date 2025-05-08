@@ -43,7 +43,7 @@ docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra
 # You would also need to revert the dataproc versions in the create_dataproc_image.sh like this:
 # DP_VERSION_FORMATTED="2-1-11-debian11"
 # --dataproc-version "2.1.11-debian11"
-#docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+#docker_image_var_names="welder_server terra_jupyter_aou_old openidc_proxy cryptomining_detector
 
 # The version of python to install
 # Note: this should match the version of python in the terra-jupyter-hail image.

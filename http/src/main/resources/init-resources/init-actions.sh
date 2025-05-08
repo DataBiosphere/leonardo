@@ -137,19 +137,6 @@ function apply_start_user_script() {
 # END
 STEP_TIMINGS=($(date +%s))
 
-
-## Installs Google Cloud Ops Agent that is now required for Datapoc 2.2.X ###
-# See https://github.com/GoogleCloudDataproc/initialization-actions/tree/master/opsagent
-# Installs the Google Cloud Ops Agent on each node in the cluster.
-# It also provides an override to the built-in logging config to set empty
-# receivers i.e. not collect any logs.
-# If you need to collect syslogs, you can use the other script in this directory,
-# opsagent.sh which uses the built-in configuration of Ops Agent.
-# See https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/configuration#default.
-#
-curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
-bash add-google-cloud-ops-agent-repo.sh --also-install
-
 # temp workaround for https://github.com/docker/compose/issues/5930
 export CLOUDSDK_PYTHON=python3
 
@@ -158,6 +145,19 @@ ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
 # Only initialize tool and proxy docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
+
+    ## Installs Google Cloud Ops Agent that is now required for Datapoc 2.2.X ###
+    # See https://github.com/GoogleCloudDataproc/initialization-actions/tree/master/opsagent
+    # Installs the Google Cloud Ops Agent on each node in the cluster.
+    # It also provides an override to the built-in logging config to set empty
+    # receivers i.e. not collect any logs.
+    # If you need to collect syslogs, you can use the other script in this directory,
+    # opsagent.sh which uses the built-in configuration of Ops Agent.
+    # See https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/configuration#default.
+    #
+    curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+    bash add-google-cloud-ops-agent-repo.sh --also-install
+
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
