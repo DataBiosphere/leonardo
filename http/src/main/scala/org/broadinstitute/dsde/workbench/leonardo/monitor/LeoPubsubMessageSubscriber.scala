@@ -316,7 +316,13 @@ class LeoPubsubMessageSubscriber[F[_]](
           instanceQuery
             .getMasterForCluster(runtime.id)
             .transaction
-            .map(_.some)
+            .attempt
+            .flatMap {
+              // See AN-502 https://broadworkbench.atlassian.net/browse/AN-502
+              // We should not throw an error when the master instance is not found, and continue processing the cluster deletion
+              case Left(_)  => F.pure(none[DataprocInstance])
+              case Right(d) => F.pure(d.some)
+            }
         case _ => F.pure(none[DataprocInstance])
       }
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
@@ -1674,6 +1680,10 @@ class LeoPubsubMessageSubscriber[F[_]](
               case ee: com.google.api.gax.rpc.AbortedException
                   if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
                 None // this could happen when pubsub redelivers an event unexpectedly
+              case _: com.google.api.gax.rpc.AlreadyExistsException => None
+              // this could happen when leo reboots when a cluster was creating,
+              // in this case we should continue monitoring the creation of the original cluster,
+              // see AN-509 https://broadworkbench.atlassian.net/browse/AN-509
               case _ =>
                 Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
             }
@@ -1690,6 +1700,10 @@ class LeoPubsubMessageSubscriber[F[_]](
             case ee: com.google.api.gax.rpc.AbortedException
                 if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
               None // this could happen when pubsub redelivers an event unexpectedly
+            case _: com.google.api.gax.rpc.AlreadyExistsException => None
+            // this could happen when leo reboots when a cluster was creating,
+            // in this case we should continue monitoring the creation of the original cluster,
+            // see AN-509 https://broadworkbench.atlassian.net/browse/AN-509
             case _ =>
               Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
           }

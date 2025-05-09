@@ -298,7 +298,7 @@ class DataprocInterpreterSpec
     }
   }
 
-  it should "don't error if runtime is already deleted" in isolatedDbTest {
+  it should "don't error if runtime is already deleted or if the master node was never created" in isolatedDbTest {
     val computeService = new FakeGoogleComputeService {
       override def modifyInstanceMetadata(
         project: GoogleProject,

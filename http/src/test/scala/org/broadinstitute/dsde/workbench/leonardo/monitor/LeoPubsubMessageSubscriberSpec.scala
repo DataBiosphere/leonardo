@@ -331,11 +331,11 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   /**
-   * When createRuntime gets 409, we shouldn't attempt to update AsyncRuntimeFields.
+   * When createRuntime gets 409 or a cluster already exist error, we shouldn't attempt to update AsyncRuntimeFields.
    * These fields should've been updated in a previous createRuntime request, and
    * this test is to make sure we're not wiping out that info.
    */
-  it should "handle CreateRuntimeMessage properly when google returns 409" in isolatedDbTest {
+  it should "handle CreateRuntimeMessage properly when google returns 409 or AlreadyExists error for GCE" in isolatedDbTest {
     val runtimeAlgebra = new BaseFakeGceInterp {
       override def createRuntime(params: CreateRuntimeParams)(implicit
         ev: Ask[IO, AppContext]
@@ -359,6 +359,48 @@ class LeoPubsubMessageSubscriberSpec
         gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
         _ <- leoSubscriber.messageResponder(
           CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr), None)
+        )
+        updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      } yield {
+        updatedRuntime shouldBe defined
+        updatedRuntime.get.asyncRuntimeFields shouldBe Some(asyncFields)
+        updatedRuntime.get.runtimeImages shouldBe runtime.runtimeImages
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  /**
+   * When createRuntime gets 409 or a cluster already exist error, we shouldn't attempt to update AsyncRuntimeFields.
+   * These fields should've been updated in a previous createRuntime request, and
+   * this test is to make sure we're not wiping out that info.
+   */
+  it should "handle CreateRuntimeMessage properly when google returns 409 or AlreadyExists error for dataproc" in isolatedDbTest {
+    val dataprocAlg = new BaseMockRuntimeAlgebra {
+      override def createRuntime(params: CreateRuntimeParams)(implicit
+        ev: Ask[IO, AppContext]
+      ): IO[Option[CreateGoogleRuntimeResponse]] = IO.pure(None)
+    }
+
+    val asyncFields = makeAsyncRuntimeFields(1)
+
+    val leoSubscriber = makeLeoSubscriber(dataprocRuntimeAlgebra = dataprocAlg)
+    val res =
+      for {
+        runtime <- IO(
+          makeCluster(1)
+            .copy(serviceAccount = serviceAccount,
+                  asyncRuntimeFields = Some(asyncFields),
+                  status = RuntimeStatus.Creating
+            )
+            .saveWithRuntimeConfig(CommonTestData.defaultDataprocRuntimeConfig)
+        )
+        tr <- traceId.ask[TraceId]
+        dataprocRuntimeConfigRequest = LeoLenses.runtimeConfigPrism
+          .getOption(CommonTestData.defaultDataprocRuntimeConfig)
+          .get
+        _ <- leoSubscriber.messageResponder(
+          CreateRuntimeMessage.fromRuntime(runtime, dataprocRuntimeConfigRequest, Some(tr), None)
         )
         updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       } yield {
