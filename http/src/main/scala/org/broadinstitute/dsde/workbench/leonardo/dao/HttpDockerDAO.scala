@@ -148,41 +148,41 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     ) ++
       tokenOpt.fold(Headers.empty)(t => Headers(Authorization(Credentials.Token(AuthScheme.Bearer, t.token))))
 
-  private[dao] def parseImage(image: ContainerImage)(implicit ev: Ask[F, TraceId]): F[ParsedImage] = for {
-    traceId <- ev.ask
-    _ <- logger.info(s"Parsing image ${image.imageUrl}, $traceId")
-    img <- F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://us.gcr.io/v2"), "terra-docker-base", Tag("latest")))
-  } yield img
-  //      image.imageUrl match {
-  //      case GCR.regex(registry, imageName, tagOpt, shaOpt) =>
-  //        val version = Option(tagOpt)
-  //          .map(Tag)
-  //          .orElse(Option(shaOpt).map(Sha))
-  //        for {
-  //          traceId <- ev.ask
-  //          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
-  //            F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
-  //          )
-  //        } yield res
-  //      case DockerHub.regex(imageName, tagOpt, shaOpt) =>
-  //        val identifier = Option(tagOpt)
-  //          .map(Tag)
-  //          .orElse(Option(shaOpt).map(Sha))
-  //          .getOrElse(Tag("latest"))
-  //        F.pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
-  //      case GHCR.regex(registry, imageName, tagOpt, shaOpt) =>
-  //        val identifier = Option(tagOpt)
-  //          .map(Tag)
-  //          .orElse(Option(shaOpt).map(Sha))
-  //          .getOrElse(Tag("latest"))
-  //        F.pure(ParsedImage(GHCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, identifier))
-  //      case _ =>
-  //        for {
-  //          traceId <- ev.ask
-  //          _ <- logger.error(s"${traceId} | Unable to parse ${image.registry.toString} image ${image.imageUrl}")
-  //          res <- F.raiseError[ParsedImage](ImageParseException(traceId, image))
-  //        } yield res
-  //    }
+  private[dao] def parseImage(image: ContainerImage)(implicit ev: Ask[F, TraceId]): F[ParsedImage] =
+    //    traceId <- ev.ask
+    //    _ <- logger.info(s"Parsing image ${image.imageUrl}, $traceId")
+    //    img <- F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://us.gcr.io/v2"), "terra-docker-base", Tag("latest")))
+    //  } yield img
+    image.imageUrl match {
+      case GCR.regex(registry, imageName, tagOpt, shaOpt) =>
+        val version = Option(tagOpt)
+          .map(Tag)
+          .orElse(Option(shaOpt).map(Sha))
+        for {
+          traceId <- ev.ask
+          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
+            F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
+          )
+        } yield res
+      case DockerHub.regex(imageName, tagOpt, shaOpt) =>
+        val identifier = Option(tagOpt)
+          .map(Tag)
+          .orElse(Option(shaOpt).map(Sha))
+          .getOrElse(Tag("latest"))
+        F.pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
+      case GHCR.regex(registry, imageName, tagOpt, shaOpt) =>
+        val identifier = Option(tagOpt)
+          .map(Tag)
+          .orElse(Option(shaOpt).map(Sha))
+          .getOrElse(Tag("latest"))
+        F.pure(ParsedImage(GHCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, identifier))
+      case _ =>
+        for {
+          traceId <- ev.ask
+          _ <- logger.error(s"${traceId} | Unable to parse ${image.registry.toString} image ${image.imageUrl}")
+          res <- F.raiseError[ParsedImage](ImageParseException(traceId, image))
+        } yield res
+    }
 }
 
 object HttpDockerDAO {
