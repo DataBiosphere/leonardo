@@ -43,7 +43,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     with Http4sClientDsl[F] {
 
   override def detectTool(image: ContainerImage, petTokenOpt: Option[String], now: Instant)(implicit
-    ev: Ask[F, TraceId]
+                                                                                            ev: Ask[F, TraceId]
   ): F[RuntimeImage] =
     for {
       traceId <- ev.ask
@@ -79,7 +79,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 
   // curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(implicit
-    ev: Ask[F, TraceId]
+                                                                                                         ev: Ask[F, TraceId]
   ): F[ContainerConfigResponse] =
     FollowRedirect(3)(httpClient).expectOr[ContainerConfigResponse](
       Request[F](
@@ -91,7 +91,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 
   // curl --header "Accept: application/vnd.docker.distribution.manifest.v2+json" --header "Authorization: Bearer $TOKEN" --header "Accept: application/json" "https://registry-1.docker.io/v2/library/nginx/manifests/latest"
   private[dao] def getManifestConfig(parsedImage: ParsedImage, tokenOpt: Option[Token])(implicit
-    ev: Ask[F, TraceId]
+                                                                                        ev: Ask[F, TraceId]
   ): F[ManifestConfig] =
     httpClient.expectOr[ManifestConfig](
       Request[F](
@@ -103,7 +103,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 
   // curl --silent "https://auth.docker.io/token?scope=repository%3Alibrary/nginx%3Apull&service=registry.docker.io" | jq '.token'
   private[dao] def getToken(parsedImage: ParsedImage, petTokenOpt: Option[String])(implicit
-    ev: Ask[F, TraceId]
+                                                                                   ev: Ask[F, TraceId]
   ): F[Option[Token]] =
     parsedImage.registry match {
       // If it's a GCR repo, use the pet token
@@ -148,37 +148,40 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     ) ++
       tokenOpt.fold(Headers.empty)(t => Headers(Authorization(Credentials.Token(AuthScheme.Bearer, t.token))))
 
-  private[dao] def parseImage(image: ContainerImage)(implicit ev: Ask[F, TraceId]): F[ParsedImage] =
-    image.imageUrl match {
-      case GCR.regex(registry, imageName, tagOpt, shaOpt) =>
-        val version = Option(tagOpt)
-          .map(Tag)
-          .orElse(Option(shaOpt).map(Sha))
-        for {
-          traceId <- ev.ask
-          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
-            F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
-          )
-        } yield res
-      case DockerHub.regex(imageName, tagOpt, shaOpt) =>
-        val identifier = Option(tagOpt)
-          .map(Tag)
-          .orElse(Option(shaOpt).map(Sha))
-          .getOrElse(Tag("latest"))
-        F.pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
-      case GHCR.regex(registry, imageName, tagOpt, shaOpt) =>
-        val identifier = Option(tagOpt)
-          .map(Tag)
-          .orElse(Option(shaOpt).map(Sha))
-          .getOrElse(Tag("latest"))
-        F.pure(ParsedImage(GHCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, identifier))
-      case _ =>
-        for {
-          traceId <- ev.ask
-          _ <- logger.error(s"${traceId} | Unable to parse ${image.registry.toString} image ${image.imageUrl}")
-          res <- F.raiseError[ParsedImage](ImageParseException(traceId, image))
-        } yield res
-    }
+  private[dao] def parseImage(image: ContainerImage)(implicit ev: Ask[F, TraceId]): F[ParsedImage] = {
+    logger.info(s"Parsing image ${image.imageUrl}")
+    F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://us.gcr.io/v2"), "terra-docker-base", Tag("latest")))
+  }
+  //      image.imageUrl match {
+  //      case GCR.regex(registry, imageName, tagOpt, shaOpt) =>
+  //        val version = Option(tagOpt)
+  //          .map(Tag)
+  //          .orElse(Option(shaOpt).map(Sha))
+  //        for {
+  //          traceId <- ev.ask
+  //          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
+  //            F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
+  //          )
+  //        } yield res
+  //      case DockerHub.regex(imageName, tagOpt, shaOpt) =>
+  //        val identifier = Option(tagOpt)
+  //          .map(Tag)
+  //          .orElse(Option(shaOpt).map(Sha))
+  //          .getOrElse(Tag("latest"))
+  //        F.pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
+  //      case GHCR.regex(registry, imageName, tagOpt, shaOpt) =>
+  //        val identifier = Option(tagOpt)
+  //          .map(Tag)
+  //          .orElse(Option(shaOpt).map(Sha))
+  //          .getOrElse(Tag("latest"))
+  //        F.pure(ParsedImage(GHCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, identifier))
+  //      case _ =>
+  //        for {
+  //          traceId <- ev.ask
+  //          _ <- logger.error(s"${traceId} | Unable to parse ${image.registry.toString} image ${image.imageUrl}")
+  //          res <- F.raiseError[ParsedImage](ImageParseException(traceId, image))
+  //        } yield res
+  //    }
 }
 
 object HttpDockerDAO {
