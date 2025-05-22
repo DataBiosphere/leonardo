@@ -294,7 +294,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       ctx <- as.ask
       // Find the disk's Sam resource id
       dbdiskOpt <- persistentDiskQuery
-        .getByName(disk.name)
+        .getById(disk.id)
         .transaction
       dbdisk <- F.fromOption(
         dbdiskOpt,
