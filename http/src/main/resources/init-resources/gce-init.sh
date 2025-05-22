@@ -518,22 +518,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # done extension setup
   STEP_TIMINGS+=($(date +%s))
 
-  # If a user script was specified, copy it into the docker container and execute it.
-  if [ ! -z "$USER_SCRIPT_URI" ] ; then
-    apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
-  fi
-
-  # done user script
-  STEP_TIMINGS+=($(date +%s))
-
-  # If a start user script was specified, copy it into the docker container for consumption during startups.
-  if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
-    apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
-  fi
-
-  # done start user script
-  STEP_TIMINGS+=($(date +%s))
-
   # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
   # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
   # kernel tries to connect to it.
@@ -563,6 +547,23 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
   # This is to make it so that older images will still work after we change notebooks location to home dir
   docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
+
+  # If a user script was specified, copy it into the docker container and execute it.
+   if [ ! -z "$USER_SCRIPT_URI" ] ; then
+      log 'Starting user script...'
+     apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
+   fi
+
+   # done user script
+   STEP_TIMINGS+=($(date +%s))
+
+   # If a start user script was specified, copy it into the docker container for consumption during startups.
+   if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
+     apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
+   fi
+
+   # done start user script
+   STEP_TIMINGS+=($(date +%s))
 
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
