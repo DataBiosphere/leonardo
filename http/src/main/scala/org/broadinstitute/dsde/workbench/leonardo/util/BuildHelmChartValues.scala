@@ -41,8 +41,8 @@ private[leonardo] object BuildHelmChartValues {
     // Machine type info
     val maxLimitMemory = machineType.memorySizeInGb
     val maxLimitCpu = machineType.numOfCpus
-    val maxRequestMemory = maxLimitMemory - 22
-    val maxRequestCpu = maxLimitCpu - 6
+    val maxRequestMemory = maxLimitMemory - 10
+    val maxRequestCpu = maxLimitCpu - 5
 
     // Custom EV configs
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap { case ((k, v), i) =>
@@ -57,7 +57,8 @@ private[leonardo] object BuildHelmChartValues {
     val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
       List(
         raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
-        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-galaxy-pvc"""
+        raw"""galaxy.persistence.existingClaim=${release.asString}-galaxy-galaxy-pvc""",
+        raw"""galaxy.persistence.storageClass=-"""
       )
     )
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
@@ -67,11 +68,13 @@ private[leonardo] object BuildHelmChartValues {
       // Storage class configs
       raw"""nfs.storageClass.name=nfs-${release.asString}""",
       raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
+
       // Node selector config: this ensures the app is run on the user's nodepool
       raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      raw"""postgresql.primary.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: ${nodepoolName.value}""",
-      raw"""galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+
       // Ingress configs
       raw"""galaxy.ingress.path=${ingressPath}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
@@ -80,9 +83,7 @@ private[leonardo] object BuildHelmChartValues {
       raw"""galaxy.ingress.hosts[0].paths[0].path=${ingressPath}""",
       raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
-      // CVMFS configs
-      raw"""cvmfs.cvmfscsi.cache.alien.pvc.storageClass=nfs-${release.asString}""",
-      raw"""cvmfs.cvmfscsi.cache.alien.pvc.name=cvmfs-alien-cache""",
+
       // Galaxy configs
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
@@ -90,36 +91,51 @@ private[leonardo] object BuildHelmChartValues {
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
       raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
       raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+
       // Tusd ingress configs
       raw"""galaxy.tusd.ingress.hosts[0].host=${k8sProxyHost}""",
       raw"""galaxy.tusd.ingress.hosts[0].paths[0].path=${ingressPath}/api/upload/resumable_upload""",
       raw"""galaxy.tusd.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.tusd.ingress.tls[0].secretName=tls-secret""",
-      // Set RabbitMQ storage class
+
+      // RabbitMQ configs
       raw"""galaxy.rabbitmq.persistence.storageClassName=nfs-${release.asString}""",
+      raw"""galaxy.rabbitmq.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+
       // Set Machine Type specs
-      raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
-      raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
       raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
       raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
       raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_mem=${maxRequestMemory}""",
       raw"""galaxy.jobs.rules.tpv_rules_local\.yml.destinations.k8s.max_cores=${maxRequestCpu}""",
+
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
-      // Persistence configs
+
+      // Persistence configs - NFS
       raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
       raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
+
+      // Persistence configs - PostgreSQL
       raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
-      raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword.value}""",
       raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName.value}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
+
+      // PostgreSQL configs
+      raw"""postgresql.auth.password=${config.galaxyAppConfig.postgresPassword.value}""",
+      raw"""postgresql.primary.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
+      raw"""galaxy.postgresql.existingDatabase=${release.asString}-postgresql""",
+      raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword.value}""",
+      raw"""galaxy.postgresql.galaxyExistingSecret=${release.asString}-postgresql""",
+      raw"""galaxy.postgresql.galaxyExistingSecretKeyRef=password""",
+
+      // NFS configs
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
       raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
-      raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
-      // Note Galaxy pvc claim is the nfs disk size minus 50G
+
+      // Galaxy persistence configs
       raw"""galaxy.persistence.size=${(nfsDisk.size.gb - 50).toString}Gi"""
     ) ++ configs ++ galaxyRestoreSettings
   }

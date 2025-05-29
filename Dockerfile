@@ -27,7 +27,8 @@ ENV HELM_DEBUG 1
 ENV TERRA_APP_SETUP_VERSION 0.1.0
 ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
-ENV GALAXY_VERSION 2.10.0
+ENV GALAXY_VERSION 4.0.0
+ENV GALAXY_DEPS_VERSION 1.0.0
 ENV NGINX_VERSION 4.3.0
 # If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_CHART_VERSION 0.2.558
@@ -47,7 +48,7 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
 
 # Add the repos containing nginx, galaxy, setup apps, custom apps, cromwell and aou charts
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
-    helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
+    helm repo add galaxy https://raw.githubusercontent.com/CloudVE/helm-charts/master/ && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
@@ -61,6 +62,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 RUN cd /leonardo && \
     helm repo update && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
+    helm pull galaxy/galaxy-deps --version $GALAXY_DEPS_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \

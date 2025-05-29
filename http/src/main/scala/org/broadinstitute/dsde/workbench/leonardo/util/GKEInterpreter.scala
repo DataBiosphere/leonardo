@@ -1383,6 +1383,45 @@ class GKEInterpreter[F[_]](
         AppCreationException(s"No postgres disk found in google for app ${appName.value} ", traceId = Some(ctx.traceId))
       )
 
+      // Step 1: Install galaxy-deps chart (cluster-wide dependencies)
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Installing galaxy-deps chart for app ${appName.value}"
+      )
+
+      galaxyDepsRelease = Release("galaxy-deps")
+      galaxyDepsChart = Chart(ChartName("galaxy-deps"), ChartVersion("1.0.0"))
+      galaxyDepsNamespace = NamespaceName("galaxy-deps")
+
+      // Create a namespace for galaxy-deps
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating namespace ${galaxyDepsNamespace.value} for galaxy-deps chart in cluster ${dbCluster.getClusterId.toString}"
+      )
+      _ <- kubeService.createNamespace(dbCluster.getClusterId, KubernetesNamespace(galaxyDepsNamespace))
+
+      galaxyDepsValues = List(
+        "cvmfs.cvmfscsi.nodeplugin.priorityClassName=",
+        "postgresql.deploy=false"
+      )
+      helmInstallDeps = helmClient
+        .upgradeChart(
+          galaxyDepsRelease,
+          "galaxy/galaxy-deps",
+          galaxyDepsChart.version,
+          org.broadinstitute.dsp.Values(galaxyDepsValues.mkString(","))
+        )
+        .run(helmAuthContext)
+
+      retryConfig = RetryPredicates.retryAllConfig
+      _ <- tracedRetryF(retryConfig)(
+        helmInstallDeps,
+        s"helm install galaxy-deps for app ${appName.value} in project ${dbCluster.cloudContext.asString}"
+      ).compile.lastOrError
+
+      // Step 2: Install the main GKM chart
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Installing GKM chart for app ${appName.value}"
+      )
+
       chartValues = buildGalaxyChartOverrideValuesString(
         config,
         appName,
@@ -1401,12 +1440,12 @@ class GKEInterpreter[F[_]](
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Chart override values are: ${chartValues.map(s =>
-            if (s.contains("galaxyDatabasePassword")) "persistence.postgres.galaxyDatabasePassword=<redacted>"
+            if (s.contains("galaxyDatabasePassword")) "postgresql.auth.password=<redacted>"
             else s
           )}"
       )
 
-      // Invoke helm
+      // Invoke helm for GKM chart
       helmInstall = helmClient
         .installChart(
           release,
@@ -1422,7 +1461,7 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for app ${appName.value} in project ${dbCluster.cloudContext.asString}"
+        s"helm install GKM chart for app ${appName.value} in project ${dbCluster.cloudContext.asString}"
       ).compile.lastOrError
 
       googleProject <- F.fromOption(
