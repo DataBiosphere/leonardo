@@ -10,7 +10,7 @@ import scalafix.sbt.ScalafixPlugin.autoImport.scalafixSemanticdb
 import scala.collection.JavaConverters._
 
 object Settings {
-  
+
   val artifactory = "https://us-central1-maven.pkg.dev/dsp-artifact-registry/"
 
   val commonResolvers = List(
