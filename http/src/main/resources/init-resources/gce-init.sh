@@ -39,7 +39,7 @@ START_USER_SCRIPT_URI=$(startUserScriptUri)
 START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 IS_GCE_FORMATTED=$(isGceFormatted)
 # Needs to be in sync with terra-docker container
-JUPYTER_HOME=/etc/jupyter
+JUPYTER_HOME=/etc/jupytervenv
 JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts

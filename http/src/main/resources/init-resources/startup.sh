@@ -174,7 +174,7 @@ done
 DISK_DEVICE_ID=${FreesdDisks}
 
 ## Notebook server home directories
-JUPYTER_HOME=/etc/jupyter
+JUPYTER_HOME=/etc/jupytervenv
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
