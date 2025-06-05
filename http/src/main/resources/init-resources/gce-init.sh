@@ -534,8 +534,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   log 'Install nbstripout and set gitignore in Git Config'g
 
   # Install nbstripout and set gitignore in Git Config (ask AOU?)
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
-        && nbstripout --install --global \
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "nbstripout --install --global \
         && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
