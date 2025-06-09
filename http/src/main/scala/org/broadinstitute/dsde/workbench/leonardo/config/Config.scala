@@ -647,6 +647,16 @@ object Config {
     )
   }
 
+  implicit private val galaxyDepsConfigReader: ValueReader[KubernetesGalaxyDepsConfig] = ValueReader.relative { config =>
+    KubernetesGalaxyDepsConfig(
+      config.as[NamespaceName]("namespace"),
+      config.as[Release]("release"),
+      config.as[ChartName]("chartName"),
+      config.as[ChartVersion]("chartVersion"),
+      config.as[List[ValueConfig]]("values")
+    )
+  }
+
   implicit private val namespaceNameSuffixReader: ValueReader[NamespaceNameSuffix] =
     stringValueReader.map(NamespaceNameSuffix)
   implicit private val releaseNameSuffixReader: ValueReader[ReleaseNameSuffix] =
@@ -780,6 +790,7 @@ object Config {
   val gkeAllowedAppConfig = config.as[AllowedAppConfig]("gke.allowedApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
+  val gkeGalaxyDepsConfig = config.as[KubernetesGalaxyDepsConfig]("gke.galaxyDeps")
 
   implicit private val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
     ValueReader.relative { config =>
@@ -917,6 +928,7 @@ object Config {
       appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,
-      gkeGalaxyDiskConfig
+      gkeGalaxyDiskConfig,
+      gkeGalaxyDepsConfig
     )
 }

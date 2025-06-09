@@ -92,6 +92,7 @@ class GKEInterpreter[F[_]](
     (ps: List[KubernetesPodStatus]) => ps.forall(isPodDone)
   implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 
+  // Saloni - CreateClusterParams object has enableIntraNodeVisibility
   override def createCluster(params: CreateClusterParams)(implicit
     ev: Ask[F, AppContext]
   ): F[Option[CreateClusterResult]] = {
@@ -220,7 +221,8 @@ class GKEInterpreter[F[_]](
     )
   }
 
-  override def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  // Saloni - polls for cluster creation status
+  override def pollCluster(params: PollClusterParams, enableIntraNodeVisibility: Boolean)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
 
@@ -238,7 +240,7 @@ class GKEInterpreter[F[_]](
       )
 
       _ <- F.fromOption(dbCluster.nodepools.find(_.isDefault), DefaultNodepoolNotFoundException(dbCluster.id))
-      // Poll GKE until completion
+      // Poll GKE until completion --> seems to be polling until completion?
       lastOp <- gkeService
         .pollOperation(
           params.createResult.op,
@@ -275,6 +277,7 @@ class GKEInterpreter[F[_]](
         )
       )
 
+      // Saloni - if it reaches here it must be cluster creation succeeded
       _ <- logger.info(ctx.loggingCtx)(
         s"Successfully created cluster ${dbCluster.getClusterId.toString}!"
       )
@@ -301,6 +304,11 @@ class GKEInterpreter[F[_]](
           )
         )
         .transaction
+
+      // Saloni - maybe here we can install galaxy-deps helm chart for Terra clusters
+      // install galaxy-deps helm chart only for Terra clusters
+      _ <- if (!enableIntraNodeVisibility) installGalaxyDepsForTerra(dbCluster, googleCluster) else F.unit
+
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
       _ <- nodepoolQuery.updateStatuses(dbCluster.nodepools.map(_.id), NodepoolStatus.Running).transaction
     } yield ()
@@ -1302,6 +1310,7 @@ class GKEInterpreter[F[_]](
       }
     } yield res
 
+  // Saloni - this is installing a helm chart
   private[util] def installNginx(dbCluster: KubernetesCluster, googleCluster: Cluster)(implicit
     ev: Ask[F, AppContext]
   ): F[IP] =
@@ -1348,6 +1357,34 @@ class GKEInterpreter[F[_]](
       )
     } yield loadBalancerIp
 
+  // Saloni TODO - since this is being installed does it also need to be uninstalled when deleting resources?
+  private[util] def installGalaxyDepsForTerra(dbCluster: KubernetesCluster, googleCluster: Cluster)(implicit
+                                                ev: Ask[F, AppContext]): F[Unit] = {
+    for {
+      ctx <- ev.ask
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Installing galaxy-deps helm chart ${config.galaxyDepsConfig.chart} in cluster ${dbCluster.getClusterId.toString}"
+      )
+
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, config.galaxyDepsConfig.namespace)
+
+      // Invoke helm
+      _ <- helmClient
+        .installChart(
+          config.galaxyDepsConfig.release,
+          config.galaxyDepsConfig.chartName,
+          config.galaxyDepsConfig.chartVersion,
+          org.broadinstitute.dsp.Values(config.galaxyDepsConfig.values.map(_.value).mkString(",")),
+          createNamespace = true
+        )
+        .run(helmAuthContext)
+
+      // Saloni - TODO do we need to poll for anything?
+    } yield ()
+  }
+
+  // Saloni - this is where Galaxy is installed; called from createAndPollApp
   private[util] def installGalaxy(helmAuthContext: AuthContext,
                                   appName: AppName,
                                   release: Release,
@@ -2087,7 +2124,8 @@ final case class GKEInterpreterConfig(leoUrlBase: URL,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,
-                                      galaxyDiskConfig: GalaxyDiskConfig
+                                      galaxyDiskConfig: GalaxyDiskConfig,
+                                      galaxyDepsConfig: KubernetesGalaxyDepsConfig
 )
 
 final case class TerraAppSetupChartConfig(

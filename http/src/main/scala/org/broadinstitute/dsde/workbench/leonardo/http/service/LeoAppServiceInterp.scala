@@ -93,6 +93,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       )
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userEmail))
 
+      // Saloni - note AOU_UI_LABEL label => maps to value "all-of-us"
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
         case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
@@ -277,6 +278,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         )
         app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
 
+        // Saloni - this is where the action is determined for cluster creation
         clusterNodepoolAction = saveClusterResult match {
           case ClusterExists(_, _) =>
             // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
@@ -284,8 +286,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
           case ClusterDoesNotExist(c, n) =>
             if (req.autopilot.isDefined) Some(ClusterNodepoolAction.CreateCluster(c.id))
-            else
+            else {
+              // Saloni - this is where new cluster is created
               Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
+            }
         }
         createAppMessage = CreateAppMessage(
           googleProject,
@@ -1067,6 +1071,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     }
   } yield ()
 
+  // Saloni - what does this do?
+  // maybe it is fetching cluster that was already created before installing new apps
+  // called in createApp and createAppV2
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
     cloudContext: CloudContext,
