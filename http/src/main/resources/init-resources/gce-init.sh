@@ -410,10 +410,10 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # Install everything after having mounted the empty PD
   # This should not be needed anymore if the jupyter home is a directory of the PD mount point
   # See: https://github.com/DataBiosphere/leonardo/pull/4465/files
-  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
-    # TODO: Remove once we stop supporting non AI notebooks based images
-    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
-    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
+#  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
+#    # TODO: Remove once we stop supporting non AI notebooks based images
+#    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
+#    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # Install kernelspecs inside the Jupyter container
     retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
@@ -439,81 +439,81 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   #    "serverExtensions": {},
   #    "combinedExtensions": {}
 #  }
-#  if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
-#    for ext in ${JUPYTER_NB_EXTENSIONS}
-#    do
-#      log "Installing Jupyter NB extension [$ext]..."
-#      if [[ $ext == 'gs://'* ]]; then
-#        $GSUTIL_CMD cp $ext /var
-#        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#      elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
-#        JUPYTER_EXTENSION_FILE=`basename $ext`
-#        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
-#        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#      else
-#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
-#      fi
-#    done
-#  fi
+  if [ ! -z "$JUPYTER_NB_EXTENSIONS" ] ; then
+    for ext in ${JUPYTER_NB_EXTENSIONS}
+    do
+      log "Installing Jupyter NB extension [$ext]..."
+      if [[ $ext == 'gs://'* ]]; then
+        $GSUTIL_CMD cp $ext /var
+        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+      elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+        JUPYTER_EXTENSION_FILE=`basename $ext`
+        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
+        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+      else
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
+      fi
+    done
+  fi
 
-  # Install serverExtensions if provided by the user
-#  if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
-#    for ext in ${JUPYTER_SERVER_EXTENSIONS}
-#    do
-#      log "Installing Jupyter server extension [$ext]..."
-#      if [[ $ext == 'gs://'* ]]; then
-#        $GSUTIL_CMD cp $ext /var
-#        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#      else
-#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
-#      fi
-#    done
-#  fi
+   Install serverExtensions if provided by the user
+  if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
+    for ext in ${JUPYTER_SERVER_EXTENSIONS}
+    do
+      log "Installing Jupyter server extension [$ext]..."
+      if [[ $ext == 'gs://'* ]]; then
+        $GSUTIL_CMD cp $ext /var
+        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+      else
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
+      fi
+    done
+  fi
 
-  # Install combined extensions if provided by the user
-#  if [ ! -z "$JUPYTER_COMBINED_EXTENSIONS"  ] ; then
-#    for ext in ${JUPYTER_COMBINED_EXTENSIONS}
-#    do
-#      log "Installing Jupyter combined extension [$ext]..."
-#      log $ext
-#      if [[ $ext == 'gs://'* ]]; then
-#        $GSUTIL_CMD cp $ext /var
-#        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
-#      else
-#        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
-#      fi
-#    done
-#  fi
-#
-#  # Install lab extensions if provided by the user
-#  # Note: lab extensions need to installed as jupyter user, not root
-#  if [ ! -z "$JUPYTER_LAB_EXTENSIONS" ] ; then
-#    for ext in ${JUPYTER_LAB_EXTENSIONS}
-#    do
-#      log "Installing JupyterLab extension [$ext]..."
-#      pwd
-#      if [[ $ext == 'gs://'* ]]; then
-#        $GSUTIL_CMD cp -r $ext /var
-#        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-#        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-#      elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
-#        JUPYTER_EXTENSION_FILE=`basename $ext`
-#        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
-#        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-#      else
-#        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
-#      fi
-#    done
-#  fi
+   Install combined extensions if provided by the user
+  if [ ! -z "$JUPYTER_COMBINED_EXTENSIONS"  ] ; then
+    for ext in ${JUPYTER_COMBINED_EXTENSIONS}
+    do
+      log "Installing Jupyter combined extension [$ext]..."
+      log $ext
+      if [[ $ext == 'gs://'* ]]; then
+        $GSUTIL_CMD cp $ext /var
+        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
+      else
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
+      fi
+    done
+  fi
+
+  # Install lab extensions if provided by the user
+  # Note: lab extensions need to installed as jupyter user, not root
+  if [ ! -z "$JUPYTER_LAB_EXTENSIONS" ] ; then
+    for ext in ${JUPYTER_LAB_EXTENSIONS}
+    do
+      log "Installing JupyterLab extension [$ext]..."
+      pwd
+      if [[ $ext == 'gs://'* ]]; then
+        $GSUTIL_CMD cp -r $ext /var
+        JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+      elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+        JUPYTER_EXTENSION_FILE=`basename $ext`
+        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
+        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+      else
+        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
+      fi
+    done
+  fi
 
   # done extension setup
   STEP_TIMINGS+=($(date +%s))
@@ -533,7 +533,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
-  docker exec --user jupyter-user $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
