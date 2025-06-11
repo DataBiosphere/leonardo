@@ -416,8 +416,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 #    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # Install kernelspecs inside the Jupyter container
-    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
-  fi
+#    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+#  fi
 
   # Install notebook.json which is used to populate Jupyter.notebook.config in JavaScript extensions.
   # This is used in the edit-mode.js extension that Terra/AoU use.
@@ -531,6 +531,10 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # Copy gitignore into jupyter container (ask AOU?)
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget -N https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global \
   && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
+
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "whoami"
+
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "ls -l $JUPYTER_HOME/scripts/extension"
 
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
