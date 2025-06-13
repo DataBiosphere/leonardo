@@ -179,7 +179,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
                 "Creation may have failed due to temporary resource unavailability in Google Cloud Platform (`ZONE_RESOURCE_POOL_EXHAUSTED` error). Please try again later or refer to http://broad.io/different-zone for creating a cloud environment in a different zone.",
                 shortMessage = Some("fail_to_create")
               ),
-              None
+              None,
+              false
             )
           else
             checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Can't retrieve instance yet"))
@@ -247,7 +248,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
               RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance",
                                   shortMessage = Some("unexpected_status")
               ),
-              None
+              None,
+              false
             )
         }
       } yield r
