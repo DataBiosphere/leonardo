@@ -595,7 +595,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               Some("tool_start_up")
             ),
             mainDataprocInstance,
-            deleteRuntimeOnFail
+            false
           )
       }
     } yield r
