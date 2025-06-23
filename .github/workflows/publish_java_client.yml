@@ -22,10 +22,10 @@ jobs:
 
   generateAndPublishClient:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
 
     env:
-      ARTIFACTORY_USERNAME: ${{secrets.ARTIFACTORY_USERNAME}}
-      ARTIFACTORY_PASSWORD: ${{secrets.ARTIFACTORY_PASSWORD}}
       SBT_OPTS: -Xmx3g
 
     steps:
@@ -44,6 +44,14 @@ jobs:
       - name: Generate java client
         id: generateJavaClient
         run: bash codegen_java/gen_java_client.sh
+
+      - name: Auth to GCP
+        id: 'auth'
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: 'projects/1038484894585/locations/global/workloadIdentityPools/github-wi-pool/providers/github-wi-provider'
+          service_account: 'dsp-artifact-registry-push@dsp-artifact-registry.iam.gserviceaccount.com'
 
       - name: Publish java client for merge to develop branch
         working-directory: codegen_java

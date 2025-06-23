@@ -34,7 +34,7 @@ libraryDependencies += "org.broadinstitute.dsde.workbench" %% "leonardo-client" 
 ```
 
 Please be sure to replace the `<git hash>` with the first 7 characters of the commit hash of the HEAD of `develop`.
-You can find a list of available releases and `<git hash>`-es from [artifactory](https://broadinstitute.jfrog.io/ui/native/libs-release-local;build.timestamp=1679578230/org/broadinstitute/dsde/workbench/leonardo-client_2.11/)
+You can find a list of available releases and `<git hash>`-es from [Google Artifact Registry](https://us-central1-maven.pkg.dev/dsp-artifact-registry/libs-release-standard/org/broadinstitute/dsde/workbench/leonardo-client_2.11/)
 
 Example Scala Usage:
 
