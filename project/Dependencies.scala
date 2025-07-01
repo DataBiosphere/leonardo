@@ -15,7 +15,8 @@ object Dependencies {
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
-  val pact4sV = "0.10.0"
+  val pact4sV = "0.16.2"
+  val commonsBeanUtilsV = "1.11.0"
 
   private val workbenchLibsHash = "5382beb"
   val serviceTestV = s"6.1-$workbenchLibsHash"
@@ -135,6 +136,7 @@ object Dependencies {
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
+  val commonsBeanUtils = "commons-beanutils" % "commons-beanutils" % commonsBeanUtilsV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val workSpaceManagerV = "0.254.1127-SNAPSHOT"
@@ -269,7 +271,10 @@ object Dependencies {
     http4sDsl,
     http4sEmberServer,
     http4sCirce,
-    scalaTest
+    scalaTest,
+    // Need to install an upgraded version of beanutils because it contains a security fix that has not made
+    // it to upstream Pact packages yet
+    commonsBeanUtils
   )
 
 }
