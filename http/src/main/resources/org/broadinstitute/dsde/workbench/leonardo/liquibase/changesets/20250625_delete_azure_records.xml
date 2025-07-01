@@ -24,7 +24,7 @@
             WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
 
             DELETE LABEL FROM LABEL
-                              JOIN APP ON LABEL.resourceType='APP' and LABEL.resourceId = APP.id
+                              JOIN APP ON LABEL.resourceType='app' and LABEL.resourceId = APP.id
                               JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
                               JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
             WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
