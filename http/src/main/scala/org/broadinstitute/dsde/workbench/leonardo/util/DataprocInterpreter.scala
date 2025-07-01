@@ -189,7 +189,9 @@ class DataprocInterpreter[F[_]: Parallel](
         // build cluster configuration
         // We need to maintain the old version of the dataproc image to uncouple the terra from the aou release
         // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
-        (dataprocImage, initScriptResources) = (config.dataprocConfig.customDataprocImage, List(config.clusterResourcesConfig.initScript))
+        (dataprocImage, initScriptResources) = (config.dataprocConfig.customDataprocImage,
+                                                List(config.clusterResourcesConfig.initScript)
+        )
 
         initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
 
