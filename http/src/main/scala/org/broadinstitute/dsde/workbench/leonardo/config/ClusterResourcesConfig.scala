@@ -3,7 +3,6 @@ package config
 
 case class ClusterResourcesConfig(
   initScript: RuntimeResource,
-  legacyAOUInitScript: RuntimeResource, // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
   cloudInit: Option[RuntimeResource],
   startupScript: RuntimeResource,
   shutdownScript: RuntimeResource,
