@@ -118,5 +118,7 @@
     <include file="changesets/20240620_add_mount_ws_bucket_to_app_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20240620_uuid_type.xml" relativeToChangelogFile="true" />
     <include file="changesets/20240828_remove_saturnAutoCreated_label_from_azure_apps.xml" relativeToChangelogFile="true" />
-    <include file="changesets/20250625_delete_azure_records.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20250702_delete_azure_records_app.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20250702_delete_azure_records_cloudenv.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20250702_delete_azure_records_disk.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
-    <changeSet logicalFilePath="leonardo" author="jdewar" id="delete_azure_records">
+    <changeSet logicalFilePath="leonardo" author="jdewar" id="delete_azure_records_app">
         <sql dbms="mysql">
-
-            <!-- Kubernetes Apps -->
-
             DELETE UPDATE_APP_LOG FROM UPDATE_APP_LOG
                           JOIN APP ON APP.id = UPDATE_APP_LOG.appId
                           JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
@@ -45,37 +42,6 @@
             WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
 
             DELETE FROM KUBERNETES_CLUSTER where cloudProvider = 'AZURE';
-
-            <!-- Cloud Environments -->
-
-            DELETE RUNTIME_CONTROLLED_RESOURCE FROM RUNTIME_CONTROLLED_RESOURCE
-                              JOIN CLUSTER ON CLUSTER.id = RUNTIME_CONTROLLED_RESOURCE.runtimeId
-            WHERE CLUSTER.cloudProvider = 'AZURE';
-
-            DELETE LABEL FROM LABEL
-                              JOIN CLUSTER ON LABEL.resourceType='runtime' and LABEL.resourceId = CLUSTER.id
-            WHERE CLUSTER.cloudProvider = 'AZURE';
-
-            DELETE CLUSTER_IMAGE FROM CLUSTER_IMAGE
-                              JOIN CLUSTER ON CLUSTER_IMAGE.clusterId = CLUSTER.id
-            WHERE CLUSTER.cloudProvider = 'AZURE';
-
-            DELETE CLUSTER_ERROR FROM CLUSTER_ERROR
-                              JOIN CLUSTER ON CLUSTER_ERROR.clusterId = CLUSTER.id
-            WHERE CLUSTER.cloudProvider = 'AZURE';
-
-            DELETE FROM CLUSTER WHERE cloudProvider = 'AZURE';
-
-            DELETE FROM RUNTIME_CONFIG WHERE cloudService = 'AZURE_VM';
-
-            <!-- Persistent Disks -->
-
-            DELETE LABEL FROM LABEL
-                              JOIN PERSISTENT_DISK ON LABEL.resourceType='persistentDisk' and LABEL.resourceId = PERSISTENT_DISK.id
-            WHERE PERSISTENT_DISK.cloudProvider = 'AZURE';
-
-            DELETE FROM PERSISTENT_DISK WHERE cloudProvider = 'AZURE';
-
         </sql>
     </changeSet>
 </databaseChangeLog>
