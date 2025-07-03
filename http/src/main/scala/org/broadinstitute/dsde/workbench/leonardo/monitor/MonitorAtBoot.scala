@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -10,20 +11,22 @@ import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmApiClientProvider}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  CreateAppV2Message,
-  DeleteAppMessage,
-  DeleteAppV2Message
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateAppV2Message, DeleteAppMessage, DeleteAppV2Message}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext
+
+// TODO delete with Azure code
+final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
+  extends LeoException(
+    s"WorkspaceId not found in workspace manager for workspace ${workspaceId}",
+    StatusCodes.NotFound,
+    traceId = Some(traceId)
+  )
 
 class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                           computeService: Option[GoogleComputeService[F]],

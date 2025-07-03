@@ -4,20 +4,11 @@ package util
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName}
 import org.broadinstitute.dsde.workbench.leonardo.WsmControlledResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CreateDiskForRuntimeResult, StorageContainerResponse}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage,
-  DeleteDiskV2Message
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage, DeleteDiskV2Message}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  AzureRuntimeCreationError,
-  AzureRuntimeDeletionError,
-  AzureRuntimeStartingError,
-  AzureRuntimeStoppingError
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{AzureRuntimeCreationError, AzureRuntimeDeletionError, AzureRuntimeStartingError, AzureRuntimeStoppingError}
 import org.broadinstitute.dsp.ChartVersion
 import org.http4s.Uri
 
@@ -137,6 +128,36 @@ final case class PollStorageContainerParams(workspaceId: WorkspaceId,
 final case class CreateStorageContainerResourcesResult(containerName: ContainerName,
                                                        resourceId: WsmControlledResourceId
 )
+
+final case class CustomScriptExtensionConfig(name: String,
+                                             publisher: String,
+                                             `type`: String,
+                                             version: String,
+                                             minorVersionAutoUpgrade: Boolean,
+                                             fileUris: List[String]
+                                            )
+
+final case class AzureServiceConfig(diskConfig: PersistentDiskConfig,
+                                    image: AzureImage,
+                                    listenerImage: String,
+                                    welderImage: String
+                                   )
+final case class VMCredential(username: String, password: String)
+
+final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
+                                      ipNamePrefix: String,
+                                      networkControlledResourceDesc: String,
+                                      networkNamePrefix: String,
+                                      subnetNamePrefix: String,
+                                      addressSpaceCidr: CidrIP,
+                                      subnetAddressCidr: CidrIP,
+                                      diskControlledResourceDesc: String,
+                                      vmControlledResourceDesc: String,
+                                      image: AzureImage,
+                                      customScriptExtension: CustomScriptExtensionConfig,
+                                      listenerImage: String,
+                                      vmCredential: VMCredential
+                                     )
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           wsmUrl: Uri,

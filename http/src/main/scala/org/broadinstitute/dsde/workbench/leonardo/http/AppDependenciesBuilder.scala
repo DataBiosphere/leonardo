@@ -96,13 +96,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.samService
     )
 
-    val azureService = new RuntimeV2ServiceInterp[IO](
-      baselineDependencies.runtimeServicesConfig,
-      baselineDependencies.publisherQueue,
-      baselineDependencies.dateAccessedUpdaterQueue,
-      baselineDependencies.wsmClientProvider,
-      baselineDependencies.samService
-    )
     val adminService =
       new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
 
@@ -119,7 +112,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
           dependenciesRegistry,
           diskV2Service,
           leoKubernetesService,
-          azureService,
           adminService,
           StandardUserInfoDirectives,
           contentSecurityPolicy,

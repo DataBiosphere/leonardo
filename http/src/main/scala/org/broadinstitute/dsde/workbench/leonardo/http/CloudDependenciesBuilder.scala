@@ -74,7 +74,6 @@ final case class ServicesDependencies(
   cloudSpecificDependenciesRegistry: ServicesRegistry,
   diskV2Service: DiskV2Service[IO],
   kubernetesService: AppService[IO],
-  azureService: RuntimeV2Service[IO],
   adminService: AdminService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,

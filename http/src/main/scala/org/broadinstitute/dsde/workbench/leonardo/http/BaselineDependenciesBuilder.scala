@@ -37,7 +37,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{HttpSamApiClientProvi
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AzureServiceConfig,
   RuntimeServiceConfig,
   SamResourceCacheKey
 }
@@ -284,14 +283,7 @@ class BaselineDependenciesBuilder {
         imageConfig,
         autoFreezeConfig,
         dataprocConfig,
-        gceConfig,
-        AzureServiceConfig(
-          // For now azure disks share same defaults as normal disks
-          ConfigReader.appConfig.persistentDisk,
-          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
-          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.azure.pubsubHandler.welderImage
-        )
+        gceConfig
       )
     } yield BaselineDependencies[F](
       sslContext,

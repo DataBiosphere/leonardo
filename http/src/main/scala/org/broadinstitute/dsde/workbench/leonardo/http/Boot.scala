@@ -64,7 +64,6 @@ object Boot extends IOApp {
         servicesDependencies.cloudSpecificDependenciesRegistry,
         servicesDependencies.diskV2Service,
         servicesDependencies.kubernetesService,
-        servicesDependencies.azureService,
         servicesDependencies.adminService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
