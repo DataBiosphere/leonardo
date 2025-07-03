@@ -132,17 +132,6 @@ class BaselineDependenciesBuilder {
           cloudAuthTokenProvider
         )
       )
-      cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
-        client => new HttpCromwellDAO[F](client)
-      )
-      cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
-        new HttpCbasDAO[F](client)
-      )
-      wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
-        new HttpWdsDAO[F](client)
-      )
-      hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
-        .map(client => new HttpHailBatchDAO[F](client))
       listenerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_listener_client"), false).map(
         client => new HttpListenerDAO[F](client)
       )
@@ -307,10 +296,6 @@ class BaselineDependenciesBuilder {
       samResourceCache,
       oidcConfig,
       appDAO,
-      wdsDao,
-      cbasDao,
-      cromwellDao,
-      hailBatchDao,
       listenerDao,
       wsmClientProvider,
       bpmClientProvider,
@@ -443,10 +428,6 @@ final case class BaselineDependencies[F[_]](
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
   appDAO: AppDAO[F],
-  wdsDAO: WdsDAO[F],
-  cbasDAO: CbasDAO[F],
-  cromwellDAO: CromwellDAO[F],
-  hailBatchDAO: HailBatchDAO[F],
   listenerDAO: ListenerDAO[F],
   wsmClientProvider: HttpWsmClientProvider[F],
   bpmClientProvider: HttpBpmClientProvider[F],

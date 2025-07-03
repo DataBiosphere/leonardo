@@ -73,14 +73,10 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   // Mocks
   val appDAO = setUpMockAppDAO
-  val wdsDAO = setUpMockWdsDAO
-  val cbasDAO = setUpMockCbasDAO
-  val cromwellDAO = setUpMockCromwellDAO
   val samDAO = setUpMockSamDAO
   val jupyterDAO = setUpMockJupyterDAO
   val rstudioDAO = setUpMockRStudioDAO
   val welderDAO = setUpMockWelderDAO
-  val hailBatchDAO = setUpMockHailBatchDAO
   val relayListenerDAO = setUpMockRelayListenerDAO
   val kube = setUpMockKubeDAO
   val containerService = setUpMockAzureContainerService
@@ -93,10 +89,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val leoMetricsMonitor = new LeoMetricsMonitor[IO](
     config,
     appDAO,
-    wdsDAO,
-    cbasDAO,
-    cromwellDAO,
-    hailBatchDAO,
     relayListenerDAO,
     samDAO,
     kube,
@@ -583,31 +575,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     sam
   }
 
-  private def setUpMockCromwellDAO: CromwellDAO[IO] = {
-    val cromwell = mock[CromwellDAO[IO]]
-    when {
-      cromwell.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    cromwell
-  }
-
-  // CBAS is down
-  private def setUpMockCbasDAO: CbasDAO[IO] = {
-    val cbas = mock[CbasDAO[IO]]
-    when {
-      cbas.getStatus(any, any)(any)
-    } thenReturn IO.pure(false)
-    cbas
-  }
-
-  private def setUpMockWdsDAO: WdsDAO[IO] = {
-    val wds = mock[WdsDAO[IO]]
-    when {
-      wds.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    wds
-  }
-
   private def setUpMockAppDAO: AppDAO[IO] = {
     val app = mock[AppDAO[IO]]
     when {
@@ -639,17 +606,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       welder.isProxyAvailable(any, any[String].asInstanceOf[RuntimeName])
     } thenReturn IO.pure(true)
     welder
-  }
-
-  private def setUpMockHailBatchDAO: HailBatchDAO[IO] = {
-    val batch = mock[HailBatchDAO[IO]]
-    when {
-      batch.getStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    when {
-      batch.getDriverStatus(any, any)(any)
-    } thenReturn IO.pure(true)
-    batch
   }
 
   private def setUpMockRelayListenerDAO: ListenerDAO[IO] = {

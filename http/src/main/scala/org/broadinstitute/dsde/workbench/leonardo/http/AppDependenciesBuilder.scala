@@ -128,7 +128,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
 
     // LeoMetricsMonitor collects metrics from both runtimes and apps.
     // - clusterToolToToolDao provides jupyter/rstudio/welder DAOs for runtime status checking.
-    // - appDAO, wdsDAO, cbasDAO, cromwellDAO are for status checking apps.
+    // - appDAO is for status checking apps.
     implicit val clusterToolToToolDao =
       ToolDAO.clusterToolToToolDao(baselineDependencies.jupyterDAO,
                                    baselineDependencies.welderDAO,
@@ -141,10 +141,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     val metricsMonitor = new LeoMetricsMonitor(
       ConfigReader.appConfig.metrics,
       baselineDependencies.appDAO,
-      baselineDependencies.wdsDAO,
-      baselineDependencies.cbasDAO,
-      baselineDependencies.cromwellDAO,
-      baselineDependencies.hailBatchDAO,
       baselineDependencies.listenerDAO,
       baselineDependencies.samDAO,
       kubeAlg,
