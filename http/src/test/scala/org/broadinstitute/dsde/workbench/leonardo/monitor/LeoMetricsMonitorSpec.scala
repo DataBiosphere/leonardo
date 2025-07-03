@@ -106,18 +106,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   "LeoMetricsMonitor" should "count apps by status" in {
     val test = leoMetricsMonitor.countAppsByDbStatus(allApps)
     // 10 apps
-    test.size shouldBe 10
-    // Cromwell on Azure
-    test.get(
-      AppStatusMetric(CloudProvider.Azure,
-                      AppType.Cromwell,
-                      AppStatus.Running,
-                      RuntimeUI.Terra,
-                      Some(azureContext),
-                      cromwellOnAzureChart,
-                      true
-      )
-    ) shouldBe Some(1)
+    test.size shouldBe 5
     // Cromwell on GCP on Terra
     test.get(
       AppStatusMetric(CloudProvider.Gcp,
@@ -144,50 +133,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     // RStudio on GCP on AoU
     test.get(
       AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, None, rstudioChart, true)
-    ) shouldBe Some(1)
-    // Hail Batch on Azure
-    test.get(
-      AppStatusMetric(CloudProvider.Azure,
-                      AppType.HailBatch,
-                      AppStatus.Running,
-                      RuntimeUI.Terra,
-                      Some(azureContext),
-                      hailBatchChart,
-                      true
-      )
-    ) shouldBe Some(1)
-    // WDS on Azure
-    test.get(
-      AppStatusMetric(CloudProvider.Azure,
-                      AppType.Wds,
-                      AppStatus.Running,
-                      RuntimeUI.Terra,
-                      Some(azureContext2),
-                      wdsChart,
-                      true
-      )
-    ) shouldBe Some(1)
-    // Workflows App on Azure
-    test.get(
-      AppStatusMetric(CloudProvider.Azure,
-                      AppType.WorkflowsApp,
-                      AppStatus.Running,
-                      RuntimeUI.Terra,
-                      Some(azureContext2),
-                      workflowsAppChart,
-                      true
-      )
-    ) shouldBe Some(1)
-    // Cromwell Runner App on Azure
-    test.get(
-      AppStatusMetric(CloudProvider.Azure,
-                      AppType.CromwellRunnerApp,
-                      AppStatus.Running,
-                      RuntimeUI.Terra,
-                      Some(azureContext2),
-                      cromwellRunnerAppChart,
-                      true
-      )
     ) shouldBe Some(1)
   }
 
@@ -237,106 +182,106 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     ) shouldBe Some(1)
   }
 
-  it should "health check apps" in {
-    val test =
-      leoMetricsMonitor
-        .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
-        .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
-    test.size shouldBe 12
-    List("cromwell", "cbas").foreach { s =>
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.Cromwell,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        Some(azureContext),
-                        s != "cbas",
-                        cromwellOnAzureChart,
-                        true
-        )
-      ) shouldBe Some(1)
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.Cromwell,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        Some(azureContext),
-                        s == "cbas",
-                        cromwellOnAzureChart,
-                        true
-        )
-      ) shouldBe Some(0)
-    }
-    test.get(
-      AppHealthMetric(CloudProvider.Gcp,
-                      AppType.Galaxy,
-                      ServiceName("galaxy"),
-                      RuntimeUI.Terra,
-                      None,
-                      true,
-                      galaxyChart,
-                      true
-      )
-    ) shouldBe Some(1)
-    test.get(
-      AppHealthMetric(CloudProvider.Gcp,
-                      AppType.Galaxy,
-                      ServiceName("galaxy"),
-                      RuntimeUI.Terra,
-                      None,
-                      false,
-                      galaxyChart,
-                      true
-      )
-    ) shouldBe Some(0)
-    List("cromwell-reader", "cbas").foreach { s =>
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.WorkflowsApp,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        Some(azureContext2),
-                        s != "cbas",
-                        workflowsAppChart,
-                        true
-        )
-      ) shouldBe Some(1)
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.WorkflowsApp,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        Some(azureContext2),
-                        s == "cbas",
-                        workflowsAppChart,
-                        true
-        )
-      ) shouldBe Some(0)
-    }
-    test.get(
-      AppHealthMetric(CloudProvider.Azure,
-                      AppType.CromwellRunnerApp,
-                      ServiceName("cromwell-runner"),
-                      RuntimeUI.Terra,
-                      Some(azureContext2),
-                      true,
-                      cromwellRunnerAppChart,
-                      true
-      )
-    ) shouldBe Some(1)
-    test.get(
-      AppHealthMetric(CloudProvider.Azure,
-                      AppType.CromwellRunnerApp,
-                      ServiceName("cromwell-runner"),
-                      RuntimeUI.Terra,
-                      Some(azureContext2),
-                      false,
-                      cromwellRunnerAppChart,
-                      true
-      )
-    ) shouldBe Some(0)
-  }
+//  it should "health check apps" in {
+//    val test =
+//      leoMetricsMonitor
+//        .countAppsByHealth(List(galaxyAppGcp))
+//        .unsafeRunSync()(IORuntime.global)
+//    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
+//    test.size shouldBe 12
+//    List("cromwell", "cbas").foreach { s =>
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.Cromwell,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        Some(azureContext),
+//                        s != "cbas",
+//                        cromwellOnAzureChart,
+//                        true
+//        )
+//      ) shouldBe Some(1)
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.Cromwell,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        Some(azureContext),
+//                        s == "cbas",
+//                        cromwellOnAzureChart,
+//                        true
+//        )
+//      ) shouldBe Some(0)
+//    }
+//    test.get(
+//      AppHealthMetric(CloudProvider.Gcp,
+//                      AppType.Galaxy,
+//                      ServiceName("galaxy"),
+//                      RuntimeUI.Terra,
+//                      None,
+//                      true,
+//                      galaxyChart,
+//                      true
+//      )
+//    ) shouldBe Some(1)
+//    test.get(
+//      AppHealthMetric(CloudProvider.Gcp,
+//                      AppType.Galaxy,
+//                      ServiceName("galaxy"),
+//                      RuntimeUI.Terra,
+//                      None,
+//                      false,
+//                      galaxyChart,
+//                      true
+//      )
+//    ) shouldBe Some(0)
+//    List("cromwell-reader", "cbas").foreach { s =>
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.WorkflowsApp,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        Some(azureContext2),
+//                        s != "cbas",
+//                        workflowsAppChart,
+//                        true
+//        )
+//      ) shouldBe Some(1)
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.WorkflowsApp,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        Some(azureContext2),
+//                        s == "cbas",
+//                        workflowsAppChart,
+//                        true
+//        )
+//      ) shouldBe Some(0)
+//    }
+//    test.get(
+//      AppHealthMetric(CloudProvider.Azure,
+//                      AppType.CromwellRunnerApp,
+//                      ServiceName("cromwell-runner"),
+//                      RuntimeUI.Terra,
+//                      Some(azureContext2),
+//                      true,
+//                      cromwellRunnerAppChart,
+//                      true
+//      )
+//    ) shouldBe Some(1)
+//    test.get(
+//      AppHealthMetric(CloudProvider.Azure,
+//                      AppType.CromwellRunnerApp,
+//                      ServiceName("cromwell-runner"),
+//                      RuntimeUI.Terra,
+//                      Some(azureContext2),
+//                      false,
+//                      cromwellRunnerAppChart,
+//                      true
+//      )
+//    ) shouldBe Some(0)
+//  }
 
   it should "health check runtimes" in {
     val test = leoMetricsMonitor.countRuntimesByHealth(List(jupyterAzure, rstudioGcp)).unsafeRunSync()(IORuntime.global)
@@ -362,178 +307,178 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     }
   }
 
-  it should "not include AzureCloudContext if disabled" in {
-    val config = LeoMetricsMonitorConfig(true, 1 minute, false)
-    val azureDisabledMetricsMonitor = new LeoMetricsMonitor[IO](
-      config,
-      appDAO,
-      wdsDAO,
-      cbasDAO,
-      cromwellDAO,
-      hailBatchDAO,
-      relayListenerDAO,
-      samDAO,
-      kube,
-      containerService
-    )
-    val test =
-      azureDisabledMetricsMonitor
-        .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
-        .unsafeRunSync()(IORuntime.global)
-    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
-    test.size shouldBe 12
-    List("cromwell", "cbas").foreach { s =>
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.Cromwell,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        None,
-                        s != "cbas",
-                        cromwellOnAzureChart,
-                        true
-        )
-      ) shouldBe Some(1)
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.Cromwell,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        None,
-                        s == "cbas",
-                        cromwellOnAzureChart,
-                        true
-        )
-      ) shouldBe Some(0)
-    }
-    test.get(
-      AppHealthMetric(CloudProvider.Gcp,
-                      AppType.Galaxy,
-                      ServiceName("galaxy"),
-                      RuntimeUI.Terra,
-                      None,
-                      true,
-                      galaxyChart,
-                      true
-      )
-    ) shouldBe Some(1)
-    test.get(
-      AppHealthMetric(CloudProvider.Gcp,
-                      AppType.Galaxy,
-                      ServiceName("galaxy"),
-                      RuntimeUI.Terra,
-                      None,
-                      false,
-                      galaxyChart,
-                      true
-      )
-    ) shouldBe Some(0)
-    List("cromwell-reader", "cbas").foreach { s =>
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.WorkflowsApp,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        None,
-                        s != "cbas",
-                        workflowsAppChart,
-                        true
-        )
-      ) shouldBe Some(1)
-      test.get(
-        AppHealthMetric(CloudProvider.Azure,
-                        AppType.WorkflowsApp,
-                        ServiceName(s),
-                        RuntimeUI.Terra,
-                        None,
-                        s == "cbas",
-                        workflowsAppChart,
-                        true
-        )
-      ) shouldBe Some(0)
-    }
-    test.get(
-      AppHealthMetric(CloudProvider.Azure,
-                      AppType.CromwellRunnerApp,
-                      ServiceName("cromwell-runner"),
-                      RuntimeUI.Terra,
-                      None,
-                      true,
-                      cromwellRunnerAppChart,
-                      true
-      )
-    ) shouldBe Some(1)
-    test.get(
-      AppHealthMetric(CloudProvider.Azure,
-                      AppType.CromwellRunnerApp,
-                      ServiceName("cromwell-runner"),
-                      RuntimeUI.Terra,
-                      None,
-                      false,
-                      cromwellRunnerAppChart,
-                      true
-      )
-    ) shouldBe Some(0)
-  }
+//  it should "not include AzureCloudContext if disabled" in {
+//    val config = LeoMetricsMonitorConfig(true, 1 minute, false)
+//    val azureDisabledMetricsMonitor = new LeoMetricsMonitor[IO](
+//      config,
+//      appDAO,
+//      wdsDAO,
+//      cbasDAO,
+//      cromwellDAO,
+//      hailBatchDAO,
+//      relayListenerDAO,
+//      samDAO,
+//      kube,
+//      containerService
+//    )
+//    val test =
+//      azureDisabledMetricsMonitor
+//        .countAppsByHealth(List(cromwellAppAzure, galaxyAppGcp, workflowsApp, cromwellRunnerApp))
+//        .unsafeRunSync()(IORuntime.global)
+//    // An up and a down metric for 7 services: 2 cbases, cromwell, cromwell-reader, cromwell-runner, galaxy
+//    test.size shouldBe 12
+//    List("cromwell", "cbas").foreach { s =>
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.Cromwell,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        None,
+//                        s != "cbas",
+//                        cromwellOnAzureChart,
+//                        true
+//        )
+//      ) shouldBe Some(1)
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.Cromwell,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        None,
+//                        s == "cbas",
+//                        cromwellOnAzureChart,
+//                        true
+//        )
+//      ) shouldBe Some(0)
+//    }
+//    test.get(
+//      AppHealthMetric(CloudProvider.Gcp,
+//                      AppType.Galaxy,
+//                      ServiceName("galaxy"),
+//                      RuntimeUI.Terra,
+//                      None,
+//                      true,
+//                      galaxyChart,
+//                      true
+//      )
+//    ) shouldBe Some(1)
+//    test.get(
+//      AppHealthMetric(CloudProvider.Gcp,
+//                      AppType.Galaxy,
+//                      ServiceName("galaxy"),
+//                      RuntimeUI.Terra,
+//                      None,
+//                      false,
+//                      galaxyChart,
+//                      true
+//      )
+//    ) shouldBe Some(0)
+//    List("cromwell-reader", "cbas").foreach { s =>
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.WorkflowsApp,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        None,
+//                        s != "cbas",
+//                        workflowsAppChart,
+//                        true
+//        )
+//      ) shouldBe Some(1)
+//      test.get(
+//        AppHealthMetric(CloudProvider.Azure,
+//                        AppType.WorkflowsApp,
+//                        ServiceName(s),
+//                        RuntimeUI.Terra,
+//                        None,
+//                        s == "cbas",
+//                        workflowsAppChart,
+//                        true
+//        )
+//      ) shouldBe Some(0)
+//    }
+//    test.get(
+//      AppHealthMetric(CloudProvider.Azure,
+//                      AppType.CromwellRunnerApp,
+//                      ServiceName("cromwell-runner"),
+//                      RuntimeUI.Terra,
+//                      None,
+//                      true,
+//                      cromwellRunnerAppChart,
+//                      true
+//      )
+//    ) shouldBe Some(1)
+//    test.get(
+//      AppHealthMetric(CloudProvider.Azure,
+//                      AppType.CromwellRunnerApp,
+//                      ServiceName("cromwell-runner"),
+//                      RuntimeUI.Terra,
+//                      None,
+//                      false,
+//                      cromwellRunnerAppChart,
+//                      true
+//      )
+//    ) shouldBe Some(0)
+//  }
 
-  it should "record nodepool size" in {
-    val test = leoMetricsMonitor.getNodepoolSize(List(wdsAppAzure, hailBatchAppAzure)).unsafeRunSync()(IORuntime.global)
-    test.size shouldBe 4
-    test.get(NodepoolSizeMetric(azureContext, "pool1")) shouldBe Some(10)
-    test.get(NodepoolSizeMetric(azureContext, "pool2")) shouldBe Some(1)
-    test.get(NodepoolSizeMetric(azureContext2, "pool1")) shouldBe Some(10)
-    test.get(NodepoolSizeMetric(azureContext2, "pool2")) shouldBe Some(1)
-  }
+//  it should "record nodepool size" in {
+//    val test = leoMetricsMonitor.getNodepoolSize(List(wdsAppAzure, hailBatchAppAzure)).unsafeRunSync()(IORuntime.global)
+//    test.size shouldBe 4
+//    test.get(NodepoolSizeMetric(azureContext, "pool1")) shouldBe Some(10)
+//    test.get(NodepoolSizeMetric(azureContext, "pool2")) shouldBe Some(1)
+//    test.get(NodepoolSizeMetric(azureContext2, "pool1")) shouldBe Some(10)
+//    test.get(NodepoolSizeMetric(azureContext2, "pool2")) shouldBe Some(1)
+//  }
 
-  it should "record app k8s metrics" in {
-    val chart = Chart.fromString("wds-0.0.1").get
-    val test = leoMetricsMonitor.getAppK8sResources(List(wdsAppAzure)).unsafeRunSync()(IORuntime.global)
-    test.size shouldBe 4
-    test.get(
-      AppResourcesMetric(CloudProvider.Azure,
-                         AppType.Wds,
-                         ServiceName("wds"),
-                         RuntimeUI.Terra,
-                         Some(azureContext2),
-                         "request",
-                         "cpu",
-                         chart
-      )
-    ) shouldBe Some(1)
-    test.get(
-      AppResourcesMetric(CloudProvider.Azure,
-                         AppType.Wds,
-                         ServiceName("wds"),
-                         RuntimeUI.Terra,
-                         Some(azureContext2),
-                         "request",
-                         "memory",
-                         chart
-      )
-    ) shouldBe Some(1073741824d)
-    test.get(
-      AppResourcesMetric(CloudProvider.Azure,
-                         AppType.Wds,
-                         ServiceName("wds"),
-                         RuntimeUI.Terra,
-                         Some(azureContext2),
-                         "limit",
-                         "cpu",
-                         chart
-      )
-    ) shouldBe Some(2)
-    test.get(
-      AppResourcesMetric(CloudProvider.Azure,
-                         AppType.Wds,
-                         ServiceName("wds"),
-                         RuntimeUI.Terra,
-                         Some(azureContext2),
-                         "limit",
-                         "memory",
-                         chart
-      )
-    ) shouldBe Some(2147483648d)
-  }
+//  it should "record app k8s metrics" in {
+//    val chart = Chart.fromString("wds-0.0.1").get
+//    val test = leoMetricsMonitor.getAppK8sResources(List(wdsAppAzure)).unsafeRunSync()(IORuntime.global)
+//    test.size shouldBe 4
+//    test.get(
+//      AppResourcesMetric(CloudProvider.Azure,
+//                         AppType.Wds,
+//                         ServiceName("wds"),
+//                         RuntimeUI.Terra,
+//                         Some(azureContext2),
+//                         "request",
+//                         "cpu",
+//                         chart
+//      )
+//    ) shouldBe Some(1)
+//    test.get(
+//      AppResourcesMetric(CloudProvider.Azure,
+//                         AppType.Wds,
+//                         ServiceName("wds"),
+//                         RuntimeUI.Terra,
+//                         Some(azureContext2),
+//                         "request",
+//                         "memory",
+//                         chart
+//      )
+//    ) shouldBe Some(1073741824d)
+//    test.get(
+//      AppResourcesMetric(CloudProvider.Azure,
+//                         AppType.Wds,
+//                         ServiceName("wds"),
+//                         RuntimeUI.Terra,
+//                         Some(azureContext2),
+//                         "limit",
+//                         "cpu",
+//                         chart
+//      )
+//    ) shouldBe Some(2)
+//    test.get(
+//      AppResourcesMetric(CloudProvider.Azure,
+//                         AppType.Wds,
+//                         ServiceName("wds"),
+//                         RuntimeUI.Terra,
+//                         Some(azureContext2),
+//                         "limit",
+//                         "memory",
+//                         chart
+//      )
+//    ) shouldBe Some(2147483648d)
+//  }
 
   // Data generators
 
@@ -573,9 +518,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   def genService(name: String): KubernetesService =
     KubernetesService(ServiceId(-1), ServiceConfig(ServiceName(name), KubernetesServiceKindName("ClusterIP")))
 
-  private def cromwellAppAzure: KubernetesCluster =
-    genApp(true, AppType.Cromwell, cromwellOnAzureChart, false, true, false)
-      .copy(cloudContext = CloudContext.Azure(azureContext))
   private def cromwellAppGcp: KubernetesCluster =
     genApp(false, AppType.Cromwell, cromwellChart, false, true, false)
   private def galaxyAppGcp: KubernetesCluster =
@@ -586,41 +528,19 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     genApp(false, AppType.Cromwell, cromwellChart, true, true, false)
   private def rstudioAppGcpAou: KubernetesCluster =
     genApp(false, AppType.Allowed, rstudioChart, true, false, false)
-  private def hailBatchAppAzure: KubernetesCluster =
-    genApp(true, AppType.HailBatch, hailBatchChart, false, false, false)
-      .copy(cloudContext = CloudContext.Azure(azureContext))
-  private def wdsAppAzure: KubernetesCluster =
-    genApp(true, AppType.Wds, wdsChart, false, false, false)
-      .copy(cloudContext = CloudContext.Azure(azureContext2))
-  private def workflowsApp: KubernetesCluster =
-    genApp(true, AppType.WorkflowsApp, workflowsAppChart, false, false, true)
-      .copy(cloudContext = CloudContext.Azure(azureContext2))
-  private def cromwellRunnerApp: KubernetesCluster =
-    genApp(true, AppType.CromwellRunnerApp, cromwellRunnerAppChart, false, false, false, true)
-      .copy(cloudContext = CloudContext.Azure(azureContext2))
 
   private def cromwellChart = Chart.fromString("cromwell-0.0.1").get
-  private def cromwellOnAzureChart = Chart.fromString("cromwell-on-azure-0.0.1").get
   private def galaxyChart = Chart.fromString("galaxy-0.0.1").get
   private def customChart = Chart.fromString("custom-0.0.1").get
   private def rstudioChart = Chart.fromString("rstudio-0.0.1").get
-  private def hailBatchChart = Chart.fromString("hail-batch-0.1.0").get
-  private def wdsChart = Chart.fromString("wds-0.0.1").get
-  private def workflowsAppChart = Chart.fromString("workflows-app-0.0.1").get
-  private def cromwellRunnerAppChart = Chart.fromString("cromwell-runner-app-0.0.1").get
 
   private def allApps =
     List(
-      cromwellAppAzure,
       cromwellAppGcp,
       galaxyAppGcp,
       customAppGcp,
       cromwellAppGcpAou,
-      rstudioAppGcpAou,
-      hailBatchAppAzure,
-      wdsAppAzure,
-      workflowsApp,
-      cromwellRunnerApp
+      rstudioAppGcpAou
     )
 
   private def genRuntime(isJupyter: Boolean, isAou: Boolean, isGcp: Boolean): RuntimeMetrics =

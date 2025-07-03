@@ -257,17 +257,12 @@ private[leonardo] object BuildHelmChartValues {
   ): Values = {
     val relayTargetHost = appType match {
       case AppType.Cromwell          => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.CromwellRunnerApp => s"http://cra-${release.asString}-reverse-proxy-service:8000/"
-      case AppType.Wds               => s"http://wds-${release.asString}-wds-svc:8080"
-      case AppType.HailBatch         => "http://batch:8080"
-      case AppType.WorkflowsApp      => s"http://wfa-${release.asString}-reverse-proxy-service:8000/"
       case _                         => "unknown"
     }
 
-    // Hail batch serves requests on /{appName}/batch and uses relative redirects,
-    // so requires that we don't strip the entity path. For other app types we do
-    // strip the entity path.
-    val removeEntityPathFromHttpUrl = appType != AppType.HailBatch
+    // Some apps may serve requests on endpoints like /{appName}/batch and use relative redirects,
+    // requiring that we don't strip the entity path. For all current app types we do strip the entity path.
+    val removeEntityPathFromHttpUrl = true
 
     // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
     val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>

@@ -1,16 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import _root_.pureconfig.generic.auto._
 import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.ConfigImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import pureconfig.ConfigSource
-import _root_.pureconfig.generic.auto._
-import ConfigImplicits._
 
 object ConfigReader {
   lazy val appConfig =
@@ -23,11 +23,6 @@ final case class AzureConfig(
   wsm: HttpWsmDaoConfig,
   bpm: BpmConfig,
   appRegistration: AzureAppRegistrationConfig,
-  coaAppConfig: CoaAppConfig,
-  cromwellRunnerAppConfig: CromwellRunnerAppConfig,
-  workflowsAppConfig: WorkflowsAppConfig,
-  wdsAppConfig: WdsAppConfig,
-  hailBatchAppConfig: HailBatchAppConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,
   listenerChartConfig: ListenerChartConfig,

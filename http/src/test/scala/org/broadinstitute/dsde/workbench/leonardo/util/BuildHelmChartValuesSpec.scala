@@ -551,7 +551,7 @@ class BuildHelmChartValuesSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       RelayNamespace("relay-ns"),
       RelayHybridConnectionName("hc-name"),
       PrimaryKey("hc-name"),
-      AppType.Wds,
+      AppType.Cromwell,
       workspaceId,
       AppName("app1"),
       Set("example.com", "foo.com", "bar.org"),
