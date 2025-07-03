@@ -62,7 +62,6 @@ object Boot extends IOApp {
         servicesDependencies.baselineDependencies.openIDConnectConfiguration,
         servicesDependencies.statusService,
         servicesDependencies.cloudSpecificDependenciesRegistry,
-        servicesDependencies.diskV2Service,
         servicesDependencies.kubernetesService,
         servicesDependencies.adminService,
         StandardUserInfoDirectives,

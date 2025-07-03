@@ -72,7 +72,6 @@ final case class LeoAppDependencies(
 final case class ServicesDependencies(
   statusService: StatusService,
   cloudSpecificDependenciesRegistry: ServicesRegistry,
-  diskV2Service: DiskV2Service[IO],
   kubernetesService: AppService[IO],
   adminService: AdminService[IO],
   userInfoDirectives: UserInfoDirectives,

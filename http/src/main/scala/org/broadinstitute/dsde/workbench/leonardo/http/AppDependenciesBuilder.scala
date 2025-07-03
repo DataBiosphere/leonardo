@@ -90,11 +90,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     dbReference: DbReference[IO]
   ): Resource[IO, ServicesDependencies] = {
     val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
-    val diskV2Service = new DiskV2ServiceInterp[IO](
-      baselineDependencies.publisherQueue,
-      baselineDependencies.wsmClientProvider,
-      baselineDependencies.samService
-    )
 
     val adminService =
       new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
@@ -110,7 +105,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
         ServicesDependencies(
           statusService,
           dependenciesRegistry,
-          diskV2Service,
           leoKubernetesService,
           adminService,
           StandardUserInfoDirectives,
