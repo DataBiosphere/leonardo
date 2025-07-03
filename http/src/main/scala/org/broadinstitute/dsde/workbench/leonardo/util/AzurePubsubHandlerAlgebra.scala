@@ -9,7 +9,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{CreateDiskForRuntimeResul
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage, DeleteDiskV2Message}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{AzureRuntimeCreationError, AzureRuntimeDeletionError, AzureRuntimeStartingError, AzureRuntimeStoppingError}
-import org.broadinstitute.dsp.ChartVersion
 import org.http4s.Uri
 
 import java.security.SecureRandom
@@ -33,33 +32,6 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
   ): F[Unit]
 
   def deleteDisk(msg: DeleteDiskV2Message)(implicit ev: Ask[F, AppContext]): F[Unit]
-
-  def createAndPollApp(appId: AppId,
-                       appName: AppName,
-                       workspaceId: WorkspaceId,
-                       cloudContext: AzureCloudContext,
-                       billingProfileId: BillingProfileId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit]
-
-  def updateAndPollApp(appId: AppId,
-                       appName: AppName,
-                       appChartVersion: ChartVersion,
-                       workspaceId: Option[WorkspaceId],
-                       cloudContext: AzureCloudContext
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit]
-
-  def deleteApp(appId: AppId,
-                appName: AppName,
-                workspaceId: WorkspaceId,
-                cloudContext: AzureCloudContext,
-                billingProfileId: BillingProfileId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit]
 
   def handleAzureRuntimeStartError(e: AzureRuntimeStartingError, now: Instant)(implicit
     ev: Ask[F, AppContext]

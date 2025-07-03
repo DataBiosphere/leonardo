@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{WsmApiClientProvider, _}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -26,7 +26,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
-import org.broadinstitute.dsp.HelmException
 import org.http4s.headers.Authorization
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito.{spy, times, verify, when}
@@ -1505,46 +1504,6 @@ class AzurePubsubHandlerSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "handle AKS errors" in isolatedDbTest {
-    val queue = QueueFactory.asyncTaskQueue()
-
-    val failAksInterp = new MockAKSInterp {
-      override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
-        IO.raiseError(HelmException("something went wrong"))
-
-      override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
-        IO.raiseError(HelmException("something went wrong"))
-    }
-    val azureInterp =
-      makeAzurePubsubHandler(asyncTaskQueue = queue, aksAlg = failAksInterp)
-
-    val appId = AppId(42)
-
-    val res = for {
-      ctx <- appContext.ask[AppContext]
-      result <- azureInterp
-        .createAndPollApp(appId, AppName("app"), WorkspaceId(UUID.randomUUID()), azureCloudContext, billingProfileId)
-        .attempt
-    } yield result shouldBe Left(
-      PubsubKubernetesError(
-        AppError(
-          s"Error creating Azure app with id ${appId.id} and cloudContext ${azureCloudContext.asString}: something went wrong",
-          ctx.now,
-          ErrorAction.CreateApp,
-          ErrorSource.App,
-          None,
-          Some(ctx.traceId)
-        ),
-        Some(appId),
-        false,
-        None,
-        None,
-        None
-      )
-    )
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "delete azure disk properly" in isolatedDbTest {
     val queue = QueueFactory.asyncTaskQueue()
 
@@ -1649,7 +1608,6 @@ class AzurePubsubHandlerSpec
                              wsmDAO: WsmDao[IO] = new MockWsmDAO,
                              welderDao: WelderDAO[IO] = new MockWelderDAO(),
                              azureVmService: AzureVmService[IO] = FakeAzureVmService,
-                             aksAlg: AKSAlgebra[IO] = new MockAKSInterp,
                              wsmClient: WsmApiClientProvider[IO] = mockWsm,
                              samDAO: SamDAO[IO] = new MockSamDAO()
   ): AzurePubsubHandlerAlgebra[IO] =
@@ -1671,7 +1629,6 @@ class AzurePubsubHandlerSpec
       new MockJupyterDAO(),
       relayService,
       azureVmService,
-      aksAlg,
       refererConfig,
       wsmClient
     )

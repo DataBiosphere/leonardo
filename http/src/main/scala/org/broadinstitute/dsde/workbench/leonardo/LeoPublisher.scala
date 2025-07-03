@@ -124,14 +124,6 @@ final class LeoPublisher[F[_]](
           F.unit
         case _: LeoPubsubMessage.UpdateRuntimeMessage =>
           F.unit
-        case m: LeoPubsubMessage.CreateAppV2Message =>
-          KubernetesServiceDbQueries
-            .markPendingCreating(m.appId, None, None, None)
-            .transaction
-        case m: LeoPubsubMessage.DeleteAppV2Message =>
-          KubernetesServiceDbQueries
-            .markPendingAppDeletion(m.appId, m.diskId, now)
-            .transaction
       }
     } yield ()
 }

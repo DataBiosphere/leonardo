@@ -5,23 +5,7 @@ import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor
-import org.broadinstitute.dsde.workbench.leonardo.app._
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
-  appMonitorConfig,
-  applicationConfig,
-  asyncTaskProcessorConfig,
-  autoFreezeConfig,
-  autodeleteConfig,
-  contentSecurityPolicy,
-  dateAccessUpdaterConfig,
-  dbConcurrency,
-  leoExecutionModeConfig,
-  leoPubsubMessageSubscriberConfig,
-  liquibaseConfig,
-  prometheusConfig,
-  refererConfig,
-  samConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, autodeleteConfig, contentSecurityPolicy, dateAccessUpdaterConfig, dbConcurrency, leoExecutionModeConfig, leoPubsubMessageSubscriberConfig, liquibaseConfig, prometheusConfig, refererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -167,78 +151,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.azureContainerService
     )
 
-    val cromwellAppInstall = new CromwellAppInstall[IO](
-      ConfigReader.appConfig.azure.coaAppConfig,
-      ConfigReader.appConfig.drs,
-      baselineDependencies.samDAO,
-      baselineDependencies.cromwellDAO,
-      baselineDependencies.cbasDAO,
-      baselineDependencies.azureBatchService,
-      baselineDependencies.azureApplicationInsightsService,
-      baselineDependencies.authProvider
-    )
-
-    val cromwellRunnerAppInstall =
-      new CromwellRunnerAppInstall[IO](
-        ConfigReader.appConfig.azure.cromwellRunnerAppConfig,
-        ConfigReader.appConfig.drs,
-        samConfig,
-        baselineDependencies.samDAO,
-        baselineDependencies.cromwellDAO,
-        baselineDependencies.azureBatchService,
-        baselineDependencies.azureApplicationInsightsService,
-        baselineDependencies.bpmClientProvider,
-        baselineDependencies.authProvider
-      )
-    val hailBatchAppInstall =
-      new HailBatchAppInstall[IO](ConfigReader.appConfig.azure.hailBatchAppConfig, baselineDependencies.hailBatchDAO)
-    val wdsAppInstall = new WdsAppInstall[IO](
-      ConfigReader.appConfig.azure.wdsAppConfig,
-      ConfigReader.appConfig.azure.tdr,
-      baselineDependencies.samDAO,
-      baselineDependencies.wdsDAO,
-      baselineDependencies.azureApplicationInsightsService,
-      baselineDependencies.authProvider
-    )
-    val workflowsAppInstall =
-      new WorkflowsAppInstall[IO](
-        ConfigReader.appConfig.azure.workflowsAppConfig,
-        ConfigReader.appConfig.drs,
-        baselineDependencies.samDAO,
-        baselineDependencies.cromwellDAO,
-        baselineDependencies.cbasDAO,
-        baselineDependencies.azureBatchService,
-        baselineDependencies.azureApplicationInsightsService
-      )
-
-    implicit val appTypeToAppInstall = AppInstall.appTypeToAppInstall(wdsAppInstall,
-                                                                      cromwellAppInstall,
-                                                                      workflowsAppInstall,
-                                                                      hailBatchAppInstall,
-                                                                      cromwellRunnerAppInstall
-    )
-
-    val aksAlg = new AKSInterpreter[IO](
-      AKSInterpreterConfig(
-        samConfig,
-        appMonitorConfig,
-        ConfigReader.appConfig.azure.wsm,
-        applicationConfig.leoUrlBase,
-        ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-        ConfigReader.appConfig.azure.listenerChartConfig
-      ),
-      baselineDependencies.helmClient,
-      baselineDependencies.azureContainerService,
-      baselineDependencies.azureRelay,
-      baselineDependencies.samDAO,
-      baselineDependencies.wsmDAO,
-      kubeAlg,
-      baselineDependencies.wsmClientProvider,
-      baselineDependencies.wsmDAO,
-      baselineDependencies.authProvider,
-      baselineDependencies.samService
-    )
-
     val azureAlg = new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
       applicationConfig,
@@ -250,7 +162,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.jupyterDAO,
       baselineDependencies.azureRelay,
       baselineDependencies.azureVmService,
-      aksAlg,
       refererConfig,
       baselineDependencies.wsmClientProvider
     )

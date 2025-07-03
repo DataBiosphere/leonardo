@@ -15,9 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
-  CreateAppV2Message,
-  DeleteAppMessage,
-  DeleteAppV2Message
+  DeleteAppMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppMachineType,
@@ -147,27 +145,6 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "recover AppStatus.Provisioning properly with cluster and nodepool creation in Azure" in isolatedDbTest {
-    val res = for {
-      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
-      monitorAtBoot = createMonitorAtBoot(queue)
-      cluster <- IO(makeAzureCluster(1).copy(status = KubernetesClusterStatus.Provisioning).save())
-      nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Provisioning).save())
-      disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
-      app = makeApp(1, nodepool.id).copy(status = AppStatus.Provisioning)
-      appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
-      savedApp <- IO(appWithDisk.save())
-      _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryTake
-    } yield {
-      msg.isDefined shouldBe true
-      val createMsg = msg.get.asInstanceOf[CreateAppV2Message]
-      createMsg.cloudContext shouldBe cluster.cloudContext
-      createMsg.appId shouldBe savedApp.id
-    }
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "recover AppStatus.Provisioning properly with nodepool creation in GCP" in isolatedDbTest {
     val res = for {
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
@@ -196,27 +173,6 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         None
       )
       (msg eqv Some(expected)) shouldBe true
-    }
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "recover AppStatus.Provisioning properly with nodepool creation in Azure" in isolatedDbTest {
-    val res = for {
-      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
-      monitorAtBoot = createMonitorAtBoot(queue)
-      cluster <- IO(makeAzureCluster(1).copy(status = KubernetesClusterStatus.Running).save())
-      nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Provisioning).save())
-      disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
-      app = makeApp(1, nodepool.id).copy(status = AppStatus.Provisioning)
-      appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
-      savedApp <- IO(appWithDisk.save())
-      _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryTake
-    } yield {
-      msg.isDefined shouldBe true
-      val createMsg = msg.get.asInstanceOf[CreateAppV2Message]
-      createMsg.cloudContext shouldBe cluster.cloudContext
-      createMsg.appId shouldBe savedApp.id
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -253,27 +209,6 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "recover AppStatus.Provisioning properly in Azure" in isolatedDbTest {
-    val res = for {
-      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
-      monitorAtBoot = createMonitorAtBoot(queue)
-      cluster <- IO(makeAzureCluster(1).copy(status = KubernetesClusterStatus.Running).save())
-      nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Running).save())
-      disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
-      app = makeApp(1, nodepool.id).copy(status = AppStatus.Provisioning)
-      appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
-      savedApp <- IO(appWithDisk.save())
-      _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryTake
-    } yield {
-      msg.isDefined shouldBe true
-      val createMsg = msg.get.asInstanceOf[CreateAppV2Message]
-      createMsg.cloudContext shouldBe cluster.cloudContext
-      createMsg.appId shouldBe savedApp.id
-    }
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "recover AppStatus.Deleting properly in GCP" in isolatedDbTest {
     val res = for {
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
@@ -299,48 +234,11 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "recover AppStatus.Deleting properly in Azure" in isolatedDbTest {
-    val res = for {
-      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
-      monitorAtBoot = createMonitorAtBoot(queue)
-      cluster <- IO(makeAzureCluster(1).copy(status = KubernetesClusterStatus.Running).save())
-      nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Deleting).save())
-      disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
-      app = makeApp(1, nodepool.id).copy(status = AppStatus.Deleting)
-      appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
-      savedApp <- IO(appWithDisk.save())
-      _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryTake
-    } yield {
-      msg.isDefined shouldBe true
-      val createMsg = msg.get.asInstanceOf[DeleteAppV2Message]
-      createMsg.cloudContext shouldBe cluster.cloudContext
-      createMsg.appId shouldBe savedApp.id
-    }
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "ignore non-monitored apps in GCP" in isolatedDbTest {
     val res = for {
       queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
-      nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Running).save())
-      disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
-      app = makeApp(1, nodepool.id).copy(status = AppStatus.Running)
-      appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
-      _ <- IO(appWithDisk.save())
-      _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryTake
-    } yield msg shouldBe None
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "ignore non-monitored apps in Azure" in isolatedDbTest {
-    val res = for {
-      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
-      monitorAtBoot = createMonitorAtBoot(queue)
-      cluster <- IO(makeAzureCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Running).save())
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
       app = makeApp(1, nodepool.id).copy(status = AppStatus.Running)

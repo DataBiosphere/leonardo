@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
-  CreateAppV2Message,
   CreateAzureRuntimeMessage,
   CreateRuntimeMessage
 }
@@ -160,27 +159,5 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val res = decode[LandingZoneResources](landingZoneResources.asJson.printWith(Printer.noSpaces))
 
     res shouldBe Right(landingZoneResources)
-  }
-
-  it should "encode/decode CreateAppV2Message properly" in {
-    val originalMessage =
-      CreateAppV2Message(
-        AppId(1),
-        AppName("test"),
-        WorkspaceId(UUID.randomUUID()),
-        CloudContext.Azure(
-          AzureCloudContext(
-            TenantId("id"),
-            SubscriptionId("sub"),
-            ManagedResourceGroupName("rg-name")
-          )
-        ),
-        BillingProfileId("spend-profile"),
-        None
-      )
-
-    val res = decode[CreateAppV2Message](originalMessage.asJson.printWith(Printer.noSpaces))
-
-    res shouldBe Right(originalMessage)
   }
 }

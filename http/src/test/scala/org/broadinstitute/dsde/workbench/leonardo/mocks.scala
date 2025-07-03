@@ -271,17 +271,6 @@ class MockGKEService extends GKEAlgebra[IO] {
   override def startAndPollApp(params: StartAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }
 
-class MockAKSInterp extends AKSAlgebra[IO] {
-
-  /** Creates an app and polls it for completion */
-  override def createAndPollApp(params: CreateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
-
-  /** Updates an app and polls it for completion */
-  override def updateAndPollApp(params: UpdateAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
-
-  override def deleteApp(params: DeleteAKSAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
-}
-
 class BaseMockSamService extends SamService[IO] {
   override def getPetServiceAccount(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[IO, AppContext]

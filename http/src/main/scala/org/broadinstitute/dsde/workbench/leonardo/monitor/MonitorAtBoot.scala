@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmApiClientProvi
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateAppV2Message, DeleteAppMessage, DeleteAppV2Message}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
@@ -217,32 +217,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                 } yield msg
 
               case CloudContext.Azure(_) =>
-                for {
-                  workspaceId <- F.fromOption(
-                    app.workspaceId,
-                    MonitorAtBootException(
-                      s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                      appContext.traceId
-                    )
-                  )
-                  token <- getAuthToken(app.auditInfo.creator)
-                  workspaceDescOpt <- wsmClientProvider.getWorkspace(
-                    token,
-                    workspaceId
-                  )
-                  workspaceDesc <- F.fromOption(workspaceDescOpt,
-                                                WorkspaceNotFoundException(workspaceId, appContext.traceId)
-                  )
-
-                  msg = CreateAppV2Message(
-                    app.id,
-                    app.appName,
-                    workspaceId,
-                    cluster.cloudContext,
-                    BillingProfileId(workspaceDesc.spendProfile),
-                    Some(appContext.traceId)
-                  )
-                } yield msg
+                F.raiseError(new NotImplementedError("Azure functionality not implemented."))
 
             }
 
@@ -261,39 +236,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                 )
               )
             case CloudContext.Azure(_) =>
-              for {
-                workspaceId <- F.fromOption(app.workspaceId,
-                                            MonitorAtBootException(
-                                              s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                                              appContext.traceId
-                                            )
-                )
-                token <- getAuthToken(app.auditInfo.creator)
-                workspaceDescOpt <- wsmClientProvider.getWorkspace(
-                  token,
-                  workspaceId
-                )
-                workspaceDesc <- F.fromOption(workspaceDescOpt,
-                                              WorkspaceNotFoundException(workspaceId, appContext.traceId)
-                )
-
-                diskOpt <- appQuery.getDiskId(app.id).transaction
-                workspaceId <- F.fromOption(app.workspaceId,
-                                            MonitorAtBootException(
-                                              s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                                              appContext.traceId
-                                            )
-                )
-                msg = DeleteAppV2Message(
-                  app.id,
-                  app.appName,
-                  workspaceId,
-                  cluster.cloudContext,
-                  diskOpt,
-                  BillingProfileId(workspaceDesc.spendProfile),
-                  Some(appContext.traceId)
-                )
-              } yield msg
+              F.raiseError(new NotImplementedError("Azure functionality not implemented."))
           }
         case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", appContext.traceId))
       }

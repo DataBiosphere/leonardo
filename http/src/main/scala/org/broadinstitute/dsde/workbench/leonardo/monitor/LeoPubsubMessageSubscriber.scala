@@ -128,8 +128,6 @@ class LeoPubsubMessageSubscriber[F[_]](
               e.getMessage
             )
           }
-        case msg: CreateAppV2Message  => handleCreateAppV2Message(msg)
-        case msg: DeleteAppV2Message  => handleDeleteAppV2Message(msg)
         case msg: DeleteDiskV2Message => handleDeleteDiskV2Message(msg)
       }
     } yield resp
@@ -1533,9 +1531,8 @@ class LeoPubsubMessageSubscriber[F[_]](
             .updateAndPollApp(
               UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject)
             )
-        case CloudContext.Azure(azureContext) =>
-          azurePubsubHandler
-            .updateAndPollApp(msg.appId, msg.appName, latestAppChartVersion, msg.workspaceId, azureContext)
+        case CloudContext.Azure(_) =>
+          F.raiseError(new NotImplementedError("Azure functionality not implemented."))
       }).flatMap { _ =>
         updateAppLogQuery
           .update(msg.appId, msg.jobId, UpdateAppJobStatus.Success, endTime = Some(ctx.now))
@@ -1772,83 +1769,6 @@ class LeoPubsubMessageSubscriber[F[_]](
           } yield operation
       }
     } yield res
-
-  private[monitor] def handleCreateAppV2Message(
-    msg: CreateAppV2Message
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      ctx <- ev.ask
-      _ <- msg.cloudContext match {
-        case CloudContext.Azure(c) =>
-          val task =
-            azurePubsubHandler.createAndPollApp(msg.appId, msg.appName, msg.workspaceId, c, msg.billingProfileId)
-          asyncTasks.offer(
-            Task(ctx.traceId,
-                 task,
-                 Some(handleKubernetesError),
-                 ctx.now,
-                 TaskMetricsTags("createAppV2", None, Some(false), CloudProvider.Azure)
-            )
-          )
-        case CloudContext.Gcp(c) =>
-          F.raiseError(
-            PubsubKubernetesError(
-              AppError(
-                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: CreateAppV2 not supported for GCP",
-                ctx.now,
-                ErrorAction.CreateApp,
-                ErrorSource.App,
-                None,
-                Some(ctx.traceId)
-              ),
-              Some(msg.appId),
-              false,
-              None,
-              None,
-              None
-            )
-          )
-      }
-    } yield ()
-
-  private[monitor] def handleDeleteAppV2Message(
-    msg: DeleteAppV2Message
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      ctx <- ev.ask
-      _ <- msg.cloudContext match {
-        case CloudContext.Azure(c) =>
-          val task =
-            azurePubsubHandler.deleteApp(msg.appId, msg.appName, msg.workspaceId, c, msg.billingProfileId)
-          asyncTasks.offer(
-            Task(ctx.traceId,
-                 task,
-                 Some(handleKubernetesError),
-                 ctx.now,
-                 TaskMetricsTags("deleteAppV2", None, Some(false), CloudProvider.Azure)
-            )
-          )
-
-        case CloudContext.Gcp(c) =>
-          F.raiseError(
-            PubsubKubernetesError(
-              AppError(
-                s"Error creating GCP app with id ${msg.appId} and cloudContext ${c.value}: DeleteAppV2 not supported for GCP",
-                ctx.now,
-                ErrorAction.DeleteApp,
-                ErrorSource.App,
-                None,
-                Some(ctx.traceId)
-              ),
-              Some(msg.appId),
-              false,
-              None,
-              None,
-              None
-            )
-          )
-      }
-    } yield ()
 
   private[monitor] def handleDeleteDiskV2Message(
     msg: DeleteDiskV2Message

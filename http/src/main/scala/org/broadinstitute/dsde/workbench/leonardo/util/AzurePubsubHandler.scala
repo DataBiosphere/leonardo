@@ -3,25 +3,7 @@ package leonardo
 package util
 
 import bio.terra.workspace.api.ControlledAzureResourceApi
-import bio.terra.workspace.model.{
-  AzureDiskCreationParameters,
-  AzureStorageContainerCreationParameters,
-  AzureVmCreationParameters,
-  AzureVmCustomScriptExtension,
-  AzureVmCustomScriptExtensionSetting,
-  AzureVmUser,
-  AzureVmUserAssignedIdentities,
-  CloningInstructionsEnum,
-  ControlledResourceCommonFields,
-  CreateControlledAzureDiskRequestV2Body,
-  CreateControlledAzureResourceResult,
-  CreateControlledAzureStorageContainerRequestBody,
-  CreateControlledAzureVmRequestBody,
-  CreatedControlledAzureVmResult,
-  DeleteControlledAzureResourceResult,
-  JobControl,
-  JobReport
-}
+import bio.terra.workspace.model._
 import cats.Parallel
 import cats.effect.Async
 import cats.effect.std.Queue
@@ -29,28 +11,18 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{RegionName, streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  ApplicationConfig,
-  AzureEnvironmentConverter,
-  ContentSecurityPolicyConfig,
-  RefererConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ApplicationConfig, AzureEnvironmentConverter, ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO, ConfigReader}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage,
-  DeleteDiskV2Message
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, ctxConversion, dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage, DeleteDiskV2Message}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.InstanceName
-import org.broadinstitute.dsp.ChartVersion
 import org.typelevel.log4cats.StructuredLogger
 import reactor.core.publisher.Mono
 
@@ -70,7 +42,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   jupyterDAO: JupyterDAO[F],
   azureRelay: AzureRelayService[F],
   azureVmServiceInterp: AzureVmService[F],
-  aksAlgebra: AKSAlgebra[F],
   refererConfig: RefererConfig,
   wsmClientProvider: WsmApiClientProvider[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
@@ -1206,77 +1177,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           )
         // no disk created
         case (true, _) => F.unit
-      }
-    } yield ()
-
-  override def createAndPollApp(appId: AppId,
-                                appName: AppName,
-                                workspaceId: WorkspaceId,
-                                cloudContext: AzureCloudContext,
-                                billingProfileId: BillingProfileId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      params = CreateAKSAppParams(appId, appName, workspaceId, cloudContext, billingProfileId)
-      _ <- aksAlgebra.createAndPollApp(params).adaptError { case e =>
-        PubsubKubernetesError(
-          AppError(
-            s"Error creating Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
-            ctx.now,
-            ErrorAction.CreateApp,
-            ErrorSource.App,
-            None,
-            Some(ctx.traceId)
-          ),
-          Some(appId),
-          isRetryable = false,
-          None,
-          None,
-          None
-        )
-      }
-    } yield ()
-
-  override def updateAndPollApp(appId: AppId,
-                                appName: AppName,
-                                appChartVersion: ChartVersion,
-                                workspaceId: Option[WorkspaceId],
-                                cloudContext: AzureCloudContext
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] =
-    aksAlgebra.updateAndPollApp(UpdateAKSAppParams(appId, appName, appChartVersion, workspaceId, cloudContext))
-
-  override def deleteApp(
-    appId: AppId,
-    appName: AppName,
-    workspaceId: WorkspaceId,
-    cloudContext: AzureCloudContext,
-    billingProfileId: BillingProfileId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      params = DeleteAKSAppParams(appName, workspaceId, cloudContext, billingProfileId)
-      _ <- aksAlgebra.deleteApp(params).adaptError { case e =>
-        PubsubKubernetesError(
-          AppError(
-            s"Error deleting Azure app with id ${appId.id} and cloudContext ${cloudContext.asString}: ${e.getMessage}",
-            ctx.now,
-            ErrorAction.DeleteApp,
-            ErrorSource.App,
-            None,
-            Some(ctx.traceId)
-          ),
-          Some(appId),
-          isRetryable = false,
-          None,
-          None,
-          None
-        )
       }
     } yield ()
 
