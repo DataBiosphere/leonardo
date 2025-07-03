@@ -6,7 +6,6 @@ import org.broadinstitute.dsde.workbench.azure.{AzureAppRegistrationConfig, Azur
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeDefaults, CustomScriptExtensionConfig, VMCredential}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, AzureRuntimeDefaults, CustomScriptExtensionConfig, TerraAppSetupChartConfig, VMCredential}
 import org.broadinstitute.dsp._
