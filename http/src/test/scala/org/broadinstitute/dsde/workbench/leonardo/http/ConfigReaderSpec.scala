@@ -31,7 +31,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         List(),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
-        ListenerChartConfig(ChartName("terra-helm/listener"), ChartVersion("0.3.0")),
         AzureHostingModeConfig(
           false,
           "AZURE",

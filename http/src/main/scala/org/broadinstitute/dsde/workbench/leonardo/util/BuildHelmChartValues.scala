@@ -1,21 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import org.broadinstitute.dsde.workbench.leonardo.Autopilot
-import org.broadinstitute.dsde.workbench.azure.{PrimaryKey, RelayHybridConnectionName, RelayNamespace}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.{AzureEnvironmentConverter, SamConfig}
+import org.broadinstitute.dsde.workbench.leonardo.Autopilot
 import org.broadinstitute.dsde.workbench.leonardo.dao.CustomAppService
-import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, ConfigReader}
+import org.broadinstitute.dsde.workbench.leonardo.http.kubernetesProxyHost
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
-import org.broadinstitute.dsp.{Release, Values}
+import org.broadinstitute.dsp.Release
 
-import java.net.URL
 import java.nio.charset.StandardCharsets
 
 private[leonardo] object BuildHelmChartValues {
@@ -240,55 +236,6 @@ private[leonardo] object BuildHelmChartValues {
       raw"""persistence.accessMode=${service.pdAccessMode}""",
       raw"""serviceAccount.name=${ksaName.value}"""
     ) ++ command ++ args ++ configs ++ ingress ++ nodepool).mkString(",")
-  }
-
-  def buildListenerChartOverrideValuesString(release: Release,
-                                             samResourceId: AppSamResourceId,
-                                             relayNamespace: RelayNamespace,
-                                             relayHcName: RelayHybridConnectionName,
-                                             relayPrimaryKey: PrimaryKey,
-                                             appType: AppType,
-                                             workspaceId: WorkspaceId,
-                                             appName: AppName,
-                                             validHosts: Set[String],
-                                             samConfig: SamConfig,
-                                             listenerImage: String,
-                                             leoUrlBase: URL
-  ): Values = {
-    val relayTargetHost = appType match {
-      case AppType.Cromwell          => s"http://coa-${release.asString}-reverse-proxy-service:8000/"
-      case _                         => "unknown"
-    }
-
-    // Some apps may serve requests on endpoints like /{appName}/batch and use relative redirects,
-    // requiring that we don't strip the entity path. For all current app types we do strip the entity path.
-    val removeEntityPathFromHttpUrl = true
-
-    // validHosts can have a different number of hosts, this pre-processes the list as separate chart values
-    val validHostValues = validHosts.zipWithIndex.map { case (elem, idx) =>
-      raw"connection.validHosts[$idx]=$elem"
-    }
-
-    Values(
-      List(
-        raw"""connection.removeEntityPathFromHttpUrl="${removeEntityPathFromHttpUrl.toString}"""",
-        raw"connection.connectionString=Endpoint=sb://${relayNamespace.value}${AzureEnvironmentConverter.relaySuffixFromString(
-            ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment
-          )}/;SharedAccessKeyName=listener;SharedAccessKey=${relayPrimaryKey.value};EntityPath=${relayHcName.value}",
-        raw"connection.connectionName=${relayHcName.value}",
-        raw"connection.endpoint=https://${relayNamespace.value}${AzureEnvironmentConverter
-            .relaySuffixFromString(ConfigReader.appConfig.azure.hostingModeConfig.azureEnvironment)}",
-        raw"connection.targetHost=$relayTargetHost",
-        raw"sam.url=${samConfig.server}",
-        raw"sam.resourceId=${samResourceId.resourceId}",
-        raw"sam.resourceType=${samResourceId.resourceType.asString}",
-        raw"sam.action=connect",
-        raw"leonardo.url=${leoUrlBase}",
-        raw"general.workspaceId=${workspaceId.value.toString}",
-        raw"general.appName=${appName.value}",
-        raw"listener.image=${listenerImage}"
-      ).concat(validHostValues).mkString(",")
-    )
   }
 
   def buildAllowedAppChartOverrideValuesString(config: GKEInterpreterConfig,

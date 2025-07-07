@@ -1103,10 +1103,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             Release.apply
           )
       )(app => app.release.asRight[Throwable])
-      services =
-        if (cloudContext.cloudProvider == CloudProvider.Azure) {
-          gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
-        } else gkeAppConfig.kubernetesServices
+      services = gkeAppConfig.kubernetesServices
 
       numOfReplicas =
         if (req.appType == AppType.Allowed)
