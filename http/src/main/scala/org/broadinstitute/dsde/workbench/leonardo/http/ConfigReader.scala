@@ -19,8 +19,6 @@ object ConfigReader {
       .loadOrThrow[AppConfig]
 }
 final case class AzureConfig(
-  wsm: HttpWsmDaoConfig,
-  bpm: BpmConfig,
   appRegistration: AzureAppRegistrationConfig,
   allowedSharedApps: List[AppType],
   tdr: TdrConfig,

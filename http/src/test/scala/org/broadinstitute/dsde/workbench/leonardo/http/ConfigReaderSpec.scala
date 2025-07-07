@@ -28,8 +28,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         Vector("bogus")
       ),
       AzureConfig(
-        HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
-        BpmConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         List(),
         TdrConfig("https://jade.datarepo-dev.broadinstitute.org"),
