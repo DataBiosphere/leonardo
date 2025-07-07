@@ -73,11 +73,9 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   // Mocks
   val appDAO = setUpMockAppDAO
-  val samDAO = setUpMockSamDAO
   val jupyterDAO = setUpMockJupyterDAO
   val rstudioDAO = setUpMockRStudioDAO
   val welderDAO = setUpMockWelderDAO
-  val relayListenerDAO = setUpMockRelayListenerDAO
   val kube = setUpMockKubeDAO
   val containerService = setUpMockAzureContainerService
 
@@ -89,8 +87,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   val leoMetricsMonitor = new LeoMetricsMonitor[IO](
     config,
     appDAO,
-    relayListenerDAO,
-    samDAO,
     kube,
     containerService
   )
@@ -606,14 +602,6 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       welder.isProxyAvailable(any, any[String].asInstanceOf[RuntimeName])
     } thenReturn IO.pure(true)
     welder
-  }
-
-  private def setUpMockRelayListenerDAO: ListenerDAO[IO] = {
-    val listener = mock[ListenerDAO[IO]]
-    when {
-      listener.getStatus(any)(any)
-    } thenReturn IO.pure(true)
-    listener
   }
 
   private def setUpMockKubeDAO: KubernetesAlgebra[IO] = {

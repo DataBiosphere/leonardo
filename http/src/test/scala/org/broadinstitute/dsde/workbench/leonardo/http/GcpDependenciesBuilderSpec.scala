@@ -134,7 +134,6 @@ class GcpDependenciesBuilderSpec
       mock[Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])]],
       mock[OpenIDConnectConfiguration],
       mock[AppDAO[IO]],
-      mock[ListenerDAO[IO]],
       mock[AzureContainerService[IO]],
       mock[RuntimeServiceConfig],
       mock[KubernetesDnsCache[IO]],

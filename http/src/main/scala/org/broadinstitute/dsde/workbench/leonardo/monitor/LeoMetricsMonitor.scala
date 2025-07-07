@@ -11,15 +11,13 @@ import org.broadinstitute.dsde.workbench.azure.{AKSClusterName, AzureCloudContex
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.LeoLenses.cloudContextToManagedResourceGroup
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, KubernetesAppConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{ToolDAO, _}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, clusterQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetric._
-import org.broadinstitute.dsde.workbench.leonardo.util.{AppCreationException, KubernetesAlgebra}
+import org.broadinstitute.dsde.workbench.leonardo.util.KubernetesAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials, Uri}
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
@@ -29,8 +27,6 @@ import scala.jdk.CollectionConverters._
 /** Collects metrics about active Leo runtimes and apps. */
 class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
                               appDAO: AppDAO[F],
-                              listenerDAO: ListenerDAO[F],
-                              samDAO: SamDAO[F],
                               kubeAlg: KubernetesAlgebra[F],
                               azureContainerService: AzureContainerService[F]
 )(implicit
@@ -150,10 +146,10 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       // Only care about Running apps for health check metrics
       a <- n.apps if a.status == AppStatus.Running
       s <- a.appResources.services
-    } yield (c.cloudContext, c.asyncFields.get.loadBalancerIp, a, s.config.name)
+    } yield (c.cloudContext, a, s.config.name)
 
     allServices
-      .parTraverseN(parallelism) { case (cloudContext, baseUri, app, serviceName) =>
+      .parTraverseN(parallelism) { case (cloudContext, app, serviceName) =>
         for {
           ctx <- ev.ask
           // For GCP just test if the app is available through the Leo proxy.
@@ -161,36 +157,10 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
           isUp <- cloudContext match {
             case CloudContext.Gcp(project) =>
               appDAO.isProxyAvailable(project, app.appName, serviceName, ctx.traceId)
-            case CloudContext.Azure(_) =>
-              for {
-                token <- ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
-                  case false =>
-                    for {
-                      tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(app.auditInfo.creator)
-                      token <- F.fromOption(
-                        tokenOpt,
-                        AppCreationException(s"Pet not found for user ${app.auditInfo.creator}", Some(ctx.traceId))
-                      )
-                    } yield token
-                  case true =>
-                    for {
-                      leoAuth <- samDAO.getLeoAuthToken
-                      token = leoAuth.credentials.toString().split(" ")(1)
-                    } yield token
-                }
-
-                authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-                relayPath = Uri
-                  .unsafeFromString(baseUri.asString) / s"${app.appName.value}-${app.workspaceId.map(_.value.toString).getOrElse("")}"
-                isUp <- serviceName match {
-                  case s if s == ConfigReader.appConfig.azure.listenerChartConfig.service.config.name =>
-                    listenerDAO.getStatus(relayPath).handleError(_ => false)
-                  case s =>
-                    logger.warn(ctx.loggingCtx)(
-                      s"Unexpected app service encountered during health checks: ${s.value}"
-                    ) >> F.pure(false)
-                }
-              } yield isUp
+            case _ =>
+              logger.warn(ctx.loggingCtx)(
+                s"Unexpected cloud context encountered during health checks"
+              ) >> F.pure(false)
           }
           // In addition to collecting aggregate metrics, log a warning for any app that is down.
           _ <-

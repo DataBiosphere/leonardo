@@ -141,8 +141,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     val metricsMonitor = new LeoMetricsMonitor(
       ConfigReader.appConfig.metrics,
       baselineDependencies.appDAO,
-      baselineDependencies.listenerDAO,
-      baselineDependencies.samDAO,
       kubeAlg,
       baselineDependencies.azureContainerService
     )

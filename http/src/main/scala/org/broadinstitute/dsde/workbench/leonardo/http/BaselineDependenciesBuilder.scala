@@ -132,9 +132,6 @@ class BaselineDependenciesBuilder {
           cloudAuthTokenProvider
         )
       )
-      listenerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_listener_client"), false).map(
-        client => new HttpListenerDAO[F](client)
-      )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -289,7 +286,6 @@ class BaselineDependenciesBuilder {
       samResourceCache,
       oidcConfig,
       appDAO,
-      listenerDao,
       azureContainerService,
       runtimeServiceConfig,
       kubernetesDnsCache,
@@ -418,7 +414,6 @@ final case class BaselineDependencies[F[_]](
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
   appDAO: AppDAO[F],
-  listenerDAO: ListenerDAO[F],
   azureContainerService: AzureContainerService[F],
   runtimeServicesConfig: RuntimeServiceConfig,
   kubernetesDnsCache: KubernetesDnsCache[F],
