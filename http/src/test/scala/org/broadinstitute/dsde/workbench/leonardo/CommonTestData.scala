@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, 
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{AccessScope, CloningInstructions, ControlledResourceDescription, ControlledResourceIamRole, ControlledResourceName, InternalDaoControlledResourceCommonFields, ManagedBy, MockSamDAO, PrivateResourceUser}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, RuntimeConfigRequest, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.model._
@@ -504,21 +504,6 @@ object CommonTestData {
     )
     .gcpContext(new GcpContext().projectId("googleProject"))
 
-  val testCommonControlledResourceFields = InternalDaoControlledResourceCommonFields(
-    ControlledResourceName("name"),
-    ControlledResourceDescription("desc"),
-    CloningInstructions.Nothing,
-    AccessScope.PrivateAccess,
-    ManagedBy.User,
-    Some(
-      PrivateResourceUser(
-        userEmail,
-        ControlledResourceIamRole.Editor
-      )
-    ),
-    None
-  )
-
   val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
     Map.empty,
     VirtualMachineSizeTypes.STANDARD_A1,
@@ -530,20 +515,6 @@ object CommonTestData {
       None
     ),
     Some(0)
-  )
-
-  val landingZoneResources = LandingZoneResources(
-    UUID.randomUUID(),
-    AKSCluster("lzcluster", Map.empty[String, Boolean]),
-    BatchAccountName("lzbatch"),
-    RelayNamespace("lznamespace"),
-    StorageAccountName("lzstorage"),
-    NetworkName("lzvnet"),
-    SubnetworkName("batchsub"),
-    SubnetworkName("akssub"),
-    azureRegion,
-    ApplicationInsightsName("lzappinsights"),
-    Some(PostgresServer("postgres", false))
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

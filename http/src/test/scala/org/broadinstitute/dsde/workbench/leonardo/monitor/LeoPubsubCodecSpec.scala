@@ -121,24 +121,4 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
 
     res shouldBe Right(originalMessage)
   }
-
-  val landingZoneResources = LandingZoneResources(
-    UUID.randomUUID(),
-    AKSCluster("cluster-name", Map.empty[String, Boolean]),
-    BatchAccountName("batch-account"),
-    RelayNamespace("relay-ns"),
-    StorageAccountName("storage-account"),
-    NetworkName("vnet"),
-    SubnetworkName("batch-subnet"),
-    SubnetworkName("aks-subnet"),
-    com.azure.core.management.Region.US_EAST,
-    ApplicationInsightsName("lzappinsights"),
-    Some(PostgresServer("postgres", false))
-  )
-
-  it should "encode/decode LandingZoneResources properly" in {
-    val res = decode[LandingZoneResources](landingZoneResources.asJson.printWith(Printer.noSpaces))
-
-    res shouldBe Right(landingZoneResources)
-  }
 }
