@@ -7,7 +7,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmApiClientProvider}
+import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -20,8 +20,7 @@ import scala.concurrent.ExecutionContext
 
 class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                           computeService: Option[GoogleComputeService[F]],
-                          samDAO: SamDAO[F],
-                          wsmClientProvider: WsmApiClientProvider[F]
+                          samDAO: SamDAO[F]
 )(implicit
   F: Async[F],
   dbRef: DbReference[F],

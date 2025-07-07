@@ -18,19 +18,17 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage, LeoPubsubMessageType}
-import org.broadinstitute.dsde.workbench.leonardo.util.{AzureTestUtils, QueueFactory}
+import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
-import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
@@ -45,22 +43,10 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
-  val (wsmClientProvider, _, _, workspaceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
-  val (googleWsmClientProvider, _, _, googleWorkspaceApi) =
-    AzureTestUtils.setUpMockWsmApiClientProvider(googleProject = Some(GoogleProject(workspaceId.toString)))
-
-  when {
-    workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-  } thenAnswer (_ => throw new Exception("workspace not found"))
-
-  when {
-    googleWorkspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-  } thenAnswer (_ => throw new Exception("workspace not found"))
-
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
   val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), authProvider = allowListAuthProvider2)
   val gcpWorkspaceAppServiceInterp =
-    makeInterp(QueueFactory.makePublisherQueue(), wsmClientProvider = googleWsmClientProvider)
+    makeInterp(QueueFactory.makePublisherQueue())
 
   def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
@@ -82,7 +68,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
                  enableSasApp: Boolean = true,
                  googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                  customAppConfig: CustomAppConfig = gkeCustomAppConfig,
-                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
                  samService: SamService[IO] = MockSamService
   ) = {
     val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
@@ -94,7 +79,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       Some(FakeGoogleComputeService),
       Some(googleResourceService),
       customAppConfig,
-      wsmClientProvider,
       samService
     )
   }
@@ -144,7 +128,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(passComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
@@ -154,7 +137,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughMemoryComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
@@ -164,7 +146,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughCpuComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
 
@@ -195,7 +176,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
 
@@ -225,7 +205,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
     val res = interp
@@ -1369,7 +1348,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1519,7 +1497,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1562,7 +1539,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1604,7 +1580,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1643,7 +1618,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1688,7 +1662,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1733,7 +1706,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1925,7 +1897,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       mockSamService
     )
 
@@ -1982,7 +1953,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       mockSamService
     )
 

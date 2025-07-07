@@ -1,41 +1,24 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import scala.collection.mutable
-import cats.effect.IO
-import org.mockito.Mockito.when
-import org.mockito.ArgumentMatchers.any
 import bio.terra.workspace.api.{ControlledAzureResourceApi, ResourceApi, WorkspaceApi}
-import bio.terra.workspace.model.{
-  AzureVmAttributes,
-  AzureVmResource,
-  CreateControlledAzureDiskRequestBody,
-  CreateControlledAzureDiskRequestV2Body,
-  CreateControlledAzureResourceResult,
-  CreatedControlledAzureStorageContainer,
-  CreatedControlledAzureVmResult,
-  DeleteControlledAzureResourceResult,
-  ErrorReport,
-  IamRole,
-  JobReport
-}
+import bio.terra.workspace.model._
+import cats.effect.IO
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine}
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.azure.mock.FakeAzureVmService
+import org.broadinstitute.dsde.workbench.leonardo.AppContext
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.wsmWorkspaceDesc
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, WorkspaceId}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  MockWsmClientProvider,
-  WorkspaceDescription,
-  WsmApiClientProvider
-}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.when
 import org.scalatestplus.mockito.MockitoSugar
 import reactor.core.publisher.Mono
 
 import java.util.UUID
+import scala.collection.mutable
 
 object AzureTestUtils extends MockitoSugar {
   implicit val appContext: Ask[IO, AppContext] = AppContext
@@ -47,7 +30,7 @@ object AzureTestUtils extends MockitoSugar {
     vmJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED,
     storageContainerJobStatus: JobReport.StatusEnum = JobReport.StatusEnum.SUCCEEDED,
     googleProject: Option[GoogleProject] = None
-  ): (WsmApiClientProvider[IO], ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
+  ): (ControlledAzureResourceApi, ResourceApi, WorkspaceApi) = {
     val api = mock[ControlledAzureResourceApi]
     val workspaceApi = mock[WorkspaceApi]
     val resourceApi = mock[ResourceApi]
@@ -195,35 +178,7 @@ object AzureTestUtils extends MockitoSugar {
       wsmWorkspaceDesc.id(workspaceId)
     }
 
-    val wsm = new MockWsmClientProvider(api, resourceApi, workspaceApi) {
-      override def getWorkspace(token: String, workspaceId: WorkspaceId, iamRole: IamRole)(implicit
-        ev: Ask[IO, AppContext]
-      ): IO[Option[WorkspaceDescription]] = {
-        val azureContext =
-          if (googleProject.isDefined) None
-          else
-            Some(
-              AzureCloudContext(TenantId(workspaceId.value.toString),
-                                SubscriptionId(workspaceId.value.toString),
-                                ManagedResourceGroupName(workspaceId.value.toString)
-              )
-            )
-        val googleContext = if (googleProject.isDefined) googleProject else None
-        IO.pure(
-          Some(
-            WorkspaceDescription(
-              workspaceId,
-              "workspaceName" + workspaceId.value.toString,
-              "spend-profile",
-              azureContext,
-              googleContext
-            )
-          )
-        )
-      }
-    }
-
-    (wsm, api, resourceApi, workspaceApi)
+    (api, resourceApi, workspaceApi)
   }
 
   def setupFakeAzureVmService(startVm: Boolean = true,

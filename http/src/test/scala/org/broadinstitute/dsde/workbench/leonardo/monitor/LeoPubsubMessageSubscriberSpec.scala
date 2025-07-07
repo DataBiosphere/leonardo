@@ -2064,8 +2064,6 @@ class LeoPubsubMessageSubscriberSpec
       MockSamService
     )
   }
-  val (mockWsm, mockControlledResourceApi, mockResourceApi, workspaceApi) =
-    AzureTestUtils.setUpMockWsmApiClientProvider()
 
   def makeTaskQueue(): Queue[IO, Task[IO]] =
     Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

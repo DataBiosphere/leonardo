@@ -135,7 +135,6 @@ class GcpDependenciesBuilderSpec
       mock[OpenIDConnectConfiguration],
       mock[AppDAO[IO]],
       mock[ListenerDAO[IO]],
-      mock[HttpWsmClientProvider[IO]],
       mock[HttpBpmClientProvider[IO]],
       mock[AzureContainerService[IO]],
       mock[RuntimeServiceConfig],

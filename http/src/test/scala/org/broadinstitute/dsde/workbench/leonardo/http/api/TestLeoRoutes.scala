@@ -62,7 +62,6 @@ trait TestLeoRoutes {
   }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
-  val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
     petMock.buckets += userScriptBucketName -> Set(
@@ -113,7 +112,6 @@ trait TestLeoRoutes {
     Some(FakeGoogleComputeService),
     Some(FakeGoogleResourceService),
     Config.gkeCustomAppConfig,
-    wsmClientProvider,
     MockSamService
   )
 

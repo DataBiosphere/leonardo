@@ -19,7 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -46,7 +45,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: Option[GoogleComputeService[F]],
                                                 googleResourceService: Option[GoogleResourceService[F]],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmClientProvider: WsmApiClientProvider[F],
                                                 samService: SamService[F]
 )(implicit
   F: Async[F],
@@ -672,32 +670,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.fromEither(validateAutodelete(resolvedAutodeleteEnabled, resolvedAutodeleteThreshold, ctx.traceId))
       _ <- getUpdateAppTransaction(appResult.app.id, req)
     } yield ()
-
-  private def checkIfSubresourcesDeletable(appId: AppId,
-                                           resourceType: WsmResourceType,
-                                           userInfo: UserInfo,
-                                           workspaceId: WorkspaceId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] = for {
-    ctx <- ev.ask
-    wsmResources <- appControlledResourceQuery
-      .getAllForAppByType(appId.id, resourceType)
-      .transaction
-    _ <- wsmResources.traverse { resource =>
-      for {
-        wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
-                                                  workspaceId,
-                                                  resource.resourceId,
-                                                  resourceType
-        )
-        _ <- F
-          .raiseUnless(wsmState.isDeletable)(
-            AppResourceCannotBeDeletedException(resource.resourceId, appId, wsmState.value, resourceType, ctx.traceId)
-          )
-      } yield ()
-    }
-  } yield ()
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,

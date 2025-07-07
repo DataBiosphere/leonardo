@@ -154,8 +154,6 @@ class BaselineDependenciesBuilder {
         HttpDockerDAO[F](client)
       )
 
-      wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
-
       bpmClientProvider = new HttpBpmClientProvider(ConfigReader.appConfig.azure.bpm.uri)
 
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
@@ -294,7 +292,6 @@ class BaselineDependenciesBuilder {
       oidcConfig,
       appDAO,
       listenerDao,
-      wsmClientProvider,
       bpmClientProvider,
       azureContainerService,
       runtimeServiceConfig,
@@ -425,7 +422,6 @@ final case class BaselineDependencies[F[_]](
   openIDConnectConfiguration: OpenIDConnectConfiguration,
   appDAO: AppDAO[F],
   listenerDAO: ListenerDAO[F],
-  wsmClientProvider: HttpWsmClientProvider[F],
   bpmClientProvider: HttpBpmClientProvider[F],
   azureContainerService: AzureContainerService[F],
   runtimeServicesConfig: RuntimeServiceConfig,
