@@ -154,8 +154,6 @@ class BaselineDependenciesBuilder {
         HttpDockerDAO[F](client)
       )
 
-      bpmClientProvider = new HttpBpmClientProvider(ConfigReader.appConfig.azure.bpm.uri)
-
       azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
 
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
@@ -292,7 +290,6 @@ class BaselineDependenciesBuilder {
       oidcConfig,
       appDAO,
       listenerDao,
-      bpmClientProvider,
       azureContainerService,
       runtimeServiceConfig,
       kubernetesDnsCache,
@@ -422,7 +419,6 @@ final case class BaselineDependencies[F[_]](
   openIDConnectConfiguration: OpenIDConnectConfiguration,
   appDAO: AppDAO[F],
   listenerDAO: ListenerDAO[F],
-  bpmClientProvider: HttpBpmClientProvider[F],
   azureContainerService: AzureContainerService[F],
   runtimeServicesConfig: RuntimeServiceConfig,
   kubernetesDnsCache: KubernetesDnsCache[F],
