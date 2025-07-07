@@ -76,15 +76,9 @@ final class LeoPublisher[F[_]](
       _ <- msg match {
         case m: LeoPubsubMessage.CreateRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Creating, now).transaction
-        case m: LeoPubsubMessage.CreateAzureRuntimeMessage =>
-          clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Creating, now).transaction
-        case m: LeoPubsubMessage.DeleteAzureRuntimeMessage =>
-          clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Deleting, now).transaction
         case m: LeoPubsubMessage.CreateDiskMessage =>
           persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Creating, now).transaction
         case m: LeoPubsubMessage.DeleteDiskMessage =>
-          persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Deleting, now).transaction
-        case m: LeoPubsubMessage.DeleteDiskV2Message =>
           persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Deleting, now).transaction
         case m: LeoPubsubMessage.StopRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Stopping, now).transaction

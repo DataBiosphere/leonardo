@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.leonardo.ConfigImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
-import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.TerraAppSetupChartConfig
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import pureconfig.ConfigSource
@@ -19,7 +19,6 @@ object ConfigReader {
       .loadOrThrow[AppConfig]
 }
 final case class AzureConfig(
-  pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
   bpm: BpmConfig,
   appRegistration: AzureAppRegistrationConfig,

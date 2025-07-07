@@ -108,9 +108,6 @@ class LeoPubsubMessageSubscriber[F[_]](
           handleStartAppMessage(msg)
         case msg: UpdateAppMessage =>
           handleUpdateAppMessage(msg)
-        case _: CreateAzureRuntimeMessage => ???
-        case _: DeleteAzureRuntimeMessage => ???
-        case _: DeleteDiskV2Message => ???
       }
     } yield resp
 

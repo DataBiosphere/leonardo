@@ -1,17 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import bio.terra.workspace.client.ApiException
 import bio.terra.workspace.model.{AzureContext, GcpContext, WorkspaceDescription}
-import cats.effect.IO
-import cats.effect.Ref
+import cats.effect.{IO, Ref}
 import cats.mtl.Ask
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, MachineTypeName, NetworkName, OperationName, RegionName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo
@@ -22,20 +23,16 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AccessScope, CloningInstructions, ControlledResourceDescription, ControlledResourceIamRole, ControlledResourceName, InternalDaoControlledResourceCommonFields, ManagedBy, MockSamDAO, PrivateResourceUser}
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
-import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, CreateRuntimeRequest, RuntimeConfigRequest, userScriptStartupOutputUriMetadataKey}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntimeRequest, RuntimeConfigRequest, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.azure.{ApplicationInsightsName, AzureCloudContext, BatchAccountName, ManagedResourceGroupName, RelayNamespace, SubscriptionId, TenantId}
-import org.broadinstitute.dsde.workbench.leonardo.util.AzureServiceConfig
-import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
-import org.broadinstitute.dsde.workbench.util2.InstanceName
-
 import scala.concurrent.duration._
 
 object CommonTestData {
@@ -131,13 +128,6 @@ object CommonTestData {
   val refererConfig = Config.refererConfig
   val leoKubernetesConfig = Config.leoKubernetesConfig
   val openIdConnectionConfiguration = FakeOpenIDConnectConfiguration
-  val azureServiceConfig = AzureServiceConfig(
-    // For now azure disks share same defaults as normal disks
-    ConfigReader.appConfig.persistentDisk,
-    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
-    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-    ConfigReader.appConfig.azure.pubsubHandler.welderImageHash
-  )
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),

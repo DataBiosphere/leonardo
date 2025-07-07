@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   wsmControlledResourceIdDecoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
-import org.broadinstitute.dsde.workbench.leonardo.util.PollDiskParams
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
@@ -80,6 +79,12 @@ final case class WsmResource(metadata: WsmResourceMetadata, resourceAttributes: 
 final case class GetWsmResourceResponse(resources: List[WsmResource])
 
 // Azure Disk models
+final case class PollDiskParams(workspaceId: WorkspaceId,
+                                jobId: WsmJobId,
+                                diskId: DiskId,
+                                runtime: Runtime,
+                                wsmResourceId: WsmControlledResourceId
+                               )
 
 final case class CreateDiskForRuntimeResult(resourceId: WsmControlledResourceId, pollParams: Option[PollDiskParams])
 

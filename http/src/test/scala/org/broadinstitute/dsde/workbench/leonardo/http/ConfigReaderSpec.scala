@@ -5,7 +5,7 @@ import com.azure.core.management.AzureEnvironment
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoMetricsMonitorConfig, PollMonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsp._
 import org.http4s.Uri
@@ -28,49 +28,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         Vector("bogus")
       ),
       AzureConfig(
-        AzurePubsubHandlerConfig(
-          Uri.unsafeFromString("https://sam.test.org:443"),
-          Uri.unsafeFromString("https://localhost:8000"),
-          "terradevacrpublic.azurecr.io/welder-server",
-          "0c1d0eb",
-          PollMonitorConfig(1 seconds, 10, 1 seconds),
-          PollMonitorConfig(1 seconds, 20, 1 seconds),
-          PollMonitorConfig(1 seconds, 10, 1 seconds),
-          PollMonitorConfig(1 seconds, 10, 1 seconds),
-          AzureRuntimeDefaults(
-            "Azure Ip",
-            "ip",
-            "Azure Network",
-            "network",
-            "subnet",
-            CidrIP("192.168.0.0/16"),
-            CidrIP("192.168.0.0/24"),
-            "Azure Disk",
-            "Azure Vm",
-            AzureImage(
-              "microsoft-dsvm",
-              "ubuntu-2004",
-              "2004-gen2",
-              "23.04.24"
-            ),
-            CustomScriptExtensionConfig(
-              "vm-custom-script-extension",
-              "Microsoft.Azure.Extensions",
-              "CustomScript",
-              "2.1",
-              true,
-              List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/4ae6ec54e73d3fb20e8c3a142488bd09db814160/http/src/main/resources/init-resources/azure_vm_init_script.sh"
-              )
-            ),
-            // [IA-4997] to support CHIPS by setting partitioned cookies
-            // "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:474f157",
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:76d982c",
-            VMCredential(username = "username", password = "password")
-          ),
-          PollMonitorConfig(1 seconds, 10, 1 seconds),
-          PollMonitorConfig(1 seconds, 10, 1 seconds)
-        ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         BpmConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),

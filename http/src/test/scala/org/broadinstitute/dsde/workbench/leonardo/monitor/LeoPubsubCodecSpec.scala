@@ -10,11 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Net
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  CreateAzureRuntimeMessage,
-  CreateRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.scalatest.flatspec.AnyFlatSpec
@@ -122,21 +118,6 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     )
 
     val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))
-
-    res shouldBe Right(originalMessage)
-  }
-
-  it should "encode/decode CreateAzureRuntimeMessage properly" in {
-    val originalMessage =
-      CreateAzureRuntimeMessage(1,
-                                WorkspaceId(UUID.randomUUID()),
-                                false,
-                                None,
-                                "WorkspaceName",
-                                BillingProfileId("spend-profile")
-      )
-
-    val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
 
     res shouldBe Right(originalMessage)
   }
