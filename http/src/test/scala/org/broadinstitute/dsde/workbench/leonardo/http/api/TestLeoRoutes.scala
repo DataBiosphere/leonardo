@@ -62,7 +62,6 @@ trait TestLeoRoutes {
   }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
-  val wsmDao = new MockWsmDAO
   val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO

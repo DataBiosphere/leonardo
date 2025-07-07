@@ -45,7 +45,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
-  val wsmDao = new MockWsmDAO
   val (wsmClientProvider, _, _, workspaceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
   val (googleWsmClientProvider, _, _, googleWorkspaceApi) =
     AzureTestUtils.setUpMockWsmApiClientProvider(googleProject = Some(GoogleProject(workspaceId.toString)))
@@ -58,12 +57,10 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     googleWorkspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
   } thenAnswer (_ => throw new Exception("workspace not found"))
 
-  val gcpWsmDao = new MockWsmDAO
-
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
   val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), authProvider = allowListAuthProvider2)
   val gcpWorkspaceAppServiceInterp =
-    makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
+    makeInterp(QueueFactory.makePublisherQueue(), wsmClientProvider = googleWsmClientProvider)
 
   def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
@@ -81,7 +78,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage],
                  authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
-                 wsmDao: WsmDao[IO] = wsmDao,
                  enableCustomAppCheckFlag: Boolean = true,
                  enableSasApp: Boolean = true,
                  googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
@@ -1753,7 +1749,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "V1 GCP - deleteAppRecords delete an app, nodepool and cluster in DB and records AppUsage stopTime" in isolatedDbTest {
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
 
     val appName = AppName("app1")
     val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
@@ -1829,7 +1825,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V1 GCP - deleteAllAppsRecords, update all status appropriately, and not queue messages" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
 
     val appName = AppName("app1")
     val appName2 = AppName("app2")
@@ -1997,7 +1993,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V1 GCP - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
 
     val appName = AppName("app1")
     val appName2 = AppName("app2")
@@ -2077,7 +2073,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V1 GCP - deleteAllApp, should fail and not update anything if there is a non-deletable app status" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
     val appName = AppName("app1")
     val appName2 = AppName("app2")
     val diskConfig1 = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)

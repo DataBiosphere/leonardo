@@ -3,17 +3,11 @@ package dao
 
 import _root_.io.circe._
 import ca.mrvisser.sealerate
-import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.azure._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
-  googleProjectDecoder,
-  storageContainerNameDecoder,
-  wsmControlledResourceIdDecoder
-}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{googleProjectDecoder, storageContainerNameDecoder, wsmControlledResourceIdDecoder}
 import org.broadinstitute.dsde.workbench.leonardo.dao.LandingZoneResourcePurpose.LandingZoneResourcePurpose
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import org.http4s.headers.Authorization
 
 import java.util.UUID
 
@@ -21,16 +15,6 @@ import java.util.UUID
  * This is the legacy WsmDAO. It remains because there is some specific logic around models retrieved from WSM
  * It SHOULD NOT be added to. Favor usage of WsmClientProvider, the auto-generated client.
  */
-trait WsmDao[F[_]] {
-
-  def getLandingZoneResources(billingProfileId: BillingProfileId, userToken: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[LandingZoneResources]
-
-  def getWorkspaceStorageContainer(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[Option[StorageContainerResponse]]
-}
 final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
                                       spendProfile: String,

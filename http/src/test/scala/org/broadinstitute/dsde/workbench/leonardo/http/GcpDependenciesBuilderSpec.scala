@@ -121,7 +121,6 @@ class GcpDependenciesBuilderSpec
       mock[HttpJupyterDAO[IO]],
       mock[HttpRStudioDAO[IO]],
       mock[HttpWelderDAO[IO]],
-      mock[HttpWsmDao[IO]],
       mock[SamAuthProvider[IO]],
       mock[LeoPublisher[IO]],
       mock[Queue[IO, LeoPubsubMessage]],

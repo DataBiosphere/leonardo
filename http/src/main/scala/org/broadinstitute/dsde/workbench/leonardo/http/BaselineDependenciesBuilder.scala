@@ -153,8 +153,6 @@ class BaselineDependenciesBuilder {
       dockerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         HttpDockerDAO[F](client)
       )
-      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true)
-        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
 
       wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
 
@@ -282,7 +280,6 @@ class BaselineDependenciesBuilder {
       jupyterDao,
       rstudioDAO,
       welderDao,
-      wsmDao,
       authProvider,
       leoPublisher,
       publisherQueue,
@@ -414,7 +411,6 @@ final case class BaselineDependencies[F[_]](
   jupyterDAO: HttpJupyterDAO[F],
   rstudioDAO: HttpRStudioDAO[F],
   welderDAO: HttpWelderDAO[F],
-  wsmDAO: HttpWsmDao[F],
   authProvider: SamAuthProvider[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: Queue[F, LeoPubsubMessage],

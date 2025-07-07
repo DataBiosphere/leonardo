@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Name
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.StorageContainerResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
   RuntimeConfigRequest
@@ -505,9 +504,6 @@ object LeoPubsubCodec {
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
-
-  implicit val storageContainerResponseDecoder: Decoder[StorageContainerResponse] =
-    Decoder.forProduct2("name", "resourceId")(StorageContainerResponse.apply)
 
   implicit val leoPubsubMessageDecoder: Decoder[LeoPubsubMessage] = Decoder.instance { message =>
     for {
