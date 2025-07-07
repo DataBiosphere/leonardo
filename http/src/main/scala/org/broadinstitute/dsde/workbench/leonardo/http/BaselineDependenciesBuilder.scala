@@ -155,10 +155,6 @@ class BaselineDependenciesBuilder {
 
       azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
 
-      azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
-        ConfigReader.appConfig.azure.appRegistration
-      )
-
       azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
         ConfigReader.appConfig.azure.appRegistration
       )
@@ -286,7 +282,6 @@ class BaselineDependenciesBuilder {
       samResourceCache,
       oidcConfig,
       appDAO,
-      azureContainerService,
       runtimeServiceConfig,
       kubernetesDnsCache,
       appDescriptorDAO,
@@ -414,7 +409,6 @@ final case class BaselineDependencies[F[_]](
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
   appDAO: AppDAO[F],
-  azureContainerService: AzureContainerService[F],
   runtimeServicesConfig: RuntimeServiceConfig,
   kubernetesDnsCache: KubernetesDnsCache[F],
   appDescriptorDAO: HttpAppDescriptorDAO[F],

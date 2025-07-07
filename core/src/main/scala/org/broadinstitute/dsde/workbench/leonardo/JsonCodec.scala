@@ -6,7 +6,6 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
 import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
   BatchAccountName,

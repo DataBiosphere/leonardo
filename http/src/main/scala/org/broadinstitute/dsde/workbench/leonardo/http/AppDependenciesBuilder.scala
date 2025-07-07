@@ -134,15 +134,10 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
                                    baselineDependencies.welderDAO,
                                    baselineDependencies.rstudioDAO
       )
-    val kubeAlg = new KubernetesInterpreter[IO](
-      baselineDependencies.azureContainerService
-    )
 
     val metricsMonitor = new LeoMetricsMonitor(
       ConfigReader.appConfig.metrics,
-      baselineDependencies.appDAO,
-      kubeAlg,
-      baselineDependencies.azureContainerService
+      baselineDependencies.appDAO
     )
 
     val pubsubSubscriber = new LeoPubsubMessageSubscriber[IO](
