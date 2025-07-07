@@ -147,27 +147,11 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
       baselineDependencies.azureContainerService
     )
 
-    val azureAlg = new AzurePubsubHandlerInterp[IO](
-      ConfigReader.appConfig.azure.pubsubHandler,
-      applicationConfig,
-      contentSecurityPolicy,
-      baselineDependencies.asyncTasksQueue,
-      baselineDependencies.wsmDAO,
-      baselineDependencies.samDAO,
-      baselineDependencies.welderDAO,
-      baselineDependencies.jupyterDAO,
-      baselineDependencies.azureRelay,
-      baselineDependencies.azureVmService,
-      refererConfig,
-      baselineDependencies.wsmClientProvider
-    )
-
     val pubsubSubscriber = new LeoPubsubMessageSubscriber[IO](
       leoPubsubMessageSubscriberConfig,
       baselineDependencies.subscriber,
       baselineDependencies.asyncTasksQueue,
       baselineDependencies.authProvider,
-      azureAlg,
       baselineDependencies.operationFutureCache,
       cloudSpecificDependencies,
       baselineDependencies.samService

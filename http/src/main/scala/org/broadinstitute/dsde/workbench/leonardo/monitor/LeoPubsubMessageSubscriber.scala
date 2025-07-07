@@ -57,7 +57,6 @@ import scala.jdk.CollectionConverters._
  * @param subscriber
  * @param asyncTasks
  * @param authProvider
- * @param azurePubsubHandler
  * @param operationFutureCache This is used to cancel long running java Futures for Google operations. Currently, we only cancel existing stopping runtime operation if a `deleteRuntime`
  *                             message is received
  * @tparam F
@@ -67,7 +66,6 @@ class LeoPubsubMessageSubscriber[F[_]](
   subscriber: CloudSubscriber[F, LeoPubsubMessage],
   asyncTasks: Queue[F, Task[F]],
   authProvider: LeoAuthProvider[F],
-  azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
   operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]],
   cloudSpecificDependenciesRegistry: ServicesRegistry,
   samService: SamService[F]
@@ -110,25 +108,9 @@ class LeoPubsubMessageSubscriber[F[_]](
           handleStartAppMessage(msg)
         case msg: UpdateAppMessage =>
           handleUpdateAppMessage(msg)
-        case msg: CreateAzureRuntimeMessage =>
-          azurePubsubHandler.createAndPollRuntime(msg).adaptError { case e =>
-            PubsubHandleMessageError.AzureRuntimeCreationError(
-              msg.runtimeId,
-              msg.workspaceId,
-              e.getMessage,
-              msg.useExistingDisk
-            )
-          }
-        case msg: DeleteAzureRuntimeMessage =>
-          azurePubsubHandler.deleteAndPollRuntime(msg).adaptError { case e =>
-            PubsubHandleMessageError.AzureRuntimeDeletionError(
-              msg.runtimeId,
-              msg.diskIdToDelete,
-              msg.workspaceId,
-              e.getMessage
-            )
-          }
-        case msg: DeleteDiskV2Message => handleDeleteDiskV2Message(msg)
+        case _: CreateAzureRuntimeMessage => ???
+        case _: DeleteAzureRuntimeMessage => ???
+        case _: DeleteDiskV2Message => ???
       }
     } yield resp
 
@@ -188,10 +170,6 @@ class LeoPubsubMessageSubscriber[F[_]](
               logger.error(ctx.loggingCtx, e)(
                 s"Encountered an error for app ${ee.appId}, ${ee.getMessage}"
               ) >> handleKubernetesError(ee)
-            case ee: AzureRuntimeCreationError =>
-              azurePubsubHandler.handleAzureRuntimeCreationError(ee, ctx.now)
-            case ee: AzureRuntimeDeletionError =>
-              azurePubsubHandler.handleAzureRuntimeDeletionError(ee)
             case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
           }
           _ <-
@@ -328,7 +306,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
+        AzureUnimplementedException("Azure runtime is not supported")
       )
       poll = op match {
         case Some(opFuture) =>
@@ -410,61 +388,45 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- logger.info(
         s"StopRuntimeMessage timing: Got the runtimeConfig, [runtime = ${runtime.runtimeName.asString}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
-      _ <- runtime.cloudContext match {
-        case CloudContext.Gcp(_) =>
-          for {
-            op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, isDataprocFullStop = true)
-            )
-            poll = op match {
-              case Some(o) =>
-                val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
-                for {
-                  operation <- F.blocking(o.get())
-                  _ <- operationFutureCache.put(runtime.id)(o, None)
-                  _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
-                    runtimeConfig.cloudService
-                      .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
-                  )
-                } yield ()
-              case None =>
-                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
-            }
-            now <- F.realTimeInstant
-            _ <- logger.info(
-              s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
-            )
-            isAoU = runtime.labels.get(AOU_UI_LABEL).contains("true")
-            _ <- asyncTasks.offer(
-              Task(
-                ctx.traceId,
-                poll,
-                Some(
-                  handleRuntimeMessageError(
-                    msg.runtimeId,
-                    ctx.now,
-                    s"stopping runtime ${runtime.projectNameString}/${runtime.runtimeName.toString} failed"
-                  )
-                ),
+      _ <- for {
+        op <- runtimeConfig.cloudService.interpreter.stopRuntime(
+          StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, isDataprocFullStop = true)
+        )
+        poll = op match {
+          case Some(o) =>
+            val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+            for {
+              operation <- F.blocking(o.get())
+              _ <- operationFutureCache.put(runtime.id)(o, None)
+              _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
+                runtimeConfig.cloudService
+                  .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+              )
+            } yield ()
+          case None =>
+            runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping, None).compile.drain
+        }
+        now <- F.realTimeInstant
+        _ <- logger.info(
+          s"StopRuntimeMessage timing: Polling the stopRuntime, [runtime = ${runtime.runtimeName}, traceId = ${ctx.traceId.asString}, time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
+        )
+        isAoU = runtime.labels.get(AOU_UI_LABEL).contains("true")
+        _ <- asyncTasks.offer(
+          Task(
+            ctx.traceId,
+            poll,
+            Some(
+              handleRuntimeMessageError(
+                msg.runtimeId,
                 ctx.now,
-                TaskMetricsTags("stopRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
+                s"stopping runtime ${runtime.projectNameString}/${runtime.runtimeName.toString} failed"
               )
-            )
-          } yield ()
-        case CloudContext.Azure(azureContext) =>
-          azurePubsubHandler
-            .stopAndMonitorRuntime(runtime, azureContext)
-            .handleErrorWith(e =>
-              azurePubsubHandler.handleAzureRuntimeStopError(
-                AzureRuntimeStoppingError(
-                  runtime.id,
-                  s"stopping runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
-                  ctx.traceId
-                ),
-                ctx.now
-              )
-            )
-      }
+            ),
+            ctx.now,
+            TaskMetricsTags("stopRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
+          )
+        )
+      } yield ()
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(implicit
@@ -484,48 +446,31 @@ class LeoPubsubMessageSubscriber[F[_]](
             PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
           )
         else F.unit
-      _ <- runtime.cloudContext match {
-        case CloudContext.Gcp(_) =>
-          for {
-            runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-            initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
-            bucketName <- F.fromOption(
-              initBucket.map(_.bucketName),
-              new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
-            )
-            _ <- runtimeConfig.cloudService.interpreter
-              .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
-            isAoU = runtime.labels.get(AOU_UI_LABEL).contains("true")
-            _ <- asyncTasks.offer(
-              Task(
-                ctx.traceId,
-                runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting, None).compile.drain,
-                Some(
-                  handleRuntimeMessageError(msg.runtimeId,
-                                            ctx.now,
-                                            s"starting runtime ${runtime.projectNameString} failed"
-                  )
-                ),
-                ctx.now,
-                TaskMetricsTags("startRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
+      _ <- for {
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+        initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
+        bucketName <- F.fromOption(
+          initBucket.map(_.bucketName),
+          new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
+        )
+        _ <- runtimeConfig.cloudService.interpreter
+          .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
+        isAoU = runtime.labels.get(AOU_UI_LABEL).contains("true")
+        _ <- asyncTasks.offer(
+          Task(
+            ctx.traceId,
+            runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting, None).compile.drain,
+            Some(
+              handleRuntimeMessageError(msg.runtimeId,
+                                        ctx.now,
+                                        s"starting runtime ${runtime.projectNameString} failed"
               )
-            )
-          } yield ()
-        case CloudContext.Azure(azureContext) =>
-          azurePubsubHandler
-            .startAndMonitorRuntime(runtime, azureContext)
-            .handleErrorWith(e =>
-              azurePubsubHandler.handleAzureRuntimeStartError(
-                AzureRuntimeStartingError(
-                  runtime.id,
-                  s"starting runtime ${runtime.projectNameString} failed. Cause: ${e.getMessage}",
-                  ctx.traceId
-                ),
-                ctx.now
-              )
-            )
-      }
-
+            ),
+            ctx.now,
+            TaskMetricsTags("startRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
+          )
+        )
+      } yield ()
     } yield ()
 
   private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(implicit
@@ -1770,23 +1715,6 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
     } yield res
 
-  private[monitor] def handleDeleteDiskV2Message(
-    msg: DeleteDiskV2Message
-  )(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      _ <- msg.cloudContext match {
-        case CloudContext.Azure(_) =>
-          azurePubsubHandler.deleteDisk(msg).adaptError { case e =>
-            PubsubHandleMessageError.DiskDeletionError(
-              msg.diskId,
-              msg.workspaceId,
-              e.getMessage
-            )
-          }
-        case CloudContext.Gcp(_) =>
-          deleteDisk(msg.diskId, false)
-      }
-    } yield ()
   private def getGoogleDiskServiceFromRegistry(): GoogleDiskService[F] = {
     logger.info(s"Getting googleDiskService from registry")
     cloudSpecificDependenciesRegistry.lookup[GcpDependencies[F]].get.googleDiskService
