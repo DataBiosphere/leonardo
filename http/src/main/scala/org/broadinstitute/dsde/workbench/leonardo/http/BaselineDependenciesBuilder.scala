@@ -283,11 +283,7 @@ class BaselineDependenciesBuilder {
       kubernetesDnsCache,
       appDescriptorDAO,
       helmClient,
-      azureRelay,
-      azureVmService,
       operationFutureCache,
-      azureBatchService,
-      azureApplicationInsightsService,
       openTelemetry,
       samService
     )
@@ -410,11 +406,7 @@ final case class BaselineDependencies[F[_]](
   kubernetesDnsCache: KubernetesDnsCache[F],
   appDescriptorDAO: HttpAppDescriptorDAO[F],
   helmClient: HelmInterpreter[F],
-  azureRelay: AzureRelayService[F],
-  azureVmService: AzureVmService[F],
   operationFutureCache: Cache[F, Long, OperationFuture[Operation, Operation]],
-  azureBatchService: AzureBatchService[F],
-  azureApplicationInsightsService: AzureApplicationInsightsService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   samService: SamService[F]
 )

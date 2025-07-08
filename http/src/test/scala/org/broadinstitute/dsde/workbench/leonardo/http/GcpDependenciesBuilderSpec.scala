@@ -12,15 +12,7 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
-import org.broadinstitute.dsde.workbench.google2.{
-  GKEService,
-  GoogleComputeService,
-  GoogleDataprocService,
-  GoogleDiskService,
-  GoogleResourceService,
-  GoogleStorageService,
-  KubernetesService
-}
+import org.broadinstitute.dsde.workbench.google2.{GKEService, GoogleComputeService, GoogleDataprocService, GoogleDiskService, GoogleResourceService, GoogleStorageService, KubernetesService}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -138,11 +130,7 @@ class GcpDependenciesBuilderSpec
       mock[KubernetesDnsCache[IO]],
       mock[HttpAppDescriptorDAO[IO]],
       mock[HelmInterpreter[IO]],
-      mock[AzureRelayService[IO]],
-      mock[AzureVmService[IO]],
       mock[Cache[IO, Long, OperationFuture[Operation, Operation]]],
-      mock[AzureBatchService[IO]],
-      mock[AzureApplicationInsightsService[IO]],
       mock[OpenTelemetryMetrics[IO]],
       mock[SamService[IO]]
     )
