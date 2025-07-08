@@ -5,7 +5,20 @@ import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, autodeleteConfig, contentSecurityPolicy, dateAccessUpdaterConfig, dbConcurrency, leoExecutionModeConfig, leoPubsubMessageSubscriberConfig, liquibaseConfig, prometheusConfig, refererConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
+  applicationConfig,
+  asyncTaskProcessorConfig,
+  autoFreezeConfig,
+  autodeleteConfig,
+  contentSecurityPolicy,
+  dateAccessUpdaterConfig,
+  dbConcurrency,
+  leoExecutionModeConfig,
+  leoPubsubMessageSubscriberConfig,
+  liquibaseConfig,
+  prometheusConfig,
+  refererConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference

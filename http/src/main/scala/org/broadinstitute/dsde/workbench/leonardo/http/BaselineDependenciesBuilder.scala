@@ -36,10 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{HttpSamApiClientProvider, SamService, SamServiceInterp}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  RuntimeServiceConfig,
-  SamResourceCacheKey
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{RuntimeServiceConfig, SamResourceCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._

@@ -35,11 +35,11 @@ sealed trait KubernetesAppConfig extends Product with Serializable {
 object KubernetesAppConfig {
   def configForTypeAndCloud(appType: AppType, cloudProvider: CloudProvider): Option[KubernetesAppConfig] =
     (appType, cloudProvider) match {
-      case (Galaxy, CloudProvider.Gcp)              => Some(Config.gkeGalaxyAppConfig)
-      case (Custom, CloudProvider.Gcp)              => Some(Config.gkeCustomAppConfig)
-      case (Cromwell, CloudProvider.Gcp)            => Some(Config.gkeCromwellAppConfig)
-      case (AppType.Allowed, CloudProvider.Gcp)     => Some(Config.gkeAllowedAppConfig)
-      case _                                        => None
+      case (Galaxy, CloudProvider.Gcp)          => Some(Config.gkeGalaxyAppConfig)
+      case (Custom, CloudProvider.Gcp)          => Some(Config.gkeCustomAppConfig)
+      case (Cromwell, CloudProvider.Gcp)        => Some(Config.gkeCromwellAppConfig)
+      case (AppType.Allowed, CloudProvider.Gcp) => Some(Config.gkeAllowedAppConfig)
+      case _                                    => None
     }
 }
 

@@ -13,7 +13,16 @@ import monocle.macros.syntax.lens._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleComputeService, GoogleResourceService, KubernetesName, Location, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  GoogleResourceService,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  RegionName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -22,7 +31,11 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{checkIfCanBeDeleted, getAppSamPolicyMap, isPatchVersionDifference}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
+  checkIfCanBeDeleted,
+  getAppSamPolicyMap,
+  isPatchVersionDifference
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._

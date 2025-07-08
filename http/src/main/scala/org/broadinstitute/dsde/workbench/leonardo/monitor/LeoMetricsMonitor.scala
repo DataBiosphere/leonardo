@@ -9,7 +9,7 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, KubernetesAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries, clusterQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetric._
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -20,9 +20,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
 /** Collects metrics about active Leo runtimes and apps. */
-class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
-                              appDAO: AppDAO[F]
-)(implicit
+class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F])(implicit
   F: Async[F],
   dbRef: DbReference[F],
   metrics: OpenTelemetryMetrics[F],
@@ -108,12 +106,7 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig,
       imageTypes = Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio)
       c <- r.images.filter(i => imageTypes.contains(i.imageType)).headOption
     } yield Map(
-      RuntimeStatusMetric(r.cloudContext.cloudProvider,
-                          c.imageType,
-                          c.imageUrl,
-                          r.status,
-                          getRuntimeUI(r.labels)
-      ) -> 1d
+      RuntimeStatusMetric(r.cloudContext.cloudProvider, c.imageType, c.imageUrl, r.status, getRuntimeUI(r.labels)) -> 1d
     )
     allContainers.combineAll
   }

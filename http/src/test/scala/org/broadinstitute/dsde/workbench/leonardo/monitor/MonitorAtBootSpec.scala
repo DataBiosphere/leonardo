@@ -13,10 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
   CreateClusterAndNodepool,
   CreateNodepool
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  DeleteAppMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppMachineType,
   AppStatus,

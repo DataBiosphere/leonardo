@@ -12,7 +12,31 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetric._
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, Chart, CloudContext, CloudProvider, IpRange, KubernetesCluster, KubernetesClusterAsyncFields, KubernetesService, KubernetesServiceKindName, LeonardoTestSuite, NetworkFields, RuntimeContainerServiceType, RuntimeImage, RuntimeImageType, RuntimeMetrics, RuntimeName, RuntimeStatus, RuntimeUI, ServiceConfig, ServiceId, WorkspaceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AppStatus,
+  AppType,
+  Chart,
+  CloudContext,
+  CloudProvider,
+  IpRange,
+  KubernetesCluster,
+  KubernetesClusterAsyncFields,
+  KubernetesService,
+  KubernetesServiceKindName,
+  LeonardoTestSuite,
+  NetworkFields,
+  RuntimeContainerServiceType,
+  RuntimeImage,
+  RuntimeImageType,
+  RuntimeMetrics,
+  RuntimeName,
+  RuntimeStatus,
+  RuntimeUI,
+  ServiceConfig,
+  ServiceId,
+  WorkspaceId
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.mockito.ArgumentMatchers.{any, anyString}
@@ -50,13 +74,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     test.size shouldBe 5
     // Cromwell on GCP on Terra
     test.get(
-      AppStatusMetric(CloudProvider.Gcp,
-                      AppType.Cromwell,
-                      AppStatus.Running,
-                      RuntimeUI.Terra,
-                      cromwellChart,
-                      true
-      )
+      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.Terra, cromwellChart, true)
     ) shouldBe Some(1)
     // Galaxy on GCP
     test.get(
@@ -172,14 +190,10 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       ) shouldBe Some(0)
     }
   }
-  
+
   // Data generators
 
-  private def genApp(appType: AppType,
-                     chart: Chart,
-                     isAou: Boolean,
-                     isCromwell: Boolean
-  ): KubernetesCluster = {
+  private def genApp(appType: AppType, chart: Chart, isAou: Boolean, isCromwell: Boolean): KubernetesCluster = {
     val cluster = makeKubeCluster(1)
     val clusterWithAsyncFields = cluster.copy(asyncFields =
       Some(

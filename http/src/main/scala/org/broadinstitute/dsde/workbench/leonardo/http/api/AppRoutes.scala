@@ -308,22 +308,22 @@ object AppRoutes {
       "autodeleteThreshold"
     )(x =>
       (x.workspaceId,
-        x.cloudContext,
-        x.region,
-        x.kubernetesRuntimeConfig,
-        x.autopilot,
-        x.errors,
-        x.status,
-        x.proxyUrls,
-        x.appName,
-        x.appType,
-        x.chartName,
-        x.diskName,
-        x.auditInfo,
-        x.accessScope,
-        x.labels,
-        x.autodeleteEnabled,
-        x.autodeleteThreshold
+       x.cloudContext,
+       x.region,
+       x.kubernetesRuntimeConfig,
+       x.autopilot,
+       x.errors,
+       x.status,
+       x.proxyUrls,
+       x.appName,
+       x.appType,
+       x.chartName,
+       x.diskName,
+       x.auditInfo,
+       x.accessScope,
+       x.labels,
+       x.autodeleteEnabled,
+       x.autodeleteThreshold
       )
     )
 

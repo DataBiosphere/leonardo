@@ -458,10 +458,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             ctx.traceId,
             runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Starting, None).compile.drain,
             Some(
-              handleRuntimeMessageError(msg.runtimeId,
-                                        ctx.now,
-                                        s"starting runtime ${runtime.projectNameString} failed"
-              )
+              handleRuntimeMessageError(msg.runtimeId, ctx.now, s"starting runtime ${runtime.projectNameString} failed")
             ),
             ctx.now,
             TaskMetricsTags("startRuntime", None, Some(isAoU), CloudProvider.Gcp, Some(runtimeConfig.cloudService))
