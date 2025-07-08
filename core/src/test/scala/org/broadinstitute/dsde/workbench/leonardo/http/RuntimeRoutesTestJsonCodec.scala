@@ -4,22 +4,7 @@ import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AsyncRuntimeFields,
-  AuditInfo,
-  CloudContext,
-  CreateAzureDiskRequest,
-  CreateAzureRuntimeRequest,
-  LabelMap,
-  RuntimeConfig,
-  RuntimeError,
-  RuntimeImage,
-  RuntimeName,
-  RuntimeStatus,
-  UserJupyterExtensionConfig,
-  UserScriptPath,
-  WorkspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AsyncRuntimeFields, AuditInfo, CloudContext, LabelMap, RuntimeConfig, RuntimeError, RuntimeImage, RuntimeName, RuntimeStatus, UserJupyterExtensionConfig, UserScriptPath, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -78,13 +63,6 @@ object RuntimeRoutesTestJsonCodec {
       case x: RuntimeConfigRequest.GceWithPdConfig => x.asJson
     }
   }
-
-  implicit val azureDiskConfigEncoder: Encoder[CreateAzureDiskRequest] =
-    Encoder.forProduct4("labels", "name", "size", "diskType")(x => CreateAzureDiskRequest.unapply(x).get)
-  implicit val createAzureRuntimeRequestEncoder: Encoder[CreateAzureRuntimeRequest] =
-    Encoder.forProduct5("labels", "machineSize", "customEnvironmentVariables", "disk", "autopauseThreshold")(x =>
-      CreateAzureRuntimeRequest.unapply(x).get
-    )
 
   implicit val createRuntime2RequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct13(
     "labels",

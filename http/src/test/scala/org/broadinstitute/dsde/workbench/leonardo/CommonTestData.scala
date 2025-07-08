@@ -524,19 +524,6 @@ object CommonTestData {
     )
     .gcpContext(new GcpContext().projectId("googleProject"))
 
-  val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
-    Map.empty,
-    VirtualMachineSizeTypes.STANDARD_A1,
-    Map.empty,
-    CreateAzureDiskRequest(
-      Map.empty,
-      AzureDiskName("diskName1"),
-      Some(DiskSize(100)),
-      None
-    ),
-    Some(0)
-  )
-
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
   def modifyInstanceKey(instanceKey: DataprocInstanceKey): DataprocInstanceKey =
