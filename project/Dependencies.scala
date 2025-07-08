@@ -103,12 +103,14 @@ object Dependencies {
     excludeGuava,
     excludeOpenTelemetry
   )
+  // TODO remove once all Azure-related code is gone
   val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
+  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
+
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
-  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
     excludeGuava
@@ -139,10 +141,7 @@ object Dependencies {
   val commonsBeanUtils = "commons-beanutils" % "commons-beanutils" % commonsBeanUtilsV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val workSpaceManagerV = "0.254.1127-SNAPSHOT"
-
   val terraCommonLibV = "1.1.38-SNAPSHOT"
-  val bpmV = "0.1.548-SNAPSHOT"
   val samV = "v0.0.274"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
@@ -164,8 +163,6 @@ object Dependencies {
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
   def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeOpenTelemetry, excludeFlagsmith)
-  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
-  val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
   val sam = excludeJakarta("org.broadinstitute.dsde.workbench" %% "sam-client" % samV)
 
@@ -197,8 +194,6 @@ object Dependencies {
     workbenchAzure,
     workbenchAzureTest,
     logbackClassic,
-    workspaceManager,
-    bpm,
     terraCommonLib,
     sam
   )
