@@ -433,124 +433,6 @@ class HttpRoutesSpec
     }
   }
 
-  "RuntimeRoutesV2" should "create azure runtime" in {
-    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
-      .withEntity(ContentTypes.`application/json`,
-                  defaultCreateAzureRuntimeReq.asJson.spaces2
-      ) ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "reject azure runtime with invalid workspaceId" in {
-    Post(s"/api/v2/runtimes/invalidWorkspaceId/azure/azureruntime1")
-      .withEntity(ContentTypes.`application/json`,
-                  defaultCreateAzureRuntimeReq.asJson.spaces2
-      ) ~> routes.route ~> check {
-      status shouldEqual StatusCodes.BadRequest
-      responseEntity.toStrict(5 seconds).futureValue.data.utf8String should include(
-        "Invalid workspace id invalidWorkspaceId, workspace id must be a valid UUID"
-      )
-    }
-  }
-
-  it should "reject azure runtime with invalid runtimeName" in {
-    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/invalidRuntime")
-      .withEntity(ContentTypes.`application/json`,
-                  defaultCreateAzureRuntimeReq.asJson.spaces2
-      ) ~> routes.route ~> check {
-      status shouldEqual StatusCodes.BadRequest
-      responseEntity.toStrict(5 seconds).futureValue.data.utf8String should include(
-        "Invalid runtime name invalidRuntime"
-      )
-    }
-  }
-
-  it should "get an azure runtime" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      responseAs[GetRuntimeResponse].clusterName shouldBe RuntimeName("azureruntime1")
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "404 on get azure runtime when it does not exist" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/fakeruntime") ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.NotFound
-    }
-  }
-
-  it should "delete an azure runtime" in {
-    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-  }
-
-  it should "404 on delete azure runtime when it does not exist" in {
-    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.NotFound
-    }
-  }
-
-  it should "list runtimes v2 with a workspace" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      responseAs[Vector[ListRuntimeResponse2]].map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "list runtimes v2 without a workspace or cloudContext" in {
-    Get("/api/v2/runtimes") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      val response = responseAs[Vector[ListRuntimeResponse2]]
-      response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "list runtimes v2 with a workspace and cloud context" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      val response = responseAs[Vector[ListRuntimeResponse2]]
-      response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  // Tests only parameter parsing, not service logic.
-  it should "list runtimes v2 with labels" in isolatedDbTest {
-    Get(
-      s"/api/v2/runtimes/${workspaceId.value.toString}/azure?foo=bar"
-    ) ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-
-      val responseClusters = responseAs[List[ListRuntimeResponse2]]
-      responseClusters should have size 1
-      validateRawCookie(header("Set-Cookie"))
-    }
-
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=foo%3Dbar") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-
-      val responseClusters = responseAs[List[ListRuntimeResponse2]]
-      responseClusters should have size 1
-    }
-
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=bad") ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.BadRequest
-    }
-  }
-
-  it should "list runtimes v2 with parameters" in {
-    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?project=foo&creator=bar") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      responseAs[Vector[ListRuntimeResponse2]].map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
   "DiskRoutes" should "create a disk" in {
     val diskCreateRequest = CreateDiskRequest(
       Map("foo" -> "bar"),
@@ -625,30 +507,6 @@ class HttpRoutesSpec
     }
   }
 
-  it should "get a disk v2" in {
-    Get(s"/api/v2/disks/-1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      responseAs[GetPersistentDiskV2Response].name shouldBe CommonTestData.diskName
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "delete a disk v2" in {
-    Delete(s"/api/v2/disks/-1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "reject get a disk if id is invalid" in {
-    Get(s"/api/v2/disks/diskid") ~> routes.route ~> check {
-      val expectedResponse =
-        """Invalid workspace id workspaceId, workspace id must be a valid UUID"""
-      responseEntity.toStrict(5 seconds).futureValue.data.utf8String.contains(expectedResponse)
-      status shouldEqual StatusCodes.InternalServerError
-    }
-  }
-
   "HttpRoutes" should "not handle unrecognized routes" in {
     Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
@@ -656,11 +514,6 @@ class HttpRoutesSpec
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
     Get("/api/google/v1/badruntime/googleProject1/runtime1") ~> routes.route ~> check {
-      status shouldBe StatusCodes.NotFound
-      val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
-      resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
-    }
-    Get("/api/google/v2/runtime/googleProject1/runtime1") ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
@@ -680,34 +533,14 @@ class HttpRoutesSpec
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
     }
-    Get(s"/api/disks/v2/${workspaceId.value.toString}/disk1") ~> routes.route ~> check {
-      status shouldBe StatusCodes.NotFound
-      val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
-      resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
-    }
   }
 
   it should "have expected azure routes when azure hosting mode is true" in {
 
     val adminRoute = "/api/admin/v2/apps/update"
-    val appsV2Route = s"/api/apps/v2/${workspaceId.value.toString}/app1"
-    val diskV2Route = "/api/v2/disks/-1"
-    val runtimeV2Route = "/api/v2/runtimes"
     val statusRoute = "/status"
 
     Get(adminRoute) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-
-    Get(appsV2Route) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-
-    Get(diskV2Route) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-
-    Get(runtimeV2Route) ~> httpRoutesAzureOnly.route ~> check {
       status should not be StatusCodes.NotFound
     }
 
@@ -796,57 +629,6 @@ class HttpRoutesSpec
     Post("/api/google/v1/apps/googleProject1/app1/start") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "create an app V2" in {
-    Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
-      .withEntity(ContentTypes.`application/json`,
-                  createAppRequest.copy(accessScope = Some(AppAccessScope.WorkspaceShared)).asJson.spaces2
-      ) ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "list apps v2 with project" in {
-    Get(s"/api/apps/v2/${workspaceId.value.toString}") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      validateRawCookie(header("Set-Cookie"))
-      val response = responseAs[Vector[ListAppResponse]]
-      response shouldBe listAppResponse
-    }
-  }
-
-  it should "get app V2" in {
-    Get(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      validateRawCookie(header("Set-Cookie"))
-      responseAs[GetAppResponse] shouldBe getAppResponse
-    }
-  }
-
-  it should "delete app V2" in {
-    Delete(s"/api/apps/v2/${workspaceId.value.toString}/app1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
-  it should "validate create appV2 request" in {
-    Post(s"/api/apps/v2/${workspaceId.value.toString}/app1")
-      .withEntity(
-        ContentTypes.`application/json`,
-        createAppRequest
-          .copy(kubernetesRuntimeConfig =
-            createAppRequest.kubernetesRuntimeConfig.map(c => c.copy(numNodes = NumNodes(-1)))
-          )
-          .asJson
-          .spaces2
-      ) ~> httpRoutes.route ~> check {
-      status shouldBe StatusCodes.BadRequest
-      val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
-      resp shouldBe "The request content was malformed:\nDecodingFailure at .kubernetesRuntimeConfig.numNodes: Minimum number of nodes is 1"
     }
   }
 

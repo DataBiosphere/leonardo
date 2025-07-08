@@ -12,31 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetric._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppName,
-  AppStatus,
-  AppType,
-  Chart,
-  CloudContext,
-  CloudProvider,
-  IpRange,
-  KubernetesCluster,
-  KubernetesClusterAsyncFields,
-  KubernetesService,
-  KubernetesServiceKindName,
-  LeonardoTestSuite,
-  NetworkFields,
-  RuntimeContainerServiceType,
-  RuntimeImage,
-  RuntimeImageType,
-  RuntimeMetrics,
-  RuntimeName,
-  RuntimeStatus,
-  RuntimeUI,
-  ServiceConfig,
-  ServiceId,
-  WorkspaceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, Chart, CloudContext, CloudProvider, IpRange, KubernetesCluster, KubernetesClusterAsyncFields, KubernetesService, KubernetesServiceKindName, LeonardoTestSuite, NetworkFields, RuntimeContainerServiceType, RuntimeImage, RuntimeImageType, RuntimeMetrics, RuntimeName, RuntimeStatus, RuntimeUI, ServiceConfig, ServiceId, WorkspaceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.mockito.ArgumentMatchers.{any, anyString}
@@ -97,7 +73,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   it should "count runtimes by status" in {
     val test = leoMetricsMonitor.countRuntimesByDbStatus(allRuntimes)
     // 4 runtimes
-    test.size shouldBe 4
+    test.size shouldBe 3
     // Jupyter on GCP on Terra
     test.get(
       RuntimeStatusMetric(CloudProvider.Gcp,
@@ -133,7 +109,7 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .countAppsByHealth(List(cromwellAppGcp, galaxyAppGcp, cromwellAppGcpAou))
         .unsafeRunSync()(IORuntime.global)
     // An up and a down metric for 3 services
-    test.size shouldBe 3
+    test.size shouldBe 6
     test.get(
       AppHealthMetric(CloudProvider.Gcp,
                       AppType.Cromwell,
@@ -170,25 +146,31 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   it should "health check runtimes" in {
     val test = leoMetricsMonitor.countRuntimesByHealth(List(jupyterGcp, rstudioGcp)).unsafeRunSync()(IORuntime.global)
     // An up and a down for jupyter, rstudio, welder * 2
-    test.size shouldBe 8
-    // Jupyter Azure
-    List(jupyterImage, welderImage).foreach { i =>
-      test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp, i.imageType, i.imageUrl, RuntimeUI.Terra, true)
-      ) shouldBe Some(1)
-      test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp, i.imageType, i.imageUrl, RuntimeUI.Terra, false)
-      ) shouldBe Some(0)
-    }
-    // RStudio GCP
-    List(rstudioImage, welderImage).foreach { i =>
-      test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp, i.imageType, i.imageUrl, RuntimeUI.Terra, i != rstudioImage)
-      ) shouldBe Some(1)
-      test.get(
-        RuntimeHealthMetric(CloudProvider.Gcp, i.imageType, i.imageUrl, RuntimeUI.Terra, i == rstudioImage)
-      ) shouldBe Some(0)
-    }
+    test.size shouldBe 6
+
+    // Jupyter
+    test.get(
+      RuntimeHealthMetric(CloudProvider.Gcp, jupyterImage.imageType, jupyterImage.imageUrl, RuntimeUI.Terra, true)
+    ) shouldBe Some(1)
+    test.get(
+      RuntimeHealthMetric(CloudProvider.Gcp, jupyterImage.imageType, jupyterImage.imageUrl, RuntimeUI.Terra, false)
+    ) shouldBe Some(0)
+
+    // Rstudio
+    test.get(
+      RuntimeHealthMetric(CloudProvider.Gcp, rstudioImage.imageType, rstudioImage.imageUrl, RuntimeUI.Terra, true)
+    ) shouldBe Some(0)
+    test.get(
+      RuntimeHealthMetric(CloudProvider.Gcp, rstudioImage.imageType, rstudioImage.imageUrl, RuntimeUI.Terra, false)
+    ) shouldBe Some(1)
+
+    // Welder
+    test.get(
+      RuntimeHealthMetric(CloudProvider.Gcp, welderImage.imageType, welderImage.imageUrl, RuntimeUI.Terra, true)
+    ) shouldBe Some(2)
+    test.get(
+      RuntimeHealthMetric(CloudProvider.Gcp, welderImage.imageType, welderImage.imageUrl, RuntimeUI.Terra, false)
+    ) shouldBe Some(0)
   }
 
   // Data generators
