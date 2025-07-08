@@ -111,6 +111,7 @@ class HttpRoutes(
 
   val route: Route =
     logRequestResult {
+      // Note that this is Azure-only as in hosted on Azure, not operating on Azure resources
       enableAzureOnlyRoutes match {
         case false =>
           Route.seal(

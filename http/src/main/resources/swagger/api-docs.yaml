@@ -17,7 +17,7 @@ tags:
   - name: disks
     description: Persistent Disks API.
   - name: apps
-    description: Apps API. Support Google Kubernetes Engine and Azure Kubernetes Service.
+    description: Apps API. Support Google Kubernetes Engine.
   - name: proxy
     description: Proxy API
   - name: admin
@@ -503,469 +503,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-
-  "/api/v2/runtimes":
-    get:
-      summary: List all runtimes that the caller has access to
-      description: List all runtimes, optionally filtering on a set of labels
-      operationId: listRuntimesV2
-      tags:
-        - runtimes
-      parameters:
-        - in: query
-          name: _labels
-          description: >
-            Optional label key-value pairs to filter results by. Example:
-            Querying by key1=val1,key2=val2
-            returns all azure runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
-            Note: this string format is a workaround because Swagger doesn't support free-form
-            query string parameters. The recommended way to use this endpoint is to specify the
-            labels as top-level query string parameters. For instance: GET /api/v2/runtimes?key1=val1&key2=val2.
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: includeLabels
-          description: >
-            Optional label keys of the labels returned in response. Example:
-            Querying by key1,key2,key3
-            returns all labels key1/val1 key2/val2 and key3 and val3 for each runtime response
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of runtimes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ListRuntimeResponse"
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-  "/api/v2/runtimes/{workspaceId}":
-    get:
-      summary: List all runtimes within the given workspace that the caller has access to
-      description: List all runtimes within the given workspace, optionally
-        filtering on a set of labels
-      operationId: listRuntimesByWorkspaceV2
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: _labels
-          description: >
-            Optional label key-value pairs to filter results by. Example:
-            Querying by key1=val1,key2=val2
-            returns all azure runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
-            Note: this string format is a workaround because Swagger doesn't support free-form
-            query string parameters. The recommended way to use this endpoint is to specify the
-            labels as top-level query string parameters. For instance: GET /api/v2/runtimes/{workspaceId}?key1=val1&key2=val2.
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: includeLabels
-          description: >
-            Optional label keys of the labels returned in response. Example:
-            Querying by key1,key2,key3
-            returns all labels key1/val1 key2/val2 and key3 and val3 for each runtime response
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of runtimes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ListRuntimeResponse"
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-  "/api/v2/runtimes/{workspaceId}/azure":
-    get:
-      summary: List all azure runtimes within the given workspace that the caller has access to
-      description: List all azure runtimes within the given workspace, optionally
-        filtering on a set of labels
-      operationId: listAzureRuntimesV2
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: _labels
-          description: >
-            Optional label key-value pairs to filter results by. Example:
-            Querying by key1=val1,key2=val2
-            returns all azure runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
-            Note: this string format is a workaround because Swagger doesn't support free-form
-            query string parameters. The recommended way to use this endpoint is to specify the
-            labels as top-level query string parameters. For instance: GET /api/v2/runtimes/{workspaceId}/azure?key1=val1&key2=val2.
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: includeLabels
-          description: >
-            Optional label keys of the labels returned in response. Example:
-            Querying by key1,key2,key3
-            returns all labels key1/val1 key2/val2 and key3 and val3 for each runtime response
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of runtimes
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ListRuntimeResponse"
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-  "/api/v2/runtimes/{workspaceId}/{name}/start":
-    post:
-      summary: Start runtime (WIP).
-      description: >
-        Start an existing Leonardo managed runtime
-      operationId: startRuntimeV2
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          description: runtimeName
-          required: true
-          schema:
-            type: string
-      responses:
-        "202":
-          description: Runtime start request accepted
-        "403":
-          description: User does not have permission to perform action on runtime
-        "404":
-          description: Runtime not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-  "/api/v2/runtimes/{workspaceId}/{name}/stop":
-    post:
-      summary: Stop runtime (WIP).
-      description: >
-        Stop an existing Leonardo managed runtime
-      operationId: stopRuntimeV2
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          description: runtimeName
-          required: true
-          schema:
-            type: string
-      responses:
-        "202":
-          description: Runtime stop request accepted
-        "403":
-          description: User does not have permission to perform action on runtime
-        "404":
-          description: Runtime not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-  "/api/v2/runtimes/{workspaceId}/{name}/updateDateAccessed":
-    patch:
-      summary: Update the date accessed of a runtime.
-      description: >
-        This API is used in conjunction with v2 runtime's autopause functionality. Since Azure runtimes are not proxied to Leonardo, the relay must send a 'keep-alive'
-        message of sorts. If no requests are received after a period of time, the runtime will be stopped.
-        Each request to this API does not result in the runtime's date accessed being updated. An async process is responsible for batching them and executing updates.
-      operationId: updateDateAccessed
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          description: runtimeName
-          required: true
-          schema:
-            type: string
-      responses:
-        "202":
-          description: Runtime update date accessed request accepted
-        "403":
-          description: User does not have permission to perform action on runtime
-        "404":
-          description: Runtime not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-  "/api/v2/runtimes/{workspaceId}/azure/{name}":
-    get:
-      summary: Get details of an azure runtime
-      description: >
-        Returns information about an existing azure runtime managed by Leo.
-        Poll this to find out when your runtime has finished starting up.
-      operationId: getAzureRuntime
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          description: runtimeName
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Runtime found, here are the details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GetRuntimeResponse"
-        "403":
-          description: User does not have permission to perform action on runtime
-        "404":
-          description: Runtime not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-    post:
-      summary: Creates a Azure runtime instance in the given workspace with the given name.
-      description: >
-        The request is completed without waiting for the runtime to be created in Azure. The runtime status can be polled using the
-        getRuntime API.
-      operationId: createAzureRuntime
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          description: runtimeName. only lowercase alphanumeric characters, numbers and dashes are allowed
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: useExistingDisk
-          description: Defaults to false. If true ignores disk request and creates runtime with an existing disk associated with the user and workspace. Will error if 0 or multiple disks are found.
-          required: false
-          schema:
-            type: boolean
-            default: false
-
-      requestBody:
-        $ref: "#/components/requestBodies/CreateAzureRuntimeRequest"
-      responses:
-        "202":
-          description: Runtime creation request accepted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CreateRuntimeResponse"
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "409":
-          description: Conflict
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-    delete:
-      summary: Deletes an Azure runtime instance in the given workspace
-      description: deletes a runtime
-      operationId: deleteAzureRuntime
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: name
-          description: runtimeName
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: deleteDisk
-          description: Whether or not disk should be deleted upon runtime deletion. Defaults to true if not specified
-          required: false
-          schema:
-            type: boolean
-            default: true
-      responses:
-        "202":
-          description: Runtime deletion request accepted
-        "403":
-          description: User does not have permission to perform action on runtime
-        "404":
-          description: Runtime not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-
-  "/api/v2/runtimes/{workspaceId}/deleteAll":
-    post:
-      summary: Deletes ALL runtimes associated with the given workspace Id
-      description: deletes all runtimes in a workspace
-      operationId: deleteAllRuntimesV2
-      tags:
-        - runtimes
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: deleteDisk
-          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
-          required: false
-          schema:
-            type: boolean
-            default: false
-      responses:
-        "202":
-          description: Runtime(s) deletion request accepted
-        "403":
-          description: User does not have permission to perform action on runtime(s)
-        "404":
-          description: Runtime(s) not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-
   ## Persistent Disk paths ##
 
   /api/google/v1/disks:
@@ -1243,74 +780,6 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
         "409":
           description: Conflict
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-
-  "/api/v2/disks/{id}":
-    get:
-      summary: Get details of a persistent disk
-      description: >
-        Returns information about an existing persistent disk managed by Leo.
-        Poll this to find out your disk status.
-      operationId: getDiskV2
-      tags:
-        - disks
-      parameters:
-        - in: path
-          name: id
-          description: diskId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Persistent disk found, here are the details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GetPersistentDiskV2Response"
-        "403":
-          description: User does not have permission to perform action on disk
-        "404":
-          description: Persistent disk not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-    delete:
-      summary: Deletes an existing persistent disk instance
-      description: Deletes a persistent disk
-      operationId: deleteDiskV2
-      tags:
-        - disks
-      parameters:
-        - in: path
-          name: id
-          description: diskId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "202":
-          description: Persistent disk deletion request accepted
-        "403":
-          description: User does not have permission to perform action on persistent disk
-        "404":
-          description: Persistent disk not found
           content:
             application/json:
               schema:
@@ -1704,239 +1173,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-  ## AppsV2 Paths ##
-
-  "/api/apps/v2/{workspaceId}/{appName}":
-    post:
-      summary: Creates a new app in the given project with the given appName
-      description: >
-        The specified appName is suffixed and the resulting string must adhere to Google's name validation regex ?:[a-z](?:[-a-z0-9]{0,38}[a-z0-9])?.
-        Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
-      operationId: createAppV2
-      tags:
-        - apps
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: appName
-          description: appName
-          required: true
-          schema:
-            type: string
-      requestBody:
-        $ref: "#/components/requestBodies/CreateAppV2Request"
-      responses:
-        "202":
-          description: App creation request has been received
-        "400":
-          description: Bad Request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "403":
-          description: User does not have permission to perform action on App
-        "409":
-          description: Conflict
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-    get:
-      summary:  Get details of an app
-      description: >
-        Returns information about an existing App managed by Leo.
-        Poll this to find out when your app has finished starting up.
-      operationId: getAppV2
-      tags:
-        - apps
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: appName
-          description: appName
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: App found, here are the details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GetAppResponse"
-        "403":
-          description: User does not have permission to perform action on App
-        "404":
-          description: App not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-
-    delete:
-      summary: Deletes an existing app in the given project
-      description: deletes an App
-      operationId: deleteAppV2
-      tags:
-        - apps
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: appName
-          description: appName
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: deleteDisk
-          description: Whether or not the disk associated with the app should be deleted. Default to false if not specified.
-          required: false
-          schema:
-            type: boolean
-            default: false
-      responses:
-        "202":
-          description: App deletion request accepted
-        "403":
-          description: User does not have permission to perform action on App
-        "404":
-          description: App not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-
-  "/api/apps/v2/{workspaceId}":
-    get:
-      summary: List apps V2
-      description: List all apps for a given workspaceId.
-      operationId: listAppsV2
-      tags:
-        - apps
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: _labels
-          description: >
-            Optional label key-value pairs to filter results by. Example:
-            Querying by key1=val1,key2=val2
-            returns all apps that contain the key1/val1 and key2/val2 labels (possibly among other labels).
-            Note: this string format is a workaround because Swagger doesn't support free-form
-            query string parameters. The recommended way to use this endpoint is to specify the
-            labels as top-level query string parameters. For instance: GET /api/google/v1/app?key1=val1&key2=val2.
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: includeDeleted
-          description: Optional filter that includes any apps with a Deleted status.
-          required: false
-          schema:
-            type: boolean
-            default: false
-        - in: query
-          name: includeLabels
-          description: >
-            Optional label keys of the labels returned in response. Example:
-            Querying by key1,key2,key3
-            returns all labels key1/val1 key2/val2 and key3 and val3 for each app in response
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: role
-          description: Optional filter that excludes apps you did not create. Accepts "creator" or nothing.
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of apps
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ListAppResponse"
-
-  "/api/apps/v2/{workspaceId}/deleteAll":
-    post:
-      summary: Deletes ALL apps associated with the given workspace Id
-      description: deletes all Apps in a workspace
-      operationId: deleteAllAppsV2
-      tags:
-        - apps
-      parameters:
-        - in: path
-          name: workspaceId
-          description: workspaceId
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: deleteDisk
-          description: Whether or not the disk associated with the apps should be deleted. Default to false if not specified.
-          required: false
-          schema:
-            type: boolean
-            default: false
-      responses:
-        "202":
-          description: App(s) deletion request accepted
-        "403":
-          description: User does not have permission to perform action on App(s)
-        "404":
-          description: App(s) not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-
   ## Admin API ##
 
   "/api/admin/v2/apps/update":
@@ -1975,10 +1211,6 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
         "500":
           description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
 
   ## Deprecated Notebook API ##
 
@@ -2876,23 +2108,6 @@ components:
             diskConfig:
               name: "disk1"
             appType: "GALAXY"
-    CreateAppV2Request:
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/CreateAppRequest"
-          example:
-            appType: "CROMWELL"
-    CreateAzureRuntimeRequest:
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/CreateAzureRuntimeRequest"
-          example:
-            labels: { saturnRuntimeName: "saturn-ab9134" }
-            machineSize: "Standard_DS1_v2"
-            disk: { labels: {}, name: "disk1", size: 50 }
-            autopauseThreshold: 15
     UpdateAppRequest:
       content:
         application/json:
@@ -2908,7 +2123,7 @@ components:
             $ref: "#/components/schemas/UpdateAppsRequest"
           example:
             appType: CROMWELL
-            cloudProvider: AZURE
+            cloudProvider: GCP
             dryRun: true
 
   securitySchemes:
@@ -2927,11 +2142,7 @@ components:
         - CROMWELL
         - CUSTOM
         - GALAXY
-        - WDS
-        - HAIL_BATCH
         - ALLOWED
-        - WORKFLOWS_APP
-        - CROMWELL_RUNNER_APP
     AllowedChartName:
       type: string
       enum:
@@ -2964,7 +2175,6 @@ components:
       type: string
       enum:
         - GCP
-        - AZURE
     ClusterStatus:
       type: string
       enum:
@@ -3306,68 +2516,6 @@ components:
           type: string
           description: The id of the disk's workspace
 
-
-    GetPersistentDiskV2Response:
-      description: ""
-      required:
-        - id
-        - cloudContext
-        - zone
-        - name
-        - serviceAccount
-        - samResource
-        - status
-        - auditInfo
-        - size
-        - diskType
-        - blockSize
-        - labels
-      properties:
-        id:
-          type: integer
-          description: The cloud-platform provided unique ID of this persistent disk
-        cloudContext:
-          $ref: '#/components/schemas/CloudContext'
-        zone:
-          type: string
-          description: The zone in which the persistent disk was created
-        name:
-          type: string
-          description: The name of the persistent disk
-        serviceAccount:
-          type: string
-          description: The account used to create the disk
-        samResource:
-          type: string
-          description: Internal resource ID of the persistent disk
-        status:
-          $ref: "#/components/schemas/DiskStatus"
-        auditInfo:
-          $ref: "#/components/schemas/AuditInfo"
-        size:
-          type: integer
-          description: Size of persistent disk in GB
-        diskType:
-          $ref: "#/components/schemas/DiskType"
-        blockSize:
-          type: integer
-          description: Block size of persistent disk in bytes
-        labels:
-          type: object
-          description: The labels to be placed on the persistent disk. Of type Map[String,String]
-        workspaceId:
-          type: string
-          description: The id of the disk's workspace
-        formattedBy:
-          type: string
-          enum:
-            - GALAXY
-            - GCE
-            - CROMWELL
-            - CUSTOM
-            - ALLOWED
-          description: App that formatted disk, missing if unformatted
-
     InstanceKey:
       description: ""
       required:
@@ -3500,49 +2648,6 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the cluster.
-    CreateAzureRuntimeRequest:
-      description: Creates a new runtime
-      type: object
-      required:
-        - machineSize
-        - disk
-      properties:
-        labels:
-          type: object
-          description: The labels to be placed on the runtime. Of type Map[String,String]
-        machineSize:
-          type: string
-          description: The azure-specific machine size identifier string. See https://docs.microsoft.com/en-us/azure/virtual-machines/sizes-general
-        imageUri:
-          type: string
-          description: The azure identifier for the vm image uri. Optional, there is an intelligent default. Note this must be in the same region specified in the request Ex, /subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0
-        customEnvironmentVariables:
-          type: object
-          description: an optional set of key value pairs for environment variables to be injected into the VM
-        disk:
-          $ref: "#/components/schemas/AzureDiskConfig"
-        autopauseThreshold:
-          type: int
-          description: an optional number to determine when a runtime should autopause
-
-    AzureDiskConfig:
-      description: The config for creating an azure disk
-      type: object
-      required:
-        - name
-      properties:
-        labels:
-          type: object
-          description: The labels to be placed on the runtime. Of type Map[String,String]
-        name:
-          type: string
-          description: The name of the disk in azure
-        size:
-          type: integer
-          description: the size of the disk in GB
-        diskType:
-          type: string
-          description: Not currently supported, but included for future expansion. One of [Standard, SSD].
 
     UpdateGceConfig:
       description: Configuration for Google Compute Engine instances.
@@ -3742,33 +2847,29 @@ components:
       properties:
         cloudService:
           type: string
-          enum: [GCE, DATAPROC, AZURE_VM]
+          enum: [GCE, DATAPROC]
         configType:
           type: string
-          enum: [Dataproc, GceConfig, GceWithPdConfig, AzureVmConfig]
+          enum: [Dataproc, GceConfig, GceWithPdConfig]
     OneOfRuntimeConfig:
       oneOf:
         - $ref: "#/components/schemas/GceConfig"
         - $ref: "#/components/schemas/GceWithPdConfig"
         - $ref: "#/components/schemas/DataprocConfig"
-        - $ref: "#/components/schemas/AzureConfig"
       discriminator:
         propertyName: cloudService
         mapping:
           gce: "#/components/schemas/GceWithPdConfig"
           dataproc: "#/components/schemas/DataprocConfig"
-          azure_vm: "#/components/schemas/AzureConfig"
     OneOfRuntimeConfigInResponse:
       oneOf:
         - $ref: "#/components/schemas/GceWithPdConfigInResponse"
         - $ref: "#/components/schemas/DataprocConfig"
-        - $ref: "#/components/schemas/AzureConfig"
       discriminator:
         propertyName: cloudService
         mapping:
           GCE: "#/components/schemas/GceWithPdConfigInResponse"
           DATAPROC: "#/components/schemas/DataprocConfig"
-          AZURE_VM: "#/components/schemas/AzureConfig"
     RuntimeImage:
       type: object
       required:
@@ -3959,28 +3060,7 @@ components:
               description: >
                 Optional, specifies whether to prevent public Internet access from the Dataproc worker nodes,
                 if any. Does not affect the master node. Defaults to false.
-    AzureConfig:
-      description: Configuration for an Azure VM
-      allOf:
-        - $ref: '#/components/schemas/RuntimeConfig'
-        - type: object
-          required:
-            - machineType
-            - persistentDiskId
-          properties:
-            machineType:
-              type: string
-              description: >
-                Azure machine type describing number of CPUs/Memory as , ex: Standard_DS1_v2.
-                See https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
-            persistentDiskId:
-              type: number
-              description: >
-                The id of the persistent disk associated with this runtime (this is Leo's internal ID for the disk)
-            region:
-              type: string
-              description: >
-                The azure region this resource resides in
+
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:
@@ -4097,7 +3177,7 @@ components:
           description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
         workspaceId:
           type: string
-          description: Optional id of workspace. Every app must have a workspaceId, but this is not required for backwards-compatibility. Note, if you're using v2 APIs, this field is not used.
+          description: Optional id of workspace. Every app must have a workspaceId, but this is not required for backwards-compatibility.
         sourceWorkspaceId:
           type: string
           description: Optional id of source workspace if app is a clone.
@@ -4136,7 +3216,7 @@ components:
             threshold time has elapsed.
 
     UpdateAppsRequest:
-      description: a request to update a specific set of apps (v1 or v2)
+      description: a request to update a specific set of apps
       required:
         - appType
         - cloudProvider
@@ -4334,7 +3414,7 @@ components:
           $ref: '#/components/schemas/CloudProvider'
         cloudResource:
           type: string
-          description: Cloud resource name. Google project if cloud provider is GCP OR Azure's tenantId/subscriptionId/managedResourceGroupId if in Azure
+          description: Cloud resource name. Google project if cloud provider is GCP.
 
     Autopilot:
       description: Defines app's Autopilot configuration. See https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview for more info.
