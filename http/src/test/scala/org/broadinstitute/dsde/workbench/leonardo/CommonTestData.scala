@@ -2,8 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import bio.terra.workspace.client.ApiException
-import bio.terra.workspace.model.{AzureContext, GcpContext, WorkspaceDescription}
 import cats.effect.{IO, Ref}
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
@@ -512,17 +510,6 @@ object CommonTestData {
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
   val wsmResourceIdOpt = Some(wsmResourceId)
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
-  val billingProfileId = BillingProfileId("spend-profile")
-  val wsmWorkspaceDesc = new WorkspaceDescription()
-    .id(workspaceId.value)
-    .spendProfile("spendProfile")
-    .azureContext(
-      new AzureContext()
-        .resourceGroupId(azureCloudContext.managedResourceGroupName.value)
-        .tenantId(azureCloudContext.tenantId.value)
-        .subscriptionId(azureCloudContext.subscriptionId.value)
-    )
-    .gcpContext(new GcpContext().projectId("googleProject"))
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
@@ -533,8 +520,4 @@ object CommonTestData {
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath =
     parseGcsPath(str).right.get
-}
-class TestException(message: String = "Test error", statusCode: StatusCode = StatusCodes.NotFound)
-    extends ApiException {
-  override def getCode: Int = statusCode.intValue
 }
