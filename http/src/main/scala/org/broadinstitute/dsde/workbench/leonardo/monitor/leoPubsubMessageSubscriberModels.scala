@@ -317,6 +317,7 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
 
+  // TODO evaluate whether app update functionality is useful and working for GCP
   final case class UpdateAppMessage(jobId: UpdateAppJobId,
                                     appId: AppId,
                                     appName: AppName,
