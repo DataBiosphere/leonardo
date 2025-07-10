@@ -111,7 +111,8 @@ object Dependencies {
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
-  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
+  val
+  workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
     excludeIoGrpc,
     excludeGuava
   )
@@ -159,10 +160,14 @@ object Dependencies {
   def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
   def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
 
+  val workSpaceManagerV = "0.254.1127-SNAPSHOT"
+  val bpmV = "0.1.548-SNAPSHOT"
 
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
   def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeOpenTelemetry, excludeFlagsmith)
+  val workspaceManager = excludeJakarta("bio.terra" % "workspace-manager-client" % workSpaceManagerV)
+  val bpm = excludeJakarta("bio.terra" % "billing-profile-manager-client" % bpmV)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
   val sam = excludeJakarta("org.broadinstitute.dsde.workbench" %% "sam-client" % samV)
 
