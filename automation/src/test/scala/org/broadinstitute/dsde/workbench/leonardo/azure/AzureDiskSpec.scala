@@ -9,16 +9,8 @@ import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestTags.ExcludeFromJenkins
 import org.broadinstitute.dsde.workbench.leonardo.SSH.SSHRuntimeInfo
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Hermione
-import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureBilling, CloudProvider, LeonardoConfig, LeonardoTestUtils, RuntimeName, SSH}
 import org.broadinstitute.dsde.workbench.service.test.CleanUp
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AzureBilling,
-  CloudProvider,
-  LeonardoConfig,
-  LeonardoTestUtils,
-  RuntimeName,
-  SSH
-}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 

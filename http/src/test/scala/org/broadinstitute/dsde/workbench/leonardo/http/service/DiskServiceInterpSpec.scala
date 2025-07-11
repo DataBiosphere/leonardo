@@ -8,16 +8,14 @@ import cats.effect.IO
 import cats.mtl.Ask
 import com.google.api.services.cloudresourcemanager.model.{Ancestor, ResourceId}
 import com.google.cloud.compute.v1.Disk
-import org.broadinstitute.dsde.workbench.client.sam.ApiException
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.mock.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.PersistentDiskAction.ReadPersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{PersistentDiskSamResourceId, ProjectSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.defaultMockitoAnswer
-import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -26,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.{any, eq => isEq}
 import org.mockito.Mockito._
 import org.scalatest.flatspec.AnyFlatSpec
@@ -36,7 +33,6 @@ import java.time.Instant
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 
 trait DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val emptyCreateDiskReq = CreateDiskRequest(

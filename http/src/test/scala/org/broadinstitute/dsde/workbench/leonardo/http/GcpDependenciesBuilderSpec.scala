@@ -9,7 +9,6 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{

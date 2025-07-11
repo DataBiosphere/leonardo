@@ -2,8 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
-import io.kubernetes.client.openapi.models._
-import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}

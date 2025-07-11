@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{IO, Resource}
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{

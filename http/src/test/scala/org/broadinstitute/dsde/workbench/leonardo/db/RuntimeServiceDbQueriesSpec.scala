@@ -4,11 +4,7 @@ package db
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
-  ProjectSamResourceId,
-  RuntimeSamResourceId,
-  WorkspaceResourceSamResourceId
-}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WorkspaceResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -19,7 +15,6 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.time.Instant
 import java.util.UUID
-import scala.collection.immutable.List
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
