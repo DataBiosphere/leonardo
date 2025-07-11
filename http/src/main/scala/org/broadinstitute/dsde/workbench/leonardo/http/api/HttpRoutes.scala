@@ -32,6 +32,7 @@ class HttpRoutes(
   statusService: StatusService,
   gcpOnlyServicesRegistry: ServicesRegistry,
   kubernetesService: AppService[IO],
+  runtimeV2Service: RuntimeV2Service[IO],
   adminService: AdminService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
@@ -43,6 +44,7 @@ class HttpRoutes(
   private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
   private val appRoutes = createAppRoutesUsingServicesRegistry
+  private val runtimeV2Routes = new RuntimeV2Routes(runtimeV2Service, userInfoDirectives)
   private val adminRoutes = new AdminRoutes(adminService, userInfoDirectives)
   private val diskRoutes = createDiskRoutesUsingServicesRegistry
   private val runtimeRoutes = createRuntimeRoutesUsingServicesRegistry
@@ -120,7 +122,7 @@ class HttpRoutes(
                 "swagger/api-docs.yaml"
               ) ~ oidcConfig.oauth2Routes ~ proxyRoutes.get.route ~ statusRoutes.route ~
               pathPrefix("api") {
-                runtimeRoutes.get.routes ~ diskRoutes.get.routes ~ kubernetesRoutes.routes ~
+                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~ diskRoutes.get.routes ~ kubernetesRoutes.routes ~
                   adminRoutes.routes ~ resourcesRoutes.get.routes
               }
           )
@@ -129,7 +131,7 @@ class HttpRoutes(
             oidcConfig
               .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
               pathPrefix("api") {
-                runtimeRoutes.get.routes ~ diskRoutes.get.routes ~ appRoutes.get.routes ~ adminRoutes.routes
+                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~ diskRoutes.get.routes ~ appRoutes.get.routes ~ adminRoutes.routes
               }
           )
       }

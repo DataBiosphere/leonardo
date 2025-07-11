@@ -503,6 +503,57 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
+  "/api/v2/runtimes":
+    get:
+      summary: List all runtimes that the caller has access to
+      description: List all runtimes, optionally filtering on a set of labels
+      operationId: listRuntimesV2
+      tags:
+        - runtimes
+      parameters:
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all azure runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/v2/runtimes?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeLabels
+          description: >
+            Optional label keys of the labels returned in response. Example:
+            Querying by key1,key2,key3
+            returns all labels key1/val1 key2/val2 and key3 and val3 for each runtime response
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of runtimes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListRuntimeResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+
   ## Persistent Disk paths ##
 
   /api/google/v1/disks:

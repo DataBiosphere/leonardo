@@ -88,6 +88,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
   ): Resource[IO, ServicesDependencies] = {
     val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
 
+    val runtimeV2Service = new RuntimeV2ServiceInterp[IO](baselineDependencies.samService)
+
     val adminService =
       new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
 
@@ -104,6 +106,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
           dependenciesRegistry,
           leoKubernetesService,
           adminService,
+          runtimeV2Service,
           StandardUserInfoDirectives,
           contentSecurityPolicy,
           refererConfig,

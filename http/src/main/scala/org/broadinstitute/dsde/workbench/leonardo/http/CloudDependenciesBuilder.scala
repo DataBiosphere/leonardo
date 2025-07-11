@@ -74,6 +74,7 @@ final case class ServicesDependencies(
   cloudSpecificDependenciesRegistry: ServicesRegistry,
   kubernetesService: AppService[IO],
   adminService: AdminService[IO],
+  runtimeV2Service: RuntimeV2Service[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
   refererConfig: RefererConfig,

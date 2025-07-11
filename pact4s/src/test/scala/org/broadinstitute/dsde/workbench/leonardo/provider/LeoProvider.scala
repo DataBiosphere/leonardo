@@ -64,6 +64,7 @@ class LeoProvider extends AnyFlatSpec with BeforeAndAfterAll with PactVerifier {
       mockStatusService,
       gcpOnlyServicesRegistry,
       mockAppService,
+      MockRuntimeV2Interp,
       mockAdminService,
       mockUserInfoDirectives,
       mockContentSecurityPolicyConfig,
