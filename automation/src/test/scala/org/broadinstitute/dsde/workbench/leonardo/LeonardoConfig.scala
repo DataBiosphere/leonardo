@@ -36,13 +36,6 @@ object LeonardoConfig extends CommonConfig {
     val leonardoServiceAccountUsername = gcs.getString("leonardoServiceAccountUsername")
   }
 
-  object Azure {
-    val vmUser = azure.getString("leoVmUser")
-    val vmPassword = azure.getString("leoVmPassword")
-    val bastionName = azure.getString("bastionName")
-    val defaultBastionPort = azure.getInt("defaultBastionPort")
-  }
-
   // TODO: this should be updated once we're able to run azure automation tests as part of CI
   object WSM {
     val wsmUri: String = "https://workspace.dsde-dev.broadinstitute.org"
