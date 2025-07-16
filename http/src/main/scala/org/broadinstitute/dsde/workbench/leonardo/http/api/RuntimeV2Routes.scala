@@ -38,7 +38,33 @@ class RuntimeV2Routes(runtimeV2Service: RuntimeV2Service[IO], userInfoDirectives
                 }
               }
             }
-          }
+          } ~
+            pathPrefix(workspaceIdSegment) { workspaceId =>
+              pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
+                path("stop") {
+                  post {
+                    complete(
+                      stopRuntimeHandler(
+                        userInfo,
+                        workspaceId,
+                        runtimeName
+                      )
+                    )
+                  }
+                } ~
+                  path("start") {
+                    post {
+                      complete(
+                        startRuntimeHandler(
+                          userInfo,
+                          workspaceId,
+                          runtimeName
+                        )
+                      )
+                    }
+                  }
+              }
+            }
         }
       }
     }
@@ -61,4 +87,29 @@ class RuntimeV2Routes(runtimeV2Service: RuntimeV2Service[IO], userInfoDirectives
       )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
 
+  private[api] def startRuntimeHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = runtimeV2Service.startRuntime(userInfo, runtimeName, workspaceId)
+      _ <- metrics.incrementCounter("startRuntimeV2")
+      resp <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "startRuntimeV2")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted -> resp: ToResponseMarshallable
+
+  private[api] def stopRuntimeHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = runtimeV2Service.stopRuntime(userInfo, runtimeName, workspaceId)
+      _ <- metrics.incrementCounter("stopRuntimeV2")
+      resp <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "stopRuntimeV2")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.Accepted -> resp: ToResponseMarshallable
 }

@@ -88,7 +88,8 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
   ): Resource[IO, ServicesDependencies] = {
     val statusService = new StatusService(baselineDependencies.samDAO, dbReference)
 
-    val runtimeV2Service = new RuntimeV2ServiceInterp[IO](baselineDependencies.samService)
+    val runtimeV2Service =
+      new RuntimeV2ServiceInterp[IO](baselineDependencies.publisherQueue, baselineDependencies.samService)
 
     val adminService =
       new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
