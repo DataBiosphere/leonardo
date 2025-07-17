@@ -37,34 +37,34 @@ class RuntimeV2Routes(runtimeV2Service: RuntimeV2Service[IO], userInfoDirectives
                   )
                 }
               }
-            }
-          } ~
-            pathPrefix(workspaceIdSegment) { workspaceId =>
-              pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
-                path("stop") {
-                  post {
-                    complete(
-                      stopRuntimeHandler(
-                        userInfo,
-                        workspaceId,
-                        runtimeName
-                      )
-                    )
-                  }
-                } ~
-                  path("start") {
+            } ~
+              pathPrefix(workspaceIdSegment) { workspaceId =>
+                pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
+                  path("stop") {
                     post {
                       complete(
-                        startRuntimeHandler(
+                        stopRuntimeHandler(
                           userInfo,
                           workspaceId,
                           runtimeName
                         )
                       )
                     }
-                  }
+                  } ~
+                    path("start") {
+                      post {
+                        complete(
+                          startRuntimeHandler(
+                            userInfo,
+                            workspaceId,
+                            runtimeName
+                          )
+                        )
+                      }
+                    }
+                }
               }
-            }
+          }
         }
       }
     }
