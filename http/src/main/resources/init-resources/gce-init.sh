@@ -459,7 +459,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-   Install serverExtensions if provided by the user
+  # Install serverExtensions if provided by the user
   if [ ! -z "$JUPYTER_SERVER_EXTENSIONS" ] ; then
     for ext in ${JUPYTER_SERVER_EXTENSIONS}
     do
@@ -475,7 +475,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     done
   fi
 
-   Install combined extensions if provided by the user
+  # Install combined extensions if provided by the user
   if [ ! -z "$JUPYTER_COMBINED_EXTENSIONS"  ] ; then
     for ext in ${JUPYTER_COMBINED_EXTENSIONS}
     do
