@@ -40,7 +40,7 @@ START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 IS_GCE_FORMATTED=$(isGceFormatted)
 # Needs to be in sync with terra-docker container
 JUPYTER_HOME=/etc/jupyter
-JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
+JUPYTER_SCRIPTS=$(JUPYTER_HOME)/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 SERVER_CRT=$(proxyServerCrt)
@@ -406,6 +406,10 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # user package installation directory
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
+
+  # add jupyter user to the sudoers file so that it can run commands as root
+  echo "jupyter ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/jupyter \
+      && chmod 0440 /etc/sudoers.d/jupyter
 
   # Install everything after having mounted the empty PD
   # This should not be needed anymore if the jupyter home is a directory of the PD mount point
