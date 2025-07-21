@@ -407,10 +407,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
-  # add jupyter user to the sudoers file so that it can run commands as root
-  echo "jupyter ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/jupyter \
-      && chmod 0440 /etc/sudoers.d/jupyter
-
   # Install everything after having mounted the empty PD
   # This should not be needed anymore if the jupyter home is a directory of the PD mount point
   # See: https://github.com/DataBiosphere/leonardo/pull/4465/files

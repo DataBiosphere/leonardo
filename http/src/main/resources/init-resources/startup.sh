@@ -356,9 +356,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
     TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
 
-    echo "jupyter ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/jupyter \
-        && chmod 0440 /etc/sudoers.d/jupyter
-
     # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
     # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
     # kernel tries to connect to it.
