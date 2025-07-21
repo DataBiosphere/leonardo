@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="jdewar" id="delete_azure_records_app">
+        <sql dbms="mysql">
+            DELETE UPDATE_APP_LOG FROM UPDATE_APP_LOG
+                          JOIN APP ON APP.id = UPDATE_APP_LOG.appId
+                          JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+                          JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
+            WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE APP_ERROR FROM APP_ERROR
+                          JOIN APP ON APP.id = APP_ERROR.appId
+                          JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+                          JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
+            WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE SERVICE FROM SERVICE
+                              JOIN APP ON APP.id = SERVICE.appId
+                              JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+                              JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
+            WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE LABEL FROM LABEL
+                              JOIN APP ON LABEL.resourceType='app' and LABEL.resourceId = APP.id
+                              JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+                              JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
+            WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE APP_CONTROLLED_RESOURCE FROM APP_CONTROLLED_RESOURCE
+                              JOIN APP ON APP.id = APP_CONTROLLED_RESOURCE.appId
+                              JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+                              JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
+            WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE APP FROM APP
+                              JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
+                              JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
+            WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE NODEPOOL FROM NODEPOOL
+                              JOIN KUBERNETES_CLUSTER ON NODEPOOL.clusterId = KUBERNETES_CLUSTER.id
+            WHERE KUBERNETES_CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE FROM KUBERNETES_CLUSTER where cloudProvider = 'AZURE';
+        </sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="jdewar" id="delete_azure_records_cloudenv">
+        <sql dbms="mysql">
+            DELETE RUNTIME_CONTROLLED_RESOURCE FROM RUNTIME_CONTROLLED_RESOURCE
+                              JOIN CLUSTER ON CLUSTER.id = RUNTIME_CONTROLLED_RESOURCE.runtimeId
+            WHERE CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE LABEL FROM LABEL
+                              JOIN CLUSTER ON LABEL.resourceType='runtime' and LABEL.resourceId = CLUSTER.id
+            WHERE CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE CLUSTER_IMAGE FROM CLUSTER_IMAGE
+                              JOIN CLUSTER ON CLUSTER_IMAGE.clusterId = CLUSTER.id
+            WHERE CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE CLUSTER_ERROR FROM CLUSTER_ERROR
+                              JOIN CLUSTER ON CLUSTER_ERROR.clusterId = CLUSTER.id
+            WHERE CLUSTER.cloudProvider = 'AZURE';
+
+            DELETE FROM CLUSTER WHERE cloudProvider = 'AZURE';
+
+            DELETE FROM RUNTIME_CONFIG WHERE cloudService = 'AZURE_VM';
+        </sql>
+    </changeSet>
+</databaseChangeLog>
