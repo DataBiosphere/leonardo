@@ -203,9 +203,6 @@ object CommonTestData {
     RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val customDataprocImage =
     RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
-  // AN-503: Delete once AOU has switched to using Dataproc 2.2.X in prod
-  val legacyAouCustomDataprocImage =
-    RuntimeImage(BootSource, "legacy_aou_custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
