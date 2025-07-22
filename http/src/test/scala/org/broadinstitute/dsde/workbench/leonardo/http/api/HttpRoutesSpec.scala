@@ -438,6 +438,15 @@ class HttpRoutesSpec
     }
   }
 
+  it should "list runtimes v2 without a workspace or cloudContext" in {
+    Get("/api/v2/runtimes") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      val response = responseAs[Vector[ListRuntimeResponse2]]
+      response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
   "DiskRoutes" should "create a disk" in {
     val diskCreateRequest = CreateDiskRequest(
       Map("foo" -> "bar"),
@@ -543,9 +552,14 @@ class HttpRoutesSpec
   it should "have expected azure routes when azure hosting mode is true" in {
 
     val adminRoute = "/api/admin/v2/apps/update"
+    val runtimeV2Route = "/api/v2/runtimes"
     val statusRoute = "/status"
 
     Get(adminRoute) ~> httpRoutesAzureOnly.route ~> check {
+      status should not be StatusCodes.NotFound
+    }
+
+    Get(runtimeV2Route) ~> httpRoutesAzureOnly.route ~> check {
       status should not be StatusCodes.NotFound
     }
 

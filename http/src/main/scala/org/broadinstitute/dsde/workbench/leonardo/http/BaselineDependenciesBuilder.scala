@@ -148,17 +148,6 @@ class BaselineDependenciesBuilder {
         HttpDockerDAO[F](client)
       )
 
-      azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
-
-      azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
-
-      azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
-        ConfigReader.appConfig.azure.appRegistration
-      )
-
-      azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig(
-        ConfigReader.appConfig.azure.appRegistration
-      )
       // Set up identity providers
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
                                                                                 samAuthConfig.authCacheExpiryTime
