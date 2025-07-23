@@ -3,7 +3,6 @@ package http
 package service
 
 import akka.http.scaladsl.model.StatusCodes
-import bio.terra.workspace.model.{IamRole, WorkspaceDescription}
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
@@ -29,10 +28,8 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmApiClientProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances.dbioInstance
-import org.broadinstitute.dsde.workbench.leonardo.db.KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
   checkIfCanBeDeleted,
@@ -61,7 +58,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                                 computeService: Option[GoogleComputeService[F]],
                                                 googleResourceService: Option[GoogleResourceService[F]],
                                                 customAppConfig: CustomAppConfig,
-                                                wsmClientProvider: WsmApiClientProvider[F],
                                                 samService: SamService[F]
 )(implicit
   F: Async[F],
@@ -95,8 +91,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       enableIntraNodeVisibility = req.labels.get(AOU_UI_LABEL).exists(x => x == "true")
       _ <- req.appType match {
-        case AppType.Galaxy | AppType.HailBatch | AppType.Wds | AppType.Cromwell | AppType.WorkflowsApp |
-            AppType.CromwellRunnerApp =>
+        case AppType.Galaxy | AppType.Cromwell =>
           F.unit
         case AppType.Allowed =>
           req.allowedChartName match {
@@ -646,56 +641,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- publisherQueue.offer(message)
     } yield ()
 
-  override def listAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, params: Map[String, String])(implicit
-    as: Ask[F, AppContext]
-  ): F[Vector[ListAppResponse]] =
-    for {
-      ctx <- as.ask
-      // Make sure that the user still has access to the resource parent workspace
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
-      paramMap <- F.fromEither(processListParameters(params))
-      creatorOnly <- F.fromEither(processCreatorOnlyParameter(userInfo.userEmail, params, ctx.traceId))
-      allClusters <- KubernetesServiceDbQueries
-        .listFullAppsByWorkspaceId(Some(workspaceId), paramMap._1, paramMap._2, creatorOnly)
-        .transaction
-      res <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, false)
-
-    } yield res
-
-  override def getAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName)(implicit
-    as: Ask[F, AppContext]
-  ): F[GetAppResponse] =
-    for {
-      ctx <- as.ask
-      appOpt <- getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
-      app <- F.fromOption(
-        appOpt,
-        AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
-      )
-      hasWorkspacePermission <- authProvider.isUserWorkspaceReader(
-        WorkspaceResourceSamResourceId(workspaceId),
-        userInfo
-      )
-      _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
-      hasResourcePermission <- authProvider.hasPermission[AppSamResourceId, AppAction](app.app.samResourceId,
-                                                                                       AppAction.GetAppStatus,
-                                                                                       userInfo
-      )
-      _ <-
-        if (hasResourcePermission) F.unit
-        else
-          log.info(ctx.loggingCtx)(
-            s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
-          ) >> F
-            .raiseError[Unit](AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "permission denied"))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
-
   private def getUpdateAppTransaction(appId: AppId, validatedChanges: UpdateAppRequest): F[Unit] = (for {
     _ <- validatedChanges.autodeleteEnabled.traverse(enabled =>
       appQuery
@@ -709,6 +654,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   } yield ()).transaction
 
+  // TODO I think this is Azure-only, any point in leaving it around for GCP someday?
   override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
@@ -737,335 +683,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- F.fromEither(validateAutodelete(resolvedAutodeleteEnabled, resolvedAutodeleteThreshold, ctx.traceId))
       _ <- getUpdateAppTransaction(appResult.app.id, req)
     } yield ()
-
-  override def createAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, req: CreateAppRequest)(
-    implicit as: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- as.ask
-
-      // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
-      userEmail <- samService.getUserEmail(userInfo.accessToken.token)
-
-      // Check the calling user has permission on the workspace
-      hasPermission <- authProvider.hasPermission[WorkspaceResourceSamResourceId, WorkspaceAction](
-        WorkspaceResourceSamResourceId(workspaceId),
-        WorkspaceAction.CreateControlledUserResource,
-        userInfo
-      )
-      _ <- F.raiseUnless(hasPermission)(ForbiddenError(userEmail))
-
-      // Validate shared access scope apps against an allow-list. No-op for private apps.
-      _ <- req.accessScope match {
-        case Some(AppAccessScope.WorkspaceShared) =>
-          F.raiseUnless(ConfigReader.appConfig.azure.allowedSharedApps.contains(req.appType))(
-            SharedAppNotAllowedException(req.appType, ctx.traceId)
-          )
-        case _ => F.unit
-      }
-
-      // Resolve the workspace in WSM to get the cloud context
-      workspaceDescOpt <- wsmClientProvider.getWorkspace(userInfo.accessToken.token, workspaceId)
-      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
-      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
-        case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
-      }
-
-      // Check if the app already exists
-      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
-      _ <- appOpt.fold(F.unit)(c =>
-        F.raiseError[Unit](AppAlreadyExistsInWorkspaceException(workspaceId, appName, c.app.status, ctx.traceId))
-      )
-
-      // Validate the machine config from the request
-      // For Azure: we don't support setting a machine type in the request; we use the landing zone configuration instead.
-      // For GCP: we support setting optionally a machine type in the request; and use a default value otherwise.
-      machineConfig <- (cloudContext.cloudProvider, req.kubernetesRuntimeConfig) match {
-        case (CloudProvider.Azure, Some(_)) =>
-          F.raiseError(AppMachineConfigNotSupportedException(ctx.traceId))
-        case (CloudProvider.Azure, None) =>
-          F.pure(KubernetesRuntimeConfig(NumNodes(1), MachineTypeName("unset"), false))
-        case (CloudProvider.Gcp, Some(mt)) => F.pure(mt)
-        case (CloudProvider.Gcp, None) =>
-          F.pure(
-            KubernetesRuntimeConfig(
-              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
-              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-              config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
-            )
-          )
-      }
-
-      samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString, req.accessScope))
-
-      // Create kubernetes-app Sam resource with a creator policy and the workspace as the parent
-      leoToken <- authProvider.getLeoAuthToken
-      leoEmail <- samService.getUserEmail(leoToken)
-      _ <- samService.createResource(userInfo.accessToken.token,
-                                     samResourceId,
-                                     None,
-                                     Some(workspaceId),
-                                     getAppSamPolicyMap(userEmail, leoEmail, req.accessScope)
-      )
-
-      // Save or retrieve a KubernetesCluster record for the app
-      saveCluster <- F.fromEither(
-        getSavableCluster(userEmail, cloudContext, false, ctx.now)
-      )
-      saveClusterResult <- KubernetesServiceDbQueries
-        .saveOrGetClusterForApp(saveCluster, ctx.traceId)
-        .transaction(isolationLevel = TransactionIsolation.Serializable)
-      _ <-
-        if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
-          F.raiseError[Unit](
-            KubernetesAppCreationException(
-              s"You cannot create an app while a cluster ${saveClusterResult.minimalCluster.clusterName.value} is in status ${saveClusterResult.minimalCluster.status}",
-              Some(ctx.traceId)
-            )
-          )
-        else F.unit
-
-      // Use the default nodepool of the cluster.
-      // The v1 createApp endpoint has logic for managing nodepools per user in Leonardo.
-      // In the v2 endpoint, nodepools are created upstream of Leonardo.
-      nodepool = saveClusterResult.defaultNodepool.toNodepool()
-
-      // Retrieve a pet identity from Sam
-      petSA <- samService.getPetServiceAccountOrManagedIdentity(userInfo.accessToken.token, cloudContext)
-      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done Sam call for getPetServiceAccount")))
-
-      // Process persistent disk in the request, check if the disk was previously attached to any other app
-      diskResultOpt <- req.diskConfig.traverse(diskReq =>
-        RuntimeServiceInterp.processPersistentDiskRequestForWorkspace(
-          diskReq,
-          config.leoKubernetesConfig.diskConfig.defaultZone, // this need to be updated if we support non-default zone for k8s apps
-          cloudContext,
-          workspaceId,
-          userInfo,
-          userEmail,
-          petSA,
-          appTypeToFormattedByType(req.appType),
-          samService,
-          config.leoKubernetesConfig.diskConfig
-        )
-      )
-      lastUsedApp <- getLastUsedAppForDisk(req, diskResultOpt)
-
-      // Save a new App record in the database
-      saveApp <- F.fromEither(
-        getSavableApp(
-          cloudContext,
-          appName,
-          userEmail,
-          samResourceId,
-          req,
-          diskResultOpt.map(_.disk),
-          lastUsedApp,
-          petSA,
-          nodepool.id,
-          Some(workspaceId),
-          None,
-          ctx
-        )
-      )
-      app <- appQuery.save(saveApp, Some(ctx.traceId)).transaction
-
-      // Publish a CreateApp message for Back Leo
-      createAppV2Message = CreateAppV2Message(
-        app.id,
-        app.appName,
-        workspaceId,
-        cloudContext,
-        BillingProfileId(workspaceDesc.spendProfile),
-        Some(ctx.traceId)
-      )
-      _ <- publisherQueue.offer(createAppV2Message)
-    } yield ()
-
-  override def deleteAppV2(userInfo: UserInfo, workspaceId: WorkspaceId, appName: AppName, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = for {
-    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
-    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
-    ctx <- as.ask
-    appOpt <- KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName).transaction
-    appResult <- F.fromOption(
-      appOpt,
-      AppNotFoundByWorkspaceIdException(workspaceId, appName, ctx.traceId, "No active app found in DB")
-    )
-
-    workspaceApi <- wsmClientProvider.getWorkspaceApi(userInfo.accessToken.token)
-    attempt <- F.delay(workspaceApi.getWorkspace(workspaceId.value, IamRole.READER)).attempt
-
-    _ <- attempt match {
-      // if the workspace is found, delete the app normally
-      case Right(workspaceDesc) =>
-        deleteAppV2Base(appResult.app, appResult.cluster.cloudContext, userInfo, workspaceId, deleteDisk, workspaceDesc)
-      // if the workspace can't be found, delete the workspace records
-      case Left(error) =>
-        if (error.getMessage.contains("not found")) {
-          deleteAppRecords(userInfo, appResult.cluster.cloudContext, appResult.app.appName)
-        }
-        // raise error if the user doesn't have permission
-        else {
-          F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
-        }
-    }
-
-  } yield ()
-
-  override def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = for {
-    ctx <- as.ask
-    hasWorkspacePermission <- authProvider.isUserWorkspaceReader(WorkspaceResourceSamResourceId(workspaceId), userInfo)
-    _ <- F.raiseUnless(hasWorkspacePermission)(ForbiddenError(userInfo.userEmail))
-
-    allClusters <- KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), Map.empty).transaction
-
-    // need the cloudContext to delete the resources, get it from the KubernetesCluster here
-    // apps = List(App, CloudContext)
-    apps = allClusters.flatMap { cluster =>
-      val cloudContext = cluster.cloudContext
-      cluster.nodepools.flatMap { nodepool =>
-        nodepool.apps.map { app =>
-          (app, cloudContext)
-        }
-      }
-    }
-
-    nonDeletableApps = apps.filterNot(app => AppStatus.deletableStatuses.contains(app._1.status)).map(_._1)
-
-    _ <- F
-      .raiseError(DeleteAllAppsCannotBePerformed(workspaceId, nonDeletableApps, ctx.traceId))
-      .whenA(!nonDeletableApps.isEmpty)
-
-    workspaceApi <- wsmClientProvider.getWorkspaceApi(userInfo.accessToken.token)
-    attempt <- F.delay(workspaceApi.getWorkspace(workspaceId.value, IamRole.READER)).attempt
-
-    _ <- attempt match {
-      // if the workspace is found, delete the app normally
-      case Right(workspaceDesc) =>
-        apps
-          .traverse { app =>
-            deleteAppV2Base(app._1, app._2, userInfo, workspaceId, deleteDisk, workspaceDesc)
-          }
-      case Left(error) =>
-        // if the workspace can't be found, delete the workspace records
-        if (error.getMessage.contains("not found")) {
-          apps.traverse { app =>
-            deleteAppRecords(userInfo, app._2, app._1.appName)
-          }
-        }
-        // raise error if the user doesn't have permission
-        else {
-          F.raiseError(WorkspaceNotFoundException(workspaceId, ctx.traceId))
-        }
-    }
-
-  } yield ()
-
-  private def deleteAppV2Base(app: App,
-                              cloudContext: CloudContext,
-                              userInfo: UserInfo,
-                              workspaceId: WorkspaceId,
-                              deleteDisk: Boolean,
-                              workspaceDesc: WorkspaceDescription
-  )(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit] = for {
-    ctx <- as.ask
-    listOfPermissions <- authProvider.getActions(app.samResourceId, userInfo)
-
-    // throw 404 if no GetAppStatus permission
-    hasReadPermission = listOfPermissions.toSet.contains(AppAction.GetAppStatus)
-    _ <-
-      if (hasReadPermission) F.unit
-      else
-        F.raiseError[Unit](
-          AppNotFoundByWorkspaceIdException(workspaceId, app.appName, ctx.traceId, "no read permission")
-        )
-
-    // throw 403 if no DeleteApp permission
-    hasDeletePermission = listOfPermissions.toSet.contains(AppAction.DeleteApp)
-    _ <-
-      if (hasDeletePermission) F.unit
-      else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-
-    // check if app can be deleted (Leo manages apps, so checking the leo status)
-    _ <- F.raiseUnless(app.status.isDeletable)(
-      AppCannotBeDeletedException(cloudContext, app.appName, app.status, ctx.traceId)
-    )
-
-    // check if databases, namespaces and managed identities associated with the app can be deleted
-    // (but only for Azure apps)
-    _ <-
-      if (cloudContext.cloudProvider == CloudProvider.Azure) {
-        for {
-          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDatabase, userInfo, workspaceId)
-          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureManagedIdentity, userInfo, workspaceId)
-          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureKubernetesNamespace, userInfo, workspaceId)
-        } yield ()
-      } else F.unit
-
-    // Get the disk and check if its deletable (if disk is being deleted)
-    diskIdOpt = if (deleteDisk) app.appResources.disk.map(_.id) else None
-    _ = (deleteDisk, diskIdOpt, cloudContext.cloudProvider) match {
-      // only check WSM state for Azure apps (Azure apps don't have disks currently, but they are coming...)
-      case (true, Some(diskId), CloudProvider.Azure) =>
-        for {
-          _ <- checkIfSubresourcesDeletable(app.id, WsmResourceType.AzureDisk, userInfo, workspaceId)
-          _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
-        } yield ()
-      case (true, None, _) =>
-        log.info(s"No disk found to delete for app ${app.id}, ${app.appName}. No-op for deleteDisk")
-      case _ => F.unit // Do nothing if deleteDisk is false
-    }
-
-    _ <-
-      for {
-        _ <- KubernetesServiceDbQueries.markPreDeleting(app.id).transaction
-        deleteMessage = DeleteAppV2Message(
-          app.id,
-          app.appName,
-          workspaceId,
-          cloudContext,
-          diskIdOpt,
-          BillingProfileId(workspaceDesc.getSpendProfile),
-          Some(ctx.traceId)
-        )
-        _ <- publisherQueue.offer(deleteMessage)
-      } yield ()
-  } yield ()
-
-  private def checkIfSubresourcesDeletable(appId: AppId,
-                                           resourceType: WsmResourceType,
-                                           userInfo: UserInfo,
-                                           workspaceId: WorkspaceId
-  )(implicit
-    ev: Ask[F, AppContext]
-  ): F[Unit] = for {
-    ctx <- ev.ask
-    wsmResources <- appControlledResourceQuery
-      .getAllForAppByType(appId.id, resourceType)
-      .transaction
-    _ <- wsmResources.traverse { resource =>
-      for {
-        wsmState <- wsmClientProvider.getWsmState(userInfo.accessToken.token,
-                                                  workspaceId,
-                                                  resource.resourceId,
-                                                  resourceType
-        )
-        _ <- F
-          .raiseUnless(wsmState.isDeletable)(
-            AppResourceCannotBeDeletedException(resource.resourceId, appId, wsmState.value, resourceType, ctx.traceId)
-          )
-      } yield ()
-    }
-  } yield ()
 
   private[service] def getSavableCluster(
     userEmail: WorkbenchEmail,
@@ -1499,10 +1116,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
             Release.apply
           )
       )(app => app.release.asRight[Throwable])
-      services =
-        if (cloudContext.cloudProvider == CloudProvider.Azure) {
-          gkeAppConfig.kubernetesServices.appended(ConfigReader.appConfig.azure.listenerChartConfig.service)
-        } else gkeAppConfig.kubernetesServices
+      services = gkeAppConfig.kubernetesServices
 
       numOfReplicas =
         if (req.appType == AppType.Allowed)

@@ -76,15 +76,9 @@ final class LeoPublisher[F[_]](
       _ <- msg match {
         case m: LeoPubsubMessage.CreateRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Creating, now).transaction
-        case m: LeoPubsubMessage.CreateAzureRuntimeMessage =>
-          clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Creating, now).transaction
-        case m: LeoPubsubMessage.DeleteAzureRuntimeMessage =>
-          clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Deleting, now).transaction
         case m: LeoPubsubMessage.CreateDiskMessage =>
           persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Creating, now).transaction
         case m: LeoPubsubMessage.DeleteDiskMessage =>
-          persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Deleting, now).transaction
-        case m: LeoPubsubMessage.DeleteDiskV2Message =>
           persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Deleting, now).transaction
         case m: LeoPubsubMessage.StopRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Stopping, now).transaction
@@ -124,14 +118,6 @@ final class LeoPublisher[F[_]](
           F.unit
         case _: LeoPubsubMessage.UpdateRuntimeMessage =>
           F.unit
-        case m: LeoPubsubMessage.CreateAppV2Message =>
-          KubernetesServiceDbQueries
-            .markPendingCreating(m.appId, None, None, None)
-            .transaction
-        case m: LeoPubsubMessage.DeleteAppV2Message =>
-          KubernetesServiceDbQueries
-            .markPendingAppDeletion(m.appId, m.diskId, now)
-            .transaction
       }
     } yield ()
 }

@@ -88,8 +88,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
       new MonitorAtBoot[IO](
         baselineDependencies.publisherQueue,
         Some(gcpDependencies.googleComputeService),
-        baselineDependencies.samDAO,
-        baselineDependencies.wsmClientProvider
+        baselineDependencies.samDAO
       )
 
     val nonLeoMessageSubscriber =
@@ -320,7 +319,6 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
         Some(gcpDependencies.googleComputeService),
         Some(gcpDependencies.googleResourceService),
         gkeCustomAppConfig,
-        baselineDependencies.wsmClientProvider,
         baselineDependencies.samService
       )
 

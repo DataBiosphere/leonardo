@@ -92,8 +92,7 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         imageConfig,
         autoFreezeConfig,
         dataprocConfig,
-        Config.gceConfig,
-        azureServiceConfig
+        Config.gceConfig
       ),
       ConfigReader.appConfig.persistentDisk,
       new MockDockerDAO,

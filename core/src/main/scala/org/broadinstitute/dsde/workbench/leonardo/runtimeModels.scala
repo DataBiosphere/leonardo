@@ -384,14 +384,11 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Jupyter extends RuntimeImageType
   case object RStudio extends RuntimeImageType
   case object Welder extends RuntimeImageType
-  case object Listener extends RuntimeImageType
   // This is not strictly an image type. It can either be a custom VM image for dataproc,
   // or boot disk snapshot for GCE VMs
   case object BootSource extends RuntimeImageType
   case object Proxy extends RuntimeImageType
   case object CryptoDetector extends RuntimeImageType
-
-  case object Azure extends RuntimeImageType
 
   def stringToRuntimeImageType: Map[String, RuntimeImageType] = values.map(c => c.toString -> c).toMap
 }
@@ -404,7 +401,7 @@ sealed trait RuntimeContainerServiceType extends EnumEntry with Serializable wit
 object RuntimeContainerServiceType extends Enum[RuntimeContainerServiceType] {
   val values = findValues
   val imageTypeToRuntimeContainerServiceType: Map[RuntimeImageType, RuntimeContainerServiceType] =
-    values.toList.map(v => v.imageType -> v).toMap ++ Map(RuntimeImageType.Azure -> JupyterService)
+    values.toList.map(v => v.imageType -> v).toMap
   case object JupyterService extends RuntimeContainerServiceType {
     override def imageType: RuntimeImageType = Jupyter
     override def proxySegment: String = "jupyter"

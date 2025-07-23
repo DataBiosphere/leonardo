@@ -6,7 +6,6 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
 import org.broadinstitute.dsde.workbench.azure.{
-  AKSClusterName,
   ApplicationInsightsName,
   AzureCloudContext,
   BatchAccountName,
@@ -82,8 +81,6 @@ object JsonCodec {
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeSamResourceIdEncoder: Encoder[RuntimeSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val storageContainerNameEncoder: Encoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
-    Encoder.encodeString.contramap(_.value)
-  implicit val storageAccountNameEncoder: Encoder[StorageAccountName] =
     Encoder.encodeString.contramap(_.value)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
@@ -182,13 +179,6 @@ object JsonCodec {
       else none[VirtualMachineSizeTypes]
     machineSizeOpt.toRight(s"Invalid azure virtualMachineSizeType ${s}")
   }
-  implicit val azureImageUriDecoder: Decoder[AzureImage] = Decoder.forProduct4(
-    "publisher",
-    "offer",
-    "sku",
-    "version"
-  )((x, y, z, v) => AzureImage(x, y, z, v))
-  implicit val azureDiskNameDecoder: Decoder[AzureDiskName] = Decoder.decodeString.map(AzureDiskName)
 
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
@@ -306,7 +296,6 @@ object JsonCodec {
   implicit val networkNameEncoder: Encoder[NetworkName] = Encoder.encodeString.contramap(_.value)
   implicit val subNetworkNameEncoder: Encoder[SubnetworkName] = Encoder.encodeString.contramap(_.value)
   implicit val ipRangeEncoder: Encoder[IpRange] = Encoder.encodeString.contramap(_.value)
-  implicit val wsmJobIdEncoder: Encoder[WsmJobId] = Encoder.encodeString.contramap(_.value.toString)
 
   implicit val batchAccountNameDecoder: Decoder[BatchAccountName] = Decoder.decodeString.map(BatchAccountName)
   implicit val batchAccountNameEncoder: Encoder[BatchAccountName] = Encoder.encodeString.contramap(_.value)
@@ -363,8 +352,6 @@ object JsonCodec {
   implicit val workbenchUserIdDecoder: Decoder[WorkbenchUserId] = Decoder.decodeString.map(WorkbenchUserId)
   implicit val storageContainerNameDecoder: Decoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
     Decoder.decodeString.map(org.broadinstitute.dsde.workbench.azure.ContainerName)
-  implicit val storageAccountNameDecoder: Decoder[StorageAccountName] =
-    Decoder.decodeString.map(StorageAccountName)
   implicit val pathDecoder: Decoder[Path] = Decoder.decodeString.map(s => Paths.get(s))
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
@@ -699,10 +686,6 @@ object JsonCodec {
   implicit val chartNameDecoder: Decoder[ChartName] = Decoder.decodeString.map(ChartName)
   implicit val allowedChartNameDecoder: Decoder[AllowedChartName] =
     Decoder.decodeString.emap(x => AllowedChartName.stringToObject.get(x).toRight("chart name not allowed"))
-  implicit val aksClusterNameDecoder: Decoder[AKSClusterName] = Decoder.decodeString.map(AKSClusterName)
-  implicit val aksClusterDecoder: Decoder[AKSCluster] = Decoder.forProduct2("name", "tags")(AKSCluster)
-  implicit val postgresServerDecoder: Decoder[PostgresServer] =
-    Decoder.forProduct2("name", "pgBouncerEnabled")(PostgresServer)
 
   implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
   implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
@@ -750,9 +733,6 @@ object JsonCodec {
 
   implicit val uuidDecoder: Decoder[UUID] = Decoder.decodeString.map(s => UUID.fromString(s))
 
-  implicit val wsmJobIdDecoder: Decoder[WsmJobId] =
-    Decoder.decodeString.map(s => WsmJobId(s))
-
   implicit val workspaceIdEncoder: Encoder[WorkspaceId] =
     Encoder.encodeString.contramap(_.value.toString)
 
@@ -770,64 +750,7 @@ object JsonCodec {
     )
 
   implicit val azureMachineTypeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)
-  implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
-  implicit val aksClusterNameEncoder: Encoder[AKSClusterName] = Encoder.encodeString.contramap(_.value)
-  implicit val aksClusterEncoder: Encoder[AKSCluster] =
-    Encoder.forProduct2("name", "tags")(x => (x.name, x.tags))
-  implicit val postgresServerEncoder: Encoder[PostgresServer] =
-    Encoder.forProduct2("name", "pgBouncerEnabled")(x => (x.name, x.pgBouncerEnabled))
-
-  implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct4(
-    "publisher",
-    "offer",
-    "sku",
-    "version"
-  )(x => (x.publisher, x.offer, x.sku, x.version))
-
-  implicit val landingZoneResourcesDecoder: Decoder[LandingZoneResources] =
-    Decoder.forProduct11(
-      "landingZoneId",
-      "clusterName",
-      "batchAccountName",
-      "relayNamespace",
-      "storageAccountName",
-      "vnetName",
-      "batchNodesSubnetName",
-      "aksSubnetName",
-      "region",
-      "applicationInsightsName",
-      "postgresName"
-    )(
-      LandingZoneResources.apply
-    )
-
-  implicit val landingZoneResourcesEncoder: Encoder[LandingZoneResources] = Encoder.forProduct11(
-    "landingZoneId",
-    "clusterName",
-    "batchAccountName",
-    "relayNamespace",
-    "storageAccountName",
-    "vnetName",
-    "batchNodesSubnetName",
-    "aksSubnetName",
-    "region",
-    "applicationInsightsName",
-    "postgresName"
-  )(x =>
-    (x.landingZoneId,
-     x.aksCluster,
-     x.batchAccountName,
-     x.relayNamespace,
-     x.storageAccountName,
-     x.vnetName,
-     x.batchNodesSubnetName,
-     x.aksSubnetName,
-     x.region,
-     x.applicationInsightsName,
-     x.postgresServer
-    )
-  )
 
   implicit val autodeleteThresholdEncoder: Encoder[AutodeleteThreshold] = Encoder.encodeInt.contramap(_.value)
 

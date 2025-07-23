@@ -5,7 +5,7 @@ import akka.testkit.TestKit
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.effect.unsafe.implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpSamDAO, HttpWsmDao}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeToMonitor}
@@ -73,7 +73,6 @@ class AzureDependenciesBuilderSpec
       Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     when(baselineDependencies.publisherQueue).thenReturn(publisherQueue)
     when(baselineDependencies.samDAO).thenReturn(mock[HttpSamDAO[IO]])
-    when(baselineDependencies.wsmDAO).thenReturn(mock[HttpWsmDao[IO]])
     baselineDependencies
   }
 }

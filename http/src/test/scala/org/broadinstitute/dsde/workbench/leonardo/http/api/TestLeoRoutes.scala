@@ -62,8 +62,6 @@ trait TestLeoRoutes {
   }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
-  val wsmDao = new MockWsmDAO
-  val wsmClientProvider = mock[HttpWsmClientProvider[IO]]
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
     petMock.buckets += userScriptBucketName -> Set(
@@ -114,7 +112,6 @@ trait TestLeoRoutes {
     Some(FakeGoogleComputeService),
     Some(FakeGoogleResourceService),
     Config.gkeCustomAppConfig,
-    wsmClientProvider,
     MockSamService
   )
 
@@ -123,18 +120,8 @@ trait TestLeoRoutes {
     imageConfig,
     autoFreezeConfig,
     dataprocConfig,
-    Config.gceConfig,
-    azureServiceConfig
+    Config.gceConfig
   )
-
-  val runtimev2Service =
-    new RuntimeV2ServiceInterp[IO](
-      serviceConfig,
-      QueueFactory.makePublisherQueue(),
-      QueueFactory.makeDateAccessedQueue(),
-      wsmClientProvider,
-      MockSamService
-    )
 
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
@@ -208,9 +195,8 @@ trait TestLeoRoutes {
       openIdConnectionConfiguration,
       statusService,
       gcpOnlyServicesRegistry,
-      MockDiskV2ServiceInterp,
       leoKubernetesService,
-      runtimev2Service,
+      MockRuntimeV2Interp,
       MockAdminServiceInterp,
       userInfoDirectives,
       contentSecurityPolicy,
@@ -222,9 +208,8 @@ trait TestLeoRoutes {
       openIdConnectionConfiguration,
       statusService,
       gcpOnlyServicesRegistry,
-      MockDiskV2ServiceInterp,
       leoKubernetesService,
-      runtimev2Service,
+      MockRuntimeV2Interp,
       MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,

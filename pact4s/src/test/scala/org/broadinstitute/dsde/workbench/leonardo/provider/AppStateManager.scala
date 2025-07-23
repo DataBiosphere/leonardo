@@ -54,7 +54,7 @@ object AppStateManager {
     Some(DiskName("exampleDiskName")),
     Map.empty[String, String],
     AuditInfo(WorkbenchEmail(""), Instant.now(), None, Instant.now()),
-    AppType.CromwellRunnerApp,
+    AppType.Cromwell,
     ChartName(""),
     None,
     Map.empty[String, String],

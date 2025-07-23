@@ -1164,8 +1164,7 @@ final case class RuntimeServiceConfig(
   imageConfig: ImageConfig,
   autoFreezeConfig: AutoFreezeConfig,
   dataprocConfig: DataprocConfig,
-  gceConfig: GceConfig,
-  azureConfig: AzureServiceConfig
+  gceConfig: GceConfig
 )
 
 final case class WrongCloudServiceException(

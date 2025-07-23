@@ -59,36 +59,6 @@ trait AppService[F[_]] {
   def startApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName)(implicit
     as: Ask[F, AppContext]
   ): F[Unit]
-
-  def createAppV2(
-    userInfo: UserInfo,
-    workspaceId: WorkspaceId,
-    appName: AppName,
-    req: CreateAppRequest
-  )(implicit as: Ask[F, AppContext]): F[Unit]
-
-  def getAppV2(
-    userInfo: UserInfo,
-    workspaceId: WorkspaceId,
-    appName: AppName
-  )(implicit as: Ask[F, AppContext]): F[GetAppResponse]
-
-  def listAppV2(
-    userInfo: UserInfo,
-    workspaceId: WorkspaceId,
-    params: Map[String, String]
-  )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
-
-  def deleteAppV2(
-    userInfo: UserInfo,
-    workspaceId: WorkspaceId,
-    appName: AppName,
-    deleteDisk: Boolean
-  )(implicit as: Ask[F, AppContext]): F[Unit]
-
-  def deleteAllAppsV2(userInfo: UserInfo, workspaceId: WorkspaceId, deleteDisk: Boolean)(implicit
-    as: Ask[F, AppContext]
-  ): F[Unit]
 }
 
 final case class AppServiceConfig(enableCustomAppCheck: Boolean,

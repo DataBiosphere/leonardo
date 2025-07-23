@@ -3,10 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
-
-import java.net.URL
 
 sealed trait KubernetesAppConfig extends Product with Serializable {
   def chartName: ChartName
@@ -38,16 +35,11 @@ sealed trait KubernetesAppConfig extends Product with Serializable {
 object KubernetesAppConfig {
   def configForTypeAndCloud(appType: AppType, cloudProvider: CloudProvider): Option[KubernetesAppConfig] =
     (appType, cloudProvider) match {
-      case (Galaxy, CloudProvider.Gcp)              => Some(Config.gkeGalaxyAppConfig)
-      case (Custom, CloudProvider.Gcp)              => Some(Config.gkeCustomAppConfig)
-      case (Cromwell, CloudProvider.Gcp)            => Some(Config.gkeCromwellAppConfig)
-      case (AppType.Allowed, CloudProvider.Gcp)     => Some(Config.gkeAllowedAppConfig)
-      case (Cromwell, CloudProvider.Azure)          => Some(ConfigReader.appConfig.azure.coaAppConfig)
-      case (WorkflowsApp, CloudProvider.Azure)      => Some(ConfigReader.appConfig.azure.workflowsAppConfig)
-      case (CromwellRunnerApp, CloudProvider.Azure) => Some(ConfigReader.appConfig.azure.cromwellRunnerAppConfig)
-      case (Wds, CloudProvider.Azure)               => Some(ConfigReader.appConfig.azure.wdsAppConfig)
-      case (HailBatch, CloudProvider.Azure)         => Some(ConfigReader.appConfig.azure.hailBatchAppConfig)
-      case _                                        => None
+      case (Galaxy, CloudProvider.Gcp)          => Some(Config.gkeGalaxyAppConfig)
+      case (Custom, CloudProvider.Gcp)          => Some(Config.gkeCustomAppConfig)
+      case (Cromwell, CloudProvider.Gcp)        => Some(Config.gkeCromwellAppConfig)
+      case (AppType.Allowed, CloudProvider.Gcp) => Some(Config.gkeAllowedAppConfig)
+      case _                                    => None
     }
 }
 
@@ -105,102 +97,6 @@ final case class CustomAppConfig(chartName: ChartName,
 
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Custom
-}
-
-final case class CoaAppConfig(chartName: ChartName,
-                              chartVersion: ChartVersion,
-                              releaseNameSuffix: ReleaseNameSuffix,
-                              namespaceNameSuffix: NamespaceNameSuffix,
-                              ksaName: KsaName,
-                              services: List[ServiceConfig],
-                              instrumentationEnabled: Boolean,
-                              enabled: Boolean,
-                              dockstoreBaseUrl: URL,
-                              databaseEnabled: Boolean,
-                              chartVersionsToExcludeFromUpdates: List[ChartVersion]
-) extends KubernetesAppConfig {
-  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-
-  override val serviceAccountName = ServiceAccountName(ksaName.value)
-
-  val cloudProvider: CloudProvider = CloudProvider.Azure
-  val appType: AppType = AppType.Cromwell
-}
-
-final case class WorkflowsAppConfig(chartName: ChartName,
-                                    chartVersion: ChartVersion,
-                                    releaseNameSuffix: ReleaseNameSuffix,
-                                    namespaceNameSuffix: NamespaceNameSuffix,
-                                    ksaName: KsaName,
-                                    services: List[ServiceConfig],
-                                    instrumentationEnabled: Boolean,
-                                    enabled: Boolean,
-                                    dockstoreBaseUrl: URL,
-                                    chartVersionsToExcludeFromUpdates: List[ChartVersion],
-                                    ecmBaseUri: URL,
-                                    bardBaseUri: URL,
-                                    bardEnabled: Boolean
-) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-  override val serviceAccountName = ServiceAccountName(ksaName.value)
-
-  val cloudProvider: CloudProvider = CloudProvider.Azure
-  val appType: AppType = AppType.WorkflowsApp
-}
-
-final case class CromwellRunnerAppConfig(chartName: ChartName,
-                                         chartVersion: ChartVersion,
-                                         releaseNameSuffix: ReleaseNameSuffix,
-                                         namespaceNameSuffix: NamespaceNameSuffix,
-                                         ksaName: KsaName,
-                                         services: List[ServiceConfig],
-                                         instrumentationEnabled: Boolean,
-                                         enabled: Boolean,
-                                         chartVersionsToExcludeFromUpdates: List[ChartVersion],
-                                         ecmBaseUri: URL,
-                                         bardBaseUri: URL,
-                                         bardEnabled: Boolean
-) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-  override val serviceAccountName = ServiceAccountName(ksaName.value)
-  val cloudProvider: CloudProvider = CloudProvider.Azure
-  val appType: AppType = AppType.CromwellRunnerApp
-}
-
-final case class WdsAppConfig(chartName: ChartName,
-                              chartVersion: ChartVersion,
-                              releaseNameSuffix: ReleaseNameSuffix,
-                              namespaceNameSuffix: NamespaceNameSuffix,
-                              ksaName: KsaName,
-                              services: List[ServiceConfig],
-                              instrumentationEnabled: Boolean,
-                              enabled: Boolean,
-                              databaseEnabled: Boolean,
-                              environment: String,
-                              environmentBase: String,
-                              chartVersionsToExcludeFromUpdates: List[ChartVersion]
-) extends KubernetesAppConfig {
-  override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-  override val serviceAccountName = ServiceAccountName(ksaName.value)
-
-  val cloudProvider: CloudProvider = CloudProvider.Azure
-  val appType: AppType = AppType.Wds
-}
-
-final case class HailBatchAppConfig(chartName: ChartName,
-                                    chartVersion: ChartVersion,
-                                    releaseNameSuffix: ReleaseNameSuffix,
-                                    namespaceNameSuffix: NamespaceNameSuffix,
-                                    ksaName: KsaName,
-                                    services: List[ServiceConfig],
-                                    enabled: Boolean,
-                                    chartVersionsToExcludeFromUpdates: List[ChartVersion]
-) extends KubernetesAppConfig {
-  override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
-  override val serviceAccountName = ServiceAccountName(ksaName.value)
-
-  val cloudProvider: CloudProvider = CloudProvider.Azure
-  val appType: AppType = AppType.HailBatch
 }
 
 final case class ContainerRegistryUsername(asString: String) extends AnyVal
