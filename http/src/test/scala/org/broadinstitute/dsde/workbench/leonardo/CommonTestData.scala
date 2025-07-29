@@ -1,17 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
-import bio.terra.workspace.client.ApiException
-import bio.terra.workspace.model.{AzureContext, GcpContext, WorkspaceDescription}
-import cats.effect.IO
-import cats.effect.Ref
+import cats.effect.{IO, Ref}
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
@@ -36,45 +33,22 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  AccessScope,
-  CloningInstructions,
-  ControlledResourceDescription,
-  ControlledResourceIamRole,
-  ControlledResourceName,
-  InternalDaoControlledResourceCommonFields,
-  ManagedBy,
-  MockSamDAO,
-  PrivateResourceUser
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
-  ConfigReader,
   CreateRuntimeRequest,
   RuntimeConfigRequest
 }
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
+import org.broadinstitute.dsde.workbench.util2.InstanceName
 
 import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.azure.{
-  ApplicationInsightsName,
-  AzureCloudContext,
-  BatchAccountName,
-  ManagedResourceGroupName,
-  RelayNamespace,
-  SubscriptionId,
-  TenantId
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
-import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
-import org.broadinstitute.dsde.workbench.util2.InstanceName
-
 import scala.concurrent.duration._
 
 object CommonTestData {
@@ -170,13 +144,6 @@ object CommonTestData {
   val refererConfig = Config.refererConfig
   val leoKubernetesConfig = Config.leoKubernetesConfig
   val openIdConnectionConfiguration = FakeOpenIDConnectConfiguration
-  val azureServiceConfig = AzureServiceConfig(
-    // For now azure disks share same defaults as normal disks
-    ConfigReader.appConfig.persistentDisk,
-    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
-    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-    ConfigReader.appConfig.azure.pubsubHandler.welderImageHash
-  )
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),
@@ -538,59 +505,6 @@ object CommonTestData {
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
   val wsmResourceIdOpt = Some(wsmResourceId)
   val cloudContextAzure = CloudContext.Azure(azureCloudContext)
-  val billingProfileId = BillingProfileId("spend-profile")
-  val wsmWorkspaceDesc = new WorkspaceDescription()
-    .id(workspaceId.value)
-    .spendProfile("spendProfile")
-    .azureContext(
-      new AzureContext()
-        .resourceGroupId(azureCloudContext.managedResourceGroupName.value)
-        .tenantId(azureCloudContext.tenantId.value)
-        .subscriptionId(azureCloudContext.subscriptionId.value)
-    )
-    .gcpContext(new GcpContext().projectId("googleProject"))
-
-  val testCommonControlledResourceFields = InternalDaoControlledResourceCommonFields(
-    ControlledResourceName("name"),
-    ControlledResourceDescription("desc"),
-    CloningInstructions.Nothing,
-    AccessScope.PrivateAccess,
-    ManagedBy.User,
-    Some(
-      PrivateResourceUser(
-        userEmail,
-        ControlledResourceIamRole.Editor
-      )
-    ),
-    None
-  )
-
-  val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
-    Map.empty,
-    VirtualMachineSizeTypes.STANDARD_A1,
-    Map.empty,
-    CreateAzureDiskRequest(
-      Map.empty,
-      AzureDiskName("diskName1"),
-      Some(DiskSize(100)),
-      None
-    ),
-    Some(0)
-  )
-
-  val landingZoneResources = LandingZoneResources(
-    UUID.randomUUID(),
-    AKSCluster("lzcluster", Map.empty[String, Boolean]),
-    BatchAccountName("lzbatch"),
-    RelayNamespace("lznamespace"),
-    StorageAccountName("lzstorage"),
-    NetworkName("lzvnet"),
-    SubnetworkName("batchsub"),
-    SubnetworkName("akssub"),
-    azureRegion,
-    ApplicationInsightsName("lzappinsights"),
-    Some(PostgresServer("postgres", false))
-  )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
@@ -601,8 +515,4 @@ object CommonTestData {
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath =
     parseGcsPath(str).right.get
-}
-class TestException(message: String = "Test error", statusCode: StatusCode = StatusCodes.NotFound)
-    extends ApiException {
-  override def getCode: Int = statusCode.intValue
 }

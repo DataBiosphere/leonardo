@@ -4,18 +4,11 @@ package monitor
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
-import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, NetworkName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  CreateAppV2Message,
-  CreateAzureRuntimeMessage,
-  CreateRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.scalatest.flatspec.AnyFlatSpec
@@ -123,63 +116,6 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     )
 
     val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))
-
-    res shouldBe Right(originalMessage)
-  }
-
-  it should "encode/decode CreateAzureRuntimeMessage properly" in {
-    val originalMessage =
-      CreateAzureRuntimeMessage(1,
-                                WorkspaceId(UUID.randomUUID()),
-                                false,
-                                None,
-                                "WorkspaceName",
-                                BillingProfileId("spend-profile")
-      )
-
-    val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
-
-    res shouldBe Right(originalMessage)
-  }
-
-  val landingZoneResources = LandingZoneResources(
-    UUID.randomUUID(),
-    AKSCluster("cluster-name", Map.empty[String, Boolean]),
-    BatchAccountName("batch-account"),
-    RelayNamespace("relay-ns"),
-    StorageAccountName("storage-account"),
-    NetworkName("vnet"),
-    SubnetworkName("batch-subnet"),
-    SubnetworkName("aks-subnet"),
-    com.azure.core.management.Region.US_EAST,
-    ApplicationInsightsName("lzappinsights"),
-    Some(PostgresServer("postgres", false))
-  )
-
-  it should "encode/decode LandingZoneResources properly" in {
-    val res = decode[LandingZoneResources](landingZoneResources.asJson.printWith(Printer.noSpaces))
-
-    res shouldBe Right(landingZoneResources)
-  }
-
-  it should "encode/decode CreateAppV2Message properly" in {
-    val originalMessage =
-      CreateAppV2Message(
-        AppId(1),
-        AppName("test"),
-        WorkspaceId(UUID.randomUUID()),
-        CloudContext.Azure(
-          AzureCloudContext(
-            TenantId("id"),
-            SubscriptionId("sub"),
-            ManagedResourceGroupName("rg-name")
-          )
-        ),
-        BillingProfileId("spend-profile"),
-        None
-      )
-
-    val res = decode[CreateAppV2Message](originalMessage.asJson.printWith(Printer.noSpaces))
 
     res shouldBe Right(originalMessage)
   }

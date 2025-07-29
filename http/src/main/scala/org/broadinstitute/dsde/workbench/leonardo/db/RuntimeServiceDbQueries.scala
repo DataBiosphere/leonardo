@@ -5,7 +5,7 @@ import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.{LabelMap, Runtime}
+import org.broadinstitute.dsde.workbench.leonardo.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._

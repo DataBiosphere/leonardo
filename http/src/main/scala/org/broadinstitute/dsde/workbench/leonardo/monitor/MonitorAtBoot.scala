@@ -7,28 +7,20 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmApiClientProvider}
+import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.WorkspaceNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  CreateAppV2Message,
-  DeleteAppMessage,
-  DeleteAppV2Message
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 
-import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                           computeService: Option[GoogleComputeService[F]],
-                          samDAO: SamDAO[F],
-                          wsmClientProvider: WsmApiClientProvider[F]
+                          samDAO: SamDAO[F]
 )(implicit
   F: Async[F],
   dbRef: DbReference[F],
@@ -85,12 +77,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
   ): F[Unit] = {
     val res = for {
       traceId <- ev.ask[TraceId]
-      msg <- runtimeToMonitor.cloudContext match {
-        case CloudContext.Gcp(_) =>
-          runtimeStatusToMessageGCP(runtimeToMonitor, traceId, checkToolsInterruptAfter)
-        case CloudContext.Azure(_) =>
-          runtimeStatusToMessageAzure(runtimeToMonitor, traceId)
-      }
+      msg <- runtimeStatusToMessageGCP(runtimeToMonitor, traceId, checkToolsInterruptAfter)
       _ <- publisherQueue.offer(msg)
     } yield ()
     res.handleErrorWith(e => logger.error(e)(s"MonitorAtBoot: Error monitoring runtime ${runtimeToMonitor.id}"))
@@ -214,32 +201,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                 } yield msg
 
               case CloudContext.Azure(_) =>
-                for {
-                  workspaceId <- F.fromOption(
-                    app.workspaceId,
-                    MonitorAtBootException(
-                      s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                      appContext.traceId
-                    )
-                  )
-                  token <- getAuthToken(app.auditInfo.creator)
-                  workspaceDescOpt <- wsmClientProvider.getWorkspace(
-                    token,
-                    workspaceId
-                  )
-                  workspaceDesc <- F.fromOption(workspaceDescOpt,
-                                                WorkspaceNotFoundException(workspaceId, appContext.traceId)
-                  )
-
-                  msg = CreateAppV2Message(
-                    app.id,
-                    app.appName,
-                    workspaceId,
-                    cluster.cloudContext,
-                    BillingProfileId(workspaceDesc.spendProfile),
-                    Some(appContext.traceId)
-                  )
-                } yield msg
+                F.raiseError(new NotImplementedError("Azure functionality not implemented."))
 
             }
 
@@ -258,39 +220,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                 )
               )
             case CloudContext.Azure(_) =>
-              for {
-                workspaceId <- F.fromOption(app.workspaceId,
-                                            MonitorAtBootException(
-                                              s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                                              appContext.traceId
-                                            )
-                )
-                token <- getAuthToken(app.auditInfo.creator)
-                workspaceDescOpt <- wsmClientProvider.getWorkspace(
-                  token,
-                  workspaceId
-                )
-                workspaceDesc <- F.fromOption(workspaceDescOpt,
-                                              WorkspaceNotFoundException(workspaceId, appContext.traceId)
-                )
-
-                diskOpt <- appQuery.getDiskId(app.id).transaction
-                workspaceId <- F.fromOption(app.workspaceId,
-                                            MonitorAtBootException(
-                                              s"WorkspaceId not found for app ${app.id} in Provisioning status",
-                                              appContext.traceId
-                                            )
-                )
-                msg = DeleteAppV2Message(
-                  app.id,
-                  app.appName,
-                  workspaceId,
-                  cluster.cloudContext,
-                  diskOpt,
-                  BillingProfileId(workspaceDesc.spendProfile),
-                  Some(appContext.traceId)
-                )
-              } yield msg
+              F.raiseError(new NotImplementedError("Azure functionality not implemented."))
           }
         case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", appContext.traceId))
       }
@@ -373,71 +303,6 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           rtConfigInMessage,
           Some(traceId),
           checkToolsInterruptAfter
-        )
-      case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
-    }
-
-  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
-    runtime.status match {
-      case RuntimeStatus.Stopping =>
-        F.pure(
-          LeoPubsubMessage.StopRuntimeMessage(
-            runtimeId = runtime.id,
-            traceId = Some(traceId)
-          )
-        )
-      case RuntimeStatus.Deleting =>
-        for {
-          now <- F.realTimeInstant
-          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
-          wid <- F.fromOption(runtime.workspaceId,
-                              MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
-          )
-          controlledResourceOpt = WsmControlledResourceId(UUID.fromString(runtime.internalId))
-          leoAuth <- samDAO.getLeoAuthToken
-          workspaceDescOpt <- wsmClientProvider.getWorkspace(
-            leoAuth.credentials.renderString,
-            wid
-          )
-          workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
-        } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
-          runtimeId = runtime.id,
-          None,
-          workspaceId = wid,
-          wsmResourceId = Some(controlledResourceOpt),
-          BillingProfileId(workspaceDesc.spendProfile),
-          traceId = Some(traceId)
-        )
-      case RuntimeStatus.Starting =>
-        for {
-          now <- F.realTimeInstant
-          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
-        } yield LeoPubsubMessage.StartRuntimeMessage(
-          runtimeId = runtime.id,
-          traceId = Some(traceId)
-        )
-      case RuntimeStatus.Creating =>
-        for {
-          now <- F.realTimeInstant
-          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
-          wid <- F.fromOption(runtime.workspaceId,
-                              MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId)
-          )
-          leoAuth <- samDAO.getLeoAuthToken
-          token = leoAuth.credentials.toString().split(" ")(1)
-          workspaceDescOpt <- wsmClientProvider.getWorkspace(
-            token,
-            wid
-          )
-
-          workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(wid, traceId))
-        } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
-          runtime.id,
-          wid,
-          false,
-          Some(traceId),
-          workspaceDesc.displayName,
-          BillingProfileId(workspaceDesc.spendProfile)
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }

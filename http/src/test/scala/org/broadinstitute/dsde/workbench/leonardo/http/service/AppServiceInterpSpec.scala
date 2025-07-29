@@ -15,38 +15,30 @@ import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{GalaxyRestore, Oth
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.auth.{AllowlistAuthProvider, SamAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.AllowlistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, CustomAppConfig, CustomApplicationAllowListConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  CreateAppV2Message,
-  DeleteAppMessage,
-  DeleteAppV2Message
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
   LeoPubsubMessage,
   LeoPubsubMessageType
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.{AzureTestUtils, QueueFactory}
+import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util2.messaging.CloudPublisher
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
-import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, when}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.prop.TableDrivenPropertyChecks.{forAll, _}
+import org.scalatest.prop.TableDrivenPropertyChecks._
 import org.scalatestplus.mockito.MockitoSugar
-import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -55,25 +47,10 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   val appServiceConfig = Config.appServiceConfig
   val gkeCustomAppConfig = Config.gkeCustomAppConfig
 
-  val wsmDao = new MockWsmDAO
-  val (wsmClientProvider, _, _, workspaceApi) = AzureTestUtils.setUpMockWsmApiClientProvider()
-  val (googleWsmClientProvider, _, _, googleWorkspaceApi) =
-    AzureTestUtils.setUpMockWsmApiClientProvider(googleProject = Some(GoogleProject(workspaceId.toString)))
-
-  when {
-    workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-  } thenAnswer (_ => throw new Exception("workspace not found"))
-
-  when {
-    googleWorkspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-  } thenAnswer (_ => throw new Exception("workspace not found"))
-
-  val gcpWsmDao = new MockWsmDAO
-
   val appServiceInterp = makeInterp(QueueFactory.makePublisherQueue())
   val appServiceInterp2 = makeInterp(QueueFactory.makePublisherQueue(), authProvider = allowListAuthProvider2)
   val gcpWorkspaceAppServiceInterp =
-    makeInterp(QueueFactory.makePublisherQueue(), wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
+    makeInterp(QueueFactory.makePublisherQueue())
 
   def withLeoPublisher(
     publisherQueue: Queue[IO, LeoPubsubMessage]
@@ -91,12 +68,10 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage],
                  authProvider: LeoAuthProvider[IO] = allowListAuthProvider,
-                 wsmDao: WsmDao[IO] = wsmDao,
                  enableCustomAppCheckFlag: Boolean = true,
                  enableSasApp: Boolean = true,
                  googleResourceService: GoogleResourceService[IO] = FakeGoogleResourceService,
                  customAppConfig: CustomAppConfig = gkeCustomAppConfig,
-                 wsmClientProvider: WsmApiClientProvider[IO] = wsmClientProvider,
                  samService: SamService[IO] = MockSamService
   ) = {
     val appConfig = appServiceConfig.copy(enableCustomAppCheck = enableCustomAppCheckFlag, enableSasApp = enableSasApp)
@@ -108,7 +83,6 @@ trait AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       Some(FakeGoogleComputeService),
       Some(googleResourceService),
       customAppConfig,
-      wsmClientProvider,
       samService
     )
   }
@@ -158,7 +132,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(passComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
     val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](
@@ -168,7 +141,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughMemoryComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
     val notEnoughCpuAppService = new LeoAppServiceInterp[IO](
@@ -178,7 +150,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(notEnoughCpuComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
 
@@ -209,7 +180,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(noLabelsGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
 
@@ -239,7 +209,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       MockSamService
     )
     val res = interp
@@ -1383,7 +1352,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1533,7 +1501,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1576,7 +1543,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1618,7 +1584,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1657,7 +1622,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1702,7 +1666,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1747,7 +1710,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         true,
         List()
       ),
-      wsmClientProvider,
       MockSamService
     )
     val appReq = createAppRequest.copy(
@@ -1763,7 +1725,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
   it should "V1 GCP - deleteAppRecords delete an app, nodepool and cluster in DB and records AppUsage stopTime" in isolatedDbTest {
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
 
     val appName = AppName("app1")
     val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
@@ -1820,188 +1782,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   }
 
-  it should "Azure - only delete App records in deleteAllAppsV2 if a workspace has been deleted" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-
-    val appName = AppName("app1")
-
-    val appReq =
-      createAppRequest.copy(
-        kubernetesRuntimeConfig = None,
-        appType = AppType.Cromwell,
-        allowedChartName = Some(AllowedChartName.Sas),
-        diskConfig = None,
-        workspaceId = Some(workspaceId2)
-      )
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId2, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
-    }
-    // Set the cluster, app, and nodepool to running and start tracking the usage
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-    dbFutureValue(
-      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
-    )
-
-    kubeServiceInterp
-      .deleteAllAppsV2(userInfo, workspaceId2, true)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId2), Map.empty, true)
-    }
-
-    clusterPostDelete.length shouldEqual 1
-    clusterPostDelete.map(_.status) shouldEqual List(KubernetesClusterStatus.Deleted)
-    val nodepools = clusterPostDelete.flatMap(_.nodepools)
-    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
-    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Deleted)
-    apps.map(_.status) shouldEqual List(AppStatus.Deleted)
-
-    // throw away create messages
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val messages = publisherQueue.tryTakeN(Some(1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    messages.map(_.messageType) shouldBe List.empty
-
-  }
-
-  it should "Azure - only delete App records in deleteAppV2 if a workspace has been deleted" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-
-    val appName = AppName("app1")
-
-    val appReq =
-      createAppRequest.copy(
-        kubernetesRuntimeConfig = None,
-        appType = AppType.Cromwell,
-        allowedChartName = Some(AllowedChartName.Sas),
-        diskConfig = None,
-        workspaceId = Some(workspaceId2)
-      )
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId2, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
-    }
-    // Set the cluster, app, and nodepool to running and start tracking the usage
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-    dbFutureValue(
-      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
-    )
-
-    kubeServiceInterp
-      .deleteAppV2(userInfo, workspaceId2, appName, true)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId2), Map.empty, true)
-    }
-
-    clusterPostDelete.length shouldEqual 1
-    clusterPostDelete.map(_.status) shouldEqual List(KubernetesClusterStatus.Deleted)
-    val nodepools = clusterPostDelete.flatMap(_.nodepools)
-    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
-    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Deleted)
-    apps.map(_.status) shouldEqual List(AppStatus.Deleted)
-
-    // throw away create messages
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val messages = publisherQueue.tryTakeN(Some(1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    messages.map(_.messageType) shouldBe List.empty
-
-  }
-
-  it should "error on deleteAllApps if the user doesn't have permission to access the workspace" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
-    when {
-      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-    } thenAnswer (_ => throw new Exception("User does not have access to this workspace"))
-
-    val appName = AppName("app1")
-
-    val appReq =
-      createAppRequest.copy(
-        kubernetesRuntimeConfig = None,
-        appType = AppType.Cromwell,
-        allowedChartName = Some(AllowedChartName.Sas),
-        diskConfig = None,
-        workspaceId = Some(workspaceId2)
-      )
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId2, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
-    }
-    // Set the cluster, app, and nodepool to running and start tracking the usage
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-    dbFutureValue(
-      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
-    )
-
-    an[WorkspaceNotFoundException] should be thrownBy {
-      kubeServiceInterp
-        .deleteAllAppsV2(userInfo, workspaceId2, false)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-
-  it should "error on deleteAppV2 if the user doesn't have permission to access the workspace" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = wsmDao)
-    when {
-      workspaceApi.getWorkspace(ArgumentMatchers.eq(workspaceId2.value), any())
-    } thenAnswer (_ => throw new Exception("User does not have access to this workspace"))
-
-    val appName = AppName("app1")
-
-    val appReq =
-      createAppRequest.copy(
-        kubernetesRuntimeConfig = None,
-        appType = AppType.Cromwell,
-        allowedChartName = Some(AllowedChartName.Sas),
-        diskConfig = None,
-        workspaceId = Some(workspaceId2)
-      )
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId2, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId2, appName)
-    }
-    // Set the cluster, app, and nodepool to running and start tracking the usage
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-    dbFutureValue(
-      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
-    )
-
-    an[WorkspaceNotFoundException] should be thrownBy {
-      kubeServiceInterp
-        .deleteAppV2(userInfo, workspaceId2, appName, false)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-
   it should "V1 GCP - deleteAppRecords error on delete if app creator is removed from app's project" in isolatedDbTest {
 
     val appName = AppName("app1")
@@ -2021,7 +1801,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V1 GCP - deleteAllAppsRecords, update all status appropriately, and not queue messages" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
 
     val appName = AppName("app1")
     val appName2 = AppName("app2")
@@ -2121,7 +1901,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       mockSamService
     )
 
@@ -2178,7 +1957,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       Some(FakeGoogleComputeService),
       Some(FakeGoogleResourceService),
       gkeCustomAppConfig,
-      wsmClientProvider,
       mockSamService
     )
 
@@ -2189,7 +1967,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V1 GCP - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
 
     val appName = AppName("app1")
     val appName2 = AppName("app2")
@@ -2269,7 +2047,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
   it should "V1 GCP - deleteAllApp, should fail and not update anything if there is a non-deletable app status" in isolatedDbTest {
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao)
+    val kubeServiceInterp = makeInterp(publisherQueue)
     val appName = AppName("app1")
     val appName2 = AppName("app2")
     val diskConfig1 = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
@@ -2333,861 +2111,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
     val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     messages shouldBe List.empty
-  }
-
-  // ----- App V2 tests -----
-
-  it should "V2 GCP - create an app V2 and a new disk" in isolatedDbTest {
-    val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
-
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val clusters = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId))
-    }
-    clusters.length shouldEqual 1
-    clusters.flatMap(_.nodepools).length shouldEqual 1
-    val cluster = clusters.head
-    cluster.auditInfo.creator shouldEqual userInfo.userEmail
-
-    clusters.flatMap(_.nodepools).size shouldBe 1
-    val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.isDefault shouldBe true
-
-    clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
-    val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
-    app.appName shouldEqual appName
-    app.chart shouldEqual galaxyChart
-    app.auditInfo.creator shouldEqual userInfo.userEmail
-    app.customEnvironmentVariables shouldEqual customEnvVars
-    app.workspaceId shouldEqual Some(workspaceId)
-
-    val savedDisk = dbFutureValue {
-      persistentDiskQuery.getById(app.appResources.disk.get.id)
-    }
-    savedDisk.map(_.name) shouldEqual Some(diskName)
-  }
-
-  it should "V2 Azure - create an app V2" in isolatedDbTest {
-    val appName = AppName("app1")
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace",
-                            "RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}"
-    )
-    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
-                                       appType = AppType.Cromwell,
-                                       diskConfig = None,
-                                       customEnvironmentVariables = customEnvVars
-    )
-
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val clusters = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId))
-    }
-    clusters.length shouldEqual 1
-    clusters.flatMap(_.nodepools).length shouldEqual 1
-    val cluster = clusters.head
-    cluster.auditInfo.creator shouldEqual userInfo.userEmail
-    cluster.status shouldEqual KubernetesClusterStatus.Running
-
-    clusters.flatMap(_.nodepools).size shouldBe 1
-    val nodepool = clusters.flatMap(_.nodepools).head
-    nodepool.isDefault shouldBe true
-
-    clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
-    val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
-    app.appName shouldEqual appName
-    app.chart shouldEqual coaChart
-    app.auditInfo.creator shouldEqual userInfo.userEmail
-    app.customEnvironmentVariables shouldEqual customEnvVars
-    app.status shouldEqual AppStatus.Precreating
-    app.appResources.disk shouldEqual None
-    app.workspaceId shouldEqual Some(workspaceId)
-  }
-
-  it should "V2 Azure - throw an error when providing a machine config" in isolatedDbTest {
-    val appName = AppName("app1")
-    val appReq = createAppRequest.copy(
-      appType = AppType.Cromwell,
-      diskConfig = None
-    )
-
-    a[AppMachineConfigNotSupportedException] should be thrownBy
-      appServiceInterp
-        .createAppV2(userInfo, workspaceId, appName, appReq)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "V2 Azure - throw an error when providing a disk config" in isolatedDbTest {
-    val appName = AppName("app1")
-    val appReq = createAppRequest.copy(
-      kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
-    )
-
-    a[AppDiskNotSupportedException] should be thrownBy
-      appServiceInterp
-        .createAppV2(userInfo, workspaceId, appName, appReq)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "V2 GCP - queue the proper v2 message when creating an app and a new disk" in isolatedDbTest {
-    val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }.get
-
-    val getMinimalCluster = dbFutureValue {
-      kubernetesClusterQuery.getMinimalClusterById(getApp.cluster.id)
-    }.get
-
-    val defaultNodepools = getMinimalCluster.nodepools.filter(_.isDefault)
-    defaultNodepools.length shouldBe 1
-
-    val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.CreateAppV2
-    val createAppMessage = message.asInstanceOf[CreateAppV2Message]
-    createAppMessage.appId shouldBe getApp.app.id
-    createAppMessage.appName shouldBe getApp.app.appName
-    createAppMessage.workspaceId shouldBe workspaceId
-  }
-
-  it should "V2 Azure - queue the proper v2 message when creating an app" in isolatedDbTest {
-    val appName = AppName("app1")
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None,
-                                       appType = AppType.Cromwell,
-                                       diskConfig = None,
-                                       customEnvironmentVariables = customEnvVars
-    )
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val getApp = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }.get
-
-    val getMinimalCluster = dbFutureValue {
-      kubernetesClusterQuery.getMinimalClusterById(getApp.cluster.id)
-    }.get
-
-    val defaultNodepools = getMinimalCluster.nodepools.filter(_.isDefault)
-    defaultNodepools.length shouldBe 1
-
-    val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.CreateAppV2
-    val createAppMessage = message.asInstanceOf[CreateAppV2Message]
-    createAppMessage.appId shouldBe getApp.app.id
-    createAppMessage.appName shouldBe getApp.app.appName
-    createAppMessage.workspaceId shouldBe workspaceId
-  }
-
-  it should "V2 GCP - delete a gcp app V2, update status appropriately, and queue a message" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
-    val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-
-    // we can't delete while its creating, so set it to Running
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-
-    val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-
-    kubeServiceInterp
-      .deleteAppV2(userInfo, workspaceId, appName, false)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
-    }
-
-    clusterPostDelete.length shouldEqual 1
-    val nodepool = clusterPostDelete.head.nodepools.head
-    nodepool.status shouldEqual NodepoolStatus.Running
-    val app = nodepool.apps.head
-    app.status shouldEqual AppStatus.Predeleting
-
-    // throw away create message
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.DeleteAppV2
-    val deleteAppMessage = message.asInstanceOf[DeleteAppV2Message]
-    deleteAppMessage.appId shouldBe app.id
-    deleteAppMessage.workspaceId shouldBe workspaceId
-    deleteAppMessage.diskId shouldBe None
-  }
-
-  it should "V2 GCP - fail to delete an app when creator has lost workspace permission" in isolatedDbTest {
-    val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
-    a[ForbiddenError] should be thrownBy azureService2
-      .deleteAppV2(userInfo, workspaceId, appName, true)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "V2 Azure - delete an Azure app V2, update status appropriately, and queue a message" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-    val appName = AppName("app1")
-    val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-
-    // we can't delete while its creating, so set it to Running
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-
-    val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-
-    kubeServiceInterp
-      .deleteAppV2(userInfo, workspaceId, appName, false)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
-    }
-
-    clusterPostDelete.length shouldEqual 1
-    val nodepool = clusterPostDelete.head.nodepools.head
-    nodepool.status shouldEqual NodepoolStatus.Running
-    val app = nodepool.apps.head
-    app.status shouldEqual AppStatus.Predeleting
-
-    // throw away create message
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    message.messageType shouldBe LeoPubsubMessageType.DeleteAppV2
-    val deleteAppMessage = message.asInstanceOf[DeleteAppV2Message]
-    deleteAppMessage.appId shouldBe app.id
-    deleteAppMessage.workspaceId shouldBe workspaceId
-    deleteAppMessage.diskId shouldBe None
-  }
-
-  it should "V2 Azure - fail to delete an app when creator has lost workspace permission" in isolatedDbTest {
-    val appName = AppName("app1")
-    val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2)
-    a[ForbiddenError] should be thrownBy azureService2
-      .deleteAppV2(userInfo, workspaceId, appName, true)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "V2 GCP - list apps V2 should return apps for workspace" in isolatedDbTest {
-    val appName1 = AppName("app1")
-    val diskName1 = DiskName("newDiskName1")
-    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
-    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        diskConfig = Some(createDiskConfig1)
-    )
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName1, appReq1)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    val appName2 = AppName("app2")
-    val diskName2 = DiskName("newDiskName2")
-    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
-    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
-
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appName3 = AppName("app3")
-    val diskName3 = DiskName("newDiskName3")
-    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
-    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
-
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val listProject1Apps =
-      gcpWorkspaceAppServiceInterp
-        .listAppV2(userInfo, workspaceId, Map())
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    listProject1Apps.length shouldBe 2
-    listProject1Apps.map(_.appName) should contain(appName1)
-    listProject1Apps.map(_.appName) should contain(appName2)
-
-    val listProject3Apps =
-      gcpWorkspaceAppServiceInterp
-        .listAppV2(userInfo, workspaceId3, Map())
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    listProject3Apps.length shouldBe 1
-  }
-
-  it should "V2 GCP - list apps V2 should fail to return apps for workspace if creator lost workspace access" in isolatedDbTest {
-    val appName1 = AppName("app1")
-    val diskName1 = DiskName("newDiskName1")
-    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
-    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        diskConfig = Some(createDiskConfig1)
-    )
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName1, appReq1)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    val listProject1Apps =
-      gcpWorkspaceAppServiceInterp
-        .listAppV2(userInfo, workspaceId, Map())
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    listProject1Apps.length shouldBe 1
-    listProject1Apps.map(_.appName) should contain(appName1)
-
-    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
-    a[ForbiddenError] should be thrownBy azureService2
-      .listAppV2(userInfo, workspaceId, Map())
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "V2 Azure - list apps V2 should return apps for workspace" in isolatedDbTest {
-    val appName1 = AppName("app1")
-    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        kubernetesRuntimeConfig = None,
-                                        appType = AppType.Cromwell,
-                                        diskConfig = None
-    )
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName1, appReq1)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    val appName2 = AppName("app2")
-    val appReq2 =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appName3 = AppName("app3")
-    val appReq3 =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val listProject1Apps =
-      appServiceInterp
-        .listAppV2(userInfo, workspaceId, Map())
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    listProject1Apps.map(_.appName) should contain(appName1)
-    listProject1Apps.map(_.appName) should contain(appName2)
-    listProject1Apps.length shouldBe 2
-
-    val listProject3Apps =
-      appServiceInterp
-        .listAppV2(userInfo, workspaceId3, Map())
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    listProject3Apps.length shouldBe 1
-  }
-
-  it should "V2 Azure - list apps V2 should fail to return apps for workspace if creator lost workspace access" in isolatedDbTest {
-    val appName1 = AppName("app1")
-    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        kubernetesRuntimeConfig = None,
-                                        appType = AppType.Cromwell,
-                                        diskConfig = None
-    )
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName1, appReq1)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    val listProject1Apps =
-      appServiceInterp
-        .listAppV2(userInfo, workspaceId, Map())
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    listProject1Apps.length shouldBe 1
-    listProject1Apps.map(_.appName) should contain(appName1)
-
-    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2)
-    a[ForbiddenError] should be thrownBy azureService2
-      .listAppV2(userInfo, workspaceId, Map())
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "V2 GCP - get app" in isolatedDbTest {
-    val appName1 = AppName("app1")
-    val diskName1 = DiskName("newDiskName1")
-    val createDiskConfig1 = PersistentDiskRequest(diskName1, None, None, Map.empty)
-    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        diskConfig = Some(createDiskConfig1)
-    )
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName1, appReq1)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName1)
-    }
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    val appName2 = AppName("app2")
-    val diskName2 = DiskName("newDiskName2")
-    val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
-    val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
-
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appName3 = AppName("app3")
-    val diskName3 = DiskName("newDiskName3")
-    val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
-    val appReq3 = createAppRequest.copy(diskConfig = Some(createDiskConfig3))
-
-    gcpWorkspaceAppServiceInterp
-      .createAppV2(userInfo, workspaceId3, appName3, appReq3)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    // New service where the userInfo is not part of the allowlist and therefore not a workspace reader
-    val azureService2 = makeInterp(QueueFactory.makePublisherQueue(), allowListAuthProvider2, gcpWsmDao)
-
-    val getApp1 =
-      appServiceInterp.getAppV2(userInfo, workspaceId, appName1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    getApp1.diskName shouldBe Some(diskName1)
-    a[ForbiddenError] should be thrownBy azureService2
-      .getAppV2(userInfo, workspaceId, appName1)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val getApp2 =
-      appServiceInterp.getAppV2(userInfo, workspaceId, appName2).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    getApp2.diskName shouldBe Some(diskName2)
-    a[ForbiddenError] should be thrownBy azureService2
-      .getAppV2(userInfo, workspaceId, appName2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val getApp3 =
-      appServiceInterp.getAppV2(userInfo, workspaceId3, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    getApp3.diskName shouldBe Some(diskName3)
-    a[ForbiddenError] should be thrownBy azureService2
-      .getAppV2(userInfo, workspaceId3, appName3)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "V2 GCP - error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
-    val cluster = makeKubeCluster(0).save()
-    val nodepool = makeNodepool(1, cluster.id).save()
-    val cromwellApp = makeApp(1, nodepool.id).save()
-    val disk =
-      makePersistentDisk(None, formattedBy = Some(FormattedBy.Cromwell), appRestore = Some(Other(cromwellApp.id)))
-        .copy(cloudContext = CloudContext.Gcp(GoogleProject(workspaceId.toString)))
-        .save()
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val galaxyAppName = AppName("galaxy-app1")
-    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
-    val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
-    val res = kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, galaxyAppName, galaxyAppReq)
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    res.swap.toOption.get.getMessage shouldBe s"Persistent disk Gcp/${workspaceId}/disk is already formatted by CROMWELL"
-  }
-
-  it should "V2 Azure - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-    val appName = AppName("app1")
-    val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-    val appName2 = AppName("app2")
-    val appReq2 =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    val appResultPreStatusUpdate2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
-    }
-
-    // we can't delete while its creating, so set it to Running
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate2.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate2.get.nodepool.id, NodepoolStatus.Running))
-
-    val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-
-    val appResultPreDelete2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
-    }
-    appResultPreDelete2.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete2.get.app.auditInfo.destroyedDate shouldBe None
-
-    kubeServiceInterp
-      .deleteAllAppsV2(userInfo, workspaceId, false)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
-    }
-
-    clusterPostDelete.length shouldEqual 1
-    val nodepools = clusterPostDelete.flatMap(_.nodepools)
-    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
-    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Running)
-    apps.map(_.status) shouldEqual List(AppStatus.Predeleting, AppStatus.Predeleting)
-
-    // throw away create messages
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteAppV2, LeoPubsubMessageType.DeleteAppV2)
-    val deleteAppMessages = messages.map(_.asInstanceOf[DeleteAppV2Message])
-    deleteAppMessages.map(_.appId) should contain theSameElementsAs apps.map(_.id)
-    deleteAppMessages.map(_.workspaceId) shouldBe List(workspaceId, workspaceId)
-    deleteAppMessages.map(_.diskId) shouldBe List(None, None)
-  }
-
-  it should "V2 GCP - deleteAllApp, update all status appropriately, and queue multiple messages" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue, wsmDao = gcpWsmDao, wsmClientProvider = googleWsmClientProvider)
-
-    val appName = AppName("app1")
-    val appName2 = AppName("app2")
-    val diskConfig1 = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
-    val diskConfig2 = PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty)
-
-    val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Galaxy, diskConfig = Some(diskConfig1))
-    val appReq2 =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Galaxy, diskConfig = Some(diskConfig2))
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    // we can't delete/create another while its creating, so set it to Running
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-    dbFutureValue(
-      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate.get.cluster.id, KubernetesClusterStatus.Running)
-    )
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
-    }
-
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate2.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate2.get.nodepool.id, NodepoolStatus.Running))
-    dbFutureValue(
-      kubernetesClusterQuery.updateStatus(appResultPreStatusUpdate2.get.cluster.id, KubernetesClusterStatus.Running)
-    )
-
-    val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-
-    val appResultPreDelete2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
-    }
-    appResultPreDelete2.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete2.get.app.auditInfo.destroyedDate shouldBe None
-
-    kubeServiceInterp
-      .deleteAllAppsV2(userInfo, workspaceId, false)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
-    }
-
-    clusterPostDelete.length shouldEqual 1
-    val nodepools = clusterPostDelete.flatMap(_.nodepools)
-    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
-    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Running)
-    apps.map(_.status) shouldEqual List(AppStatus.Predeleting, AppStatus.Predeleting)
-
-    // throw away create messages
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteAppV2, LeoPubsubMessageType.DeleteAppV2)
-    val deleteAppMessages = messages.map(_.asInstanceOf[DeleteAppV2Message])
-    deleteAppMessages.map(_.appId) shouldBe apps.map(_.id)
-    deleteAppMessages.map(_.workspaceId) shouldBe List(workspaceId, workspaceId)
-    deleteAppMessages.map(_.diskId) shouldBe List(None, None)
-  }
-
-  it should "V2 - deleteAllApp, should fail and not update anything if there is a non-deletable app status appropriately" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-    val appName = AppName("app1")
-    val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-    val appName2 = AppName("app2")
-    val appReq2 =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    kubeServiceInterp
-      .createAppV2(userInfo, workspaceId, appName2, appReq2)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    val appResultPreStatusUpdate2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName2)
-    }
-
-    // set this one to a non-deletable status
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Provisioning))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-
-    // set this one to a deletable status
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate2.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate2.get.nodepool.id, NodepoolStatus.Running))
-
-    val thrown = the[DeleteAllAppsCannotBePerformed] thrownBy {
-      kubeServiceInterp
-        .deleteAllAppsV2(userInfo, workspaceId, false)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-
-    val clusterPostDelete = dbFutureValue {
-      KubernetesServiceDbQueries.listFullAppsByWorkspaceId(Some(workspaceId), includeDeleted = true)
-    }
-
-    clusterPostDelete.length shouldEqual 1
-    val nodepools = clusterPostDelete.flatMap(_.nodepools)
-    val apps = clusterPostDelete.flatMap(_.nodepools).flatMap(_.apps)
-    nodepools.map(_.status) shouldEqual List(NodepoolStatus.Running)
-    apps.map(_.status).toSet shouldEqual Set(AppStatus.Running, AppStatus.Provisioning)
-
-    // throw away create messages
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    messages shouldBe List.empty
-  }
-
-  /** TODO: Once disks are supported on Azure Apps
-   it should "error on delete if disk is in a status that cannot be deleted" in isolatedDbTest {
-   val publisherQueue = QueueFactory.makePublisherQueue()
-   val wsmClientProvider = new MockWsmClientProvider() {
-   override def getDiskState(token: String, workspaceId: WorkspaceId, wsmResourceId: WsmControlledResourceId)(implicit
-   ev: Ask[IO, AppContext]
-   ): IO[WsmState] =
-        IO.pure(WsmState(Some("CREATING")))
-   }
-   val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
-
-   val appName = AppName("app1")
-   val diskConfig = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
-   val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = Some(diskConfig))
-
-   appServiceInterp
-   .createAppV2(userInfo, workspaceId, appName, appReq)
-   .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-   val appResultPreStatusUpdate = dbFutureValue {
-   KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-   }
-
-   // we can't delete while its creating, so set it to Running
-   dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-   dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-
-   val appResultPreDelete = dbFutureValue {
-   KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-   }
-   appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-   appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-
-   an[DiskCannotBeDeletedWsmException] should be thrownBy {
-   appServiceInterp
-   .deleteAppV2(userInfo, workspaceId, appName, true)
-   .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-   }
-   }
-   */
-
-  it should "error on delete if app subresource is in a status that cannot be deleted" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val wsmClientProvider = new MockWsmClientProvider() {
-      override def getWsmState(token: String,
-                               workspaceId: WorkspaceId,
-                               wsmResourceId: WsmControlledResourceId,
-                               wsmResourceType: WsmResourceType
-      )(implicit ev: Ask[IO, AppContext], log: StructuredLogger[IO]): IO[WsmState] =
-        IO.pure(WsmState(Some("CREATING")))
-    }
-    val appServiceInterp = makeInterp(publisherQueue, wsmClientProvider = wsmClientProvider)
-
-    val appName = AppName("app1")
-    val appReq =
-      createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.Cromwell, diskConfig = None)
-
-    appServiceInterp
-      .createAppV2(userInfo, workspaceId, appName, appReq)
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    val appResultPreStatusUpdate = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-
-    // we can't delete while its creating, so set it to Running
-    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
-    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
-
-    // add database record
-    dbFutureValue(
-      appControlledResourceQuery
-        .insert(
-          appResultPreStatusUpdate.get.app.id.id,
-          wsmResourceId,
-          WsmResourceType.AzureDatabase,
-          AppControlledResourceStatus.Creating
-        )
-    )
-
-    val appResultPreDelete = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(workspaceId, appName)
-    }
-    appResultPreDelete.get.app.status shouldEqual AppStatus.Running
-    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-
-    an[AppResourceCannotBeDeletedException] should be thrownBy {
-      appServiceInterp
-        .deleteAppV2(userInfo, workspaceId, appName, true)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
-
-  it should "fail to create a V2 app if it is disabled" in {
-    val appName = AppName("app1")
-    val appReq = createAppRequest.copy(kubernetesRuntimeConfig = None, appType = AppType.HailBatch, diskConfig = None)
-
-    val thrown = the[AppTypeNotEnabledException] thrownBy {
-      appServiceInterp
-        .createAppV2(userInfo, workspaceId, appName, appReq)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-
-    thrown.appType shouldBe AppType.HailBatch
   }
 
   "checkIfAppCreationIsAllowed" should "enable IntraNodeVisibility if customApp check is disabled" in {

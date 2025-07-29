@@ -51,8 +51,7 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
       new MonitorAtBoot[IO](
         baselineDependencies.publisherQueue,
         None, // no GCP dependency
-        baselineDependencies.samDAO,
-        baselineDependencies.wsmClientProvider
+        baselineDependencies.samDAO
       )
 
     List(monitorAtBoot.process)
@@ -86,7 +85,6 @@ class AzureDependenciesBuilder extends CloudDependenciesBuilder {
         None,
         None,
         gkeCustomAppConfig,
-        baselineDependencies.wsmClientProvider,
         baselineDependencies.samService
       )
 

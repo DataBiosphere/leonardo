@@ -9,7 +9,6 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{
@@ -121,7 +120,6 @@ class GcpDependenciesBuilderSpec
       mock[HttpJupyterDAO[IO]],
       mock[HttpRStudioDAO[IO]],
       mock[HttpWelderDAO[IO]],
-      mock[HttpWsmDao[IO]],
       mock[SamAuthProvider[IO]],
       mock[LeoPublisher[IO]],
       mock[Queue[IO, LeoPubsubMessage]],
@@ -135,23 +133,11 @@ class GcpDependenciesBuilderSpec
       mock[Cache[IO, SamResourceCacheKey, (Option[String], Option[AppAccessScope])]],
       mock[OpenIDConnectConfiguration],
       mock[AppDAO[IO]],
-      mock[WdsDAO[IO]],
-      mock[CbasDAO[IO]],
-      mock[CromwellDAO[IO]],
-      mock[HailBatchDAO[IO]],
-      mock[ListenerDAO[IO]],
-      mock[HttpWsmClientProvider[IO]],
-      mock[HttpBpmClientProvider[IO]],
-      mock[AzureContainerService[IO]],
       mock[RuntimeServiceConfig],
       mock[KubernetesDnsCache[IO]],
       mock[HttpAppDescriptorDAO[IO]],
       mock[HelmInterpreter[IO]],
-      mock[AzureRelayService[IO]],
-      mock[AzureVmService[IO]],
       mock[Cache[IO, Long, OperationFuture[Operation, Operation]]],
-      mock[AzureBatchService[IO]],
-      mock[AzureApplicationInsightsService[IO]],
       mock[OpenTelemetryMetrics[IO]],
       mock[SamService[IO]]
     )

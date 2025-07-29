@@ -31,9 +31,8 @@ class HttpRoutes(
   oidcConfig: OpenIDConnectConfiguration,
   statusService: StatusService,
   gcpOnlyServicesRegistry: ServicesRegistry,
-  diskV2Service: DiskV2Service[IO],
   kubernetesService: AppService[IO],
-  azureService: RuntimeV2Service[IO],
+  runtimeV2Service: RuntimeV2Service[IO],
   adminService: AdminService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
@@ -45,9 +44,7 @@ class HttpRoutes(
   private val corsSupport = new CorsSupport(contentSecurityPolicy, refererConfig)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
   private val appRoutes = createAppRoutesUsingServicesRegistry
-  private val appV2Routes = new AppV2Routes(kubernetesService, userInfoDirectives)
-  private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
-  private val diskV2Routes = new DiskV2Routes(diskV2Service, userInfoDirectives)
+  private val runtimeV2Routes = new RuntimeV2Routes(runtimeV2Service, userInfoDirectives)
   private val adminRoutes = new AdminRoutes(adminService, userInfoDirectives)
   private val diskRoutes = createDiskRoutesUsingServicesRegistry
   private val runtimeRoutes = createRuntimeRoutesUsingServicesRegistry
@@ -116,6 +113,7 @@ class HttpRoutes(
 
   val route: Route =
     logRequestResult {
+      // Note that this is Azure-only as in hosted on Azure, not operating on Azure resources
       enableAzureOnlyRoutes match {
         case false =>
           Route.seal(
@@ -124,9 +122,8 @@ class HttpRoutes(
                 "swagger/api-docs.yaml"
               ) ~ oidcConfig.oauth2Routes ~ proxyRoutes.get.route ~ statusRoutes.route ~
               pathPrefix("api") {
-                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
-                  diskRoutes.get.routes ~ kubernetesRoutes.routes ~ appV2Routes.routes ~ diskV2Routes.routes ~ adminRoutes.routes ~
-                  resourcesRoutes.get.routes
+                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~ diskRoutes.get.routes ~ kubernetesRoutes.routes ~
+                  adminRoutes.routes ~ resourcesRoutes.get.routes
               }
           )
         case true =>
@@ -134,9 +131,7 @@ class HttpRoutes(
             oidcConfig
               .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
               pathPrefix("api") {
-                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~
-                  diskRoutes.get.routes ~ diskV2Routes.routes ~
-                  appRoutes.get.routes ~ appV2Routes.routes ~ adminRoutes.routes
+                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~ diskRoutes.get.routes ~ appRoutes.get.routes ~ adminRoutes.routes
               }
           )
       }

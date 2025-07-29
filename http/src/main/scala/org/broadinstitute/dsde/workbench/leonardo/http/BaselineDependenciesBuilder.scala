@@ -36,11 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{HttpSamApiClientProvider, SamService, SamServiceInterp}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AzureServiceConfig,
-  RuntimeServiceConfig,
-  SamResourceCacheKey
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{RuntimeServiceConfig, SamResourceCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, UpdateDateAccessedMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -133,20 +129,6 @@ class BaselineDependenciesBuilder {
           cloudAuthTokenProvider
         )
       )
-      cromwellDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cromwell_client"), false).map(
-        client => new HttpCromwellDAO[F](client)
-      )
-      cbasDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_cbas_client"), false).map(client =>
-        new HttpCbasDAO[F](client)
-      )
-      wdsDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wds_client"), false).map(client =>
-        new HttpWdsDAO[F](client)
-      )
-      hailBatchDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_hail_batch_client"), false)
-        .map(client => new HttpHailBatchDAO[F](client))
-      listenerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_listener_client"), false).map(
-        client => new HttpListenerDAO[F](client)
-      )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
         client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
@@ -165,28 +147,7 @@ class BaselineDependenciesBuilder {
       dockerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
         HttpDockerDAO[F](client)
       )
-      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true)
-        .map(client => new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm))
 
-      wsmClientProvider = new HttpWsmClientProvider(ConfigReader.appConfig.azure.wsm.uri)
-
-      bpmClientProvider = new HttpBpmClientProvider(ConfigReader.appConfig.azure.bpm.uri)
-
-      azureRelay <- AzureRelayService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
-
-      azureVmService <- AzureVmService.fromAzureAppRegistrationConfig(ConfigReader.appConfig.azure.appRegistration)
-
-      azureContainerService <- AzureContainerService.fromAzureAppRegistrationConfig(
-        ConfigReader.appConfig.azure.appRegistration
-      )
-
-      azureBatchService <- AzureBatchService.fromAzureAppRegistrationConfig(
-        ConfigReader.appConfig.azure.appRegistration
-      )
-
-      azureApplicationInsightsService <- AzureApplicationInsightsService.fromAzureAppRegistrationConfig(
-        ConfigReader.appConfig.azure.appRegistration
-      )
       // Set up identity providers
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
                                                                                 samAuthConfig.authCacheExpiryTime
@@ -284,14 +245,7 @@ class BaselineDependenciesBuilder {
         imageConfig,
         autoFreezeConfig,
         dataprocConfig,
-        gceConfig,
-        AzureServiceConfig(
-          // For now azure disks share same defaults as normal disks
-          ConfigReader.appConfig.persistentDisk,
-          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
-          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.listenerImage,
-          ConfigReader.appConfig.azure.pubsubHandler.welderImage
-        )
+        gceConfig
       )
     } yield BaselineDependencies[F](
       sslContext,
@@ -301,7 +255,6 @@ class BaselineDependenciesBuilder {
       jupyterDao,
       rstudioDAO,
       welderDao,
-      wsmDao,
       authProvider,
       leoPublisher,
       publisherQueue,
@@ -315,23 +268,11 @@ class BaselineDependenciesBuilder {
       samResourceCache,
       oidcConfig,
       appDAO,
-      wdsDao,
-      cbasDao,
-      cromwellDao,
-      hailBatchDao,
-      listenerDao,
-      wsmClientProvider,
-      bpmClientProvider,
-      azureContainerService,
       runtimeServiceConfig,
       kubernetesDnsCache,
       appDescriptorDAO,
       helmClient,
-      azureRelay,
-      azureVmService,
       operationFutureCache,
-      azureBatchService,
-      azureApplicationInsightsService,
       openTelemetry,
       samService
     )
@@ -437,7 +378,6 @@ final case class BaselineDependencies[F[_]](
   jupyterDAO: HttpJupyterDAO[F],
   rstudioDAO: HttpRStudioDAO[F],
   welderDAO: HttpWelderDAO[F],
-  wsmDAO: HttpWsmDao[F],
   authProvider: SamAuthProvider[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
@@ -451,23 +391,11 @@ final case class BaselineDependencies[F[_]](
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, (Option[String], Option[AppAccessScope])],
   openIDConnectConfiguration: OpenIDConnectConfiguration,
   appDAO: AppDAO[F],
-  wdsDAO: WdsDAO[F],
-  cbasDAO: CbasDAO[F],
-  cromwellDAO: CromwellDAO[F],
-  hailBatchDAO: HailBatchDAO[F],
-  listenerDAO: ListenerDAO[F],
-  wsmClientProvider: HttpWsmClientProvider[F],
-  bpmClientProvider: HttpBpmClientProvider[F],
-  azureContainerService: AzureContainerService[F],
   runtimeServicesConfig: RuntimeServiceConfig,
   kubernetesDnsCache: KubernetesDnsCache[F],
   appDescriptorDAO: HttpAppDescriptorDAO[F],
   helmClient: HelmInterpreter[F],
-  azureRelay: AzureRelayService[F],
-  azureVmService: AzureVmService[F],
   operationFutureCache: Cache[F, Long, OperationFuture[Operation, Operation]],
-  azureBatchService: AzureBatchService[F],
-  azureApplicationInsightsService: AzureApplicationInsightsService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   samService: SamService[F]
 )

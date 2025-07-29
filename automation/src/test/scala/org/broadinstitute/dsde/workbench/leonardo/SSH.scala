@@ -3,14 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.{IO, Resource}
 import com.google.cloud.oslogin.common.OsLoginProto.SshPublicKey
 import com.google.cloud.oslogin.v1.{ImportSshPublicKeyRequest, OsLoginServiceClient}
-import org.broadinstitute.dsde.rawls.model.AzureManagedAppCoordinates
-import org.typelevel.log4cats.StructuredLogger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.typelevel.log4cats.StructuredLogger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
@@ -26,33 +25,6 @@ case class Tunnel(pid: String, port: Int) {
 
 object SSH {
   val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
-
-  // TODO: If multiple tests need to ssh into an azure VM: add a lock of sorts, only one tunnel at a time with same port
-  // A bastion tunnel is needed to tunnel to an azure vm
-  // See: https://learn.microsoft.com/en-us/azure/bastion/native-client
-  def startAzureBastionTunnel(runtimeName: RuntimeName, port: Int = LeonardoConfig.Azure.defaultBastionPort)(implicit
-    staticTestCoordinates: AzureManagedAppCoordinates
-  ): Resource[IO, Tunnel] = {
-    val targetResourceId =
-      s"/subscriptions/${staticTestCoordinates.subscriptionId.toString}/resourceGroups/${staticTestCoordinates.managedResourceGroupId}/providers/Microsoft.Compute/virtualMachines/${runtimeName.asString}"
-
-    val makeTunnel = for {
-      scriptPath <- IO(getClass.getClassLoader.getResource("startTunnel.sh").getPath)
-      process = Process(
-        scriptPath,
-        None,
-        "BASTION_NAME" -> LeonardoConfig.Azure.bastionName,
-        "RESOURCE_GROUP" -> staticTestCoordinates.managedResourceGroupId,
-        "RESOURCE_ID" -> targetResourceId,
-        "PORT" -> port.toString
-      )
-      output <- IO(process !!)
-      _ <- loggerIO.info(s"Bastion tunnel start command full output:\n\t${output}")
-      tunnel = Tunnel(output.split('\n').last, port)
-    } yield tunnel
-
-    Resource.make(makeTunnel)(tunnel => loggerIO.info("Closing tunnel") >> closeTunnel(tunnel))
-  }
 
   final case class SSHSession(session: Session, client: SSHClient)
   // Note that a session is a one time use resource, and only supports one command execution
@@ -72,18 +44,12 @@ object SSH {
       _ <- IO(client.connect(hostName, port))
 
       _ <- loggerIO.info("Authenticating ssh client ")
-      _ <-
-        if (sshConfig.cloudProvider == CloudProvider.Azure)
-          IO(client.authPassword(LeonardoConfig.Azure.vmUser, LeonardoConfig.Azure.vmPassword))
-        else {
-          for {
-            keyConfig <- createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail),
-                                       sshConfig.googleProject.get
-            )
-            _ <- IO(client.authPublickey(keyConfig.username, keyConfig.privateKey.toAbsolutePath.toString))
-          } yield ()
-        }
-
+      _ <- for {
+        keyConfig <- createSSHKeys(WorkbenchEmail(LeonardoConfig.Leonardo.serviceAccountEmail),
+                                   sshConfig.googleProject.get
+        )
+        _ <- IO(client.authPublickey(keyConfig.username, keyConfig.privateKey.toAbsolutePath.toString))
+      } yield ()
       _ <- loggerIO.info("Starting ssh session")
       session <- IO(client.startSession())
     } yield SSHSession(session, client)
