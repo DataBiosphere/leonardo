@@ -524,7 +524,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
   # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' /etc/jupyter/custom/jupyter_delocalize.py"
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' $JUPYTER_HOME/custom/jupyter_delocalize.py"
 
   log 'Wget the gitignore_global file, set gitignore in Git Config'
 
