@@ -1774,8 +1774,9 @@ class GKEInterpreter[F[_]](
 
     } yield helmAuthContext
 
-  private[util] def getNodepoolServiceAccount(googleProject: GoogleProject)
-                                             (implicit ev: Ask[F, AppContext]): F[Option[String]] = {
+  private[util] def getNodepoolServiceAccount(
+    googleProject: GoogleProject
+  )(implicit ev: Ask[F, AppContext]): F[Option[String]] = {
     val defaultSaEmail = s"gke-node-default-sa@${googleProject.value}.iam.gserviceaccount.com"
 
     for {
@@ -1784,7 +1785,8 @@ class GKEInterpreter[F[_]](
       // Check if the default service account exists in Google IAM
       serviceAccountExists <- F.fromFuture(
         F.delay(
-          googleIamDAO.findServiceAccount(googleProject, WorkbenchEmail(defaultSaEmail))
+          googleIamDAO
+            .findServiceAccount(googleProject, WorkbenchEmail(defaultSaEmail))
             .map(_.isDefined)
             .recover { case _ => false }
         )
@@ -1794,9 +1796,10 @@ class GKEInterpreter[F[_]](
       )
 
       // If service account exists, use it. Otherwise use default compute SA
-    } yield  if (serviceAccountExists) {
-      Some(defaultSaEmail)
-    } else None
+    } yield
+      if (serviceAccountExists) {
+        Some(defaultSaEmail)
+      } else None
   }
 
   private[util] def buildGoogleNodepool(
