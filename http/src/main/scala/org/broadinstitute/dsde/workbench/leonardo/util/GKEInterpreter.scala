@@ -115,14 +115,19 @@ class GKEInterpreter[F[_]](
         s"Beginning cluster creation for cluster ${dbCluster.getClusterId.toString}"
       )
 
-      // Get nodepools to pass in the create cluster request
+      // Get labels and service account to pass in the create cluster request
       projectLabels <- googleResourceService.getLabels(params.googleProject)
+      serviceAccount <- getNodepoolServiceAccount(params.googleProject)
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"[AN-276] Project labels: ${projectLabels.getOrElse("None")}"
+      )
       nodepools =
         if (params.autopilot) List.empty
         else
           dbCluster.nodepools
             .filter(n => params.nodepoolsToCreate.contains(n.id))
-            .map(np => buildLegacyGoogleNodepool(np, params.googleProject, projectLabels))
+            .map(np => buildLegacyGoogleNodepool(np, serviceAccount))
 
       _ <-
         if (nodepools.size != params.nodepoolsToCreate.size)
@@ -157,8 +162,6 @@ class GKEInterpreter[F[_]](
 
       autoscaling =
         if (params.autopilot) {
-          val serviceAccount = getNodepoolServiceAccount(projectLabels, params.googleProject)
-
           serviceAccount match {
             case Some(sa) =>
               new com.google.api.services.container.model.ClusterAutoscaling().setAutoprovisioningNodePoolDefaults(
@@ -319,15 +322,15 @@ class GKEInterpreter[F[_]](
           s"Cluster with id ${dbNodepool.clusterId} not found in database | trace id: ${ctx.traceId}"
         )
       )
+      serviceAccount <- getNodepoolServiceAccount(params.googleProject)
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
 
-      projectLabels <- googleResourceService.getLabels(params.googleProject)
       req = KubernetesCreateNodepoolRequest(
         dbCluster.getClusterId,
-        buildGoogleNodepool(dbNodepool, params.googleProject, projectLabels)
+        buildGoogleNodepool(dbNodepool, serviceAccount)
       )
 
       operationOpt <- nodepoolLock.withKeyLock(dbCluster.getClusterId) {
@@ -1771,19 +1774,43 @@ class GKEInterpreter[F[_]](
 
     } yield helmAuthContext
 
-  private[util] def getNodepoolServiceAccount(projectLabels: Option[Map[String, String]],
-                                              googleProject: GoogleProject
-  ): Option[String] =
-    projectLabels.flatMap { x =>
-      x.get("gke-default-sa").map(v => s"${v}@${googleProject.value}.iam.gserviceaccount.com")
-    }
+//  private[util] def getNodepoolServiceAccount(projectLabels: Option[Map[String, String]],
+//                                              googleProject: GoogleProject
+//  ): Option[String] =
+//    projectLabels.flatMap { x =>
+//      x.get("gke-default-sa").map(v => s"${v}@${googleProject.value}.iam.gserviceaccount.com")
+//    }
+
+  private[util] def getNodepoolServiceAccount(googleProject: GoogleProject)
+                                             (implicit ev: Ask[F, AppContext]): F[Option[String]] = {
+    val defaultSaEmail = s"gke-default-sa@${googleProject.value}.iam.gserviceaccount.com"
+
+    for {
+      ctx <- ev.ask
+
+      // Check if the default service account exists in Google IAM
+      serviceAccountExists <- F.fromFuture(
+        F.delay(
+          googleIamDAO.findServiceAccount(googleProject, WorkbenchEmail(defaultSaEmail))
+            .map(_.isDefined)
+            .recover { case _ => false }
+        )
+      )
+      _ <- logger.info(ctx.loggingCtx)(
+        s"[AN-276] Service account exists in project ${googleProject.value}: $serviceAccountExists"
+      )
+
+      // If service account exists, use it. Otherwise use default compute SA
+    } yield  if (serviceAccountExists) {
+      Some(defaultSaEmail)
+    } else None
+  }
 
   private[util] def buildGoogleNodepool(
     nodepool: Nodepool,
-    googleProject: GoogleProject,
-    projectLabels: Option[Map[String, String]]
+    serviceAccount: Option[String]
   ): com.google.container.v1.NodePool = {
-    val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
+    logger.info(s"[AN-276] Building GKE Nodepool with service account: ${serviceAccount.getOrElse("default")}")
 
     val nodepoolBuilder = NodePool
       .newBuilder()
@@ -1833,10 +1860,10 @@ class GKEInterpreter[F[_]](
 
   private[util] def buildLegacyGoogleNodepool(
     nodepool: Nodepool,
-    googleProject: GoogleProject,
-    projectLabels: Option[Map[String, String]]
+    serviceAccount: Option[String]
   ): com.google.api.services.container.model.NodePool = {
-    val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
+
+    logger.info(s"[AN-276] Building GKE Nodepool with service account: ${serviceAccount.getOrElse("default")}")
 
     val legacyGoogleNodepool = new com.google.api.services.container.model.NodePool()
       .setInitialNodeCount(nodepool.numNodes.amount)
