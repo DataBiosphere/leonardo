@@ -1774,16 +1774,9 @@ class GKEInterpreter[F[_]](
 
     } yield helmAuthContext
 
-//  private[util] def getNodepoolServiceAccount(projectLabels: Option[Map[String, String]],
-//                                              googleProject: GoogleProject
-//  ): Option[String] =
-//    projectLabels.flatMap { x =>
-//      x.get("gke-default-sa").map(v => s"${v}@${googleProject.value}.iam.gserviceaccount.com")
-//    }
-
   private[util] def getNodepoolServiceAccount(googleProject: GoogleProject)
                                              (implicit ev: Ask[F, AppContext]): F[Option[String]] = {
-    val defaultSaEmail = s"gke-default-sa@${googleProject.value}.iam.gserviceaccount.com"
+    val defaultSaEmail = s"gke-node-default-sa@${googleProject.value}.iam.gserviceaccount.com"
 
     for {
       ctx <- ev.ask
