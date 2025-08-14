@@ -32,7 +32,7 @@ ZONE="${REGION}-a"
 # If it doesn't exist, we create it prior to launching Daisy and
 # the Daisy workflow cleans up all but daisy.log at the end.
 if [ -z "$GCE_IMAGE_BUCKET" ]; then
-  GCE_IMAGE_BUCKET="gs://leo-gce-image-creation-logs"
+  GCE_IMAGE_BUCKET="gs://leonardo-gce-image-creation-logs"
 fi
 
 
