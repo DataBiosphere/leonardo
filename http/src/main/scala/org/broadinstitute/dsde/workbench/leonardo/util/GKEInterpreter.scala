@@ -122,6 +122,9 @@ class GKEInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(
         s"[AN-276] Project labels: ${projectLabels.getOrElse("None")}"
       )
+
+      _ <- logger.info(s"[AN-276] Building GKE Nodepool with service account: ${serviceAccount.getOrElse("default")}")
+
       nodepools =
         if (params.autopilot) List.empty
         else
@@ -327,6 +330,8 @@ class GKEInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(
         s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getClusterId.toString}"
       )
+
+      _ <- logger.info(s"[AN-276] Building GKE Nodepool with service account: ${serviceAccount.getOrElse("default")}")
 
       req = KubernetesCreateNodepoolRequest(
         dbCluster.getClusterId,
@@ -1806,7 +1811,6 @@ class GKEInterpreter[F[_]](
     nodepool: Nodepool,
     serviceAccount: Option[String]
   ): com.google.container.v1.NodePool = {
-    logger.info(s"[AN-276] Building GKE Nodepool with service account: ${serviceAccount.getOrElse("default")}")
 
     val nodepoolBuilder = NodePool
       .newBuilder()
@@ -1858,9 +1862,6 @@ class GKEInterpreter[F[_]](
     nodepool: Nodepool,
     serviceAccount: Option[String]
   ): com.google.api.services.container.model.NodePool = {
-
-    logger.info(s"[AN-276] Building GKE Nodepool with service account: ${serviceAccount.getOrElse("default")}")
-
     val legacyGoogleNodepool = new com.google.api.services.container.model.NodePool()
       .setInitialNodeCount(nodepool.numNodes.amount)
       .setName(nodepool.nodepoolName.value)
