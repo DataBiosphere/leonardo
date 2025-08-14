@@ -20,9 +20,9 @@ REGION="us-central1"
 ZONE="${REGION}-a"
 
 if [ -z "$DATAPROC_IMAGE_BUCKET" ]; then
-  DATAPROC_IMAGE_BUCKET="gs://leo-dataproc-image-creation-logs"
+  DATAPROC_IMAGE_BUCKET="gs://leonardo-dataproc-image-creation-logs"
 fi
-TEST_BUCKET="gs://leo-dataproc-image-creation-logs"
+TEST_BUCKET="gs://leonardo-dataproc-image-creation-logs"
 
 pushd $WORK_DIR
 
