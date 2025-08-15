@@ -81,11 +81,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Mockito
             autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes)))
       )
       .save()
+    val serviceAccount = Some(s"gke-node-default-sa@${savedCluster1.cloudContext.asString}.iam.gserviceaccount.com")
     val googleNodepool =
-      gkeInterp.buildGoogleNodepool(savedNodepool1,
-                                    savedCluster1.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                                    Some(Map("gke-default-sa" -> "gke-node-default-sa"))
-      )
+      gkeInterp.buildGoogleNodepool(savedNodepool1, serviceAccount)
     googleNodepool.getAutoscaling.getEnabled shouldBe true
     googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
     googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
