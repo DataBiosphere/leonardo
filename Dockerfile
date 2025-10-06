@@ -24,6 +24,7 @@ ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
 
 # WARNING: If you are changing any versions here, update it in the reference.conf
+# Note: Because this pull is run at build time, updates to these helm charts will not be incorporated until a new Leo build is initiated and released
 ENV TERRA_APP_SETUP_VERSION 0.1.0
 ENV TERRA_APP_VERSION 0.5.0
 # This is galaxykubeman, which references Galaxy
