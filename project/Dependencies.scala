@@ -25,7 +25,7 @@ object Dependencies {
   val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
   val workbenchOauth2V = "0.8-3e0cf25"
-  val workbenchAzureV = s"1.0-$workbenchLibsHash"
+//  val workbenchAzureV = s"1.0-$workbenchLibsHash" AN-570
 
   val helmScalaSdkV = "0.0.9.1"
 
@@ -103,9 +103,9 @@ object Dependencies {
     excludeGuava,
     excludeOpenTelemetry
   )
-  // TODO remove once all Azure-related code is gone
-  val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
-  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
+  // TODO remove once all Azure-related code is gone AN-570
+//  val workbenchAzure: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV
+//  val workbenchAzureTest: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-azure"  % workbenchAzureV % "test" classifier "tests"
 
   val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
   val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
@@ -190,8 +190,8 @@ object Dependencies {
     circeYaml,
     http4sDsl,
     scalaTestScalaCheck,
-    workbenchAzure,
-    workbenchAzureTest,
+//    workbenchAzure,
+//    workbenchAzureTest,
     logbackClassic,
     terraCommonLib,
     sam
@@ -222,7 +222,7 @@ object Dependencies {
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito,
-    "com.azure" % "azure-identity" % "1.10.4"
+//    "com.azure" % "azure-identity" % "1.10.4"
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD, excludeOpenTelemetry)

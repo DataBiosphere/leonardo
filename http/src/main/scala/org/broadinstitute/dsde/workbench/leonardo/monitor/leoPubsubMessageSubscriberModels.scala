@@ -663,8 +663,9 @@ object LeoPubsubCodec {
           case CloudService.GCE =>
             x.as[RuntimeConfigInCreateRuntimeMessage.GceConfig] orElse x
               .as[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig]
-          case CloudService.AzureVm =>
-            throw new AzureUnimplementedException("Azure should not be used with existing create runtime message")
+          // AN-570
+//          case CloudService.AzureVm =>
+//            throw new AzureUnimplementedException("Azure should not be used with existing create runtime message")
         }
       } yield r
     }
@@ -934,61 +935,61 @@ object PubsubHandleMessageError {
 
     val isRetryable: Boolean = false
   }
-
-  final case class AzureDiskDeletionError(diskId: DiskId,
-                                          wsmControlledResourceId: WsmControlledResourceId,
-                                          workspaceId: WorkspaceId,
-                                          errorMsg: String
-  ) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"\n\tdisk ${diskId.value} with resource id: ${wsmControlledResourceId.value}, \n\tmsg: ${errorMsg})"
-
-    val isRetryable: Boolean = false
-  }
-
-  final case class AzureDiskResourceDeletionError(id: Either[Long, WsmControlledResourceId],
-                                                  workspaceId: WorkspaceId,
-                                                  errorMsg: String
-  ) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"\n\tAssociated disk resource: ${id} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
-
-    val isRetryable: Boolean = false
-  }
-
-  final case class AzureRuntimeCreationError(runtimeId: Long,
-                                             workspaceId: WorkspaceId,
-                                             errorMsg: String,
-                                             useExistingDisk: Boolean
-  ) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
-    val isRetryable: Boolean = false
-  }
-
-  final case class AzureRuntimeDeletionError(runtimeId: Long,
-                                             diskId: Option[DiskId],
-                                             workspaceId: WorkspaceId,
-                                             errorMsg: String
-  ) extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
-    val isRetryable: Boolean = false
-  }
-
-  final case class AzureRuntimeStartingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
-    val isRetryable: Boolean = false
-  }
-
-  final case class AzureRuntimeStoppingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
-    val isRetryable: Boolean = false
-  }
+//AN_570
+//  final case class AzureDiskDeletionError(diskId: DiskId,
+//                                          wsmControlledResourceId: WsmControlledResourceId,
+//                                          workspaceId: WorkspaceId,
+//                                          errorMsg: String
+//  ) extends PubsubHandleMessageError {
+//    override def getMessage: String =
+//      s"\n\tdisk ${diskId.value} with resource id: ${wsmControlledResourceId.value}, \n\tmsg: ${errorMsg})"
+//
+//    val isRetryable: Boolean = false
+//  }
+//
+//  final case class AzureDiskResourceDeletionError(id: Either[Long, WsmControlledResourceId],
+//                                                  workspaceId: WorkspaceId,
+//                                                  errorMsg: String
+//  ) extends PubsubHandleMessageError {
+//    override def getMessage: String =
+//      s"\n\tAssociated disk resource: ${id} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
+//
+//    val isRetryable: Boolean = false
+//  }
+//
+//  final case class AzureRuntimeCreationError(runtimeId: Long,
+//                                             workspaceId: WorkspaceId,
+//                                             errorMsg: String,
+//                                             useExistingDisk: Boolean
+//  ) extends PubsubHandleMessageError {
+//    override def getMessage: String =
+//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
+//    val isRetryable: Boolean = false
+//  }
+//
+//  final case class AzureRuntimeDeletionError(runtimeId: Long,
+//                                             diskId: Option[DiskId],
+//                                             workspaceId: WorkspaceId,
+//                                             errorMsg: String
+//  ) extends PubsubHandleMessageError {
+//    override def getMessage: String =
+//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
+//    val isRetryable: Boolean = false
+//  }
+//
+//  final case class AzureRuntimeStartingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
+//      extends PubsubHandleMessageError {
+//    override def getMessage: String =
+//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+//    val isRetryable: Boolean = false
+//  }
+//
+//  final case class AzureRuntimeStoppingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
+//      extends PubsubHandleMessageError {
+//    override def getMessage: String =
+//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+//    val isRetryable: Boolean = false
+//  }
 
   final case class AppNotFound(appId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
     override def getMessage: String =

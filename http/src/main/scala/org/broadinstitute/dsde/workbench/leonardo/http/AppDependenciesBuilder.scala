@@ -215,10 +215,13 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
 
 object AppDependenciesBuilder {
   def apply(): AppDependenciesBuilder =
-    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
-      case true =>
-        new AppDependenciesBuilder(BaselineDependenciesBuilder(), new AzureDependenciesBuilder())
-      case false =>
-        new AppDependenciesBuilder(BaselineDependenciesBuilder(), new GcpDependencyBuilder())
-    }
+    new AppDependenciesBuilder(BaselineDependenciesBuilder(), new GcpDependencyBuilder())
+  // AN-570
+//  def apply(): AppDependenciesBuilder =
+//    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+//      case true =>
+//        new AppDependenciesBuilder(BaselineDependenciesBuilder(), new AzureDependenciesBuilder())
+//      case false =>
+//        new AppDependenciesBuilder(BaselineDependenciesBuilder(), new GcpDependencyBuilder())
+//    }
 }

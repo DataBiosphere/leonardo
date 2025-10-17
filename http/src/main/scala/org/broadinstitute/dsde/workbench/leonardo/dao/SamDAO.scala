@@ -3,7 +3,7 @@ package dao
 
 import cats.mtl.Ask
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+//import org.broadinstitute.dsde.workbench.azure.AzureCloudContext AN_570
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -75,10 +75,11 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
-  /** Gets a pet Azure managed identity for the calling user. */
-  def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Option[WorkbenchEmail]]
+  // AN_570
+//  /** Gets a pet Azure managed identity for the calling user. */
+//  def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
+//    ev: Ask[F, TraceId]
+//  ): F[Option[WorkbenchEmail]]
 
   /** Gets the GCP proxy group for provided user email. */
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]]

@@ -43,11 +43,18 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
 
   // TODO consider renaming this method and the KubernetesClusterId class
   // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
-  def getClusterId: KubernetesClusterId =
-    cloudContext match {
-      case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
-      case CloudContext.Azure(_)   => throw new IllegalStateException("Can't get GCP ID for an Azure cluster")
-    }
+
+  // AN-570
+//  def getClusterId: KubernetesClusterId =
+//    cloudContext match {
+//      case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
+//      case CloudContext.Azure(_)   => throw new IllegalStateException("Can't get GCP ID for an Azure cluster")
+//    }
+
+  def getClusterId: KubernetesClusterId = {
+    val CloudContext.Gcp(project) = cloudContext
+    KubernetesClusterId(project, location, clusterName)
+  }
 }
 
 final case class KubernetesClusterAsyncFields(loadBalancerIp: IP, apiServerIp: IP, networkInfo: NetworkFields)
@@ -236,10 +243,13 @@ final case class DefaultKubernetesLabels(cloudContext: CloudContext,
                                          creator: WorkbenchEmail,
                                          serviceAccount: WorkbenchEmail
 ) {
-  val cloudContextList = cloudContext match {
-    case CloudContext.Gcp(value)   => List("googleProject" -> value.value)
-    case CloudContext.Azure(value) => List("cloudContext" -> value.asString)
-  }
+  val CloudContext.Gcp(googleProject) = cloudContext
+  val cloudContextList = List("googleProject" -> googleProject.value)
+  //AN-570
+//  val cloudContextList = cloudContext match {
+//    case CloudContext.Gcp(value)   => List("googleProject" -> value.value)
+//    case CloudContext.Azure(value) => List("cloudContext" -> value.asString)
+//  }
   val toMap: LabelMap =
     Map(
       "appName" -> appName.value,
@@ -440,13 +450,14 @@ final case class App(id: AppId,
       val proxyPathOpt = cluster.cloudContext match {
         case CloudContext.Gcp(project) =>
           Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
-        case CloudContext.Azure(_) =>
-          // for backwards compatibility, name used to be just the appName
-          cluster.asyncFields
-            .map(_.loadBalancerIp.asString)
-            .map(base =>
-              s"${base}${customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", appName.value)}${leafPath}"
-            )
+          //AN-570
+//        case CloudContext.Azure(_) =>
+//          // for backwards compatibility, name used to be just the appName
+//          cluster.asyncFields
+//            .map(_.loadBalancerIp.asString)
+//            .map(base =>
+//              s"${base}${customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", appName.value)}${leafPath}"
+//            )
         case _ =>
           None
       }

@@ -294,16 +294,16 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         _.asString,
         s => GpuType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid gpuType $s"))
       )
-
-    implicit val wsmResourceTypeColumnType: BaseColumnType[WsmResourceType] =
-      MappedColumnType.base[WsmResourceType, String](
-        _.toString,
-        s => WsmResourceType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid wsmResourceType $s"))
-      )
-
-    implicit val wsmControlledResourceIdColumnType: BaseColumnType[WsmControlledResourceId] =
-      MappedColumnType
-        .base[WsmControlledResourceId, String](_.value.toString, s => WsmControlledResourceId(UUID.fromString(s)))
+//AN-570
+//    implicit val wsmResourceTypeColumnType: BaseColumnType[WsmResourceType] =
+//      MappedColumnType.base[WsmResourceType, String](
+//        _.toString,
+//        s => WsmResourceType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid wsmResourceType $s"))
+//      )
+// AN-570
+//    implicit val wsmControlledResourceIdColumnType: BaseColumnType[WsmControlledResourceId] =
+//      MappedColumnType
+//        .base[WsmControlledResourceId, String](_.value.toString, s => WsmControlledResourceId(UUID.fromString(s)))
 
     implicit val workspaceIdColumnType: BaseColumnType[WorkspaceId] =
       MappedColumnType
@@ -313,13 +313,14 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType
         .base[DiskLink, String](_.asString, DiskLink.apply)
 
-    implicit val appControlledResourceStatusColumnType: BaseColumnType[AppControlledResourceStatus] =
-      MappedColumnType.base[AppControlledResourceStatus, String](
-        _.toString,
-        s =>
-          AppControlledResourceStatus.stringToObject
-            .getOrElse(s, throw ColumnDecodingException(s"invalid app controlled resource status ${s}"))
-      )
+    // AN_570
+//    implicit val appControlledResourceStatusColumnType: BaseColumnType[AppControlledResourceStatus] =
+//      MappedColumnType.base[AppControlledResourceStatus, String](
+//        _.toString,
+//        s =>
+//          AppControlledResourceStatus.stringToObject
+//            .getOrElse(s, throw ColumnDecodingException(s"invalid app controlled resource status ${s}"))
+//      )
 
     implicit val instantSetParameter: SetParameter[Instant] =
       SetParameter.SetTimestamp.contramap(instant => java.sql.Timestamp.from(instant))

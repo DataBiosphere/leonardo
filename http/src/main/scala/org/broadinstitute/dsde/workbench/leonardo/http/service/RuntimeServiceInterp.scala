@@ -77,9 +77,10 @@ class RuntimeServiceInterp[F[_]: Parallel](
   )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
       context <- as.ask
+      // AN_570
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported yet")
+        new RuntimeException("Non GCP projects are not supported")
       )
       // Resolve the user email in Sam from the user token. This translates a pet token to the owner email.
       userEmail <- samService.getUserEmail(userInfo.accessToken.token)
@@ -882,8 +883,9 @@ object RuntimeServiceInterp {
             if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
-          case CloudService.AzureVm =>
-            Set.empty[String] // Doesn't apply to Azure
+          // AN-570
+//          case CloudService.AzureVm =>
+//            Set.empty[String] // Doesn't apply to Azure
 
         }
       case None =>

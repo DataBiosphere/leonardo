@@ -38,10 +38,11 @@ object SamResourceId {
     override def resourceType: SamResourceType = SamResourceType.Workspace
   }
 
-  final case class WsmResourceSamResourceId(controlledResourceId: WsmControlledResourceId) extends SamResourceId {
-    override def resourceId: String = controlledResourceId.value.toString
-    override def resourceType: SamResourceType = SamResourceType.WsmResource
-  }
+  // AN-570
+//  final case class WsmResourceSamResourceId(controlledResourceId: WsmControlledResourceId) extends SamResourceId {
+//    override def resourceId: String = controlledResourceId.value.toString
+//    override def resourceType: SamResourceType = SamResourceType.WsmResource
+//  }
 
   final case class PrivateAzureStorageAccountSamResourceId(resourceId: String) extends SamResourceId {
     override def resourceType = SamResourceType.PrivateAzureStorageAccount

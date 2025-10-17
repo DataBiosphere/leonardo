@@ -451,7 +451,7 @@ object DiskServiceInterp {
       None,
       allLabels,
       sourceDisk.map(_.diskLink),
-      None,
+//      None, AN-570
       workspaceId
     )
   }
@@ -477,12 +477,13 @@ case class DiskCannotBeDeletedException(id: DiskId, status: DiskStatus, cloudCon
       traceId = Some(traceId)
     )
 
-case class DiskCannotBeDeletedWsmException(id: DiskId, status: WsmState, cloudContext: CloudContext, traceId: TraceId)
-    extends LeoException(
-      s"Persistent disk ${id.value} cannot be deleted in ${status.value} status, please wait and try again. CloudContext: ${cloudContext.asStringWithProvider}",
-      StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
+//AN-570
+//case class DiskCannotBeDeletedWsmException(id: DiskId, status: WsmState, cloudContext: CloudContext, traceId: TraceId)
+//    extends LeoException(
+//      s"Persistent disk ${id.value} cannot be deleted in ${status.value} status, please wait and try again. CloudContext: ${cloudContext.asStringWithProvider}",
+//      StatusCodes.Conflict,
+//      traceId = Some(traceId)
+//    )
 
 case class DiskNotFoundException(cloudContext: CloudContext, diskName: DiskName, traceId: TraceId)
     extends LeoException(s"Persistent disk ${cloudContext.asStringWithProvider}/${diskName.value} not found",

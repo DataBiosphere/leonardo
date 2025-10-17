@@ -301,9 +301,10 @@ class LeoPubsubMessageSubscriber[F[_]](
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
         DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), masterInstance)
       )
+      // AN_570
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
-        AzureUnimplementedException("Azure runtime is not supported")
+        new RuntimeException("Non GCP projects are not supported")
       )
       poll = op match {
         case Some(opFuture) =>
@@ -879,9 +880,11 @@ class LeoPubsubMessageSubscriber[F[_]](
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId))
       )(F.pure)
+
+      // AN_570
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
-        AzureUnimplementedException("Azure disk is not supported yet")
+        new RuntimeException("Non GCP projects are not supported")
       )
       opFuture <- getGoogleDiskServiceFromRegistry().resizeDisk(googleProject, disk.zone, disk.name, msg.newSize.gb)
 
@@ -1241,35 +1244,59 @@ class LeoPubsubMessageSubscriber[F[_]](
               else F.unit
 
             // Cleans up staging bucket. Right now, only ALLOWED app uses staging bucket
-            deleteStagingBucket = dbApp.cluster.cloudContext match {
-              case CloudContext.Gcp(project) =>
-                for {
-                  disk <- persistentDiskQuery.getById(diskId).transaction
-                  _ <- getGoogleStorageServiceFromRegistry()
-                    .deleteBucket(project,
-                                  GKEAlgebra.buildAppStagingBucketName(disk.get.name),
-                                  true,
-                                  traceId = Some(ctx.traceId)
-                    ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
-                    .compile
-                    .lastOrError
-                    .void
-                    .handleErrorWith {
-                      case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
-                        logger.info(ctx.loggingCtx, e)(
-                          "Fail to clean up staging bucket because it doesn't exist"
-                        )
-                      case e =>
-                        logger.error(ctx.loggingCtx, e)(
-                          "Fail to clean up staging bucket"
-                        )
-                    }
-                } yield ()
-              case CloudContext.Azure(_) =>
-                logger.error(ctx.loggingCtx)(
-                  "This should never happen because Azure app doesn't go through this code path. But not failing app deletion because deleting staging bucket isn't in critical path"
-                )
-            }
+            deleteStagingBucket = for {
+              disk <- persistentDiskQuery.getById(diskId).transaction
+              CloudContext.Gcp(project) = dbApp.cluster.cloudContext
+              _ <- getGoogleStorageServiceFromRegistry()
+                .deleteBucket(project,
+                              GKEAlgebra.buildAppStagingBucketName(disk.get.name),
+                              true,
+                              traceId = Some(ctx.traceId)
+                ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
+                .compile
+                .lastOrError
+                .void
+                .handleErrorWith {
+                  case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
+                    logger.info(ctx.loggingCtx, e)(
+                      "Fail to clean up staging bucket because it doesn't exist"
+                    )
+                  case e =>
+                    logger.error(ctx.loggingCtx, e)(
+                      "Fail to clean up staging bucket"
+                    )
+                }
+            } yield ()
+            // AN-570
+//            deleteStagingBucket = dbApp.cluster.cloudContext match {
+//              case CloudContext.Gcp(project) =>
+//                for {
+//                  disk <- persistentDiskQuery.getById(diskId).transaction
+//                  _ <- getGoogleStorageServiceFromRegistry()
+//                    .deleteBucket(project,
+//                                  GKEAlgebra.buildAppStagingBucketName(disk.get.name),
+//                                  true,
+//                                  traceId = Some(ctx.traceId)
+//                    ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
+//                    .compile
+//                    .lastOrError
+//                    .void
+//                    .handleErrorWith {
+//                      case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
+//                        logger.info(ctx.loggingCtx, e)(
+//                          "Fail to clean up staging bucket because it doesn't exist"
+//                        )
+//                      case e =>
+//                        logger.error(ctx.loggingCtx, e)(
+//                          "Fail to clean up staging bucket"
+//                        )
+//                    }
+//                } yield ()
+//              case CloudContext.Azure(_) =>
+//                logger.error(ctx.loggingCtx)(
+//                  "This should never happen because Azure app doesn't go through this code path. But not failing app deletion because deleting staging bucket isn't in critical path"
+//                )
+//            }
             _ <- List(deleteDataDisk, deletePostgresDisk, deleteStagingBucket).parSequence_
           } yield ()
         }
@@ -1464,20 +1491,31 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
       }
 
-      updateApp = (msg.cloudContext match {
-        case CloudContext.Gcp(_) =>
-          getGkeAlgFromRegistry()
-            .updateAndPollApp(
-              UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject)
-            )
-        case CloudContext.Azure(_) =>
-          F.raiseError(new NotImplementedError("Azure functionality not implemented."))
-      }).flatMap { _ =>
-        updateAppLogQuery
-          .update(msg.appId, msg.jobId, UpdateAppJobStatus.Success, endTime = Some(ctx.now))
-          .transaction
-          .void
-      }
+      updateApp = getGkeAlgFromRegistry()
+        .updateAndPollApp(
+          UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject)
+        )
+        .flatMap { _ =>
+          updateAppLogQuery
+            .update(msg.appId, msg.jobId, UpdateAppJobStatus.Success, endTime = Some(ctx.now))
+            .transaction
+            .void
+        }
+      // AN-570
+//      updateApp = (msg.cloudContext match {
+//        case CloudContext.Gcp(_) =>
+//          getGkeAlgFromRegistry()
+//            .updateAndPollApp(
+//              UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject)
+//            )
+//        case CloudContext.Azure(_) =>
+//          F.raiseError(new NotImplementedError("Azure functionality not implemented."))
+//      }).flatMap { _ =>
+//        updateAppLogQuery
+//          .update(msg.appId, msg.jobId, UpdateAppJobStatus.Success, endTime = Some(ctx.now))
+//          .transaction
+//          .void
+//      }
 
       updateAppWithErrorHandling = updateApp
         .handleErrorWith { throwable =>
@@ -1575,17 +1613,18 @@ class LeoPubsubMessageSubscriber[F[_]](
               // if the runtime fails to create.
               // Otherwise, the disk is most likely used previously by an old runtime, and we don't want to delete it
               if (runtime.status == RuntimeStatus.Creating) {
+                val CloudContext.Gcp(googleProject) = runtime.cloudContext
                 for {
-                  googleProject <- runtime.cloudContext match {
-                    case CloudContext.Gcp(value) => F.pure(value)
-                    case CloudContext.Azure(_)   => F.raiseError(new RuntimeException("This should never happen"))
-                  }
+                  // AN-570
+//                  googleProject <- runtime.cloudContext match {
+//                    case CloudContext.Gcp(value) => F.pure(value)
+//                    case CloudContext.Azure(_)   => F.raiseError(new RuntimeException("This should never happen"))
+//                  }
                   runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
                   gceRuntimeConfig <- runtimeConfig match {
                     case x: RuntimeConfig.GceWithPdConfig => F.pure(x.some)
                     case _                                => F.pure(none[RuntimeConfig.GceWithPdConfig])
                   }
-
                   _ <- gceRuntimeConfig.traverse_ { rc =>
                     for {
                       persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
@@ -1647,7 +1686,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
               clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
           )
-        case CloudService.AzureVm => F.unit
+//        case CloudService.AzureVm => F.unit AN-570
       }
     } yield ()
 

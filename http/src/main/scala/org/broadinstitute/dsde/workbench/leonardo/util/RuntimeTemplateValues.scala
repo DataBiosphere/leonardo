@@ -162,7 +162,7 @@ object RuntimeTemplateValuesConfig {
         case gce: RuntimeConfig.GceConfig       => gce.gpuConfig.isDefined
         case gce: RuntimeConfig.GceWithPdConfig => gce.gpuConfig.isDefined
         case _: RuntimeConfig.DataprocConfig    => false
-        case _: RuntimeConfig.AzureConfig       => false
+//        case _: RuntimeConfig.AzureConfig       => false AN-570
       },
       runtime.asyncRuntimeFields.map(_.stagingBucket),
       runtime.runtimeImages,

@@ -11,7 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+//import org.broadinstitute.dsde.workbench.azure.AzureCloudContext AN-570
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
@@ -23,10 +23,10 @@ import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
-import org.http4s.circe.CirceEntityEncoder._
+//import org.http4s.circe.CirceEntityEncoder._ AN-570
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{`Content-Type`, Authorization}
+import org.http4s.headers.Authorization
 import scalacache.Cache
 
 import java.io.ByteArrayInputStream
@@ -198,19 +198,20 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
 
-  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Option[WorkbenchEmail]] =
-    metrics.incrementCounter("sam/getPetManagedIdentity") >>
-      httpClient.expectOptionOr[WorkbenchEmail](
-        Request[F](
-          method = Method.POST,
-          uri = config.samUri
-            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity")),
-          headers = Headers(authorization, `Content-Type`(MediaType.application.json)),
-          entity = cloudContext
-        )
-      )(onError)
+  // AN-570
+//  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
+//    ev: Ask[F, TraceId]
+//  ): F[Option[WorkbenchEmail]] =
+//    metrics.incrementCounter("sam/getPetManagedIdentity") >>
+//      httpClient.expectOptionOr[WorkbenchEmail](
+//        Request[F](
+//          method = Method.POST,
+//          uri = config.samUri
+//            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity")),
+//          headers = Headers(authorization, `Content-Type`(MediaType.application.json)),
+//          entity = cloudContext
+//        )
+//      )(onError)
 
   override def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
     getLeoAuthToken.flatMap { leoToken =>
@@ -450,10 +451,11 @@ object HttpSamDAO {
       (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
     )
 
-  implicit val getPetManagedIdentityEncoder: Encoder[AzureCloudContext] =
-    Encoder.forProduct3("tenantId", "subscriptionId", "managedResourceGroupName")(x =>
-      (x.tenantId.value, x.subscriptionId.value, x.managedResourceGroupName.value)
-    )
+  // AN-570
+//  implicit val getPetManagedIdentityEncoder: Encoder[AzureCloudContext] =
+//    Encoder.forProduct3("tenantId", "subscriptionId", "managedResourceGroupName")(x =>
+//      (x.tenantId.value, x.subscriptionId.value, x.managedResourceGroupName.value)
+//    )
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))

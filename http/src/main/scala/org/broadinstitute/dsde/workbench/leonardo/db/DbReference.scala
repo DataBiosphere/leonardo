@@ -111,8 +111,9 @@ object DataAccess {
       TableQuery[ClusterImageTable].delete andThen
       TableQuery[ScopeTable].delete andThen
       TableQuery[PatchTable].delete andThen
-      TableQuery[RuntimeControlledResourceTable].delete andThen
-      TableQuery[AppControlledResourceTable].delete andThen
+      // AN-570
+//      TableQuery[RuntimeControlledResourceTable].delete andThen
+//      TableQuery[AppControlledResourceTable].delete andThen
       TableQuery[ClusterTable].delete andThen
       RuntimeConfigQueries.runtimeConfigs.delete andThen
       persistentDiskQuery.nullifyDiskIds andThen

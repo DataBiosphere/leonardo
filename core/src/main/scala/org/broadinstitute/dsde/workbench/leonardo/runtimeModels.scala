@@ -66,16 +66,22 @@ object Runtime {
       .headOption
       .getOrElse(JupyterService)
 
-    cloudContext match {
-      case _: CloudContext.Gcp =>
-        new URL(
-          urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
-        )
-      case _: CloudContext.Azure =>
-        hostIp.fold(new URL("https://relay-not-defined-yet"))(s =>
-          new URL(s"https://${s.asString}/${runtimeName.asString}")
-        )
-    }
+    new URL(
+      urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
+    )
+
+    // AN-570
+
+//    cloudContext match {
+//      case _: CloudContext.Gcp =>
+//        new URL(
+//          urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
+//        )
+//      case _: CloudContext.Azure =>
+//        hostIp.fold(new URL("https://relay-not-defined-yet"))(s =>
+//          new URL(s"https://${s.asString}/${runtimeName.asString}")
+//        )
+//    }
   }
 }
 
@@ -215,9 +221,10 @@ object CloudService extends Enum[CloudService] {
     val asString: String = "GCE"
   }
 
-  case object AzureVm extends CloudService {
-    val asString: String = "AZURE_VM"
-  }
+  // AN-570
+//  case object AzureVm extends CloudService {
+//    val asString: String = "AZURE_VM"
+//  }
 
   override def values: immutable.IndexedSeq[CloudService] = findValues
 }
@@ -313,14 +320,15 @@ object RuntimeConfig {
     val configType: RuntimeConfigType = RuntimeConfigType.Dataproc
   }
 
+  // AN-570
   // Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
-  final case class AzureConfig(machineType: MachineTypeName,
-                               persistentDiskId: Option[DiskId],
-                               region: Option[RegionName]
-  ) extends RuntimeConfig {
-    val cloudService: CloudService = CloudService.AzureVm
-    val configType: RuntimeConfigType = RuntimeConfigType.AzureVmConfig
-  }
+//  final case class AzureConfig(machineType: MachineTypeName,
+//                               persistentDiskId: Option[DiskId],
+//                               region: Option[RegionName]
+//  ) extends RuntimeConfig {
+//    val cloudService: CloudService = CloudService.AzureVm
+//    val configType: RuntimeConfigType = RuntimeConfigType.AzureVmConfig
+//  }
 }
 
 /** Runtime user script */

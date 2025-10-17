@@ -50,34 +50,61 @@ class AutoDeleteAppMonitor[F[_]](
     for {
       now <- F.realTimeInstant
       loggingCtx = Map("traceId" -> traceId.asString)
-      _ <- a.cloudContext match {
-        case CloudContext.Gcp(googleProject) =>
-          if (a.appStatus == AppStatus.Error) {
-            implicit val implicitAppContext: Ask[F, AppContext] = Ask.const(AppContext(traceId, now))
-            for {
-              // delete kubernetes-app Sam resource
-              petToken <- samService.getPetServiceAccountToken(a.creator, googleProject)
-              _ <- samService.deleteResource(petToken, a.samResourceId)
-              _ <- appQuery.markAsDeleted(a.id, now).transaction
-            } yield ()
-          } else {
-            for {
-              _ <- KubernetesServiceDbQueries.markPreDeleting(a.id).transaction
-              deleteMessage = DeleteAppMessage(
-                a.id,
-                a.appName,
-                googleProject,
-                None,
-                Some(traceId)
-              )
-              _ <- appUsageQuery.recordStop(a.id, now).recoverWith { case e: FailToRecordStoptime =>
-                logger.error(loggingCtx)(e.getMessage)
-              }
-              _ <- publisherQueue.offer(deleteMessage)
-            } yield ()
-          }
-        case CloudContext.Azure(_) => logger.info(loggingCtx)("Azure is not supported")
-      }
+      CloudContext.Gcp(googleProject) = a.cloudContext
+      _ <-
+        if (a.appStatus == AppStatus.Error) {
+          implicit val implicitAppContext: Ask[F, AppContext] = Ask.const(AppContext(traceId, now))
+          for {
+            // delete kubernetes-app Sam resource
+            petToken <- samService.getPetServiceAccountToken(a.creator, googleProject)
+            _ <- samService.deleteResource(petToken, a.samResourceId)
+            _ <- appQuery.markAsDeleted(a.id, now).transaction
+          } yield ()
+        } else {
+          for {
+            _ <- KubernetesServiceDbQueries.markPreDeleting(a.id).transaction
+            deleteMessage = DeleteAppMessage(
+              a.id,
+              a.appName,
+              googleProject,
+              None,
+              Some(traceId)
+            )
+            _ <- appUsageQuery.recordStop(a.id, now).recoverWith { case e: FailToRecordStoptime =>
+              logger.error(loggingCtx)(e.getMessage)
+            }
+            _ <- publisherQueue.offer(deleteMessage)
+          } yield ()
+        }
+      // AN-570
+//      _ <- a.cloudContext match {
+//        case CloudContext.Gcp(googleProject) =>
+//          if (a.appStatus == AppStatus.Error) {
+//            implicit val implicitAppContext: Ask[F, AppContext] = Ask.const(AppContext(traceId, now))
+//            for {
+//              // delete kubernetes-app Sam resource
+//              petToken <- samService.getPetServiceAccountToken(a.creator, googleProject)
+//              _ <- samService.deleteResource(petToken, a.samResourceId)
+//              _ <- appQuery.markAsDeleted(a.id, now).transaction
+//            } yield ()
+//          } else {
+//            for {
+//              _ <- KubernetesServiceDbQueries.markPreDeleting(a.id).transaction
+//              deleteMessage = DeleteAppMessage(
+//                a.id,
+//                a.appName,
+//                googleProject,
+//                None,
+//                Some(traceId)
+//              )
+//              _ <- appUsageQuery.recordStop(a.id, now).recoverWith { case e: FailToRecordStoptime =>
+//                logger.error(loggingCtx)(e.getMessage)
+//              }
+//              _ <- publisherQueue.offer(deleteMessage)
+//            } yield ()
+//          }
+//        case CloudContext.Azure(_) => logger.info(loggingCtx)("Azure is not supported")
+//      }
     } yield ()
 }
 

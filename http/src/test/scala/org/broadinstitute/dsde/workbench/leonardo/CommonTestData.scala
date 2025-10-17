@@ -504,7 +504,8 @@ object CommonTestData {
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
   val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
   val wsmResourceIdOpt = Some(wsmResourceId)
-  val cloudContextAzure = CloudContext.Azure(azureCloudContext)
+  //AN-570
+//  val cloudContextAzure = CloudContext.Azure(azureCloudContext)
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)

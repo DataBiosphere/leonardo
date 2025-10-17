@@ -3,9 +3,8 @@ package db
 
 import cats.data.Chain
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ContainerName}
 import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -27,7 +26,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 
-import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
@@ -39,7 +37,7 @@ final case class ClusterRecord(
   cloudContext: CloudContext,
   operationName: Option[String],
   status: RuntimeStatus,
-  hostIp: Option[IP], // For GCP, it is VM's public IP; For Azure VM, it is Relay HybridConnection URL
+  hostIp: Option[IP], // For GCP, it is VM's public IP;
   userScriptUri: Option[UserScriptPath],
   startUserScriptUri: Option[UserScriptPath],
   initBucket: Option[String],
@@ -121,7 +119,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             internalId,
             clusterName,
             proxyHostname,
-            (cloudProvider, cloudContextDb),
+            (_, cloudContextDb),
             operationName,
             status,
             hostIp,
@@ -145,14 +143,16 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           internalId,
           clusterName,
           proxyHostname,
-          cloudProvider match {
-            case CloudProvider.Gcp =>
-              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
-            case CloudProvider.Azure =>
-              val context =
-                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
-              CloudContext.Azure(context): CloudContext
-          },
+          CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext,
+          // AN-570
+//          cloudProvider match {
+//            case CloudProvider.Gcp =>
+//              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
+//            case CloudProvider.Azure =>
+//              val context =
+//                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
+//              CloudContext.Azure(context): CloudContext
+//          },
           operationName,
           status,
           hostIp,
@@ -189,12 +189,14 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.internalId,
           c.runtimeName,
           c.googleId,
-          c.cloudContext match {
-            case CloudContext.Gcp(value) =>
-              (CloudProvider.Gcp, CloudContextDb(value.value))
-            case CloudContext.Azure(value) =>
-              (CloudProvider.Azure, CloudContextDb(value.asString))
-          },
+          (CloudProvider.Gcp, CloudContextDb(c.cloudContext.asString)),
+          // AN-570
+//          c.cloudContext match {
+//            case CloudContext.Gcp(value) =>
+//              (CloudProvider.Gcp, CloudContextDb(value.value))
+//            case CloudContext.Azure(value) =>
+//              (CloudProvider.Azure, CloudContextDb(value.asString))
+//          },
           c.operationName,
           c.status,
           c.hostIp,
@@ -508,20 +510,23 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       // staging bucket is saved as a bucket name rather than a path
       .map(recs =>
         recs.headOption.flatMap { head =>
-          head._1 match {
-            case CloudProvider.Gcp => head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
-            case CloudProvider.Azure =>
-              head._2.map { s =>
-                // TODO (11/23/2022): We used to persist storage account as well, but we no longer do. Remove first branch in 6 months.
-                if (s.contains("/")) {
-                  val res = for {
-                    splitted <- Either.catchNonFatal(s.split("/"))
-                    storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
-                  } yield StagingBucket.Azure(storageContainerName)
-                  res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
-                } else StagingBucket.Azure(ContainerName(s))
-              }
-          }
+          head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
+
+          // AN-570
+//          head._1 match {
+//            case CloudProvider.Gcp => head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
+//            case CloudProvider.Azure =>
+//              head._2.map { s =>
+//                // TODO (11/23/2022): We used to persist storage account as well, but we no longer do. Remove first branch in 6 months.
+//                if (s.contains("/")) {
+//                  val res = for {
+//                    splitted <- Either.catchNonFatal(s.split("/"))
+//                    storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
+//                  } yield StagingBucket.Azure(storageContainerName)
+//                  res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
+//                } else StagingBucket.Azure(ContainerName(s))
+//              }
+//          }
         }
       )
 
@@ -732,8 +737,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Stopping, None, dateAccessed)
 
-  def updateSamResourceId(id: Long, wsmId: WsmResourceSamResourceId): DBIO[Int] =
-    findByIdQuery(id).map(_.internalId).update(wsmId.resourceId)
+  // AN_570
+//  def updateSamResourceId(id: Long, wsmId: WsmResourceSamResourceId): DBIO[Int] =
+//    findByIdQuery(id).map(_.internalId).update(wsmId.resourceId)
 
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.

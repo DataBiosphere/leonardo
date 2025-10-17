@@ -176,30 +176,31 @@ object KubernetesTestData {
     )
   }
 
-  def makeAzureCluster(index: Int,
-                       withDefaultNodepool: Boolean = true,
-                       status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
-  ): KubernetesCluster = {
-    val name = KubernetesClusterName("kubecluster" + index)
-    val uniqueCloudContextAzure = CloudContext.Azure(
-      AzureCloudContext(tenantId = TenantId("tenant-id" + index),
-                        subscriptionId = SubscriptionId("sub-id"),
-                        managedResourceGroupName = ManagedResourceGroupName("mrg-name")
-      )
-    )
-    KubernetesCluster(
-      KubernetesClusterLeoId(-1),
-      uniqueCloudContextAzure,
-      name,
-      location,
-      region,
-      status,
-      ingressChart,
-      auditInfo,
-      None,
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
-    )
-  }
+  // AN-570
+//  def makeAzureCluster(index: Int,
+//                       withDefaultNodepool: Boolean = true,
+//                       status: KubernetesClusterStatus = KubernetesClusterStatus.Unspecified
+//  ): KubernetesCluster = {
+//    val name = KubernetesClusterName("kubecluster" + index)
+//    val uniqueCloudContextAzure = CloudContext.Azure(
+//      AzureCloudContext(tenantId = TenantId("tenant-id" + index),
+//                        subscriptionId = SubscriptionId("sub-id"),
+//                        managedResourceGroupName = ManagedResourceGroupName("mrg-name")
+//      )
+//    )
+//    KubernetesCluster(
+//      KubernetesClusterLeoId(-1),
+//      uniqueCloudContextAzure,
+//      name,
+//      location,
+//      region,
+//      status,
+//      ingressChart,
+//      auditInfo,
+//      None,
+//      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
+//    )
+//  }
 
   def makeNamespace(index: Int, prefix: String = ""): NamespaceName = NamespaceName(prefix + "namespace" + index)
 
