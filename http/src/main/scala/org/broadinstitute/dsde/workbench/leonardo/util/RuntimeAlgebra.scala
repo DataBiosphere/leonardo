@@ -50,7 +50,6 @@ final case class CreateRuntimeParams(id: Long,
                                      defaultClientId: Option[String],
                                      runtimeImages: Set[RuntimeImage],
                                      scopes: Set[String],
-                                     welderEnabled: Boolean,
                                      customEnvironmentVariables: Map[String, String],
                                      runtimeConfig: RuntimeConfigInCreateRuntimeMessage
 )
@@ -68,7 +67,6 @@ object CreateRuntimeParams {
       message.defaultClientId,
       message.runtimeImages,
       message.scopes,
-      message.welderEnabled,
       message.customEnvironmentVariables,
       message.runtimeConfig
     )

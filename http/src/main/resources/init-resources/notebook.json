@@ -3,5 +3,4 @@
   "clusterName": $(clusterName),
   "loginHint": $(loginHint),
   "googleClientId": $(googleClientId),
-  "welderEnabled": $(welderEnabled)
 }

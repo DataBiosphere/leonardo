@@ -197,7 +197,6 @@ object RuntimeRoutesTestJsonCodec {
       defaultClientId,
       clusterImages,
       scopes,
-      true,
       false,
       Map.empty,
       None

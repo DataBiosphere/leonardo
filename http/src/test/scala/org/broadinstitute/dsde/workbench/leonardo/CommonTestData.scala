@@ -330,7 +330,6 @@ object CommonTestData {
       allowStop = false,
       runtimeImages = Set(jupyterImage, welderImage),
       scopes = defaultScopes,
-      welderEnabled = false,
       customEnvironmentVariables = Map.empty,
       runtimeConfigId = RuntimeConfigId(-1),
       patchInProgress = false
@@ -366,7 +365,6 @@ object CommonTestData {
     allowStop = false,
     runtimeImages = Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage),
     scopes = defaultScopes,
-    welderEnabled = true,
     customEnvironmentVariables = Map.empty,
     runtimeConfigId = RuntimeConfigId(-1),
     patchInProgress = false

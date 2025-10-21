@@ -410,7 +410,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           rec._1._1.userScriptUri,
           rec._1._1.startUserScriptUri,
           rec._1._1.defaultClientId,
-          rec._1._1.welderEnabled,
           rec._1._1.customClusterEnvironmentVariables
         )
       }
@@ -757,7 +756,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
       runtime.autopauseThreshold,
       runtime.defaultClientId,
-      runtime.welderEnabled,
+      true,
       runtime.customEnvironmentVariables,
       runtime.runtimeConfigId,
       None,
@@ -912,7 +911,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       allowStop = false,
       runtimeImages = clusterImages,
       scopes = scopeQuery.unmarshallScopes(scopes),
-      welderEnabled = clusterRecord.welderEnabled,
       customEnvironmentVariables = clusterRecord.customClusterEnvironmentVariables,
       runtimeConfigId = clusterRecord.runtimeConfigId.value,
       patchInProgress = patchInProgress,

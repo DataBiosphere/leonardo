@@ -298,7 +298,6 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
           runtime.defaultClientId,
           extra.runtimeImages,
           extra.scopes,
-          runtime.welderEnabled,
           runtime.customEnvironmentVariables,
           rtConfigInMessage,
           Some(traceId),
@@ -343,7 +342,6 @@ final case class RuntimeToMonitor(
   userScriptUri: Option[UserScriptPath],
   startUserScriptUri: Option[UserScriptPath],
   defaultClientId: Option[String],
-  welderEnabled: Boolean,
   customEnvironmentVariables: Map[String, String]
 )
 

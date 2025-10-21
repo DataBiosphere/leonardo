@@ -133,7 +133,6 @@ class LeoPublisherSpec extends AnyFlatSpecLike with MockitoSugar with Matchers w
       None,
       Set.empty,
       Set.empty,
-      false,
       Map.empty,
       RuntimeConfigInCreateRuntimeMessage.GceConfig(MachineTypeName("n1-standard-4"),
                                                     DiskSize(50),

@@ -53,7 +53,6 @@ object RuntimeStateManager {
     Some("clientId"),
     Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
     defaultScopes,
-    welderEnabled = true,
     patchInProgress = true,
     Map("ev1" -> "a", "ev2" -> "b"),
     Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))

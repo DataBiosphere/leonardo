@@ -54,7 +54,6 @@ COMPLETE_JUPYTER_DOCKER_COMPOSE="-f $JUPYTER_DOCKER_COMPOSE"
 RSTUDIO_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/rstudio-docker*)
 COMPLETE_RSTUDIO_DOCKER_COMPOSE="-f $RSTUDIO_DOCKER_COMPOSE"
 export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
-export WELDER_ENABLED=$(welderEnabled)
 export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export DISABLE_DELOCALIZATION=$(disableDelocalization)
@@ -133,7 +132,7 @@ function validateCert() {
 
     IMAGES_TO_RESTART=(-f /var/docker-compose-files/proxy-docker-compose-gce.yaml)
     DATAPROC_IMAGES_TO_RESTART=(-f /etc/proxy-docker-compose.yaml)
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ]; then
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] ]; then
       IMAGES_TO_RESTART+=(-f /var/docker-compose-files/welder-docker-compose-gce.yaml)
       DATAPROC_IMAGES_TO_RESTART+=(-f /etc/welder-docker-compose.yaml)
     fi
@@ -209,7 +208,6 @@ GOOGLE_PROJECT=${GOOGLE_PROJECT}
 RUNTIME_NAME=${RUNTIME_NAME}
 OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
-WELDER_ENABLED=${WELDER_ENABLED}
 WELDER_SERVER_NAME=${WELDER_SERVER_NAME}
 WELDER_DOCKER_IMAGE=${WELDER_DOCKER_IMAGE}
 STAGING_BUCKET=${STAGING_BUCKET}
@@ -242,7 +240,6 @@ GOOGLE_PROJECT=${GOOGLE_PROJECT}
 RUNTIME_NAME=${RUNTIME_NAME}
 OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
-WELDER_ENABLED=${WELDER_ENABLED}
 SHM_SIZE=${SHM_SIZE}
 END
 
@@ -278,7 +275,6 @@ GOOGLE_PROJECT=${GOOGLE_PROJECT}
 RUNTIME_NAME=${RUNTIME_NAME}
 OWNER_EMAIL=${OWNER_EMAIL}
 PET_SA_EMAIL=${PET_SA_EMAIL}
-WELDER_ENABLED=${WELDER_ENABLED}
 SHM_SIZE=${SHM_SIZE}
 END
 
@@ -366,7 +362,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
     # Start Jupyter server
-    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /etc/jupyter/bin/jupyter lab)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /etc/jupyter/bin/jupyter lab)"
 fi
 
 # Configuring RStudio, if enabled

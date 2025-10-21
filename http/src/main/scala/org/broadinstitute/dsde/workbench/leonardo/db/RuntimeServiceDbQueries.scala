@@ -281,7 +281,6 @@ object RuntimeServiceDbQueries {
           clusterRecord.defaultClientId,
           clusterImages,
           scopeQuery.unmarshallScopes(scopes.toList),
-          clusterRecord.welderEnabled,
           patchInProgress,
           clusterRecord.customClusterEnvironmentVariables,
           diskConfig

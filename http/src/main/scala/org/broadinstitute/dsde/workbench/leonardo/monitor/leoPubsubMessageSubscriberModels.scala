@@ -178,7 +178,6 @@ object LeoPubsubMessage {
                                         defaultClientId: Option[String],
                                         runtimeImages: Set[RuntimeImage],
                                         scopes: Set[String],
-                                        welderEnabled: Boolean,
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
                                         traceId: Option[TraceId],
@@ -205,7 +204,6 @@ object LeoPubsubMessage {
         runtime.defaultClientId,
         runtime.runtimeImages,
         runtime.scopes,
-        runtime.welderEnabled,
         runtime.customEnvironmentVariables,
         runtimeConfig,
         traceId,
@@ -566,7 +564,7 @@ object LeoPubsubCodec {
   }
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct17(
+    Encoder.forProduct16(
       "messageType",
       "id",
       "clusterProjectAndName",
@@ -579,7 +577,6 @@ object LeoPubsubCodec {
       "defaultClientId",
       "clusterImages",
       "scopes",
-      "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "checkToolsInterruptAfter",
@@ -597,7 +594,6 @@ object LeoPubsubCodec {
        x.defaultClientId,
        x.runtimeImages,
        x.scopes,
-       x.welderEnabled,
        x.customEnvironmentVariables,
        x.runtimeConfig,
        x.checkToolsInterruptAfter,
@@ -670,7 +666,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createRuntimeMessageDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct16(
+    Decoder.forProduct15(
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
@@ -682,7 +678,6 @@ object LeoPubsubCodec {
       "defaultClientId",
       "clusterImages",
       "scopes",
-      "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
       "traceId",

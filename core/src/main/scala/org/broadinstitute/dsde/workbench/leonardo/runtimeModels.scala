@@ -41,7 +41,6 @@ final case class Runtime(id: Long,
                          allowStop: Boolean,
                          runtimeImages: Set[RuntimeImage],
                          scopes: Set[String],
-                         welderEnabled: Boolean,
                          customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId,
                          patchInProgress: Boolean

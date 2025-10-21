@@ -913,7 +913,6 @@ object RuntimeServiceInterp {
       allowStop = false,
       runtimeImages = clusterImages,
       scopes = clusterScopes,
-      welderEnabled = true,
       customEnvironmentVariables = req.customEnvironmentVariables,
       runtimeConfigId = RuntimeConfigId(-1),
       patchInProgress = false

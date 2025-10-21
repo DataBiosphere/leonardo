@@ -88,7 +88,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
                                                   GcsObjectName("test-welder-docker-compose.yaml")
       ).toUri
       result.welderDockerImage shouldBe CommonTestData.welderImage.imageUrl
-      result.welderEnabled shouldBe "true"
       result.welderMemLimit shouldBe "805306368b" // 768 MB
       result.welderServerName shouldBe "welder-server"
       result.shouldDeleteJupyterDir shouldBe "false"

@@ -185,7 +185,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
     export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
-    export WELDER_ENABLED=$(welderEnabled)
     export NOTEBOOKS_DIR=$(notebooksDir)
     export MEM_LIMIT=$(memLimit)
     export SHM_SIZE=$(shmSize)
@@ -291,7 +290,7 @@ EOF
 
     cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
 
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ]; then
       COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi

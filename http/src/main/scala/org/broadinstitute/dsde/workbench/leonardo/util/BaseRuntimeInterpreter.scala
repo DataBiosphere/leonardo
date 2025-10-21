@@ -66,8 +66,6 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
               s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
             )
           )
-          .whenA(params.runtimeAndRuntimeConfig.runtime.welderEnabled)
-
       _ <- logger.info(
         s"StopRuntimeMessage timing: Updating the hostIp, [runtime = ${runtimeName}, traceId = ${ctx.traceId.asString},time = ${(now.toEpochMilli - ctx.now.toEpochMilli).toString}]"
       )
@@ -117,7 +115,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
   }
 
   private def getWelderAction(runtime: Runtime): Option[WelderAction] =
-    if (runtime.welderEnabled) {
+   {
       // Welder is already enabled; do we need to update it?
       val labelFound = config.welderConfig.updateWelderLabel.exists(runtime.labels.contains)
 
@@ -128,13 +126,6 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
       if (labelFound && imageChanged) Some(UpdateWelder)
       else None
-    } else {
-      // Welder is not enabled; do we need to deploy it?
-      val labelFound = config.welderConfig.deployWelderLabel.exists(runtime.labels.contains)
-      if (labelFound) {
-        if (isClusterBeforeCutoffDate(runtime)) Some(DisableDelocalization)
-        else None
-      } else None
     }
 
   private def isClusterBeforeCutoffDate(runtime: Runtime): Boolean =
@@ -172,9 +163,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
         clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, newWelderImageUrl, None, now), now)
       }
 
-      newRuntime = runtime.copy(runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage,
-                                welderEnabled = true
-      )
+      newRuntime = runtime.copy(runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newRuntime
 
   override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =

@@ -44,7 +44,6 @@ services:
       OWNER_EMAIL: "${OWNER_EMAIL}"
       PET_SA_EMAIL: "${PET_SA_EMAIL}"
       # Value must be the string "true" to enable.
-      WELDER_ENABLED: "${WELDER_ENABLED}"
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
       MEM_LIMIT: "${MEM_LIMIT}"
       # (1/6/2022) When it's a year from now, consider removing the next two lines.

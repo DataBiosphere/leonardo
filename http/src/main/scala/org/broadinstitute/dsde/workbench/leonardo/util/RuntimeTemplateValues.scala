@@ -49,7 +49,6 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           jupyterNotebookConfigUri: String,
                                           jupyterNotebookFrontendConfigUri: String,
                                           googleClientId: String,
-                                          welderEnabled: String,
                                           notebooksDir: String,
                                           customEnvVarsConfigUri: String,
                                           memLimit: String,
@@ -85,7 +84,6 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 petSaEmail: WorkbenchEmail,
                                                 userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                                                 defaultClientId: Option[String],
-                                                welderEnabled: Boolean,
                                                 auditInfo: AuditInfo,
                                                 imageConfig: ImageConfig,
                                                 welderConfig: WelderConfig,
@@ -128,7 +126,6 @@ object RuntimeTemplateValuesConfig {
       params.serviceAccountInfo,
       params.userJupyterExtensionConfig,
       params.defaultClientId,
-      params.welderEnabled,
       params.auditInfo,
       imageConfig,
       welderConfig,
@@ -173,7 +170,6 @@ object RuntimeTemplateValuesConfig {
       runtime.serviceAccount,
       runtime.userJupyterExtensionConfig,
       runtime.defaultClientId,
-      runtime.welderEnabled,
       runtime.auditInfo,
       imageConfig,
       welderConfig,
@@ -273,7 +269,6 @@ object RuntimeTemplateValues {
         )
         .getOrElse(""),
       config.defaultClientId.getOrElse(""),
-      config.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
       notebooksDir = s"${jupyterUserhome}",
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)

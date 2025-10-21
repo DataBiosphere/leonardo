@@ -114,7 +114,6 @@ final case class GetRuntimeResponse(id: Long,
                                     defaultClientId: Option[String],
                                     clusterImages: Set[RuntimeImage],
                                     scopes: Set[String],
-                                    welderEnabled: Boolean,
                                     patchInProgress: Boolean,
                                     customClusterEnvironmentVariables: Map[String, String],
                                     diskConfig: Option[DiskConfig]
@@ -142,7 +141,6 @@ object GetRuntimeResponse {
     runtime.defaultClientId,
     runtime.runtimeImages,
     runtime.scopes,
-    runtime.welderEnabled,
     runtime.patchInProgress,
     runtime.customEnvironmentVariables,
     diskConfig

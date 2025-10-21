@@ -97,7 +97,6 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           None,
           runtime.runtimeImages,
           Set.empty,
-          true,
           Map.empty,
           runtimeConfig
         )
