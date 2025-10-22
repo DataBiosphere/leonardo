@@ -43,10 +43,10 @@ object SamResourceId {
 //    override def resourceId: String = controlledResourceId.value.toString
 //    override def resourceType: SamResourceType = SamResourceType.WsmResource
 //  }
-
-  final case class PrivateAzureStorageAccountSamResourceId(resourceId: String) extends SamResourceId {
-    override def resourceType = SamResourceType.PrivateAzureStorageAccount
-  }
+//AN-570
+//  final case class PrivateAzureStorageAccountSamResourceId(resourceId: String) extends SamResourceId {
+//    override def resourceType = SamResourceType.PrivateAzureStorageAccount
+//  }
 }
 
 /** Enumeration of Sam resource types known to Leonardo */
@@ -72,12 +72,13 @@ object SamResourceType {
   final case object Workspace extends SamResourceType {
     val asString = "workspace"
   }
-  final case object WsmResource extends SamResourceType {
-    val asString = "controlled-application-private-workspace-resource"
-  }
-  final case object PrivateAzureStorageAccount extends SamResourceType {
-    val asString = "private_azure_storage_account"
-  }
+  // AN-570
+//  final case object WsmResource extends SamResourceType {
+//    val asString = "controlled-application-private-workspace-resource"
+//  }
+//  final case object PrivateAzureStorageAccount extends SamResourceType {
+//    val asString = "private_azure_storage_account"
+//  }
 
   val stringToSamResourceType: Map[String, SamResourceType] =
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap

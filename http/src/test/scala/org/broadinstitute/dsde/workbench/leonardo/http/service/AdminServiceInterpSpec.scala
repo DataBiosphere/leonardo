@@ -190,23 +190,23 @@ final class AdminServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wi
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
-
-  it should "fail when the app type and cloud provider do not match" in {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val interp = new AdminServiceInterp[IO](
-      mockAdminAuthProvider,
-      publisherQueue
-    )
-
-    val request = updateAppsRequest.copy(
-      appType = AppType.Galaxy,
-      cloudProvider = CloudProvider.Azure
-    )
-
-    an[NoMatchingAppError] should be thrownBy {
-      interp
-        .updateApps(userInfo, request)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    }
-  }
+//AN-570
+//  it should "fail when the app type and cloud provider do not match" in {
+//    val publisherQueue = QueueFactory.makePublisherQueue()
+//    val interp = new AdminServiceInterp[IO](
+//      mockAdminAuthProvider,
+//      publisherQueue
+//    )
+//
+//    val request = updateAppsRequest.copy(
+//      appType = AppType.Galaxy,
+//      cloudProvider = CloudProvider.Azure
+//    )
+//
+//    an[NoMatchingAppError] should be thrownBy {
+//      interp
+//        .updateApps(userInfo, request)
+//        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//    }
+//  }
 }

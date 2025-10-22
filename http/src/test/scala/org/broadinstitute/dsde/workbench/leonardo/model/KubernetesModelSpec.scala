@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
-import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{proxyUrlBase, workspaceId}
@@ -60,68 +59,69 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       )
     )
   }
+//AN_570
+//  it should "generate valid Azure proxy urls" in {
+//    val services = (1 to 3).map(makeService).toList
+//    val cluster = makeKubeCluster(1).copy(
+//      cloudContext = CloudContext.Azure(
+//        AzureCloudContext(TenantId("tenant"), SubscriptionId("sub"), ManagedResourceGroupName("mrg"))
+//      ),
+//      asyncFields = Some(
+//        KubernetesClusterAsyncFields(IP("https://relay.windows.net/"),
+//                                     IP("unused"),
+//                                     NetworkFields(NetworkName("unused"), SubnetworkName("unused"), IpRange("unused"))
+//        )
+//      )
+//    )
+//    val app = LeoLenses.appToServices.modify(_ => services)(testApp)
+//    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
+//      ServiceName("service1") -> new URL(
+//        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service1"
+//      ),
+//      ServiceName("service2") -> new URL(
+//        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service2"
+//      ),
+//      ServiceName("service3") -> new URL(
+//        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service3"
+//      )
+//    )
+//  }
+//
+//  it should "generate valid Azure proxy urls with path overrides" in {
+//    val service = KubernetesService(
+//      ServiceId(-1),
+//      ServiceConfig(ServiceName("service1"), serviceKind, Some(ServicePath("/")))
+//    )
+//    val cluster = makeKubeCluster(1).copy(
+//      cloudContext = CloudContext.Azure(
+//        AzureCloudContext(TenantId("tenant"), SubscriptionId("sub"), ManagedResourceGroupName("mrg"))
+//      ),
+//      asyncFields = Some(
+//        KubernetesClusterAsyncFields(IP("https://relay.windows.net/"),
+//                                     IP("unused"),
+//                                     NetworkFields(NetworkName("unused"), SubnetworkName("unused"), IpRange("unused"))
+//        )
+//      )
+//    )
+//    val app = LeoLenses.appToServices.modify(_ => List(service))(testApp)
+//    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
+//      ServiceName("service1") -> new URL(
+//        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/"
+//      )
+//    )
+//  }
 
-  it should "generate valid Azure proxy urls" in {
-    val services = (1 to 3).map(makeService).toList
-    val cluster = makeKubeCluster(1).copy(
-      cloudContext = CloudContext.Azure(
-        AzureCloudContext(TenantId("tenant"), SubscriptionId("sub"), ManagedResourceGroupName("mrg"))
-      ),
-      asyncFields = Some(
-        KubernetesClusterAsyncFields(IP("https://relay.windows.net/"),
-                                     IP("unused"),
-                                     NetworkFields(NetworkName("unused"), SubnetworkName("unused"), IpRange("unused"))
-        )
-      )
-    )
-    val app = LeoLenses.appToServices.modify(_ => services)(testApp)
-    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
-      ServiceName("service1") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service1"
-      ),
-      ServiceName("service2") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service2"
-      ),
-      ServiceName("service3") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/service3"
-      )
-    )
-  }
-
-  it should "generate valid Azure proxy urls with path overrides" in {
-    val service = KubernetesService(
-      ServiceId(-1),
-      ServiceConfig(ServiceName("service1"), serviceKind, Some(ServicePath("/")))
-    )
-    val cluster = makeKubeCluster(1).copy(
-      cloudContext = CloudContext.Azure(
-        AzureCloudContext(TenantId("tenant"), SubscriptionId("sub"), ManagedResourceGroupName("mrg"))
-      ),
-      asyncFields = Some(
-        KubernetesClusterAsyncFields(IP("https://relay.windows.net/"),
-                                     IP("unused"),
-                                     NetworkFields(NetworkName("unused"), SubnetworkName("unused"), IpRange("unused"))
-        )
-      )
-    )
-    val app = LeoLenses.appToServices.modify(_ => List(service))(testApp)
-    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map(
-      ServiceName("service1") -> new URL(
-        s"https://relay.windows.net/${app.appName.value}-${workspaceId.value}/"
-      )
-    )
-  }
-
-  it should "generate not generate Azure proxy URLs if there is no relay endpoint" in {
-    val services = (1 to 3).map(makeService).toList
-    val cluster = makeKubeCluster(1).copy(
-      cloudContext = CloudContext.Azure(
-        AzureCloudContext(TenantId("tenant"), SubscriptionId("sub"), ManagedResourceGroupName("mrg"))
-      )
-    )
-    val app = LeoLenses.appToServices.modify(_ => services)(testApp)
-    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map.empty
-  }
+  // AN-570
+//  it should "generate not generate Azure proxy URLs if there is no relay endpoint" in {
+//    val services = (1 to 3).map(makeService).toList
+//    val cluster = makeKubeCluster(1).copy(
+//      cloudContext = CloudContext.Azure(
+//        AzureCloudContext(TenantId("tenant"), SubscriptionId("sub"), ManagedResourceGroupName("mrg"))
+//      )
+//    )
+//    val app = LeoLenses.appToServices.modify(_ => services)(testApp)
+//    app.getProxyUrls(cluster, proxyUrlBase) shouldBe Map.empty
+//  }
 
   "Chart strings" should "be parsed correctly" in {
     val validChartStr1 = "galaxy/galaxykubeman-1.2.3"

@@ -14,7 +14,6 @@ import fs2.Stream
 import io.circe.Decoder
 import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
 import org.broadinstitute.dsde.workbench.RetryConfig
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodName
@@ -276,9 +275,10 @@ class BaseMockSamService extends SamService[IO] {
     ev: Ask[IO, AppContext]
   ): IO[WorkbenchEmail] = IO.pure(serviceAccountEmail)
 
-  override def getPetManagedIdentity(bearerToken: String, azureCloudContext: AzureCloudContext)(implicit
-    ev: Ask[IO, AppContext]
-  ): IO[WorkbenchEmail] = IO.pure(managedIdentityEmail)
+  // AN-570
+//  override def getPetManagedIdentity(bearerToken: String, azureCloudContext: AzureCloudContext)(implicit
+//    ev: Ask[IO, AppContext]
+//  ): IO[WorkbenchEmail] = IO.pure(managedIdentityEmail)
 
   override def getProxyGroup(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
     IO.pure(proxyGroupEmail)

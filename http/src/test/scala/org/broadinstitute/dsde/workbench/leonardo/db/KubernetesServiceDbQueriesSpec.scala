@@ -385,7 +385,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     val nodepool1 = makeNodepool(1, cluster1.id).save()
     makeApp(1, nodepool1.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
 
-    val cluster2 = makeAzureCluster(2).save()
+    val cluster2 = makeKubeCluster(2).save()
     val nodepool2 = makeNodepool(2, cluster2.id).save()
     makeApp(2, nodepool2.id, status = AppStatus.Running, appType = AppType.Custom, chart = v1Chart).save()
 
@@ -397,17 +397,17 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       )
     ).flatMap(_.nodepools).flatMap(_.apps)
     withGoogleFilter.length shouldEqual 1
-    withGoogleFilter.map(_.appName.value).sorted shouldEqual List("app1")
-
-    val withAzureFilter = dbFutureValue(
-      KubernetesServiceDbQueries.listAppsForUpdate(
-        v2Chart,
-        AppType.Custom,
-        CloudProvider.Azure
-      )
-    ).flatMap(_.nodepools).flatMap(_.apps)
-    withAzureFilter.length shouldEqual 1
-    withAzureFilter.map(_.appName.value).sorted shouldEqual List("app2")
+    withGoogleFilter.map(_.appName.value).sorted shouldEqual List("app1", "app2")
+//AN-570
+//    val withAzureFilter = dbFutureValue(
+//      KubernetesServiceDbQueries.listAppsForUpdate(
+//        v2Chart,
+//        AppType.Custom,
+//        CloudProvider.Azure
+//      )
+//    ).flatMap(_.nodepools).flatMap(_.apps)
+//    withAzureFilter.length shouldEqual 1
+//    withAzureFilter.map(_.appName.value).sorted shouldEqual List("app2")
   }
 
   "listAppsForUpdate" should "correctly filter on app name" in isolatedDbTest {

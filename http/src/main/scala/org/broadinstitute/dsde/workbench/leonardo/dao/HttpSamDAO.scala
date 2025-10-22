@@ -346,24 +346,25 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
     } yield isAdmin
   }
 
-  override def getAzureActionManagedIdentity(authHeader: Authorization,
-                                             resource: SamResourceId.PrivateAzureStorageAccountSamResourceId,
-                                             action: PrivateAzureStorageAccountAction
-  )(implicit ev: Ask[F, TraceId]): F[Option[String]] =
-    for {
-      _ <- metrics.incrementCounter("sam/getActionManagedIdentity")
-      resp <- httpClient.expectOptionOr[GetActionManagedIdentityResponse](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(
-            Uri.Path.unsafeFromString(
-              s"/api/azure/v1/actionManagedIdentity/${resource.resourceType.asString}/${resource.resourceId}/${action.asString}"
-            )
-          ),
-          headers = Headers(authHeader)
-        )
-      )(onError)
-    } yield resp.map(_.objectId)
+  // AN-570
+//  override def getAzureActionManagedIdentity(authHeader: Authorization,
+//                                             resource: SamResourceId.PrivateAzureStorageAccountSamResourceId,
+//                                             action: PrivateAzureStorageAccountAction
+//  )(implicit ev: Ask[F, TraceId]): F[Option[String]] =
+//    for {
+//      _ <- metrics.incrementCounter("sam/getActionManagedIdentity")
+//      resp <- httpClient.expectOptionOr[GetActionManagedIdentityResponse](
+//        Request[F](
+//          method = Method.GET,
+//          uri = config.samUri.withPath(
+//            Uri.Path.unsafeFromString(
+//              s"/api/azure/v1/actionManagedIdentity/${resource.resourceType.asString}/${resource.resourceId}/${action.asString}"
+//            )
+//          ),
+//          headers = Headers(authHeader)
+//        )
+//      )(onError)
+//    } yield resp.map(_.objectId)
 
   private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
