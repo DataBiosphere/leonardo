@@ -39,7 +39,8 @@ START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 IS_GCE_FORMATTED=$(isGceFormatted)
 # Needs to be in sync with terra-docker container
 JUPYTER_HOME=/etc/jupyter
-JUPYTER_SCRIPTS=$JUPYTER_HOME/custom/extensions/scripts
+JUPYTER_EXTENSIONS=$JUPYTER_HOME/custom/extension
+JUPYTER_SCRIPTS=JUPYTER_EXTENSIONS/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 SERVER_CRT=$(proxyServerCrt)
@@ -522,7 +523,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
   # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' $JUPYTER_HOME/custom/jupyter_delocalize.py"
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' $JUPYTER_HOME/custom/extensions/jupyter_delocalize.py"
 
   log 'Wget the gitignore_global file, set gitignore in Git Config'
 
@@ -532,16 +533,16 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "whoami"
 
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "ls -l $JUPYTER_HOME/scripts/extension"
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "ls -l $JUPYTER_EXTENSIONS"
 
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
-  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_EXTENSIONS/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
-       && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-       && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
-       && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
-       && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-       && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && cp $JUPYTER_EXTENSIONS/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && ls -la $JUPYTER_EXTENSIONS/extension_entry_jupyter.js \
+       && cp $JUPYTER_EXTENSIONS/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+       && cp $JUPYTER_EXTENSIONS/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && cp $JUPYTER_EXTENSIONS/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && mkdir -p $JUPYTER_HOME/nbconfig"
 
   # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
