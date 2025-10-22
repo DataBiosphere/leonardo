@@ -58,7 +58,7 @@ class HttpWelderDAO[F[_]: Logger](
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
-      //AN-570
+      // AN-570
 //      headers <- cloudContext match {
 //        case _: CloudContext.Azure =>
 //          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))

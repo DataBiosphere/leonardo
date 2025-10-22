@@ -245,7 +245,7 @@ final case class DefaultKubernetesLabels(cloudContext: CloudContext,
 ) {
   val CloudContext.Gcp(googleProject) = cloudContext
   val cloudContextList = List("googleProject" -> googleProject.value)
-  //AN-570
+  // AN-570
 //  val cloudContextList = cloudContext match {
 //    case CloudContext.Gcp(value)   => List("googleProject" -> value.value)
 //    case CloudContext.Azure(value) => List("cloudContext" -> value.asString)
@@ -450,7 +450,7 @@ final case class App(id: AppId,
       val proxyPathOpt = cluster.cloudContext match {
         case CloudContext.Gcp(project) =>
           Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
-          //AN-570
+        // AN-570
 //        case CloudContext.Azure(_) =>
 //          // for backwards compatibility, name used to be just the appName
 //          cluster.asyncFields

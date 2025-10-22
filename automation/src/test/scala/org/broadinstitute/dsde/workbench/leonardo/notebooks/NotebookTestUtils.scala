@@ -26,7 +26,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     case _                          => false
   }
 
-  //AN-570
+  // AN-570
 //  def withNotebooksListPage[T](
 //    runtimeProjectAndName: RuntimeProjectAndName
 //  )(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
@@ -39,8 +39,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 //  }
 
   def withNotebooksListPage[T](
-                                runtimeProjectAndName: RuntimeProjectAndName
-                              )(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    runtimeProjectAndName: RuntimeProjectAndName
+  )(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     val CloudContext.Gcp(googleProject) = runtimeProjectAndName.cloudContext
     val notebooksListPage = JupyterServerClient.get(googleProject, runtimeProjectAndName.runtimeName)
     testCode(notebooksListPage.open)

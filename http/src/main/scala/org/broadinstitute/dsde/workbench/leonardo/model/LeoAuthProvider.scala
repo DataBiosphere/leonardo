@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   PersistentDiskSamResource,
   ProjectSamResource,
   RuntimeSamResource,
-  WorkspaceResource,
+  WorkspaceResource
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
