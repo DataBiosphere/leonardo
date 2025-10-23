@@ -396,7 +396,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
         CloudProvider.Gcp
       )
     ).flatMap(_.nodepools).flatMap(_.apps)
-    withGoogleFilter.length shouldEqual 1
+    withGoogleFilter.length shouldEqual 2
     withGoogleFilter.map(_.appName.value).sorted shouldEqual List("app1", "app2")
 //AN-570
 //    val withAzureFilter = dbFutureValue(

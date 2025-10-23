@@ -26,7 +26,7 @@ object MockRuntimeV2Interp extends RuntimeV2Service[IO] {
           cloudContextGcp,
           CommonTestData.testCluster.auditInfo,
           gceWithPdRuntimeConfig,
-//          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
+//          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString), AN-570
 //                                    Some(DiskId(-1)),
 //                                    None
 //          ),

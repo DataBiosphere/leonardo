@@ -437,10 +437,15 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       responseIdsWorkspace2.map(_.samResource).toSet shouldBe Set(samResource2, samResource3)
       responseIdsWorkspace3.map(_.samResource).toSet shouldBe Set(samResource4)
 //      responseIdsAzure.map(_.samResource).toSet shouldBe Set(samResource1, samResource4) AN-570
-      responseIdsGcp.map(_.samResource).toSet shouldBe Set(samResource2, samResource3, samResource5)
+      responseIdsGcp.map(_.samResource).toSet shouldBe Set(samResource1,
+                                                           samResource2,
+                                                           samResource3,
+                                                           samResource4,
+                                                           samResource5
+      )
 //      responseIdsAzureWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1) AN-570
 //      responseIdsAzureWorkspace2.map(_.samResource).toSet shouldBe Set.empty AN-570
-      responseIdsGcpWorkspace1.map(_.samResource).toSet shouldBe Set.empty
+      responseIdsGcpWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1)
       responseIdsGcpWorkspace2.map(_.samResource).toSet shouldBe Set(samResource2, samResource3)
     }
 

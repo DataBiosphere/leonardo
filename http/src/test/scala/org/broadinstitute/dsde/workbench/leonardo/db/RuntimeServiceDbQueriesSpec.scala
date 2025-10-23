@@ -608,7 +608,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(
         makeCluster(2)
           .copy(workspaceId = Some(workspaceId1))
-          .saveWithRuntimeConfig(c1RuntimeConfig)
+          .saveWithRuntimeConfig(c2RuntimeConfig)
       )
       // AN-570
 //      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
@@ -632,7 +632,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c3 <- IO(
         makeCluster(3)
           .copy(workspaceId = Some(workspaceId2))
-          .saveWithRuntimeConfig(c1RuntimeConfig)
+          .saveWithRuntimeConfig(c3RuntimeConfig)
       )
       // AN-570
 //      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
@@ -656,7 +656,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c4 <- IO(
         makeCluster(4)
           .copy(workspaceId = Some(workspaceId1))
-          .saveWithRuntimeConfig(c1RuntimeConfig)
+          .saveWithRuntimeConfig(c4RuntimeConfig)
       )
       // AN-570
 //      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d4.id), None)
@@ -680,7 +680,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c5 <- IO(
         makeCluster(5)
           .copy(workspaceId = Some(workspaceId2))
-          .saveWithRuntimeConfig(c1RuntimeConfig)
+          .saveWithRuntimeConfig(c5RuntimeConfig)
       )
       // AN-570
 //      c5RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d5.id), None)

@@ -442,7 +442,7 @@ class HttpRoutesSpec
     Get("/api/v2/runtimes") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       val response = responseAs[Vector[ListRuntimeResponse2]]
-      response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
+      response.map(_.clusterName) shouldBe Vector(RuntimeName("googleruntime1"))
       validateRawCookie(header("Set-Cookie"))
     }
   }
