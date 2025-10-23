@@ -740,7 +740,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig, c3ClusterRecord.get.hostIp)
       val c4Expected = toListRuntimeResponse(c4, Map.empty, c4RuntimeConfig, c4ClusterRecord.get.hostIp)
       val c5Expected = toListRuntimeResponse(c5, Map.empty, c5RuntimeConfig, c5ClusterRecord.get.hostIp)
-      list1.toSet shouldEqual Set(c2Expected, c4Expected)
+      list1.toSet shouldEqual Set(c1Expected, c2Expected, c4Expected)
       list2 should contain theSameElementsAs List(c3Expected, c5Expected)
       // AN-570
 //      list3 shouldEqual List(c1Expected)
