@@ -3,7 +3,7 @@
 # Leonardo
 
 `leonardo` serves as a way to launch compute within the Terra security boundary. 
-It does so via multiple different cloud hardware virtualization mechanisms, currently leveraging only the Google Cloud Platform (GCP) and Azure .
+It does so via multiple different cloud hardware virtualization mechanisms, currently leveraging only the Google Cloud Platform (GCP).
 
 `leonardo` supports launching the following services for compute:
 - Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/)
@@ -51,9 +51,9 @@ class LeonardoClient(leonardoBasePath: String) {
     new RuntimesApi(apiClient)
   }
 
-  def getAzureRuntimeDetails(token: String, workspaceId: String, runtimeName: String): GetRuntimeResponse = {
+  def getRuntimeDetails(token: String, googleProject: String, runtimeName: String): GetRuntimeResponse = {
     val leonardoApi = leonardoApi(token)
-    leonardoApi.getAzureRuntime(workspaceId, runtimeName)
+    leonardoApi.getRuntime(googleProject, runtimeName)
   }
 }
 ```
@@ -129,7 +129,6 @@ across environments thanks to the `Brewfile.lock.json`
   - vault
   - mysql-client
   - docker
-  - azure-cli
   - google-cloud-sdk
   - cloud-sql-proxy
   - sdkman (to support `java` and `sbt` environment management)
@@ -517,7 +516,7 @@ sbt "testOnly *LeoAuthProviderHelperSpec"
 or a particular test within a suite, e.g.
 
 ```
-sbt "testOnly *LeoPubsubMessageSubscriberSpec -- -z "handle Azure StopRuntimeMessage and stop runtime""
+sbt "testOnly *LeoPubsubMessageSubscriberSpec -- -z "handle CreateRuntimeMessage and create cluster""
 ```
 where `map` is a substring within the test name.
 

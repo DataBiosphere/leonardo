@@ -17,7 +17,6 @@ brew "sdkman-cli"
 # https://formulae.brew.sh/formula/mysql-client
 brew "mysql-client"
 
-brew "azure-cli"
 
 brew "go"
 
