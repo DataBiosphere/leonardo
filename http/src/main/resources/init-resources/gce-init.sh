@@ -40,7 +40,7 @@ IS_GCE_FORMATTED=$(isGceFormatted)
 # Needs to be in sync with terra-docker container
 JUPYTER_HOME=/etc/jupyter
 JUPYTER_EXTENSIONS=$JUPYTER_HOME/custom/extension
-JUPYTER_SCRIPTS=JUPYTER_EXTENSIONS/scripts
+JUPYTER_SCRIPTS=$JUPYTER_EXTENSIONS/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 SERVER_CRT=$(proxyServerCrt)
