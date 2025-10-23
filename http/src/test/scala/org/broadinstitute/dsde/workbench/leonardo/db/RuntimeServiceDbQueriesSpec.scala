@@ -678,7 +678,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
         None
       )
       c5 <- IO(
-        makeCluster(5)
+        makeCluster(5, Some(WorkbenchEmail("different@gmail.com")))
           .copy(workspaceId = Some(workspaceId2))
           .saveWithRuntimeConfig(c5RuntimeConfig)
       )
