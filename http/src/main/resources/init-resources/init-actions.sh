@@ -474,17 +474,17 @@ EOF
             && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
       # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
-      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_SCRIPTS/install_jupyter_contrib_nbextensions.sh \
-           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && cp $JUPYTER_EXTENSIONS/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && ls -la $JUPYTER_EXTENSIONS/extension_entry_jupyter.js \
-           && cp $JUPYTER_EXTENSIONS/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
-           && cp $JUPYTER_EXTENSIONS/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && cp $JUPYTER_EXTENSIONS/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && mkdir -p $JUPYTER_HOME/nbconfig"
+#      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_SCRIPTS/install_jupyter_contrib_nbextensions.sh \
+#           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && cp $JUPYTER_EXTENSIONS/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && ls -la $JUPYTER_EXTENSIONS/extension_entry_jupyter.js \
+#           && cp $JUPYTER_EXTENSIONS/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+#           && cp $JUPYTER_EXTENSIONS/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && cp $JUPYTER_EXTENSIONS/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+#           && mkdir -p $JUPYTER_HOME/nbconfig"
 
       log 'Starting Jupyter Notebook...'
-      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
+      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_HOME}/custom/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
       STEP_TIMINGS+=($(date +%s))
     fi

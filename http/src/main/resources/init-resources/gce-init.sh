@@ -567,7 +567,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
    STEP_TIMINGS+=($(date +%s))
 
   log 'Starting Jupyter Notebook...'
-  retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/custom/run-jupyter.sh ${NOTEBOOKS_DIR}"
+  retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_HOME}/custom/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
   # done start Jupyter
   STEP_TIMINGS+=($(date +%s))
