@@ -114,19 +114,18 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
     } yield res
   }
 
-  private def getWelderAction(runtime: Runtime): Option[WelderAction] =
-   {
-      // Welder is already enabled; do we need to update it?
-      val labelFound = config.welderConfig.updateWelderLabel.exists(runtime.labels.contains)
+  private def getWelderAction(runtime: Runtime): Option[WelderAction] = {
+    // Welder is already enabled; do we need to update it?
+    val labelFound = config.welderConfig.updateWelderLabel.exists(runtime.labels.contains)
 
-      val imageChanged = runtime.runtimeImages.find(_.imageType == Welder) match {
-        case Some(welderImage) if welderImage.hash != Some(config.imageConfig.welderHash) => true
-        case _                                                                            => false
-      }
-
-      if (labelFound && imageChanged) Some(UpdateWelder)
-      else None
+    val imageChanged = runtime.runtimeImages.find(_.imageType == Welder) match {
+      case Some(welderImage) if welderImage.hash != Some(config.imageConfig.welderHash) => true
+      case _                                                                            => false
     }
+
+    if (labelFound && imageChanged) Some(UpdateWelder)
+    else None
+  }
 
   private def isClusterBeforeCutoffDate(runtime: Runtime): Boolean =
     (for {
