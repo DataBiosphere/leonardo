@@ -536,7 +536,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "ls -l $JUPYTER_EXTENSIONS"
 
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
-  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_EXTENSIONS/install_jupyter_contrib_nbextensions.sh \
+  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_SCRIPTS/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_EXTENSIONS/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && ls -la $JUPYTER_EXTENSIONS/extension_entry_jupyter.js \
