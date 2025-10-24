@@ -5,7 +5,6 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
-//import org.broadinstitute.dsde.workbench.azure.AzureCloudContext AN-570
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
 import org.broadinstitute.dsde.workbench.client.sam.model.{
   AccessPolicyMembershipRequest,
@@ -62,32 +61,6 @@ class SamServiceInterp[F[_]](apiClientProvider: SamApiClientProvider[F],
         s"Retrieved pet service account $pet for user $userEmail in project $googleProject"
       )
     } yield WorkbenchEmail(pet)
-
-  // AN-570
-//  override def getPetManagedIdentity(bearerToken: String, azureCloudContext: AzureCloudContext)(implicit
-//    ev: Ask[F, AppContext]
-//  ): F[WorkbenchEmail] =
-//    for {
-//      ctx <- ev.ask
-//      azureApi <- apiClientProvider.azureApi(bearerToken)
-//      userEmail <- getUserEmail(bearerToken)
-//      pet <- SamRetry
-//        .retry(
-//          azureApi.getPetManagedIdentity(
-//            new GetOrCreateManagedIdentityRequest()
-//              .tenantId(azureCloudContext.tenantId.value)
-//              .subscriptionId(azureCloudContext.subscriptionId.value)
-//              .managedResourceGroupName(azureCloudContext.managedResourceGroupName.value)
-//          ),
-//          "getPetManagedIdentity"
-//        )
-//        .adaptError { case e: ApiException =>
-//          SamException.create("Error getting pet managed identity from Sam", e, ctx.traceId)
-//        }
-//      _ <- logger.info(ctx.loggingCtx)(
-//        s"Retrieved pet managed identity $pet for user $userEmail in Azure cloud context ${azureCloudContext.asString}"
-//      )
-//    } yield WorkbenchEmail(pet)
 
   override def getProxyGroup(
     userEmail: WorkbenchEmail

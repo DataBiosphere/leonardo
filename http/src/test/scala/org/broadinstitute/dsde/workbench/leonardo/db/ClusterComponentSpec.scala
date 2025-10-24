@@ -370,11 +370,6 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
                                         zone = ZoneName("us-west2-b"),
                                         None
           )
-          // AN-570
-//          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-//                                    Some(savedDisk.id),
-//                                    None
-//          )
         )
       )
       savedRuntime2 <- IO(
@@ -385,11 +380,6 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
                                         zone = ZoneName("us-west2-b"),
                                         None
           )
-          // AN-570
-//          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-//                                    Some(savedDisk.id),
-//                                    None
-//          )
         )
       )
       retrievedRuntime <- clusterQuery.getClusterWithDiskId(savedDisk.id).transaction

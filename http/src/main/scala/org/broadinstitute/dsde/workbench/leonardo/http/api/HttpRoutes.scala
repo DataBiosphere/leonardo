@@ -45,7 +45,6 @@ class HttpRoutes(
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
   private val appRoutes = createAppRoutesUsingServicesRegistry
   private val runtimeV2Routes = new RuntimeV2Routes(runtimeV2Service, userInfoDirectives)
-//  private val adminRoutes = new AdminRoutes(adminService, userInfoDirectives) AN-570
   private val diskRoutes = createDiskRoutesUsingServicesRegistry
   private val runtimeRoutes = createRuntimeRoutesUsingServicesRegistry
   private val resourcesRoutes = createResourcesRoutesUsingServicesRegistry
@@ -113,21 +112,6 @@ class HttpRoutes(
 
   val route: Route =
     logRequestResult {
-      // AN-570
-//      // Note that this is Azure-only as in hosted on Azure, not operating on Azure resources
-//      enableAzureOnlyRoutes match {
-//        case false =>
-//          Route.seal(
-//            oidcConfig
-//              .swaggerRoutes(
-//                "swagger/api-docs.yaml"
-//              ) ~ oidcConfig.oauth2Routes ~ proxyRoutes.get.route ~ statusRoutes.route ~
-//              pathPrefix("api") {
-//                runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~ diskRoutes.get.routes ~ kubernetesRoutes.routes ~
-//                  adminRoutes.routes ~ resourcesRoutes.get.routes
-//              }
-//          )
-//        case true =>
       Route.seal(
         oidcConfig
           .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~

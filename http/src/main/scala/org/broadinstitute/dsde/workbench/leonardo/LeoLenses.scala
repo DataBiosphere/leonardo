@@ -43,15 +43,6 @@ object LeoLenses {
       value.some
     }(googleProjectOpt => cloudContext => googleProjectOpt.fold(cloudContext)(p => CloudContext.Gcp(p)))
 
-  // AN-570
-//  val cloudContextToManagedResourceGroup: Lens[CloudContext, Option[AzureCloudContext]] =
-//    Lens[CloudContext, Option[AzureCloudContext]] { x =>
-//      x match {
-//        case _: CloudContext.Gcp   => none[AzureCloudContext]
-//        case p: CloudContext.Azure => p.value.some
-//      }
-//    }(mrg => cloudContext => mrg.fold(cloudContext)(p => CloudContext.Azure(p)))
-
   val diskToCreator: Lens[PersistentDisk, WorkbenchEmail] = GenLens[PersistentDisk](_.auditInfo.creator)
 
   val runtimeConfigPrism = Prism[RuntimeConfig, RuntimeConfigInCreateRuntimeMessage] {
@@ -86,9 +77,6 @@ object LeoLenses {
       )
     case x: RuntimeConfig.DataprocConfig =>
       Some(dataprocRuntimeToDataprocInCreateRuntimeMsg(x))
-    // AN-570
-//    case _: RuntimeConfig.AzureConfig =>
-//      throw AzureUnimplementedException("Azure vms should not be handled with existing create runtime message")
   } {
     case x: RuntimeConfigInCreateRuntimeMessage.GceConfig =>
       RuntimeConfig.GceConfig(

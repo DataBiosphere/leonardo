@@ -78,8 +78,6 @@ class LeoPubsubMessageSubscriberSpec
     with Eventually
     with LeonardoTestSuite
     with BeforeAndAfterEach {
-  // AN-570
-//  val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   val mockWelderDAO = mock[WelderDAO[IO]]
 

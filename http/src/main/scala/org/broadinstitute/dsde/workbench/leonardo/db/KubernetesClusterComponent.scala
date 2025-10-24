@@ -90,15 +90,6 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
         KubernetesClusterRecord(
           id,
           CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext,
-          // AN-570
-//          cloudProvider match {
-//            case CloudProvider.Gcp =>
-//              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
-//            case CloudProvider.Azure =>
-//              val context =
-//                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
-//              CloudContext.Azure(context): CloudContext
-//          },
           clusterName,
           location,
           region,
@@ -119,13 +110,6 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
         val CloudContext.Gcp(value) = r.cloudContext
         (r.id,
          (CloudProvider.Gcp, CloudContextDb(value.value)),
-         // AN-570
-         //         r.cloudContext match {
-         //           case CloudContext.Gcp(value) =>
-         //             (CloudProvider.Gcp, CloudContextDb(value.value))
-         //           case CloudContext.Azure(value) =>
-         //             (CloudProvider.Azure, CloudContextDb(value.asString))
-         //         },
          r.clusterName,
          r.location,
          r.region,

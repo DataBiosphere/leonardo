@@ -494,10 +494,6 @@ object RuntimeRoutes {
           x.as[UpdateRuntimeConfigRequest.DataprocConfig]
         case CloudService.GCE =>
           x.as[UpdateRuntimeConfigRequest.GceConfig]
-        // AN-570
-//        case CloudService.AzureVm =>
-//          // TODO in https://broadworkbench.atlassian.net/browse/IA-3112
-//          throw AzureUnimplementedException("cannot decode update runtime config request for azure yet")
       }
     } yield r
   }

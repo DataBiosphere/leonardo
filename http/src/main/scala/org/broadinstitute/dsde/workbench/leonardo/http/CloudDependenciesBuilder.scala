@@ -73,7 +73,6 @@ final case class ServicesDependencies(
   statusService: StatusService,
   cloudSpecificDependenciesRegistry: ServicesRegistry,
   kubernetesService: AppService[IO],
-//  adminService: AdminService[IO], AN-570
   runtimeV2Service: RuntimeV2Service[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,

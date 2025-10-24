@@ -15,13 +15,6 @@ object ConfigReader {
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
 }
-//AN-570
-//final case class AzureConfig(
-//  appRegistration: AzureAppRegistrationConfig,
-//  allowedSharedApps: List[AppType],
-//  tdr: TdrConfig,
-//  hostingModeConfig: AzureHostingModeConfig
-//)
 
 final case class OidcAuthConfig(
   authorityEndpoint: Uri,
@@ -37,8 +30,6 @@ final case class TdrConfig(url: String)
 final case class AppConfig(
   terraAppSetupChart: TerraAppSetupChartConfig,
   persistentDisk: PersistentDiskConfig,
-  // AN-570
-//  azure: AzureConfig,
   oidc: OidcAuthConfig,
   drs: DrsConfig,
   metrics: LeoMetricsMonitorConfig

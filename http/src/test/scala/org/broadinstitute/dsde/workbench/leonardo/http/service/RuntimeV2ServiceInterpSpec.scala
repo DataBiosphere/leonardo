@@ -265,16 +265,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       runtime1 <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = workspaceIdOpt).save())
       // GCP runtime 2
       runtime2 <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = workspaceIdOpt).save())
-      // AN-570
-//      runtime2 <- IO(
-//        makeCluster(2)
-//          .copy(
-//            samResource = samResource2,
-//            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext),
-//            workspaceId = Some(WorkspaceId(UUID.fromString(workspaceIdAzure)))
-//          )
-//          .save()
-//      )
+
       listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
     } yield {
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
@@ -337,22 +328,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      // AN-570
-//      _ <- IO(
-//        makeCluster(1)
-//          .copy(
-//            samResource = samResource1,
-//            workspaceId = Some(workspace1),
-//            cloudContext = CloudContext.Azure(
-//              AzureCloudContext(
-//                TenantId(workspaceId1),
-//                SubscriptionId(workspaceId1),
-//                ManagedResourceGroupName(workspaceId1)
-//              )
-//            )
-//          )
-//          .save()
-//      )
+
       // hidden runtime 2, read workspace 2, owned project 1, Gcp
       _ <- IO(
         makeCluster(2)
@@ -383,22 +359,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      // AN-570
-//      _ <- IO(
-//        makeCluster(4)
-//          .copy(
-//            samResource = samResource4,
-//            workspaceId = Some(workspace3),
-//            cloudContext = CloudContext.Azure(
-//              AzureCloudContext(
-//                TenantId(workspaceId3),
-//                SubscriptionId(workspaceId3),
-//                ManagedResourceGroupName(workspaceId3)
-//              )
-//            )
-//          )
-//          .save()
-//      )
+
       // read runtime 5, read project 2, Gcp
       _ <- IO(
         makeCluster(5)
@@ -409,19 +370,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       responseIdsWorkspace1 <- testService.listRuntimes(userInfo, Some(workspace1), None, Map.empty)
       responseIdsWorkspace2 <- testService.listRuntimes(userInfo, Some(workspace2), None, Map.empty)
       responseIdsWorkspace3 <- testService.listRuntimes(userInfo, Some(workspace3), None, Map.empty)
-//      responseIdsAzure <- testService.listRuntimes(userInfo, None, Some(CloudProvider.Azure), Map.empty) AN-570
       responseIdsGcp <- testService.listRuntimes(userInfo, None, Some(CloudProvider.Gcp), Map.empty)
-      // AN-570
-//      responseIdsAzureWorkspace1 <- testService.listRuntimes(userInfo,
-//                                                             Some(workspace1),
-//                                                             Some(CloudProvider.Azure),
-//                                                             Map.empty
-//      )
-//      responseIdsAzureWorkspace2 <- testService.listRuntimes(userInfo,
-//                                                             Some(workspace2),
-//                                                             Some(CloudProvider.Azure),
-//                                                             Map.empty
-//      )
       responseIdsGcpWorkspace1 <- testService.listRuntimes(userInfo,
                                                            Some(workspace1),
                                                            Some(CloudProvider.Gcp),
@@ -436,15 +385,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       responseIdsWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1)
       responseIdsWorkspace2.map(_.samResource).toSet shouldBe Set(samResource2, samResource3)
       responseIdsWorkspace3.map(_.samResource).toSet shouldBe Set(samResource4)
-//      responseIdsAzure.map(_.samResource).toSet shouldBe Set(samResource1, samResource4) AN-570
       responseIdsGcp.map(_.samResource).toSet shouldBe Set(samResource1,
                                                            samResource2,
                                                            samResource3,
                                                            samResource4,
                                                            samResource5
       )
-//      responseIdsAzureWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1) AN-570
-//      responseIdsAzureWorkspace2.map(_.samResource).toSet shouldBe Set.empty AN-570
       responseIdsGcpWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1)
       responseIdsGcpWorkspace2.map(_.samResource).toSet shouldBe Set(samResource2, samResource3)
     }
@@ -515,7 +461,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "list runtimes filtered by creator" in isolatedDbTest {
-//    val wsmId1 = WsmResourceSamResourceId(WsmControlledResourceId(UUID.randomUUID)) AN-570
     val runtimeId1 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId3 = RuntimeSamResourceId(UUID.randomUUID.toString)

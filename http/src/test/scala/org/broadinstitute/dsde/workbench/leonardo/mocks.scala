@@ -155,8 +155,6 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     implicit ev: Ask[IO, TraceId]
   ): IO[Set[WorkspaceResourceSamResourceId]] = ???
 
-//  override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ??? AN-570
-
   override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
   override def getLeoAuthToken: IO[String] = ???
@@ -251,9 +249,6 @@ class MockGKEService extends GKEAlgebra[IO] {
   /** Creates an app and polls it for completion. */
   override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
-//  /** Updates an app and polls it for completion. */
-//  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit AN-570
-
   /** Deletes a cluster and polls for completion */
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
@@ -274,11 +269,6 @@ class BaseMockSamService extends SamService[IO] {
   override def getPetServiceAccount(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[IO, AppContext]
   ): IO[WorkbenchEmail] = IO.pure(serviceAccountEmail)
-
-  // AN-570
-//  override def getPetManagedIdentity(bearerToken: String, azureCloudContext: AzureCloudContext)(implicit
-//    ev: Ask[IO, AppContext]
-//  ): IO[WorkbenchEmail] = IO.pure(managedIdentityEmail)
 
   override def getProxyGroup(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, AppContext]): IO[WorkbenchEmail] =
     IO.pure(proxyGroupEmail)

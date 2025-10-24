@@ -134,24 +134,11 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
         zone = ZoneName("us-west2-b"),
         None
       )
-      // AN-570
-//        RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
       c2 <- IO(
         makeCluster(2, samResource = RuntimeSamResourceId(runtimeId2))
           .copy(workspaceId = Some(workspaceId2))
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
-      // AN-570
-//      c2 <- IO(
-//        makeCluster(2,
-//                    samResource = RuntimeSamResourceId(runtimeId2),
-//                    cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
-//        )
-//          .copy(workspaceId = Some(workspaceId2))
-//          .saveWithRuntimeConfig(
-//            c2RuntimeConfig
-//          )
-//      )
       labels2 = Map(
         "clusterName" -> c2.runtimeName.asString,
         "creator" -> c2.auditInfo.creator.value
@@ -166,18 +153,6 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
         zone = ZoneName("us-west2-b"),
         None
       )
-      // AN-570
-//      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
-//      c3 <- IO(
-//        makeCluster(3,
-//                    samResource = RuntimeSamResourceId(runtimeId3),
-//                    cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
-//        )
-//          .copy(workspaceId = Some(workspaceId2))
-//          .saveWithRuntimeConfig(
-//            c3RuntimeConfig
-//          )
-//      )
       c3 <- IO(
         makeCluster(3, samResource = RuntimeSamResourceId(runtimeId3))
           .copy(workspaceId = Some(workspaceId2))
@@ -464,13 +439,6 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
         makeCluster(3)
           .saveWithRuntimeConfig(c3RuntimeConfig)
       )
-      // AN-570
-//      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
-//      c3 <- IO(
-//        makeCluster(3).saveWithRuntimeConfig(
-//          c3RuntimeConfig
-//        )
-//      )
       runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId, c3.samResource: SamResourceId)
       list1 <- RuntimeServiceDbQueries
         .listRuntimes(runtimeIds = runtimeIds)
@@ -541,15 +509,6 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           .copy(workspaceId = Some(workspaceId2))
           .saveWithRuntimeConfig(c3RuntimeConfig)
       )
-      // AN-570
-//      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
-//      c3 <- IO(
-//        makeCluster(3)
-//          .copy(workspaceId = Some(workspaceId2))
-//          .saveWithRuntimeConfig(
-//            c3RuntimeConfig
-//          )
-//      )
       runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId, c3.samResource: SamResourceId)
 
       list1 <- RuntimeServiceDbQueries
@@ -610,15 +569,6 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           .copy(workspaceId = Some(workspaceId1))
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
-      // AN-570
-//      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
-//      c2 <- IO(
-//        makeCluster(2)
-//          .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
-//          .saveWithRuntimeConfig(
-//            c2RuntimeConfig
-//          )
-//      )
       c2ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c2.cloudContext, c2.runtimeName).transaction
 
       d3 <- makePersistentDisk(None).save()
@@ -634,15 +584,6 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           .copy(workspaceId = Some(workspaceId2))
           .saveWithRuntimeConfig(c3RuntimeConfig)
       )
-      // AN-570
-//      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
-//      c3 <- IO(
-//        makeCluster(3)
-//          .copy(workspaceId = Some(workspaceId2), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
-//          .saveWithRuntimeConfig(
-//            c3RuntimeConfig
-//          )
-//      )
       c3ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c3.cloudContext, c3.runtimeName).transaction
 
       d4 <- makePersistentDisk(Some(DiskName("d4"))).save()
@@ -658,15 +599,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           .copy(workspaceId = Some(workspaceId1))
           .saveWithRuntimeConfig(c4RuntimeConfig)
       )
-      // AN-570
-//      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d4.id), None)
-//      c4 <- IO(
-//        makeCluster(4)
-//          .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
-//          .saveWithRuntimeConfig(
-//            c4RuntimeConfig
-//          )
-//      )
+
       c4ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c4.cloudContext, c4.runtimeName).transaction
 
       d5 <- makePersistentDisk(Some(DiskName("d5"))).save()
@@ -682,15 +615,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           .copy(workspaceId = Some(workspaceId2))
           .saveWithRuntimeConfig(c5RuntimeConfig)
       )
-      // AN-570
-//      c5RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d5.id), None)
-//      c5 <- IO(
-//        makeCluster(5, Some(WorkbenchEmail("different@gmail.com")))
-//          .copy(workspaceId = Some(workspaceId2), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
-//          .saveWithRuntimeConfig(
-//            c5RuntimeConfig
-//          )
-//      )
+
       c5ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c5.cloudContext, c5.runtimeName).transaction
       runtimeIds = Set(c1, c2, c3, c4, c5).map(_.samResource: SamResourceId)
 
@@ -708,20 +633,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                       workspaceId = Some(workspaceId2)
         )
         .transaction
-      // AN-570
-//      list3 <- RuntimeServiceDbQueries
-//        .listRuntimes(runtimeIds = runtimeIds,
-//                      cloudProvider = Some(CloudProvider.Gcp),
-//                      excludeStatuses = List(RuntimeStatus.Deleted),
-//                      workspaceId = Some(workspaceId1)
-//        )
-//        .transaction
-//      list4 <- RuntimeServiceDbQueries
-//        .listRuntimes(runtimeIds = runtimeIds,
-//                      cloudProvider = Some(CloudProvider.Azure),
-//                      excludeStatuses = List(RuntimeStatus.Deleted)
-//        )
-//        .transaction
+
       list5 <- RuntimeServiceDbQueries
         .listRuntimes(
           runtimeIds = runtimeIds,
@@ -742,9 +654,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       val c5Expected = toListRuntimeResponse(c5, Map.empty, c5RuntimeConfig, c5ClusterRecord.get.hostIp)
       list1.toSet shouldEqual Set(c1Expected, c2Expected, c4Expected)
       list2 should contain theSameElementsAs List(c3Expected, c5Expected)
-      // AN-570
-//      list3 shouldEqual List(c1Expected)
-//      list4.toSet shouldEqual Set(c2Expected, c3Expected, c4Expected, c5Expected)
+
       list5 shouldEqual List(c5Expected)
 
       elapsed should be < maxElapsed

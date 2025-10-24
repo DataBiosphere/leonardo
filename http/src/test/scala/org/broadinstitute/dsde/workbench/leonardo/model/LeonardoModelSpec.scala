@@ -275,17 +275,5 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       )
       .toString shouldBe expectedBase + "rstudio"
 
-    // AN-570
-//    Runtime
-//      .getProxyUrl(
-//        proxyUrlBase,
-//        CloudContext
-//          .Azure(AzureCloudContext(TenantId("tenantId"), SubscriptionId("sid"), ManagedResourceGroupName("mrg"))),
-//        name0,
-//        Set(welderImage, customDataprocImage, rstudioImage),
-//        Some(IP("qi-relay.servicebus.windows.net")),
-//        Map("tool" -> "Jupyter", "foo" -> "bar")
-//      )
-//      .toString shouldBe s"https://qi-relay.servicebus.windows.net/${name0.asString}"
   }
 }

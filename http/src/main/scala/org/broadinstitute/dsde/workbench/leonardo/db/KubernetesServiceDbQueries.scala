@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unma
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-//import org.broadinstitute.dsde.workbench.model.google.GoogleProject AN-570
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import java.time.Instant
@@ -66,37 +65,6 @@ object KubernetesServiceDbQueries {
       ),
       labelFilter
     )
-//AN-570
-//  /**
-//    * List all RUNNING apps that are not on the given target chart version. Used to decide which apps to update.
-//    */
-//  def listAppsForUpdate(targetVersion: Chart,
-//                        appType: AppType,
-//                        cloudProvider: CloudProvider,
-//                        chartVersionsToInclude: List[Chart] = List(),
-//                        chartVersionsToExclude: List[Chart] = List(),
-//                        googleProject: Option[GoogleProject] = None,
-//                        workspaceId: Option[WorkspaceId] = None,
-//                        appNames: List[AppName] = List()
-//  )(implicit
-//    ec: ExecutionContext
-//  ): DBIO[List[KubernetesCluster]] =
-//    joinFullAppAndUnmarshal(
-//      kubernetesClusterQuery
-//        .filter(_.cloudProvider === cloudProvider)
-//        .filterOpt(googleProject) { case (clusterTable, gp) =>
-//          clusterTable.cloudContextDb === CloudContextDb(gp.value)
-//        },
-//      nodepoolQuery,
-//      appQuery
-//        .filter(_.status === (AppStatus.Running: AppStatus))
-//        .filter(_.appType === appType)
-//        .filter(_.chart =!= targetVersion)
-//        .filterIf(chartVersionsToInclude.nonEmpty)(_.chart inSetBind chartVersionsToInclude)
-//        .filterIf(chartVersionsToExclude.nonEmpty)(t => !(t.chart inSetBind chartVersionsToExclude))
-//        .filterOpt(workspaceId) { case (appTable, wId) => appTable.workspaceId === wId }
-//        .filterIf(appNames.nonEmpty)(_.appName inSetBind appNames)
-//    )
 
   /**
     * List all apps that need monitoring. Called by MonitorAtBoot.

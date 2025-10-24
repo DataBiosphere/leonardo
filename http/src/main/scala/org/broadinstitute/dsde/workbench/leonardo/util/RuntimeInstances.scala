@@ -8,7 +8,6 @@ class RuntimeInstances[F[_]](dataprocInterp: RuntimeAlgebra[F], gceInterp: Runti
   def interpreter(cloudService: CloudService): RuntimeAlgebra[F] = cloudService match {
     case Dataproc => dataprocInterp
     case GCE      => gceInterp
-//    case AzureVm  => throw new Exception("Azure is not handled with existing RuntimeAlgebra structure") AN-570
   }
 }
 

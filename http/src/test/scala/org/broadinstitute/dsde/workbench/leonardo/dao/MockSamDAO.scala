@@ -38,8 +38,6 @@ class MockSamDAO extends SamDAO[IO] {
   var runtimeCreators: Map[Authorization, Set[(RuntimeSamResourceId, SamPolicyName)]] = Map.empty
   var diskCreators: Map[Authorization, Set[(PersistentDiskSamResourceId, SamPolicyName)]] = Map.empty
   var appCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
-  // AN-570
-//  var wmsResourceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
   var workspaceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
 
   // we don't care much about traceId in unit tests, hence providing a constant UUID here
@@ -92,13 +90,6 @@ class MockSamDAO extends SamDAO[IO] {
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
-      // AN-570
-//      case SamResourceType.WsmResource =>
-//        val res = wsmResources
-//          .get((WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(resource))), authHeader))
-//          .map(_.map(_.asString).contains(action))
-//          .getOrElse(false)
-//        IO.pure(res)
       case _ => IO.pure(false)
     }
 
@@ -147,16 +138,6 @@ class MockSamDAO extends SamDAO[IO] {
           .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
           .asInstanceOf[List[(R, SamRole)]]
       )
-    // AN-570
-//    case SamResourceType.WsmResource =>
-//      IO.pure(
-//        wmsResourceCreators
-//          .get(authHeader)
-//          .map(_.toList)
-//          .getOrElse(List.empty)
-//          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
-//          .asInstanceOf[List[(R, SamRole)]]
-//      )
     case _ => IO.pure(List.empty)
   }
 
@@ -188,11 +169,6 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(
           workspaceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
         )
-      // AN-570
-//      case SamResourceType.WsmResource =>
-//        IO.pure(
-//          wmsResourceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
-//        )
       case _ => IO.pure(List.empty)
     }
 
@@ -362,12 +338,6 @@ class MockSamDAO extends SamDAO[IO] {
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(petSA))
 
-  // AN-570
-//  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
-//    ev: Ask[IO, TraceId]
-//  ): IO[Option[WorkbenchEmail]] =
-//    IO.pure(Some(petMI))
-
   override def getUserProxy(
     userEmail: WorkbenchEmail
   )(implicit ev: Ask[IO, TraceId]): IO[Option[WorkbenchEmail]] =
@@ -464,10 +434,6 @@ class MockSamDAO extends SamDAO[IO] {
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
-//AN-570
-//  override def isAdminUser(userInfo: UserInfo)(implicit
-//    ev: Ask[IO, TraceId]
-//  ): IO[Boolean] = IO.pure(false)
 
   override def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
@@ -478,13 +444,6 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Set[SamRole]] = ???
 
-  /** Gets an action managed identity from Sam as the calling user for the given resource type,
-   * resource ID, and action. Returns the managed identity object ID. */
-  // AN-570
-//  override def getAzureActionManagedIdentity(authHeader: Authorization,
-//                                             resource: PrivateAzureStorageAccountSamResourceId,
-//                                             action: PrivateAzureStorageAccountAction
-//  )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = IO(None)
 }
 
 object MockSamDAO {

@@ -108,20 +108,6 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Boolean]
 
-  // AN-570
-//  /** Uses the user's token to query Sam's admin endpoint for their own user info.
-//    * Returns true of this query is successful, indicating that the user is an admin in Sam. */
-//  def isAdminUser(userInfo: UserInfo)(implicit
-//    ev: Ask[F, TraceId]
-//  ): F[Boolean]
-
-  /** Gets an action managed identity from Sam as the calling user for the given resource type,
-   * resource ID, and action. Returns the managed identity object ID. */
-  // AN-570
-//  def getAzureActionManagedIdentity(authHeader: Authorization,
-//                                    resource: PrivateAzureStorageAccountSamResourceId,
-//                                    action: PrivateAzureStorageAccountAction
-//  )(implicit ev: Ask[F, TraceId]): F[Option[String]]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal

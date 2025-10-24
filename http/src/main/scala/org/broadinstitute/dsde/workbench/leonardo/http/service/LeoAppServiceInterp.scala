@@ -692,8 +692,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
     val nodepoolStatus =
-      // AN-570
-//      if (autopilotEnabled || cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running
       if (autopilotEnabled) NodepoolStatus.Running
       else NodepoolStatus.Precreating
     val defaultNodepool = for {
@@ -722,13 +720,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       clusterName = defaultClusterName,
       location = loc,
       region = config.leoKubernetesConfig.clusterConfig.region,
-      // AN-570
-//        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName("unset")
-//        else config.leoKubernetesConfig.clusterConfig.region,
       status = KubernetesClusterStatus.Precreating,
-      // AN-570
-//        if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
-//        else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool,
@@ -939,7 +931,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       None,
       labels,
       None,
-//      None, AN-570
       None
     )
   }
@@ -958,8 +949,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       clusterId = clusterId,
       nodepoolName,
       status = NodepoolStatus.Precreating,
-      // AN-570
-//        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = machineConfig.machineType,
       numNodes = machineConfig.numNodes,
@@ -1053,21 +1042,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       _ <- (cloudContext.cloudProvider, diskOpt) match {
         case (CloudProvider.Gcp, None) =>
           Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
-        // AN-570
-//        case (CloudProvider.Azure, Some(_)) =>
-//          Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
         case _ => Right(())
       }
 
       customEnvironmentVariables = req.customEnvironmentVariables
-      // AN-570
-      // adding the relayHybridConnection name to custom env vars
-      // necessary for backwards compatibility before workspace was added to name
-//      (cloudContext.cloudProvider, workspaceId) match {
-//        case (CloudProvider.Azure, Some(workspaceId)) =>
-//          req.customEnvironmentVariables + ("RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}")
-//        case _ => req.customEnvironmentVariables
-//      }
 
       // Generate namespace and app release names using a random 6-character string prefix.
       //

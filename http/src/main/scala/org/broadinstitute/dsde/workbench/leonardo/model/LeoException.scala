@@ -51,21 +51,6 @@ case class ForbiddenError(email: WorkbenchEmail, traceId: Option[TraceId] = None
       traceId = traceId
     )
 
-//AN-570
-//case class NotAnAdminError(email: WorkbenchEmail, traceId: Option[TraceId] = None)
-//    extends LeoException(
-//      s"${email.value} is not a Terra admin.",
-//      StatusCodes.Forbidden,
-//      traceId = traceId
-//    )
-//
-//case class NoMatchingAppError(appType: AppType, cloudProvider: CloudProvider, traceId: Option[TraceId] = None)
-//    extends LeoException(
-//      s"No matching app config found for appType ${appType.toString} and cloud provider ${cloudProvider.asString}. Leo likely doesn't deploy this app on this cloud.",
-//      StatusCodes.PreconditionFailed,
-//      traceId = traceId
-//    )
-
 final case class LeoInternalServerError(msg: String, traceId: Option[TraceId])
     extends LeoException(
       s"${msg}",
@@ -118,13 +103,6 @@ case class RuntimeCannotBeDeletedException(cloudContext: CloudContext, runtimeNa
       StatusCodes.Conflict,
       traceId = None
     )
-//AN-570
-//case class RuntimeCannotBeDeletedWsmException(cloudContext: CloudContext, runtimeName: RuntimeName, status: WsmState)
-//    extends LeoException(
-//      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status.value} status, please wait and try again",
-//      StatusCodes.Conflict,
-//      traceId = None
-//    )
 
 case class RuntimeCannotBeStartedException(cloudContext: CloudContext, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
@@ -239,14 +217,3 @@ case class NonDeletableDisksInProjectFoundException(googleProject: GoogleProject
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
-//AN-570
-//case class AppResourceCannotBeDeletedException(wsmResourceId: WsmControlledResourceId,
-//                                               appId: AppId,
-//                                               status: String,
-//                                               wsmResourceType: WsmResourceType,
-//                                               traceId: TraceId
-//) extends LeoException(
-//      s"Azure ${wsmResourceType.toString} with id ${wsmResourceId.value} associated with ${appId.id} cannot be deleted in $status status, please wait and try again",
-//      StatusCodes.Conflict,
-//      traceId = Some(traceId)
-//    )

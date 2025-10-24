@@ -14,23 +14,7 @@ object HostStatus {
   final case class HostReady(hostname: Host, path: String, cloudProvider: CloudProvider) extends HostStatus {
     def toUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/proxy/${path}")
 
-    // AN-570
-//      cloudProvider match {
-//        case CloudProvider.Gcp =>
-//          Uri.unsafeFromString(s"https://${hostname.address()}/proxy/${path}")
-//        case CloudProvider.Azure =>
-//          azureUri
-//      }
-
     def toNotebooksUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/notebooks/${path}")
-    // AN-570
-    //      cloudProvider match {
-//        case CloudProvider.Gcp =>
-//          Uri.unsafeFromString(s"https://${hostname.address()}/notebooks/${path}")
-//        case CloudProvider.Azure =>
-//          azureUri
-//      }
-//    private def azureUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/${path}")
   }
 }
 

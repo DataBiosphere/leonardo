@@ -88,7 +88,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
         a.status,
         getRuntimeUI(a.labels),
         a.chart
-//        isUpgradeable(a.appType, c.cloudContext.cloudProvider, a.chart) AN-570
       ) -> 1d
     )
 
@@ -159,7 +158,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
             getRuntimeUI(app.labels),
             isUp,
             app.chart
-//            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart) AN-570
           ) -> 1d,
           AppHealthMetric(
             cloudContext.cloudProvider,
@@ -168,7 +166,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
             getRuntimeUI(app.labels),
             !isUp,
             app.chart
-//            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart) AN-570
           ) -> 0d
         )
       }
@@ -247,11 +244,6 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
     else if (labels.contains(Config.uiConfig.allOfUsLabel)) RuntimeUI.AoU
     else RuntimeUI.Other
 
-  // AN-570
-//  private def isUpgradeable(appType: AppType, cloudProvider: CloudProvider, chart: Chart): Boolean =
-//    KubernetesAppConfig.configForTypeAndCloud(appType, cloudProvider).exists { config =>
-//      !config.chartVersionsToExcludeFromUpdates.contains(chart.version)
-//    }
 }
 
 case class LeoMetricsMonitorConfig(enabled: Boolean, checkInterval: FiniteDuration)
@@ -266,7 +258,6 @@ object LeoMetric {
                                    status: AppStatus,
                                    runtimeUI: RuntimeUI,
                                    chart: Chart
-//                                   upgradeable: Boolean AN-570
   ) extends LeoMetric {
     override def name: String = "leoAppStatus"
     override def tags: Map[String, String] =
@@ -275,9 +266,7 @@ object LeoMetric {
         "appType" -> appType.toString,
         "status" -> status.toString,
         "uiClient" -> runtimeUI.asString,
-        "azureCloudContext" -> "", // obsolete
         "chart" -> chart.toString
-//        "upgradeable" -> upgradeable.toString AN-570
       )
   }
 
@@ -287,7 +276,6 @@ object LeoMetric {
                                    runtimeUI: RuntimeUI,
                                    isUp: Boolean,
                                    chart: Chart
-//                                   upgradeable: Boolean AN-570
   ) extends LeoMetric {
     override def name: String = "leoAppHealth"
     override def tags: Map[String, String] = Map(
@@ -296,9 +284,7 @@ object LeoMetric {
       "serviceName" -> serviceName.value,
       "uiClient" -> runtimeUI.asString,
       "isUp" -> isUp.toString,
-      "azureCloudContext" -> "", // obsolete
       "chart" -> chart.toString
-//      "upgradeable" -> upgradeable.toString AN-570
     )
   }
 
@@ -314,9 +300,7 @@ object LeoMetric {
         "cloudProvider" -> cloudProvider.asString,
         "imageType" -> imageType.toString,
         "imageUrl" -> imageUrl,
-        "status" -> status.toString,
-        "uiClient" -> runtimeUI.asString,
-        "azureCloudContext" -> "" // obsolete
+        "status" -> status.toString
       )
   }
 
@@ -333,8 +317,7 @@ object LeoMetric {
         "imageType" -> imageType.toString,
         "imageUrl" -> imageUrl,
         "uiClient" -> runtimeUI.asString,
-        "isUp" -> isUp.toString,
-        "azureCloudContext" -> "" // obsolete
+        "isUp" -> isUp.toString
       )
   }
 

@@ -63,7 +63,6 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -75,7 +74,6 @@ class HttpRoutesSpec
     createGcpOnlyServicesRegistry(),
     MockAppService,
     MockRuntimeV2Interp,
-//    MockAdminServiceInterp, AN-570
     timedUserInfoDirectives,
     contentSecurityPolicy,
     refererConfig,
@@ -89,7 +87,6 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -102,7 +99,6 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -115,7 +111,6 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -650,45 +645,6 @@ class HttpRoutesSpec
     }
   }
 
-  // AN-570
-//  it should "run a basic app update request" in {
-//    Post(s"/api/admin/v2/apps/update")
-//      .withEntity(
-//        ContentTypes.`application/json`,
-//        UpdateAppsRequest(None,
-//                          AppType.Galaxy,
-//                          CloudProvider.Gcp,
-//                          List.empty,
-//                          List.empty,
-//                          None,
-//                          None,
-//                          List.empty,
-//                          dryRun = false
-//        ).asJson.spaces2
-//      ) ~> httpRoutes.route ~> check {
-//      status shouldEqual StatusCodes.Accepted
-//    }
-//  }
-//
-//  it should "run a dry run app update request" in {
-//    Post(s"/api/admin/v2/apps/update")
-//      .withEntity(
-//        ContentTypes.`application/json`,
-//        UpdateAppsRequest(None,
-//                          AppType.Galaxy,
-//                          CloudProvider.Gcp,
-//                          List.empty,
-//                          List.empty,
-//                          None,
-//                          None,
-//                          List.empty,
-//                          dryRun = true
-//        ).asJson.spaces2
-//      ) ~> httpRoutes.route ~> check {
-//      status shouldEqual StatusCodes.OK
-//    }
-//  }
-
   it should "run a basic delete all resources request" in {
     Delete(
       "/api/google/v1/resources/googleProject1/deleteAll?deleteDisk=false"
@@ -760,7 +716,6 @@ class HttpRoutesSpec
       gcpOnlyServicesRegistry,
       MockAppService,
       MockRuntimeV2Interp,
-//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -780,7 +735,6 @@ class HttpRoutesSpec
       gcpOnlyServicesRegistry,
       kubernetesService,
       MockRuntimeV2Interp,
-//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

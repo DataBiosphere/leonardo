@@ -414,15 +414,7 @@ object RuntimeServiceDbQueries {
                 )
                 val CloudContextDb(value) = record.cloudContextDb
                 val cloudContext = CloudContext.Gcp(GoogleProject(value))
-                // AN-570
-//                val cloudContext = (record.cloudProvider, record.cloudContextDb) match {
-//                  case (CloudProvider.Gcp, CloudContextDb(value)) =>
-//                    CloudContext.Gcp(GoogleProject(value))
-//                  case (CloudProvider.Azure, CloudContextDb(value)) =>
-//                    val azureContext =
-//                      AzureCloudContext.fromString(value).fold(s => throw new SQLDataException(s), identity)
-//                    CloudContext.Azure(azureContext)
-//                }
+
                 val proxyUrl = Runtime.getProxyUrl(
                   Config.proxyConfig.proxyUrlBase,
                   cloudContext,

@@ -883,9 +883,6 @@ object RuntimeServiceInterp {
             if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
-          // AN-570
-//          case CloudService.AzureVm =>
-//            Set.empty[String] // Doesn't apply to Azure
 
         }
       case None =>

@@ -57,16 +57,4 @@ object CloudAuthTokenProvider {
     new GcpCloudAuthTokenProvider[F](applicationConfig)
 }
 
-//AN-570
-//object CloudAuthTokenProvider {
-//  def apply[F[_]: Async](hostingModeConfig: AzureHostingModeConfig,
-//                         applicationConfig: ApplicationConfig
-//  ): CloudAuthTokenProvider[F] =
-//    if (hostingModeConfig.enabled) {
-//      new AzureCloudAuthTokenProvider[F](hostingModeConfig)
-//    } else {
-//      new GcpCloudAuthTokenProvider[F](applicationConfig)
-//    }
-//}
-
 final case class CloudToken(value: String, expiration: java.time.Instant)

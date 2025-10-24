@@ -278,28 +278,11 @@ class BaselineDependenciesBuilder {
     subscriberQueue: Queue[F, ReceivedMessage[LeoPubsubMessage]]
   )(implicit F: Async[F], logger: StructuredLogger[F]): Resource[F, CloudSubscriber[F, LeoPubsubMessage]] =
     GoogleSubscriber.resource[F, LeoPubsubMessage](subscriberConfig, subscriberQueue)
-  // AN-570
-//    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
-//      case false =>
-//        GoogleSubscriber.resource[F, LeoPubsubMessage](subscriberConfig, subscriberQueue)
-//      case true =>
-//        AzureSubscriberInterpreter.subscriber[F, LeoPubsubMessage](
-//          ConfigReader.appConfig.azure.hostingModeConfig.subscriberConfig,
-//          subscriberQueue
-//        )
-//    }
 
   private def createCloudPublisher[F[_]](implicit
     F: Async[F],
     logger: StructuredLogger[F]
   ): Resource[F, CloudPublisher[F]] = GooglePublisher.cloudPublisherResource[F](publisherConfig)
-  // AN-570
-//    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
-//      case false =>
-//        GooglePublisher.cloudPublisherResource[F](publisherConfig)
-//      case true =>
-//        AzurePublisherInterpreter.publisher[F](ConfigReader.appConfig.azure.hostingModeConfig.publisherConfig)
-//    }
 
   private def buildCache[K, V](maxSize: Int,
                                expiresIn: FiniteDuration

@@ -71,7 +71,6 @@ trait GKEAlgebra[F[_]] {
    */
   def startAndPollApp(params: StartAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-//  def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] AN-570
 }
 
 object GKEAlgebra {

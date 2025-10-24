@@ -1,18 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.syntax.all._
-//AN-570
-//import com.azure.core.management.Region
-//import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
-//AN-570
-//import org.broadinstitute.dsde.workbench.azure.{
-//  ApplicationInsightsName,
-//  AzureCloudContext,
-//  BatchAccountName,
-//  RelayNamespace
-//}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
@@ -81,9 +71,6 @@ object JsonCodec {
   implicit val cloudServiceEncoder: Encoder[CloudService] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeNameEncoder: Encoder[RuntimeName] = Encoder.encodeString.contramap(_.asString)
   implicit val runtimeSamResourceIdEncoder: Encoder[RuntimeSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
-  // AN-570
-//  implicit val storageContainerNameEncoder: Encoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
-//    Encoder.encodeString.contramap(_.value)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
   implicit val regionNameEncoder: Encoder[RegionName] = Encoder.encodeString.contramap(_.value)
@@ -156,32 +143,6 @@ object JsonCodec {
     "gpuConfig",
     "configType"
   )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig, x.configType))
-//AN-570
-//  implicit val azureRegionEncoder: Encoder[Region] = Encoder.encodeString.contramap(_.toString)
-
-//  implicit val applicationInsightsNameEncoder: Encoder[ApplicationInsightsName] =
-//    Encoder.encodeString.contramap(_.value)
-  // AN-570
-  //  implicit val azureRuntimeConfigEncoder: Encoder[RuntimeConfig.AzureConfig] = Encoder.forProduct5(
-//    "cloudService",
-//    "machineType",
-//    "persistentDiskId",
-//    "region",
-//    "configType"
-//  )(x => (x.cloudService, x.machineType, x.persistentDiskId, x.region, x.configType))
-//
-//  implicit val azureMachineTypeDecoder: Decoder[VirtualMachineSizeTypes] = Decoder.decodeString.emap { s =>
-//    val machineSizeOpt: Option[VirtualMachineSizeTypes] =
-//      if (
-//        VirtualMachineSizeTypes.values.stream
-//          .map((x: VirtualMachineSizeTypes) => x.toString)
-//          .collect(Collectors.toList[String])
-//          .contains(s)
-//      )
-//        Some(VirtualMachineSizeTypes.fromString(s))
-//      else none[VirtualMachineSizeTypes]
-//    machineSizeOpt.toRight(s"Invalid azure virtualMachineSizeType ${s}")
-//  }
 
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
@@ -299,10 +260,6 @@ object JsonCodec {
   implicit val subNetworkNameEncoder: Encoder[SubnetworkName] = Encoder.encodeString.contramap(_.value)
   implicit val ipRangeEncoder: Encoder[IpRange] = Encoder.encodeString.contramap(_.value)
 
-  // AN-570
-//  implicit val batchAccountNameDecoder: Decoder[BatchAccountName] = Decoder.decodeString.map(BatchAccountName)
-//  implicit val batchAccountNameEncoder: Encoder[BatchAccountName] = Encoder.encodeString.contramap(_.value)
-
   implicit val networkFieldsEncoder: Encoder[NetworkFields] =
     Encoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(x => NetworkFields.unapply(x).get)
   implicit val kubeAsyncFieldEncoder: Encoder[KubernetesClusterAsyncFields] =
@@ -322,9 +279,7 @@ object JsonCodec {
   implicit val gceInstanceStatusDecoder: Decoder[GceInstanceStatus] =
     Decoder.decodeString.emap(s => GceInstanceStatus.withNameInsensitiveOption(s).toRight(s"invalid gce status ${s}"))
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
-  // AN-570
-//  implicit val managedResourceGroupDecoder: Decoder[AzureCloudContext] =
-//    Decoder.decodeString.emap(s => AzureCloudContext.fromString(s))
+
   implicit val cloudProviderDecoder: Decoder[CloudProvider] =
     Decoder.decodeString.emap(s => CloudProvider.stringToCloudProvider.get(s).toRight(s"invalid cloud provider ${s}"))
   implicit val googleIdDecoder: Decoder[ProxyHostName] = Decoder.decodeString.map(ProxyHostName)
@@ -354,9 +309,7 @@ object JsonCodec {
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
   implicit val workbenchUserIdDecoder: Decoder[WorkbenchUserId] = Decoder.decodeString.map(WorkbenchUserId)
-  // AN-570
-//  implicit val storageContainerNameDecoder: Decoder[org.broadinstitute.dsde.workbench.azure.ContainerName] =
-//    Decoder.decodeString.map(org.broadinstitute.dsde.workbench.azure.ContainerName)
+
   implicit val pathDecoder: Decoder[Path] = Decoder.decodeString.map(s => Paths.get(s))
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
@@ -368,13 +321,6 @@ object JsonCodec {
     for {
       cloudProvider <- x.downField("cloudProvider").as[CloudProvider]
       context <- x.downField("cloudResource").as[GoogleProject].map(p => CloudContext.Gcp(p))
-      // AN-570
-//      context <- cloudProvider match {
-//        case CloudProvider.Gcp =>
-//          x.downField("cloudResource").as[GoogleProject].map(p => CloudContext.Gcp(p))
-//        case CloudProvider.Azure =>
-//          x.downField("cloudResource").as[AzureCloudContext].map(p => CloudContext.Azure(p))
-//      }
     } yield context
   }
 
@@ -463,22 +409,6 @@ object JsonCodec {
         cloudContext <- x.downField("cloudContext").as[GoogleProject].map(p => CloudContext.Gcp(p))
         runtimeName <- x.downField("clusterName").as[RuntimeName].orElse(x.downField("runtimeName").as[RuntimeName])
 
-// AN-570
-//        cloudContext <- cloudProviderOpt match {
-//          case Some(value) =>
-//            value match {
-//              case CloudProvider.Gcp =>
-//                x.downField("cloudContext").as[GoogleProject].map(p => CloudContext.Gcp(p))
-//              case CloudProvider.Azure =>
-//                x.downField("cloudContext").as[AzureCloudContext].map(mrg => CloudContext.Azure(mrg))
-//            }
-//          case None =>
-//            x.downField("googleProject")
-//              .as[GoogleProject]
-//              .map(p =>
-//                CloudContext.Gcp(p)
-//              ) // TODO: remove this case since this is just for backwards compatibility once this change is released to prod
-//        }
       } yield RuntimeProjectAndName(cloudContext, runtimeName)
     )
 
@@ -498,17 +428,6 @@ object JsonCodec {
     Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
   implicit val gpuTypeDecoder: Decoder[GpuType] =
     Decoder.decodeString.emap(s => GpuType.stringToObject.get(s).toRight(s"unsupported gpuType ${s}"))
-  // AN-570
-  //  implicit val azureRegionDecoder: Decoder[Region] =
-//    Decoder.decodeString.emap { s =>
-//      val regionOpt: Option[Region] =
-//        if (Region.values.stream.map((x: Region) => x.toString).collect(Collectors.toList[String]).contains(s))
-//          Some(Region.fromName(s))
-//        else none[Region]
-//      regionOpt.toRight(s"Invalid azure region ${s}")
-//    }
-//  implicit val applicationInsightsNameDecoder: Decoder[ApplicationInsightsName] =
-//    Decoder.decodeString.map(ApplicationInsightsName)
 
   implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
     "gpuType",
@@ -534,13 +453,6 @@ object JsonCodec {
     "zone",
     "gpuConfig"
   )((mt, ds, bds, z, gpu) => RuntimeConfig.GceConfig(mt, ds, bds, z, gpu))
-
-  // AN-570
-//  implicit val azureVmConfigDecoder: Decoder[RuntimeConfig.AzureConfig] = Decoder.forProduct3(
-//    "machineType",
-//    "persistentDiskId",
-//    "region"
-//  )(RuntimeConfig.AzureConfig.apply)
 
   implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
     for {
@@ -622,13 +534,6 @@ object JsonCodec {
     Decoder.decodeString.map(PersistentDiskSamResourceId)
   implicit val projectSamResourceDecoder: Decoder[ProjectSamResourceId] =
     Decoder.decodeString.map(x => ProjectSamResourceId(GoogleProject(x)))
-  // AN-570
-  //  implicit val wsmResourceSamResourceIdDecoder: Decoder[WsmResourceSamResourceId] =
-//    Decoder.decodeString.emap(x =>
-//      Either
-//        .catchNonFatal(WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(x))))
-//        .leftMap(_.getMessage)
-//    )
 
   implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
     Decoder.decodeString.emap { x =>
@@ -693,8 +598,7 @@ object JsonCodec {
     Decoder.decodeString.emap(s => AppStatus.stringToObject.get(s).toRight(s"Invalid app status ${s}"))
   implicit val appTypeDecoder: Decoder[AppType] =
     Decoder.decodeString.emap(s => AppType.stringToObject.get(s).toRight(s"Invalid app type ${s}"))
-  // AN-570
-  //  implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.decodeString.map(RelayNamespace)
+
   implicit val chartNameDecoder: Decoder[ChartName] = Decoder.decodeString.map(ChartName)
   implicit val allowedChartNameDecoder: Decoder[AllowedChartName] =
     Decoder.decodeString.emap(x => AllowedChartName.stringToObject.get(x).toRight("chart name not allowed"))
@@ -750,19 +654,6 @@ object JsonCodec {
 
   implicit val billingProfileIdEncoder: Encoder[BillingProfileId] =
     Encoder.encodeString.contramap(_.value)
-//AN-570
-//  implicit val wsmControlledResourceIdEncoder: Encoder[WsmControlledResourceId] =
-//    Encoder.encodeString.contramap(_.value.toString)
-//
-//  implicit val wsmControlledResourceIdDecoder: Decoder[WsmControlledResourceId] =
-//    Decoder.decodeString.emap(x =>
-//      Either
-//        .catchNonFatal(WsmControlledResourceId(UUID.fromString(x)))
-//        .leftMap(_.getMessage)
-//    )
-//AN-570
-//  implicit val azureMachineTypeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)
-//  implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
 
   implicit val autodeleteThresholdEncoder: Encoder[AutodeleteThreshold] = Encoder.encodeInt.contramap(_.value)
 
@@ -771,11 +662,4 @@ object JsonCodec {
     case n           => Right(AutodeleteThreshold.apply(n))
   }
 
-  // AN-570
-//  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeString.emap(x =>
-//    Either
-//      .catchNonFatal(UpdateAppJobId(UUID.fromString(x)))
-//      .leftMap(_.getMessage)
-//  )
-//  implicit val updateAppJobIdEncoder: Encoder[UpdateAppJobId] = Encoder.encodeString.contramap(_.value.toString)
 }

@@ -31,7 +31,6 @@ final case class PersistentDiskRecord(id: DiskId,
                                       formattedBy: Option[FormattedBy],
                                       appRestore: Option[AppRestore],
                                       sourceDisk: Option[DiskLink],
-//                                      wsmResourceId: Option[WsmControlledResourceId], AN-570
                                       workspaceId: Option[WorkspaceId]
 )
 
@@ -96,22 +95,11 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             formattedBy,
             (galaxyPvcId, lastUsedBy),
             sourceDisk,
-//            wsmResourceId, AN-570
             workspaceId
           ) =>
         PersistentDiskRecord(
           id,
           CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext,
-          // AN-570
-//          cloudProvider match {
-//            case CloudProvider.Gcp =>
-//              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
-//            case CloudProvider.Azure =>
-//              val context =
-//                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
-//
-//              CloudContext.Azure(context): CloudContext
-//          },
           zone,
           name,
           serviceAccount,
@@ -133,7 +121,6 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case FormattedBy.GCE | FormattedBy.Custom => None
           },
           sourceDisk,
-//          wsmResourceId, AN-570
           workspaceId
         )
     }, { record: PersistentDiskRecord =>
@@ -141,13 +128,6 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
         val CloudContext.Gcp(value) = record.cloudContext
         (record.id,
          (CloudProvider.Gcp, CloudContextDb(value.value)),
-         // AN-570
-         //        record.cloudContext match {
-         //          case CloudContext.Gcp(value) =>
-         //            (CloudProvider.Gcp, CloudContextDb(value.value))
-         //          case CloudContext.Azure(value) =>
-         //            (CloudProvider.Azure, CloudContextDb(value.asString))
-         //        },
          record.zone,
          record.name,
          record.serviceAccount,
@@ -167,7 +147,6 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
            case Some(app: GalaxyRestore) => (Some(app.galaxyPvcId), Some(app.lastUsedBy))
          },
          record.sourceDisk,
-//         record.wsmResourceId, AN-570
          record.workspaceId
         )
       }
@@ -248,10 +227,6 @@ object persistentDiskQuery {
       .map(d => (d.status, d.formattedBy, d.dateAccessed))
       .update((newStatus, Some(formattedBy), dateAccessed))
 
-  // AN-570
-//  def updateWSMResourceId(id: DiskId, newWSMResourceId: WsmControlledResourceId, dateAccessed: Instant) =
-//    findByIdQuery(id).map(d => (d.wsmResourceId, d.dateAccessed)).update((Some(newWSMResourceId), dateAccessed))
-
   def markPendingDeletion(id: DiskId, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(d => (d.status, d.dateAccessed))
@@ -305,7 +280,6 @@ object persistentDiskQuery {
       disk.formattedBy,
       disk.appRestore,
       disk.sourceDisk,
-//      disk.wsmResourceId, AN-570
       disk.workspaceId
     )
 
@@ -345,7 +319,6 @@ object persistentDiskQuery {
       rec.appRestore,
       labels,
       rec.sourceDisk,
-//      rec.wsmResourceId, AN-570
       rec.workspaceId
     )
 }

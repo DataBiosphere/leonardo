@@ -170,23 +170,6 @@ class ProxyService(
             .getActiveFullAppByName(cloudContext, name)
             .map(_.map(_.app.samResourceId.resourceId))
             .transaction
-        // AN-570
-//          cloudContext match {
-//            case CloudContext.Gcp(_) =>
-//              KubernetesServiceDbQueries
-//                .getActiveFullAppByName(cloudContext, name)
-//                .map(_.map(_.app.samResourceId.resourceId))
-//                .transaction
-//            case CloudContext.Azure(_) =>
-//              workspaceId match {
-//                case Some(w) =>
-//                  KubernetesServiceDbQueries
-//                    .getActiveFullAppByWorkspaceIdAndAppName(w, name)
-//                    .map(_.map(_.app.samResourceId.resourceId))
-//                    .transaction
-//                case None => IO(None)
-//              }
-//          }
       }
       appAccessScope <- samResourceCacheKey match {
         case RuntimeCacheKey(_, _) => IO(None) // Runtimes do not have an AppAccessScope field
@@ -195,23 +178,6 @@ class ProxyService(
             .getActiveFullAppByName(cloudContext, name)
             .map(_.map(_.app.appAccessScope))
             .transaction
-        // AN-570
-//          cloudContext match {
-//            case CloudContext.Gcp(_) =>
-//              KubernetesServiceDbQueries
-//                .getActiveFullAppByName(cloudContext, name)
-//                .map(_.map(_.app.appAccessScope))
-//                .transaction
-//            case CloudContext.Azure(_) =>
-//              workspaceId match {
-//                case Some(w) =>
-//                  KubernetesServiceDbQueries
-//                    .getActiveFullAppByWorkspaceIdAndAppName(w, name)
-//                    .map(_.map(_.app.appAccessScope))
-//                    .transaction
-//                case None => IO(None)
-//              }
-//          }
       }
     } yield (resourceId, appAccessScope.flatten)
 

@@ -2,8 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import pureconfig.ConfigReader
 import cats.syntax.all._
-//AN-570
-//import org.broadinstitute.dsde.workbench.azure.{ClientId, ClientSecret, ManagedAppTenantId}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
@@ -35,15 +33,7 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.emap(s =>
       Either.fromOption(AppType.stringToObject.get(s), ExceptionThrown.apply(new Exception("invalid appType")))
     )
-//AN-570
-//  implicit val clientIdConfigReader: ConfigReader[ClientId] =
-//    ConfigReader.stringConfigReader.map(s => ClientId(s))
-//  implicit val clientSecretConfigReader: ConfigReader[ClientSecret] =
-//    ConfigReader.stringConfigReader.map(s => ClientSecret(s))
-//  implicit val oauth2ClientIdConfigReader: ConfigReader[org.broadinstitute.dsde.workbench.oauth2.ClientId] =
-//    ConfigReader.stringConfigReader.map(s => org.broadinstitute.dsde.workbench.oauth2.ClientId(s))
-//  implicit val tentantIdConfigReader: ConfigReader[ManagedAppTenantId] =
-//    ConfigReader.stringConfigReader.map(s => ManagedAppTenantId(s))
+
   implicit val uriConfigReader: ConfigReader[Uri] =
     ConfigReader.stringConfigReader.emap(s =>
       Either.catchNonFatal(Uri.unsafeFromString(s)).leftMap(ExceptionThrown.apply)

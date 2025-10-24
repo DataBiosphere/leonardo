@@ -156,9 +156,7 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object StartApp extends LeoPubsubMessageType {
     val asString = "startApp"
   }
-//  final case object UpdateApp extends LeoPubsubMessageType {
-//    val asString = "updateApp"
-//  } AN-570
+
 }
 
 sealed trait LeoPubsubMessage {
@@ -316,18 +314,6 @@ object LeoPubsubMessage {
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
-//AN-570
-//  // TODO evaluate whether app update functionality is useful and working for GCP
-//  final case class UpdateAppMessage(jobId: UpdateAppJobId,
-//                                    appId: AppId,
-//                                    appName: AppName,
-//                                    cloudContext: CloudContext,
-//                                    workspaceId: Option[WorkspaceId],
-//                                    googleProject: Option[GoogleProject],
-//                                    traceId: Option[TraceId]
-//  ) extends LeoPubsubMessage {
-//    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateApp
-//  }
 }
 
 sealed trait ClusterNodepoolActionType extends Product with Serializable {
@@ -497,12 +483,6 @@ object LeoPubsubCodec {
   implicit val startAppDecoder: Decoder[StartAppMessage] =
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
-  // AN-570
-//  implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
-//    Decoder.forProduct7("jobId", "appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
-//      UpdateAppMessage.apply
-//    )
-
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
@@ -523,7 +503,6 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.DeleteApp     => message.as[DeleteAppMessage]
         case LeoPubsubMessageType.StopApp       => message.as[StopAppMessage]
         case LeoPubsubMessageType.StartApp      => message.as[StartAppMessage]
-//        case LeoPubsubMessageType.UpdateApp     => message.as[UpdateAppMessage] AN-570
 
       }
     } yield value
@@ -664,9 +643,6 @@ object LeoPubsubCodec {
           case CloudService.GCE =>
             x.as[RuntimeConfigInCreateRuntimeMessage.GceConfig] orElse x
               .as[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig]
-          // AN-570
-//          case CloudService.AzureVm =>
-//            throw new AzureUnimplementedException("Azure should not be used with existing create runtime message")
         }
       } yield r
     }
@@ -843,17 +819,6 @@ object LeoPubsubCodec {
     Encoder.forProduct5("messageType", "appId", "appName", "project", "traceId")(x =>
       (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
-//AN-570
-//  implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
-//    Encoder.forProduct8("messageType",
-//                        "jobId",
-//                        "appId",
-//                        "appName",
-//                        "cloudContext",
-//                        "workspaceId",
-//                        "googleProject",
-//                        "traceId"
-//    )(x => (x.messageType, x.jobId, x.appId, x.appName, x.cloudContext, x.workspaceId, x.googleProject, x.traceId))
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
     case m: CreateDiskMessage    => m.asJson
@@ -868,7 +833,6 @@ object LeoPubsubCodec {
     case m: DeleteAppMessage     => m.asJson
     case m: StopAppMessage       => m.asJson
     case m: StartAppMessage      => m.asJson
-//    case m: UpdateAppMessage     => m.asJson AN-570
   }
 }
 
@@ -999,13 +963,6 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  // AN-570
-//  final case class AppIsAlreadyUpdatingException(message: UpdateAppMessage) extends PubsubHandleMessageError {
-//    override def getMessage: String =
-//      s"Unable to process update for app ${message.appId} because it is already in updating status. \n\tPubsub message:${message} "
-//
-//    val isRetryable: Boolean = false
-//  }
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)

@@ -11,7 +11,6 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
-//import org.broadinstitute.dsde.workbench.azure.AzureCloudContext AN-570
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
@@ -23,7 +22,6 @@ import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
-//import org.http4s.circe.CirceEntityEncoder._ AN-570
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
@@ -198,21 +196,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
 
-  // AN-570
-//  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
-//    ev: Ask[F, TraceId]
-//  ): F[Option[WorkbenchEmail]] =
-//    metrics.incrementCounter("sam/getPetManagedIdentity") >>
-//      httpClient.expectOptionOr[WorkbenchEmail](
-//        Request[F](
-//          method = Method.POST,
-//          uri = config.samUri
-//            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity")),
-//          headers = Headers(authorization, `Content-Type`(MediaType.application.json)),
-//          entity = cloudContext
-//        )
-//      )(onError)
-
   override def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
     getLeoAuthToken.flatMap { leoToken =>
       metrics.incrementCounter("sam/getUserProxy") >>
@@ -317,54 +300,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             )(onError)
           } yield admins.contains(workbenchEmail)
     } yield res
-//AN-570
-//  override def isAdminUser(userInfo: UserInfo)(implicit
-//    ev: Ask[F, TraceId]
-//  ): F[Boolean] = {
-//    // Sam's admin endpoints are protected so only admins can access them. Non-admin users get a
-//    // 403 response. We don't actually care about the content we get in response to our request,
-//    // we only care about the status code.
-//    // 200 -> This is an admin user
-//    // 403 -> The request "succeeded" in telling us this is not an admin user
-//    // other -> The request failed
-//    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-//    for {
-//      status <- httpClient.status(
-//        Request[F](
-//          method = Method.GET,
-//          uri =
-//            config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/email/${userInfo.userEmail.value}")),
-//          headers = Headers(authHeader)
-//        )
-//      )
-//      traceId <- ev.ask
-//      isAdmin <- status match {
-//        case Status.Ok        => F.pure(true)
-//        case Status.Forbidden => F.pure(false)
-//        case _                => F.raiseError(AuthProviderException(traceId, "", status.code))
-//      }
-//    } yield isAdmin
-//  }
-
-  // AN-570
-//  override def getAzureActionManagedIdentity(authHeader: Authorization,
-//                                             resource: SamResourceId.PrivateAzureStorageAccountSamResourceId,
-//                                             action: PrivateAzureStorageAccountAction
-//  )(implicit ev: Ask[F, TraceId]): F[Option[String]] =
-//    for {
-//      _ <- metrics.incrementCounter("sam/getActionManagedIdentity")
-//      resp <- httpClient.expectOptionOr[GetActionManagedIdentityResponse](
-//        Request[F](
-//          method = Method.GET,
-//          uri = config.samUri.withPath(
-//            Uri.Path.unsafeFromString(
-//              s"/api/azure/v1/actionManagedIdentity/${resource.resourceType.asString}/${resource.resourceId}/${action.asString}"
-//            )
-//          ),
-//          headers = Headers(authHeader)
-//        )
-//      )(onError)
-//    } yield resp.map(_.objectId)
 
   private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
@@ -451,12 +386,6 @@ object HttpSamDAO {
     Encoder.forProduct5("resourceId", "policies", "authDomain", "returnResource", "parent")(x =>
       (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
     )
-
-  // AN-570
-//  implicit val getPetManagedIdentityEncoder: Encoder[AzureCloudContext] =
-//    Encoder.forProduct3("tenantId", "subscriptionId", "managedResourceGroupName")(x =>
-//      (x.tenantId.value, x.subscriptionId.value, x.managedResourceGroupName.value)
-//    )
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))

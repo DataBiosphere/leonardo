@@ -18,8 +18,6 @@ import java.time.Instant
 import java.util.UUID
 
 class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
-  // AN-570
-//  val storageContainerResourceId = WsmControlledResourceId(UUID.randomUUID())
 
   it should "encode/decode CreateRuntimeMessage.GceConfig properly" in {
     val now = Instant.now()

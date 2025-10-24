@@ -62,7 +62,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def runtimeName = column[RuntimeName]("runtimeName", O.Length(254))
   def proxyHostName = column[Option[ProxyHostName]]("proxyHostName")
   // For Google resources, cloudContext is google project;
-  // For Azure resources, cloudContext is managed resource group
   def cloudContextDb = column[CloudContextDb]("cloudContext", O.Length(254))
   def cloudProvider = column[CloudProvider]("cloudProvider", O.Length(50))
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
@@ -144,15 +143,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           clusterName,
           proxyHostname,
           CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext,
-          // AN-570
-//          cloudProvider match {
-//            case CloudProvider.Gcp =>
-//              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
-//            case CloudProvider.Azure =>
-//              val context =
-//                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
-//              CloudContext.Azure(context): CloudContext
-//          },
           operationName,
           status,
           hostIp,
@@ -190,13 +180,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.runtimeName,
           c.googleId,
           (CloudProvider.Gcp, CloudContextDb(c.cloudContext.asString)),
-          // AN-570
-//          c.cloudContext match {
-//            case CloudContext.Gcp(value) =>
-//              (CloudProvider.Gcp, CloudContextDb(value.value))
-//            case CloudContext.Azure(value) =>
-//              (CloudProvider.Azure, CloudContextDb(value.asString))
-//          },
           c.operationName,
           c.status,
           c.hostIp,
@@ -512,21 +495,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         recs.headOption.flatMap { head =>
           head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
 
-          // AN-570
-//          head._1 match {
-//            case CloudProvider.Gcp => head._2.map(s => StagingBucket.Gcp(GcsBucketName(s)))
-//            case CloudProvider.Azure =>
-//              head._2.map { s =>
-//                // TODO (11/23/2022): We used to persist storage account as well, but we no longer do. Remove first branch in 6 months.
-//                if (s.contains("/")) {
-//                  val res = for {
-//                    splitted <- Either.catchNonFatal(s.split("/"))
-//                    storageContainerName <- Either.catchNonFatal(splitted(1)).map(ContainerName)
-//                  } yield StagingBucket.Azure(storageContainerName)
-//                  res.getOrElse(throw new SQLDataException(s"invalid staging bucket value ${s} for ${head._1}"))
-//                } else StagingBucket.Azure(ContainerName(s))
-//              }
-//          }
         }
       )
 

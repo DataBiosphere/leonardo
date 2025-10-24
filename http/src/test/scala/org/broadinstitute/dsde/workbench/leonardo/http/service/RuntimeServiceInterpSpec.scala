@@ -133,7 +133,6 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   def mockAuthorize(
     userInfo: UserInfo,
     readerRuntimeSamIds: Set[RuntimeSamResourceId] = Set.empty,
-//    readerWsmSamIds: Set[WsmResourceSamResourceId] = Set.empty, AN-570
     readerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
     readerProjectSamIds: Set[ProjectSamResourceId] = Set.empty,
     ownerWorkspaceSamIds: Set[WorkspaceResourceSamResourceId] = Set.empty,
@@ -150,15 +149,6 @@ trait RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         any(Ask[IO, TraceId].getClass)
       )
     ).thenReturn(IO.pure(readerRuntimeSamIds))
-    // AN-570
-//    when(
-//      mockAuthProvider.listResourceIds[WsmResourceSamResourceId](isEq(false), isEq(userInfo))(
-//        any(wsmResourceSamResourceAction.getClass),
-//        any(AppSamResourceAction.getClass),
-//        any(Decoder[WsmResourceSamResourceId].getClass),
-//        any(Ask[IO, TraceId].getClass)
-//      )
-//    ).thenReturn(IO.pure(readerWsmSamIds))
     when(
       mockAuthProvider.listResourceIds[WorkspaceResourceSamResourceId](isEq(false), isEq(userInfo))(
         any(workspaceSamResourceAction.getClass),

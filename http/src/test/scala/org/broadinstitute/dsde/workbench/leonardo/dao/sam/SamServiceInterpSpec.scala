@@ -58,33 +58,6 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
       }
     }
 
-    // AN-570
-//    describe("getPetManagedIdentity") {
-//      it("should retrieve a pet managed identity from Sam") {
-//        // test
-//        val result = newSamService().getPetManagedIdentity(tokenValue, azureCloudContext).unsafeRunSync()
-//
-//        // assert
-//        result shouldBe managedIdentityEmail
-//      }
-//
-//      it("should fail with a SamException") {
-//        // setup
-//        val azureApi = mock[AzureApi]
-//        when(azureApi.getPetManagedIdentity(any)).thenThrow(new ApiException(400, "bad request"))
-//
-//        // test
-//        val result =
-//          the[SamException] thrownBy newSamService(azureApi = azureApi)
-//            .getPetManagedIdentity(tokenValue, azureCloudContext)
-//            .unsafeRunSync()
-//
-//        // assert
-//        result.getMessage should include("bad request")
-//        result.statusCode shouldBe StatusCodes.BadRequest
-//      }
-//    }
-
     describe("getProxyGroup") {
       it("should retrieve a proxy group from Sam") {
         // test
@@ -503,7 +476,6 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
   def newSamService(resourcesApi: ResourcesApi = setUpMockResourceApi,
                     usersApi: UsersApi = setUpMockUsersApi,
                     googleApi: GoogleApi = setUpMockGoogleApi
-//                    azureApi: AzureApi = setUpMockAzureApi AN-570
   ): SamService[IO] = new SamServiceInterp(
     setUpMockSamApiClientProvider(resourcesApi, usersApi, googleApi),
     setUpMockCloudAuthTokenProvider
@@ -518,13 +490,11 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
   def setUpMockSamApiClientProvider(resourcesApi: ResourcesApi,
                                     usersApi: UsersApi,
                                     googleApi: GoogleApi
-//                                    azureApi: AzureApi AN-570
   ): SamApiClientProvider[IO] = {
     val provider = mock[SamApiClientProvider[IO]]
     when(provider.resourcesApi(any)(any)).thenReturn(IO.pure(resourcesApi))
     when(provider.usersApi(any)(any)).thenReturn(IO.pure(usersApi))
     when(provider.googleApi(any)(any)).thenReturn(IO.pure(googleApi))
-//    when(provider.azureApi(any)(any)).thenReturn(IO.pure(azureApi)) AN-570
     provider
   }
 
@@ -569,19 +539,5 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
     ).thenReturn(tokenValue)
     googleApi
   }
-
-  // AN-570
-//  def setUpMockAzureApi: AzureApi = {
-//    val azureApi = mock[AzureApi]
-//    when(
-//      azureApi.getPetManagedIdentity(
-//        new GetOrCreateManagedIdentityRequest()
-//          .tenantId(azureCloudContext.tenantId.value)
-//          .subscriptionId(azureCloudContext.subscriptionId.value)
-//          .managedResourceGroupName(azureCloudContext.managedResourceGroupName.value)
-//      )
-//    ).thenReturn(managedIdentityEmail.value)
-//    azureApi
-//  }
 
 }

@@ -25,13 +25,7 @@ class HttpWelderDAO[F[_]: Logger](
   def flushCache(cloudContext: CloudContext, runtimeName: RuntimeName): F[Unit] =
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
-      // AN-570
-//      headers <- cloudContext match {
-//        case _: CloudContext.Azure =>
-//          samDAO.getLeoAuthToken.map(x => Headers(x))
-//        case _: CloudContext.Gcp =>
-//          F.pure(Headers.empty)
-//      }
+
       res <- host match {
         case x: HostReady =>
           client.successful(
@@ -58,13 +52,6 @@ class HttpWelderDAO[F[_]: Logger](
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
-      // AN-570
-//      headers <- cloudContext match {
-//        case _: CloudContext.Azure =>
-//          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
-//        case _: CloudContext.Gcp =>
-//          F.pure(Headers.empty)
-//      }
       res <- host match {
         case x: HostReady =>
           client
