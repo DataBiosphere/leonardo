@@ -771,7 +771,7 @@ object JsonCodec {
     case n           => Right(AutodeleteThreshold.apply(n))
   }
 
-  //AN-570
+  // AN-570
 //  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeString.emap(x =>
 //    Either
 //      .catchNonFatal(UpdateAppJobId(UUID.fromString(x)))

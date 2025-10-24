@@ -331,7 +331,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val bucketNameToMountColumnType: BaseColumnType[GcsBucketName] =
       MappedColumnType.base[GcsBucketName, String](_.value, GcsBucketName.apply)
 
-    //AN-570
+    // AN-570
 //    implicit val updateAppTableIdColumnType: BaseColumnType[UpdateAppTableId] =
 //      MappedColumnType.base[UpdateAppTableId, Long](_.value, UpdateAppTableId.apply)
 //
