@@ -705,10 +705,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Stopping, None, dateAccessed)
 
-  // AN_570
-//  def updateSamResourceId(id: Long, wsmId: WsmResourceSamResourceId): DBIO[Int] =
-//    findByIdQuery(id).map(_.internalId).update(wsmId.resourceId)
-
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */

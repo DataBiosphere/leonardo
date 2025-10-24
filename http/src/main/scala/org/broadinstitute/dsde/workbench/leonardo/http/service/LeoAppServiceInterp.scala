@@ -157,7 +157,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Retrieve parent workspaceId for the google project
       parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
-      // Leo email used to give permissions when running in Azure.
       leoToken <- authProvider.getLeoAuthToken
       leoEmail <- samService.getUserEmail(leoToken)
       notifySamAndCreate = for {
@@ -363,14 +362,14 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
-
-      // V1 endpoints use google project to determine user access
-      // listAll apps includes both Azure and GCP apps
-      // but Azure apps don't have a google project, so useGoogleProject is false for Azure apps
-      partition = allClusters.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
-      gcpApps <- filterAppsBySamPermission(partition._1, userInfo, paramMap._3, true)
-      azureApps <- filterAppsBySamPermission(partition._2, userInfo, paramMap._3, false)
-    } yield gcpApps ++ azureApps
+//AN-570
+//      // V1 endpoints use google project to determine user access
+//      // listAll apps includes both Azure and GCP apps
+//      // but Azure apps don't have a google project, so useGoogleProject is false for Azure apps
+//      partition = allClusters.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
+      gcpApps <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, true)
+//      azureApps <- filterAppsBySamPermission(partition._2, userInfo, paramMap._3, false) AN-570
+    } yield gcpApps
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
     implicit as: Ask[F, AppContext]
@@ -653,7 +652,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   } yield ()).transaction
 
-  // TODO I think this is Azure-only, any point in leaving it around for GCP someday?
+  // This is used by AOU to update their GKE apps configuration to enable auto delete
   override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
@@ -920,7 +919,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       ZoneName("us-west1-a"),
       diskName,
       userInfo.userEmail,
-      // TODO: WSM will populate this, we can update in backleo if its needed for anything
       PersistentDiskSamResourceId("fakeUUID"),
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),
@@ -1038,7 +1036,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Validate disk.
       // Apps on GCP require a disk.
-      // Apps on Azure require _no_ disk.
       _ <- (cloudContext.cloudProvider, diskOpt) match {
         case (CloudProvider.Gcp, None) =>
           Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
@@ -1424,13 +1421,6 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-
-case class AppMachineConfigNotSupportedException(traceId: TraceId)
-    extends LeoException(
-      s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
-      StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
 

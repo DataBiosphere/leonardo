@@ -6,7 +6,6 @@ import org.broadinstitute.dsde.workbench.google2.{Location, PublisherConfig}
 
 object LeonardoConfig extends CommonConfig {
   private val leonardo = config.getConfig("leonardo")
-  private val azure = config.getConfig("azure")
   private val gcs = config.getConfig("gcs")
   private val leonardoClient = config.getConfig("leonardoClient")
 
@@ -34,15 +33,6 @@ object LeonardoConfig extends CommonConfig {
   object GCS extends CommonGCS {
     val pathToQAJson = gcs.getString("qaJsonFile")
     val leonardoServiceAccountUsername = gcs.getString("leonardoServiceAccountUsername")
-  }
-
-  // TODO: this should be updated once we're able to run azure automation tests as part of CI
-  object WSM {
-    val wsmUri: String = "https://workspace.dsde-dev.broadinstitute.org"
-  }
-
-  object BPM {
-    val bpmUri: String = "https://bpm.dsde-dev.broadinstitute.org"
   }
 
   object LeonardoClient {

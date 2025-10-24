@@ -68,18 +68,6 @@ class HttpRoutesSpec
       refererConfig
     )
 
-  val httpRoutesAzureOnly = new HttpRoutes(
-    openIdConnectionConfiguration,
-    statusService,
-    createGcpOnlyServicesRegistry(),
-    MockAppService,
-    MockRuntimeV2Interp,
-    timedUserInfoDirectives,
-    contentSecurityPolicy,
-    refererConfig,
-    true
-  )
-
   val routesWithStrictRefererConfig =
     new HttpRoutes(
       openIdConnectionConfiguration,
@@ -540,25 +528,6 @@ class HttpRoutesSpec
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "\"API not found. Make sure you're calling the correct endpoint with correct method\""
-    }
-  }
-
-  it should "have expected azure routes when azure hosting mode is true" in {
-
-    val adminRoute = "/api/admin/v2/apps/update"
-    val runtimeV2Route = "/api/v2/runtimes"
-    val statusRoute = "/status"
-
-    Get(adminRoute) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-
-    Get(runtimeV2Route) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-
-    Get(statusRoute) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
     }
   }
 

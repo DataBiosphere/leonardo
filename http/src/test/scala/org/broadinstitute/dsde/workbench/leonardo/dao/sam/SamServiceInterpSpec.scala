@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
-import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi, UsersApi}
+import org.broadinstitute.dsde.workbench.client.sam.api.{GoogleApi, ResourcesApi, UsersApi}
 import org.broadinstitute.dsde.workbench.client.sam.model._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext

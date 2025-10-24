@@ -33,11 +33,9 @@ class HttpRoutes(
   gcpOnlyServicesRegistry: ServicesRegistry,
   kubernetesService: AppService[IO],
   runtimeV2Service: RuntimeV2Service[IO],
-//  adminService: AdminService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: ContentSecurityPolicyConfig,
-  refererConfig: RefererConfig,
-  enableAzureOnlyRoutes: Boolean = false
+  refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
 
   private val statusRoutes = new StatusRoutes(statusService)

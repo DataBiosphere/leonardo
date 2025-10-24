@@ -91,8 +91,6 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
     val runtimeV2Service =
       new RuntimeV2ServiceInterp[IO](baselineDependencies.publisherQueue, baselineDependencies.samService)
 
-    // The instance must be present in both Azure and GCP modes.
-    // However, when running on Azure, the service is created without GCP dependencies.
     // The LeoAppServiceInterp cannot be created in this method because it is a dependency of the Resources Services, which is GCP only.
     // This method only creates services that are agnostic of the cloud provider.
     val leoKubernetesService = dependenciesRegistry.lookup[LeoAppServiceInterp[IO]].get

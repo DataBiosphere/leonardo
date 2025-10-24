@@ -246,10 +246,6 @@ object RuntimeConfigType extends Enum[RuntimeConfigType] {
     val asString = "GceWithPdConfig"
   }
 
-  case object AzureVmConfig extends RuntimeConfigType {
-    val asString = "AzureVmConfig"
-  }
-
   override def values: immutable.IndexedSeq[RuntimeConfigType] = findValues
 }
 final case class RuntimeConfigId(id: Long) extends AnyVal

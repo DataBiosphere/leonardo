@@ -230,7 +230,7 @@ object LeoPubsubMessage {
         disk.id,
         GoogleProject(
           disk.cloudContext.asString
-        ), // TODO: we might think about use cloudContext in CreateDiskMessage to support Azure
+        ),
         disk.name,
         disk.zone,
         disk.size,
@@ -900,61 +900,6 @@ object PubsubHandleMessageError {
 
     val isRetryable: Boolean = false
   }
-//AN_570
-//  final case class AzureDiskDeletionError(diskId: DiskId,
-//                                          wsmControlledResourceId: WsmControlledResourceId,
-//                                          workspaceId: WorkspaceId,
-//                                          errorMsg: String
-//  ) extends PubsubHandleMessageError {
-//    override def getMessage: String =
-//      s"\n\tdisk ${diskId.value} with resource id: ${wsmControlledResourceId.value}, \n\tmsg: ${errorMsg})"
-//
-//    val isRetryable: Boolean = false
-//  }
-//
-//  final case class AzureDiskResourceDeletionError(id: Either[Long, WsmControlledResourceId],
-//                                                  workspaceId: WorkspaceId,
-//                                                  errorMsg: String
-//  ) extends PubsubHandleMessageError {
-//    override def getMessage: String =
-//      s"\n\tAssociated disk resource: ${id} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
-//
-//    val isRetryable: Boolean = false
-//  }
-//
-//  final case class AzureRuntimeCreationError(runtimeId: Long,
-//                                             workspaceId: WorkspaceId,
-//                                             errorMsg: String,
-//                                             useExistingDisk: Boolean
-//  ) extends PubsubHandleMessageError {
-//    override def getMessage: String =
-//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
-//    val isRetryable: Boolean = false
-//  }
-//
-//  final case class AzureRuntimeDeletionError(runtimeId: Long,
-//                                             diskId: Option[DiskId],
-//                                             workspaceId: WorkspaceId,
-//                                             errorMsg: String
-//  ) extends PubsubHandleMessageError {
-//    override def getMessage: String =
-//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
-//    val isRetryable: Boolean = false
-//  }
-//
-//  final case class AzureRuntimeStartingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
-//      extends PubsubHandleMessageError {
-//    override def getMessage: String =
-//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
-//    val isRetryable: Boolean = false
-//  }
-//
-//  final case class AzureRuntimeStoppingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
-//      extends PubsubHandleMessageError {
-//    override def getMessage: String =
-//      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
-//    val isRetryable: Boolean = false
-//  }
 
   final case class AppNotFound(appId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
     override def getMessage: String =

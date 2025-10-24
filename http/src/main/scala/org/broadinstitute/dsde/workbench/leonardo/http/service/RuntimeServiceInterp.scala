@@ -77,7 +77,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
   )(implicit as: Ask[F, AppContext]): F[CreateRuntimeResponse] =
     for {
       context <- as.ask
-      // AN_570
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
         new RuntimeException("Non GCP projects are not supported")
@@ -428,7 +427,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
   ): F[Unit] =
     for {
       ctx <- as.ask
-      // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
       cloudContext = CloudContext.Gcp(googleProject)
 
       runtime <- getRuntimeWithRequiredAction(userInfo, cloudContext, runtimeName, RuntimeAction.StopStartRuntime)
@@ -451,7 +449,6 @@ class RuntimeServiceInterp[F[_]: Parallel](
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
-      // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
       cloudContext = CloudContext.Gcp(googleProject)
 
       // throw 404 if not existent

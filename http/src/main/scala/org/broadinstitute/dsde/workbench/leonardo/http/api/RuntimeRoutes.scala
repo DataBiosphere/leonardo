@@ -413,10 +413,6 @@ object RuntimeRoutes {
                   .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone, gpu))
             }
           } yield res
-        // AN_570
-//        case CloudService.AzureVm =>
-//          // TODO in https://broadworkbench.atlassian.net/browse/IA-3112
-//          throw AzureUnimplementedException("RuntimeConfigRequest does not exists for azure yet")
       }
     } yield r
   }

@@ -63,7 +63,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
     val res = for {
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
@@ -75,8 +74,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- azureService
-        .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
       msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
 
     } yield msg shouldBe Some(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
@@ -158,7 +155,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
     val res = for {
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
@@ -170,8 +166,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- azureService
-        .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
       msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
 
     } yield msg shouldBe Some(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))

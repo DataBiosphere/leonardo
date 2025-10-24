@@ -33,7 +33,7 @@ trait SamService[F[_]] {
   /**
    * Gets a user's pet GCP service account using the user's token.
    * @param bearerToken the user's access token
-   * @param cloudContext GCP or Azure cloud context.
+   * @param cloudContext GCP cloud context.
    * @param ev application context
    * @return email of the pet service account, or SamException if
    *         the pet could not be retrieved.

@@ -28,9 +28,6 @@ class MockSamDAO extends SamDAO[IO] {
     new TrieMap()
   val workspaces: mutable.Map[(WorkspaceResourceSamResourceId, Authorization), Set[WorkspaceAction]] =
     new TrieMap()
-  // AN_570
-  //  val wsmResources: mutable.Map[(WsmResourceSamResourceId, Authorization), Set[WsmResourceAction]] =
-//    new TrieMap()
   val apps: mutable.Map[(AppSamResourceId, Authorization), Set[AppAction]] = new TrieMap()
 
   var projectOwners: Map[Authorization, Set[(ProjectSamResourceId, SamPolicyName)]] = Map.empty
@@ -397,14 +394,6 @@ class MockSamDAO extends SamDAO[IO] {
           .getOrElse(List.empty)
           .asInstanceOf[List[A]]
         IO.pure(res)
-      // AN_570
-//      case SamResourceType.WsmResource =>
-//        val res = wsmResources
-//          .get((resource.asInstanceOf[WsmResourceSamResourceId], authHeader))
-//          .map(_.toList)
-//          .getOrElse(List.empty)
-//          .asInstanceOf[List[A]]
-//        IO.pure(res)
       case _ => IO.pure(List.empty)
     }
 

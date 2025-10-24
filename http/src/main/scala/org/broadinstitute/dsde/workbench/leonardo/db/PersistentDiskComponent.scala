@@ -54,7 +54,6 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
   def lastUsedBy = column[Option[AppId]]("lastUsedBy")
   def sourceDisk = column[Option[DiskLink]]("sourceDisk", O.Length(1024))
-//  def wsmResourceId = column[Option[WsmControlledResourceId]]("wsmResourceId") AN_570
   def workspaceId = column[Option[WorkspaceId]]("workspaceId")
 
   override def * =
@@ -75,7 +74,6 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      formattedBy,
      (galaxyPvcId, lastUsedBy),
      sourceDisk,
-//     wsmResourceId, AN_570
      workspaceId
     ) <> ({
       case (id,

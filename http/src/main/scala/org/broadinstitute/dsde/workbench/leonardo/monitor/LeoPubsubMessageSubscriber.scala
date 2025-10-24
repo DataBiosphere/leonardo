@@ -295,7 +295,6 @@ class LeoPubsubMessageSubscriber[F[_]](
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
         DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), masterInstance)
       )
-      // AN_570
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
         new RuntimeException("Non GCP projects are not supported")
@@ -875,7 +874,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId))
       )(F.pure)
 
-      // AN_570
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
         new RuntimeException("Non GCP projects are not supported")

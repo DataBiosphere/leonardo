@@ -149,7 +149,7 @@ class GKEInterpreter[F[_]](
 
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
-        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+        new RuntimeException("trying to create a non google runtime in GKEInterpreter. This should never happen")
       )
       kubeNetwork = KubernetesNetwork(googleProject, network)
       kubeSubNetwork = KubernetesSubNetwork(googleProject, dbCluster.region, subnetwork)
@@ -1163,7 +1163,7 @@ class GKEInterpreter[F[_]](
 
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
-        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+        new RuntimeException("trying to create a non google runtime in GKEInterpreter. This should never happen")
       )
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
@@ -1240,7 +1240,7 @@ class GKEInterpreter[F[_]](
 
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
-        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+        new RuntimeException("trying to create a non google runtime in GKEInterpreter. This should never happen")
       )
       // Poll the app until it starts up
       last <- streamFUntilDone(
@@ -1288,7 +1288,7 @@ class GKEInterpreter[F[_]](
 
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cluster.cloudContext),
-        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+        new RuntimeException("trying to create a non google runtime in GKEInterpreter. This should never happen")
       )
 
       // Create the staging bucket to be used by Welder
@@ -1454,7 +1454,7 @@ class GKEInterpreter[F[_]](
       ).compile.lastOrError
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(dbCluster.cloudContext),
-        new RuntimeException("trying to create an azure runtime in GKEInterpreter. This should never happen")
+        new RuntimeException("trying to create a non google runtime in GKEInterpreter. This should never happen")
       )
       // Poll app until it starts up
       last <- streamFUntilDone(
