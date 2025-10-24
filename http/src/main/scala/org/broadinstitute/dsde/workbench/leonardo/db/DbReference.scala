@@ -118,7 +118,7 @@ object DataAccess {
       RuntimeConfigQueries.runtimeConfigs.delete andThen
       persistentDiskQuery.nullifyDiskIds andThen
       TableQuery[ServiceTable].delete andThen
-      TableQuery[UpdateAppLogTable].delete andThen
+//      TableQuery[UpdateAppLogTable].delete andThen AN-570
       TableQuery[AppErrorTable].delete andThen
       TableQuery[AppUsageTable].delete andThen
       TableQuery[AppTable].delete andThen

@@ -7,7 +7,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.config.{Config, KubernetesAppConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
@@ -87,8 +87,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
         a.appType,
         a.status,
         getRuntimeUI(a.labels),
-        a.chart,
-        isUpgradeable(a.appType, c.cloudContext.cloudProvider, a.chart)
+        a.chart
+//        isUpgradeable(a.appType, c.cloudContext.cloudProvider, a.chart) AN-570
       ) -> 1d
     )
 
@@ -158,8 +158,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
             serviceName,
             getRuntimeUI(app.labels),
             isUp,
-            app.chart,
-            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart)
+            app.chart
+//            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart) AN-570
           ) -> 1d,
           AppHealthMetric(
             cloudContext.cloudProvider,
@@ -167,8 +167,8 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
             serviceName,
             getRuntimeUI(app.labels),
             !isUp,
-            app.chart,
-            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart)
+            app.chart
+//            isUpgradeable(app.appType, cloudContext.cloudProvider, app.chart) AN-570
           ) -> 0d
         )
       }
@@ -247,10 +247,11 @@ class LeoMetricsMonitor[F[_]](config: LeoMetricsMonitorConfig, appDAO: AppDAO[F]
     else if (labels.contains(Config.uiConfig.allOfUsLabel)) RuntimeUI.AoU
     else RuntimeUI.Other
 
-  private def isUpgradeable(appType: AppType, cloudProvider: CloudProvider, chart: Chart): Boolean =
-    KubernetesAppConfig.configForTypeAndCloud(appType, cloudProvider).exists { config =>
-      !config.chartVersionsToExcludeFromUpdates.contains(chart.version)
-    }
+  // AN-570
+//  private def isUpgradeable(appType: AppType, cloudProvider: CloudProvider, chart: Chart): Boolean =
+//    KubernetesAppConfig.configForTypeAndCloud(appType, cloudProvider).exists { config =>
+//      !config.chartVersionsToExcludeFromUpdates.contains(chart.version)
+//    }
 }
 
 case class LeoMetricsMonitorConfig(enabled: Boolean, checkInterval: FiniteDuration)
@@ -264,8 +265,8 @@ object LeoMetric {
                                    appType: AppType,
                                    status: AppStatus,
                                    runtimeUI: RuntimeUI,
-                                   chart: Chart,
-                                   upgradeable: Boolean
+                                   chart: Chart
+//                                   upgradeable: Boolean AN-570
   ) extends LeoMetric {
     override def name: String = "leoAppStatus"
     override def tags: Map[String, String] =
@@ -275,8 +276,8 @@ object LeoMetric {
         "status" -> status.toString,
         "uiClient" -> runtimeUI.asString,
         "azureCloudContext" -> "", // obsolete
-        "chart" -> chart.toString,
-        "upgradeable" -> upgradeable.toString
+        "chart" -> chart.toString
+//        "upgradeable" -> upgradeable.toString AN-570
       )
   }
 
@@ -285,8 +286,8 @@ object LeoMetric {
                                    serviceName: ServiceName,
                                    runtimeUI: RuntimeUI,
                                    isUp: Boolean,
-                                   chart: Chart,
-                                   upgradeable: Boolean
+                                   chart: Chart
+//                                   upgradeable: Boolean AN-570
   ) extends LeoMetric {
     override def name: String = "leoAppHealth"
     override def tags: Map[String, String] = Map(
@@ -296,8 +297,8 @@ object LeoMetric {
       "uiClient" -> runtimeUI.asString,
       "isUp" -> isUp.toString,
       "azureCloudContext" -> "", // obsolete
-      "chart" -> chart.toString,
-      "upgradeable" -> upgradeable.toString
+      "chart" -> chart.toString
+//      "upgradeable" -> upgradeable.toString AN-570
     )
   }
 

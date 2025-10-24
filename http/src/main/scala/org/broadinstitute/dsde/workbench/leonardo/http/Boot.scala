@@ -64,7 +64,7 @@ object Boot extends IOApp {
         servicesDependencies.cloudSpecificDependenciesRegistry,
         servicesDependencies.kubernetesService,
         servicesDependencies.runtimeV2Service,
-        servicesDependencies.adminService,
+//        servicesDependencies.adminService, AN-570
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig

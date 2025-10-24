@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
@@ -317,34 +317,34 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             )(onError)
           } yield admins.contains(workbenchEmail)
     } yield res
-
-  override def isAdminUser(userInfo: UserInfo)(implicit
-    ev: Ask[F, TraceId]
-  ): F[Boolean] = {
-    // Sam's admin endpoints are protected so only admins can access them. Non-admin users get a
-    // 403 response. We don't actually care about the content we get in response to our request,
-    // we only care about the status code.
-    // 200 -> This is an admin user
-    // 403 -> The request "succeeded" in telling us this is not an admin user
-    // other -> The request failed
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    for {
-      status <- httpClient.status(
-        Request[F](
-          method = Method.GET,
-          uri =
-            config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/email/${userInfo.userEmail.value}")),
-          headers = Headers(authHeader)
-        )
-      )
-      traceId <- ev.ask
-      isAdmin <- status match {
-        case Status.Ok        => F.pure(true)
-        case Status.Forbidden => F.pure(false)
-        case _                => F.raiseError(AuthProviderException(traceId, "", status.code))
-      }
-    } yield isAdmin
-  }
+//AN-570
+//  override def isAdminUser(userInfo: UserInfo)(implicit
+//    ev: Ask[F, TraceId]
+//  ): F[Boolean] = {
+//    // Sam's admin endpoints are protected so only admins can access them. Non-admin users get a
+//    // 403 response. We don't actually care about the content we get in response to our request,
+//    // we only care about the status code.
+//    // 200 -> This is an admin user
+//    // 403 -> The request "succeeded" in telling us this is not an admin user
+//    // other -> The request failed
+//    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+//    for {
+//      status <- httpClient.status(
+//        Request[F](
+//          method = Method.GET,
+//          uri =
+//            config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/email/${userInfo.userEmail.value}")),
+//          headers = Headers(authHeader)
+//        )
+//      )
+//      traceId <- ev.ask
+//      isAdmin <- status match {
+//        case Status.Ok        => F.pure(true)
+//        case Status.Forbidden => F.pure(false)
+//        case _                => F.raiseError(AuthProviderException(traceId, "", status.code))
+//      }
+//    } yield isAdmin
+//  }
 
   // AN-570
 //  override def getAzureActionManagedIdentity(authHeader: Authorization,

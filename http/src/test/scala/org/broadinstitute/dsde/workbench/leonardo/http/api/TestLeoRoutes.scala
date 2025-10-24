@@ -197,7 +197,7 @@ trait TestLeoRoutes {
       gcpOnlyServicesRegistry,
       leoKubernetesService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -210,7 +210,7 @@ trait TestLeoRoutes {
       gcpOnlyServicesRegistry,
       leoKubernetesService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.AdminRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
@@ -64,7 +63,7 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -76,7 +75,7 @@ class HttpRoutesSpec
     createGcpOnlyServicesRegistry(),
     MockAppService,
     MockRuntimeV2Interp,
-    MockAdminServiceInterp,
+//    MockAdminServiceInterp, AN-570
     timedUserInfoDirectives,
     contentSecurityPolicy,
     refererConfig,
@@ -90,7 +89,7 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -103,7 +102,7 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -116,7 +115,7 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -651,43 +650,44 @@ class HttpRoutesSpec
     }
   }
 
-  it should "run a basic app update request" in {
-    Post(s"/api/admin/v2/apps/update")
-      .withEntity(
-        ContentTypes.`application/json`,
-        UpdateAppsRequest(None,
-                          AppType.Galaxy,
-                          CloudProvider.Gcp,
-                          List.empty,
-                          List.empty,
-                          None,
-                          None,
-                          List.empty,
-                          dryRun = false
-        ).asJson.spaces2
-      ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-  }
-
-  it should "run a dry run app update request" in {
-    Post(s"/api/admin/v2/apps/update")
-      .withEntity(
-        ContentTypes.`application/json`,
-        UpdateAppsRequest(None,
-                          AppType.Galaxy,
-                          CloudProvider.Gcp,
-                          List.empty,
-                          List.empty,
-                          None,
-                          None,
-                          List.empty,
-                          dryRun = true
-        ).asJson.spaces2
-      ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-    }
-  }
+  // AN-570
+//  it should "run a basic app update request" in {
+//    Post(s"/api/admin/v2/apps/update")
+//      .withEntity(
+//        ContentTypes.`application/json`,
+//        UpdateAppsRequest(None,
+//                          AppType.Galaxy,
+//                          CloudProvider.Gcp,
+//                          List.empty,
+//                          List.empty,
+//                          None,
+//                          None,
+//                          List.empty,
+//                          dryRun = false
+//        ).asJson.spaces2
+//      ) ~> httpRoutes.route ~> check {
+//      status shouldEqual StatusCodes.Accepted
+//    }
+//  }
+//
+//  it should "run a dry run app update request" in {
+//    Post(s"/api/admin/v2/apps/update")
+//      .withEntity(
+//        ContentTypes.`application/json`,
+//        UpdateAppsRequest(None,
+//                          AppType.Galaxy,
+//                          CloudProvider.Gcp,
+//                          List.empty,
+//                          List.empty,
+//                          None,
+//                          None,
+//                          List.empty,
+//                          dryRun = true
+//        ).asJson.spaces2
+//      ) ~> httpRoutes.route ~> check {
+//      status shouldEqual StatusCodes.OK
+//    }
+//  }
 
   it should "run a basic delete all resources request" in {
     Delete(
@@ -760,7 +760,7 @@ class HttpRoutesSpec
       gcpOnlyServicesRegistry,
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -780,7 +780,7 @@ class HttpRoutesSpec
       gcpOnlyServicesRegistry,
       kubernetesService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

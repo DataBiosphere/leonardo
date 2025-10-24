@@ -771,10 +771,11 @@ object JsonCodec {
     case n           => Right(AutodeleteThreshold.apply(n))
   }
 
-  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeString.emap(x =>
-    Either
-      .catchNonFatal(UpdateAppJobId(UUID.fromString(x)))
-      .leftMap(_.getMessage)
-  )
-  implicit val updateAppJobIdEncoder: Encoder[UpdateAppJobId] = Encoder.encodeString.contramap(_.value.toString)
+  //AN-570
+//  implicit val updateAppJobIdDecoder: Decoder[UpdateAppJobId] = Decoder.decodeString.emap(x =>
+//    Either
+//      .catchNonFatal(UpdateAppJobId(UUID.fromString(x)))
+//      .leftMap(_.getMessage)
+//  )
+//  implicit val updateAppJobIdEncoder: Encoder[UpdateAppJobId] = Encoder.encodeString.contramap(_.value.toString)
 }

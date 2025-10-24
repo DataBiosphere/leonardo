@@ -20,8 +20,6 @@ tags:
     description: Apps API. Support Google Kubernetes Engine.
   - name: proxy
     description: Proxy API
-  - name: admin
-    description: Admin API
   - name: notebooks
     description: Notebooks API. Deprecated in favor of Proxy API.
   - name: service_info
@@ -1300,45 +1298,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-  ## Admin API ##
-
-  "/api/admin/v2/apps/update":
-    post:
-      summary: Updates Kubernetes apps
-      description: Updates a designated collection of Kubernetes apps (both v1 and v2)
-      operationId: updateApps
-      tags:
-        - admin
-      requestBody:
-        $ref: "#/components/requestBodies/UpdateAppsRequest"
-      responses:
-        "200":
-          description: Dry run results successfully returned
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ListUpdateableAppResponse"
-        "202":
-          description: App(s) update request accepted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ListUpdateableAppResponse"
-        "403":
-          description: Forbidden (user is not an admin)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "412":
-          description: Precondition failed (the app type and cloud provider in the request didn't match any app profiles)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-
   ## Deprecated Notebook API ##
 
   "/notebooks/{googleProject}/{clusterName}":
@@ -2243,15 +2202,6 @@ components:
           example:
             autodeleteEnabled: true
             autodeleteThreshold: 60
-    UpdateAppsRequest:
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/UpdateAppsRequest"
-          example:
-            appType: CROMWELL
-            cloudProvider: GCP
-            dryRun: true
 
   securitySchemes:
     oidc:
@@ -3342,46 +3292,6 @@ components:
             integer.  Note: deletion timing is not exact.  The app will be deleted a short period of time after this
             threshold time has elapsed.
 
-    UpdateAppsRequest:
-      description: a request to update a specific set of apps
-      required:
-        - appType
-        - cloudProvider
-      type: object
-      properties:
-        jobId:
-          type: string
-          format: uuid
-          description: If provided, each app upgraded with this request will have a log associated with this job id saved for a report in the database
-        appType:
-          $ref: '#/components/schemas/AppType'
-        cloudProvider:
-          $ref: '#/components/schemas/CloudProvider'
-        appVersionsInclude:
-          type: array
-          description: If provided, apps currently running these chart versions will be updated. Applied after a config-level default exclusion list.
-          items:
-            type: string
-        appVersionsExclude:
-          type: array
-          description: If provided, apps currently running these chart versions will NOT be updated. Applied after a config-level default exclusion list.
-          items:
-            type: string
-        googleProject:
-          type: string
-          description: If provided, update apps in this Google project
-        workspaceId:
-          type: string
-          description: If provided, update apps in this workspace
-        appNames:
-          type: array
-          description: If provided, apps with these names will be updated
-          items:
-            type: string
-        dryRun:
-          type: boolean
-          description: If true, report on what apps would be updated but take no action. Defaults to false.
-
     GetAppResponse:
       description: the configuration of an app
       required:
@@ -3494,41 +3404,6 @@ components:
           type: integer
           description: The number of minutes of idle time to elapse before the app is
             deleted. When autodeleteEnabled is true, a positive integer is required
-
-    ListUpdateableAppResponse:
-      description: out-of-date app properties
-      type: object
-      properties:
-        jobId:
-          type: string
-          format: uuid
-          description: Job id to find logs of update
-        workspaceId:
-          type: string
-          description: workspaceId
-        cloudContext:
-          $ref: '#/components/schemas/CloudContext'
-        status:
-          $ref: "#/components/schemas/AppStatus"
-        appId:
-          type: number
-          description: the id of the app
-        appName:
-          type: string
-          description: the name of the app
-        appType:
-          $ref: '#/components/schemas/AppType'
-        auditInfo:
-          $ref: "#/components/schemas/AuditInfo"
-        chart:
-          type: string
-          description: the currently installed chart version
-        accessScope:
-          $ref: '#/components/schemas/AppAccessScope'
-        labels:
-          type: object
-          description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
-
 
     CloudContext:
       description: Cloud platform which holds context for a workspace.

@@ -555,7 +555,7 @@ class ProxyRoutesSpec
       gcpOnlyServicesRegistry,
       leoKubernetesService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -731,7 +731,7 @@ class ProxyRoutesSpec
       gcpOnlyServicesRegistry,
       leoKubernetesService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
+//      MockAdminServiceInterp, AN-570
       userInfoDirectives,
       contentSecurityPolicy,
       useRefererConfig

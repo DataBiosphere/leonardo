@@ -519,9 +519,10 @@ object AppStatus {
     override def toString: String = "STARTING"
   }
 
-  final case object Updating extends AppStatus {
-    override def toString: String = "UPDATING"
-  }
+  // AN-570
+//  final case object Updating extends AppStatus {
+//    override def toString: String = "UPDATING"
+//  }
 
   def values: Set[AppStatus] = sealerate.values[AppStatus]
   def stringToObject: Map[String, AppStatus] = values.map(v => v.toString -> v).toMap
@@ -598,24 +599,26 @@ object ComputeClass {
 final case class Autodelete(autodeleteEnabled: Boolean, autodeleteThreshold: Option[AutodeleteThreshold])
 final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
 
-final case class UpdateAppTableId(value: Long) extends AnyVal
-final case class UpdateAppJobId(value: UUID) extends AnyVal
+//AN-570
+//final case class UpdateAppTableId(value: Long) extends AnyVal
+//final case class UpdateAppJobId(value: UUID) extends AnyVal
 
-sealed abstract class UpdateAppJobStatus
-object UpdateAppJobStatus {
-
-  case object Running extends UpdateAppJobStatus {
-    override def toString: String = "RUNNING"
-  }
-
-  case object Error extends UpdateAppJobStatus {
-    override def toString: String = "ERROR"
-  }
-
-  final case object Success extends UpdateAppJobStatus {
-    override def toString: String = "SUCCESS"
-  }
-
-  def values: Set[UpdateAppJobStatus] = sealerate.values[UpdateAppJobStatus]
-  def stringToObject: Map[String, UpdateAppJobStatus] = values.map(v => v.toString -> v).toMap
-}
+//AN-570
+//sealed abstract class UpdateAppJobStatus
+//object UpdateAppJobStatus {
+//
+//  case object Running extends UpdateAppJobStatus {
+//    override def toString: String = "RUNNING"
+//  }
+//
+//  case object Error extends UpdateAppJobStatus {
+//    override def toString: String = "ERROR"
+//  }
+//
+//  final case object Success extends UpdateAppJobStatus {
+//    override def toString: String = "SUCCESS"
+//  }
+//
+//  def values: Set[UpdateAppJobStatus] = sealerate.values[UpdateAppJobStatus]
+//  def stringToObject: Map[String, UpdateAppJobStatus] = values.map(v => v.toString -> v).toMap
+//}

@@ -48,7 +48,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
@@ -605,275 +605,276 @@ class GKEInterpreter[F[_]](
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
-  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      ctx <- ev.ask
-
-      googleProject <- F.fromOption(
-        params.googleProject,
-        AppUpdateException(
-          s"${params.appName} must have a google project in the GCP cloud context",
-          Some(ctx.traceId)
-        )
-      )
-
-      // Grab records from the database
-      dbAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(CloudContext.Gcp(googleProject), params.appName)
-        .transaction
-      dbApp <- F.fromOption(
-        dbAppOpt,
-        AppNotFoundException(CloudContext.Gcp(googleProject), params.appName, ctx.traceId, "No active app found in DB")
-      )
-      _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in project ${googleProject}")
-
-      // Grab all of the values that we need to resend to the helm update command for each app
-      dbCluster = dbApp.cluster
-      nodepoolName = dbApp.nodepool.nodepoolName
-      machineTypeName = dbApp.nodepool.machineType
-      gkeClusterId = dbCluster.getClusterId
-
-      app = dbApp.app
-      namespaceName = app.appResources.namespace
-      gsa = app.googleServiceAccount
-      nfsDisk <- F.fromOption(
-        dbApp.app.appResources.disk,
-        AppUpdateException(s"NFS disk not found in DB for app ${app.appName.value}", Some(ctx.traceId))
-      )
-      ksaName <- F.fromOption(
-        app.appResources.kubernetesServiceAccountName,
-        AppUpdateException(
-          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
-          Some(ctx.traceId)
-        )
-      )
-      userEmail = app.auditInfo.creator
-      stagingBucketName = generateUniqueBucketName("leostaging-" + params.appName.value)
-
-      // Resolve the cluster in Google
-      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
-      googleCluster <- F.fromOption(
-        googleClusterOpt,
-        AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
-      )
-      nodepool = if (app.autopilot.isDefined) None else Some(dbApp.nodepool.nodepoolName)
-      chartOverridesAndAppOkF = app.appType match {
-        case AppType.Galaxy =>
-          for {
-
-            postgresDiskNameOpt <- for {
-              disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, googleProject, nfsDisk.zone)
-            } yield disk.map(x => DiskName(x.getName))
-
-            postgresDiskName <- F.fromOption(
-              postgresDiskNameOpt,
-              AppUpdateException(s"No postgres disk found in google for app ${app.appName.value} ",
-                                 traceId = Some(ctx.traceId)
-              )
-            )
-
-            appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(nfsDisk.id).transaction
-            galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
-              case a: AppRestore.GalaxyRestore => Some(a)
-              case _: AppRestore.Other         => None
-            }
-
-            machineType <- computeService
-              .getMachineType(googleProject,
-                              ZoneName("us-central1-a"),
-                              machineTypeName
-              ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
-              .flatMap(opt =>
-                F.fromOption(
-                  opt,
-                  AppUpdateException(s"Unknown machine type for ${machineTypeName.value}", traceId = Some(ctx.traceId))
-                )
-              )
-
-            appMachineType = AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)
-
-            chartValues = buildGalaxyChartOverrideValuesString(
-              config,
-              app.appName,
-              app.release,
-              dbCluster,
-              nodepoolName,
-              userEmail,
-              app.customEnvironmentVariables,
-              ksaName,
-              namespaceName,
-              nfsDisk,
-              postgresDiskName,
-              appMachineType,
-              galaxyRestore
-            )
-
-            last <- streamFUntilDone(
-              appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy"), ctx.traceId),
-              config.monitorConfig.updateApp.maxAttempts,
-              config.monitorConfig.updateApp.interval
-            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError
-
-          } yield (chartValues.mkString(","), last)
-        case AppType.Cromwell =>
-          for {
-
-            last <- streamFUntilDone(
-              config.cromwellAppConfig.services
-                .map(_.name)
-                .traverse(s => appDao.isProxyAvailable(googleProject, app.appName, s, ctx.traceId)),
-              config.monitorConfig.createApp.maxAttempts,
-              config.monitorConfig.createApp.interval
-            ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
-
-            chartValues = buildCromwellAppChartOverrideValuesString(
-              config,
-              app.appName,
-              dbCluster,
-              nodepool,
-              namespaceName,
-              nfsDisk,
-              ksaName,
-              gsa,
-              app.customEnvironmentVariables
-            )
-
-          } yield (chartValues.mkString(","), last)
-        case AppType.Allowed =>
-          for {
-            // Create the throwaway staging bucket to be used by Welder
-            _ <- bucketHelper
-              .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
-              .compile
-              .drain
-
-            allowedChart <- F.fromOption(
-              AllowedChartName.fromChartName(app.chart.name),
-              new RuntimeException(s"invalid chart name for ALLOWED app: ${app.chart.name}")
-            )
-
-            chartValues = buildAllowedAppChartOverrideValuesString(
-              config,
-              allowedChart,
-              app.appName,
-              dbCluster,
-              nodepool,
-              namespaceName,
-              nfsDisk,
-              ksaName,
-              userEmail,
-              stagingBucketName,
-              app.customEnvironmentVariables,
-              app.autopilot,
-              app.bucketNameToMount
-            )
-
-            last <- streamFUntilDone(
-              config.allowedAppConfig.services
-                .map(_.name)
-                .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s, ctx.traceId)),
-              config.monitorConfig.updateApp.maxAttempts,
-              config.monitorConfig.updateApp.interval
-            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
-
-          } yield (chartValues.mkString(","), last)
-        case AppType.Custom =>
-          for {
-
-            desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
-            descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
-              AppUpdateException(
-                s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}",
-                Some(ctx.traceId)
-              )
-            }
-
-            (serviceName, serviceConfig) = descriptor.services.head
-
-            chartValues = buildCustomChartOverrideValuesString(
-              config,
-              params.appName,
-              app.release,
-              nodepool,
-              serviceName,
-              dbCluster,
-              namespaceName,
-              serviceConfig,
-              app.extraArgs,
-              nfsDisk,
-              ksaName,
-              serviceConfig.environment ++ app.customEnvironmentVariables
-            )
-
-            last <- streamFUntilDone(
-              descriptor.services.keys.toList.traverse(s =>
-                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s), ctx.traceId)
-              ),
-              config.monitorConfig.updateApp.maxAttempts,
-              config.monitorConfig.updateApp.interval
-            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
-
-          } yield (chartValues, last)
-        case _ =>
-          F.raiseError[(String, Boolean)](
-            AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId))
-          )
-      }
-
-      (chartOverrideValues, preUpdateAppOk) <- chartOverridesAndAppOkF
-
-      // Authenticate helm client
-      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
-
-      // Fail if apps are not live before update attempt
-      _ <-
-        if (preUpdateAppOk)
-          F.unit
-        else
-          F.raiseError[Unit](
-            AppUpdatePollingException(
-              s"App ${params.appName.value} is not live in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}, failing prior to upgrade attempt",
-              Some(ctx.traceId)
-            )
-          )
-
-      // Change app status to updating
-      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
-
-      // Upgrade app chart version and explicitly pass the values
-      _ <- helmClient
-        .upgradeChart(
-          app.release,
-          app.chart.name,
-          params.appChartVersion,
-          org.broadinstitute.dsp.Values(chartOverrideValues)
-        )
-        .run(helmAuthContext)
-
-      // Fail if apps are not live after update attempt
-      (_, postUpdateAppOk) <- chartOverridesAndAppOkF
-      _ <-
-        if (postUpdateAppOk)
-          F.unit
-        else
-          F.raiseError[Unit](
-            AppUpdatePollingException(
-              s"App ${params.appName.value} failed to update in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}",
-              Some(ctx.traceId)
-            )
-          )
-
-      _ <- logger.info(
-        s"Update app operation has finished for app ${app.appName.value} in cluster ${googleCluster}"
-      )
-
-      // Update app chart version in the DB
-      _ <- appQuery.updateChart(app.id, Chart(app.chart.name, params.appChartVersion)).transaction
-      // Put app status back to running
-      _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
-
-      _ <- logger.info(s"Done updating app ${params.appName} in project ${params.googleProject}")
-    } yield ()
+  // AN-570
+//  override def updateAndPollApp(params: UpdateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+//    for {
+//      ctx <- ev.ask
+//
+//      googleProject <- F.fromOption(
+//        params.googleProject,
+//        AppUpdateException(
+//          s"${params.appName} must have a google project in the GCP cloud context",
+//          Some(ctx.traceId)
+//        )
+//      )
+//
+//      // Grab records from the database
+//      dbAppOpt <- KubernetesServiceDbQueries
+//        .getActiveFullAppByName(CloudContext.Gcp(googleProject), params.appName)
+//        .transaction
+//      dbApp <- F.fromOption(
+//        dbAppOpt,
+//        AppNotFoundException(CloudContext.Gcp(googleProject), params.appName, ctx.traceId, "No active app found in DB")
+//      )
+//      _ <- logger.info(ctx.loggingCtx)(s"Updating app ${params.appName} in project ${googleProject}")
+//
+//      // Grab all of the values that we need to resend to the helm update command for each app
+//      dbCluster = dbApp.cluster
+//      nodepoolName = dbApp.nodepool.nodepoolName
+//      machineTypeName = dbApp.nodepool.machineType
+//      gkeClusterId = dbCluster.getClusterId
+//
+//      app = dbApp.app
+//      namespaceName = app.appResources.namespace
+//      gsa = app.googleServiceAccount
+//      nfsDisk <- F.fromOption(
+//        dbApp.app.appResources.disk,
+//        AppUpdateException(s"NFS disk not found in DB for app ${app.appName.value}", Some(ctx.traceId))
+//      )
+//      ksaName <- F.fromOption(
+//        app.appResources.kubernetesServiceAccountName,
+//        AppUpdateException(
+//          s"Kubernetes Service Account not found in DB for app ${app.appName.value}",
+//          Some(ctx.traceId)
+//        )
+//      )
+//      userEmail = app.auditInfo.creator
+//      stagingBucketName = generateUniqueBucketName("leostaging-" + params.appName.value)
+//
+//      // Resolve the cluster in Google
+//      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
+//      googleCluster <- F.fromOption(
+//        googleClusterOpt,
+//        AppUpdateException(s"Cluster not found in Google: ${gkeClusterId}", Some(ctx.traceId))
+//      )
+//      nodepool = if (app.autopilot.isDefined) None else Some(dbApp.nodepool.nodepoolName)
+//      chartOverridesAndAppOkF = app.appType match {
+//        case AppType.Galaxy =>
+//          for {
+//
+//            postgresDiskNameOpt <- for {
+//              disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, googleProject, nfsDisk.zone)
+//            } yield disk.map(x => DiskName(x.getName))
+//
+//            postgresDiskName <- F.fromOption(
+//              postgresDiskNameOpt,
+//              AppUpdateException(s"No postgres disk found in google for app ${app.appName.value} ",
+//                                 traceId = Some(ctx.traceId)
+//              )
+//            )
+//
+//            appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(nfsDisk.id).transaction
+//            galaxyRestore: Option[AppRestore.GalaxyRestore] = appRestore.flatMap {
+//              case a: AppRestore.GalaxyRestore => Some(a)
+//              case _: AppRestore.Other         => None
+//            }
+//
+//            machineType <- computeService
+//              .getMachineType(googleProject,
+//                              ZoneName("us-central1-a"),
+//                              machineTypeName
+//              ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+//              .flatMap(opt =>
+//                F.fromOption(
+//                  opt,
+//                  AppUpdateException(s"Unknown machine type for ${machineTypeName.value}", traceId = Some(ctx.traceId))
+//                )
+//              )
+//
+//            appMachineType = AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)
+//
+//            chartValues = buildGalaxyChartOverrideValuesString(
+//              config,
+//              app.appName,
+//              app.release,
+//              dbCluster,
+//              nodepoolName,
+//              userEmail,
+//              app.customEnvironmentVariables,
+//              ksaName,
+//              namespaceName,
+//              nfsDisk,
+//              postgresDiskName,
+//              appMachineType,
+//              galaxyRestore
+//            )
+//
+//            last <- streamFUntilDone(
+//              appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName("galaxy"), ctx.traceId),
+//              config.monitorConfig.updateApp.maxAttempts,
+//              config.monitorConfig.updateApp.interval
+//            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError
+//
+//          } yield (chartValues.mkString(","), last)
+//        case AppType.Cromwell =>
+//          for {
+//
+//            last <- streamFUntilDone(
+//              config.cromwellAppConfig.services
+//                .map(_.name)
+//                .traverse(s => appDao.isProxyAvailable(googleProject, app.appName, s, ctx.traceId)),
+//              config.monitorConfig.createApp.maxAttempts,
+//              config.monitorConfig.createApp.interval
+//            ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+//
+//            chartValues = buildCromwellAppChartOverrideValuesString(
+//              config,
+//              app.appName,
+//              dbCluster,
+//              nodepool,
+//              namespaceName,
+//              nfsDisk,
+//              ksaName,
+//              gsa,
+//              app.customEnvironmentVariables
+//            )
+//
+//          } yield (chartValues.mkString(","), last)
+//        case AppType.Allowed =>
+//          for {
+//            // Create the throwaway staging bucket to be used by Welder
+//            _ <- bucketHelper
+//              .createStagingBucket(userEmail, googleProject, stagingBucketName, gsa)
+//              .compile
+//              .drain
+//
+//            allowedChart <- F.fromOption(
+//              AllowedChartName.fromChartName(app.chart.name),
+//              new RuntimeException(s"invalid chart name for ALLOWED app: ${app.chart.name}")
+//            )
+//
+//            chartValues = buildAllowedAppChartOverrideValuesString(
+//              config,
+//              allowedChart,
+//              app.appName,
+//              dbCluster,
+//              nodepool,
+//              namespaceName,
+//              nfsDisk,
+//              ksaName,
+//              userEmail,
+//              stagingBucketName,
+//              app.customEnvironmentVariables,
+//              app.autopilot,
+//              app.bucketNameToMount
+//            )
+//
+//            last <- streamFUntilDone(
+//              config.allowedAppConfig.services
+//                .map(_.name)
+//                .traverse(s => appDao.isProxyAvailable(googleProject, dbApp.app.appName, s, ctx.traceId)),
+//              config.monitorConfig.updateApp.maxAttempts,
+//              config.monitorConfig.updateApp.interval
+//            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+//
+//          } yield (chartValues.mkString(","), last)
+//        case AppType.Custom =>
+//          for {
+//
+//            desc <- F.fromOption(dbApp.app.descriptorPath, AppRequiresDescriptorException(dbApp.app.id))
+//            descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError { case e =>
+//              AppUpdateException(
+//                s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}",
+//                Some(ctx.traceId)
+//              )
+//            }
+//
+//            (serviceName, serviceConfig) = descriptor.services.head
+//
+//            chartValues = buildCustomChartOverrideValuesString(
+//              config,
+//              params.appName,
+//              app.release,
+//              nodepool,
+//              serviceName,
+//              dbCluster,
+//              namespaceName,
+//              serviceConfig,
+//              app.extraArgs,
+//              nfsDisk,
+//              ksaName,
+//              serviceConfig.environment ++ app.customEnvironmentVariables
+//            )
+//
+//            last <- streamFUntilDone(
+//              descriptor.services.keys.toList.traverse(s =>
+//                appDao.isProxyAvailable(googleProject, dbApp.app.appName, ServiceName(s), ctx.traceId)
+//              ),
+//              config.monitorConfig.updateApp.maxAttempts,
+//              config.monitorConfig.updateApp.interval
+//            ).interruptAfter(config.monitorConfig.updateApp.interruptAfter).compile.lastOrError.map(x => x.isDone)
+//
+//          } yield (chartValues, last)
+//        case _ =>
+//          F.raiseError[(String, Boolean)](
+//            AppUpdateException(s"App type ${app.appType} not supported on GCP", Some(ctx.traceId))
+//          )
+//      }
+//
+//      (chartOverrideValues, preUpdateAppOk) <- chartOverridesAndAppOkF
+//
+//      // Authenticate helm client
+//      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+//
+//      // Fail if apps are not live before update attempt
+//      _ <-
+//        if (preUpdateAppOk)
+//          F.unit
+//        else
+//          F.raiseError[Unit](
+//            AppUpdatePollingException(
+//              s"App ${params.appName.value} is not live in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}, failing prior to upgrade attempt",
+//              Some(ctx.traceId)
+//            )
+//          )
+//
+//      // Change app status to updating
+//      _ <- appQuery.updateStatus(app.id, AppStatus.Updating).transaction
+//
+//      // Upgrade app chart version and explicitly pass the values
+//      _ <- helmClient
+//        .upgradeChart(
+//          app.release,
+//          app.chart.name,
+//          params.appChartVersion,
+//          org.broadinstitute.dsp.Values(chartOverrideValues)
+//        )
+//        .run(helmAuthContext)
+//
+//      // Fail if apps are not live after update attempt
+//      (_, postUpdateAppOk) <- chartOverridesAndAppOkF
+//      _ <-
+//        if (postUpdateAppOk)
+//          F.unit
+//        else
+//          F.raiseError[Unit](
+//            AppUpdatePollingException(
+//              s"App ${params.appName.value} failed to update in cluster ${googleCluster} in cloud context ${CloudContext.Gcp(googleProject).asString}",
+//              Some(ctx.traceId)
+//            )
+//          )
+//
+//      _ <- logger.info(
+//        s"Update app operation has finished for app ${app.appName.value} in cluster ${googleCluster}"
+//      )
+//
+//      // Update app chart version in the DB
+//      _ <- appQuery.updateChart(app.id, Chart(app.chart.name, params.appChartVersion)).transaction
+//      // Put app status back to running
+//      _ <- appQuery.updateStatus(app.id, AppStatus.Running).transaction
+//
+//      _ <- logger.info(s"Done updating app ${params.appName} in project ${params.googleProject}")
+//    } yield ()
 
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {

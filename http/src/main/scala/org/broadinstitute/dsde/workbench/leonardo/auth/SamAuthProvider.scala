@@ -372,9 +372,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
 
   override def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isGroupMembersOrAdmin(config.sasAppCreationAllowedGroup, userEmail)
-
-  override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean] =
-    samDao.isAdminUser(userInfo)
+//AN-570
+//  override def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean] =
+//    samDao.isAdminUser(userInfo)
 
   override def getLeoAuthToken: F[String] =
     for {

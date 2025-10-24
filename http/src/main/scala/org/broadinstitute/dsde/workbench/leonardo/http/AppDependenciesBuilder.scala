@@ -90,9 +90,9 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
 
     val runtimeV2Service =
       new RuntimeV2ServiceInterp[IO](baselineDependencies.publisherQueue, baselineDependencies.samService)
-
-    val adminService =
-      new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
+//AN-570
+//    val adminService =
+//      new AdminServiceInterp[IO](baselineDependencies.authProvider, baselineDependencies.publisherQueue)
 
     // The instance must be present in both Azure and GCP modes.
     // However, when running on Azure, the service is created without GCP dependencies.
@@ -106,7 +106,7 @@ class AppDependenciesBuilder(baselineDependenciesBuilder: BaselineDependenciesBu
           statusService,
           dependenciesRegistry,
           leoKubernetesService,
-          adminService,
+//          adminService, AN-570
           runtimeV2Service,
           StandardUserInfoDirectives,
           contentSecurityPolicy,

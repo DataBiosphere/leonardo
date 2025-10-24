@@ -22,9 +22,10 @@ sealed trait KubernetesAppConfig extends Product with Serializable {
 
   def enabled: Boolean
 
-  // Each app can configure its own list of chart versions to NEVER update. To be used
-  // when changes aren't backward-compatible and we know an update would be destructive.
-  def chartVersionsToExcludeFromUpdates: List[ChartVersion]
+  // AN-570
+//  // Each app can configure its own list of chart versions to NEVER update. To be used
+//  // when changes aren't backward-compatible and we know an update would be destructive.
+//  def chartVersionsToExcludeFromUpdates: List[ChartVersion]
 
   // These are defined by each implementing class. Each config type
   // corresponds to a specific app type and cloud provider.
@@ -55,8 +56,8 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  drsUrl: GalaxyDrsUrl,
                                  minMemoryGb: Int,
                                  minNumOfCpus: Int,
-                                 enabled: Boolean,
-                                 chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                 enabled: Boolean
+//                                 chartVersionsToExcludeFromUpdates: List[ChartVersion] AN-570
 ) extends KubernetesAppConfig {
   override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 
@@ -72,8 +73,8 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    serviceAccountName: ServiceAccountName,
                                    dbPassword: DbPassword,
                                    enabled: Boolean,
-                                   backend: CromwellBackendName,
-                                   chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                   backend: CromwellBackendName
+//                                   chartVersionsToExcludeFromUpdates: List[ChartVersion] AN-570
 ) extends KubernetesAppConfig {
   override val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 
@@ -89,8 +90,8 @@ final case class CustomAppConfig(chartName: ChartName,
                                  namespaceNameSuffix: NamespaceNameSuffix,
                                  serviceAccountName: ServiceAccountName,
                                  customApplicationAllowList: CustomApplicationAllowListConfig,
-                                 enabled: Boolean,
-                                 chartVersionsToExcludeFromUpdates: List[ChartVersion]
+                                 enabled: Boolean
+//                                 chartVersionsToExcludeFromUpdates: List[ChartVersion] AN-570
 ) extends KubernetesAppConfig {
   // Not known at config. Generated at runtime.
   override val kubernetesServices: List[KubernetesService] = List.empty
@@ -110,7 +111,7 @@ final case class AllowedAppConfig(chartName: ChartName,
                                   services: List[ServiceConfig],
                                   serviceAccountName: ServiceAccountName,
                                   sasContainerRegistryCredentials: ContainerRegistryCredentials,
-                                  chartVersionsToExcludeFromUpdates: List[ChartVersion],
+//                                  chartVersionsToExcludeFromUpdates: List[ChartVersion], AN-570
                                   numOfReplicas: Int
 ) extends KubernetesAppConfig {
   val cloudProvider: CloudProvider = CloudProvider.Gcp

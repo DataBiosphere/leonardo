@@ -667,8 +667,8 @@ object Config {
       config.as[GalaxyDrsUrl]("drsUrl"),
       config.as[Int]("minMemoryGb"),
       config.as[Int]("minNumOfCpus"),
-      config.as[Boolean]("enabled"),
-      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
+      config.as[Boolean]("enabled")
+//      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates") AN-570
     )
   }
 
@@ -693,8 +693,8 @@ object Config {
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
       dbPassword = config.as[DbPassword]("dbPassword"),
       enabled = config.as[Boolean]("enabled"),
-      backend = config.as[CromwellBackendName]("backend"),
-      chartVersionsToExcludeFromUpdates = config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
+      backend = config.as[CromwellBackendName]("backend")
+//      chartVersionsToExcludeFromUpdates = config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates") AN-570
     )
   }
 
@@ -706,8 +706,8 @@ object Config {
       config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[CustomApplicationAllowListConfig]("customApplicationAllowList"),
-      config.as[Boolean]("enabled"),
-      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates")
+      config.as[Boolean]("enabled")
+//      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates") AN-570
     )
   }
 
@@ -729,7 +729,7 @@ object Config {
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[ContainerRegistryCredentials]("sasContainerRegistry"),
-      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates"),
+//      config.as[List[ChartVersion]]("chartVersionsToExcludeFromUpdates"), AN-570
       config.as[Int]("numOfReplicas")
     )
   }
@@ -893,7 +893,7 @@ object Config {
       config.as[PollMonitorConfig]("scalingUpNodepool"),
       config.as[PollMonitorConfig]("scalingDownNodepool"),
       config.as[InterruptablePollMonitorConfig]("startApp"),
-      config.as[InterruptablePollMonitorConfig]("updateApp"),
+//      config.as[InterruptablePollMonitorConfig]("updateApp"), AN-570
       config.as[PollMonitorConfig]("appLiveness")
     )
   }

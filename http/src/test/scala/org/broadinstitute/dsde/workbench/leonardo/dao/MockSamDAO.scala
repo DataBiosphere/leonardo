@@ -464,10 +464,10 @@ class MockSamDAO extends SamDAO[IO] {
   override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
-
-  override def isAdminUser(userInfo: UserInfo)(implicit
-    ev: Ask[IO, TraceId]
-  ): IO[Boolean] = IO.pure(false)
+//AN-570
+//  override def isAdminUser(userInfo: UserInfo)(implicit
+//    ev: Ask[IO, TraceId]
+//  ): IO[Boolean] = IO.pure(false)
 
   override def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
