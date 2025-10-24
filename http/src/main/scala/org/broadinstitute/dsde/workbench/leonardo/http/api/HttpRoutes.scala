@@ -114,9 +114,11 @@ class HttpRoutes(
     logRequestResult {
       Route.seal(
         oidcConfig
-          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ statusRoutes.route ~
+          .swaggerRoutes(
+            "swagger/api-docs.yaml"
+          ) ~ oidcConfig.oauth2Routes ~ proxyRoutes.get.route ~ statusRoutes.route ~
           pathPrefix("api") {
-            runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~ diskRoutes.get.routes ~ appRoutes.get.routes
+            runtimeRoutes.get.routes ~ runtimeV2Routes.routes ~ diskRoutes.get.routes ~ kubernetesRoutes.routes ~ resourcesRoutes.get.routes
           }
       )
     }
