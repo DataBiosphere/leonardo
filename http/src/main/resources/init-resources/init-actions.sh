@@ -161,7 +161,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_EXTENSIONS=$JUPYTER_HOME/custom/extensions
     JUPYTER_SCRIPTS=$JUPYTER_EXTENSIONS/scripts
-    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
+    KERNELSPEC_HOME=$JUPYTER_HOME/share/jupyter/kernels
 
     # Set variables
     # Values like $(..) are populated by Leo when a cluster is created.
@@ -360,7 +360,7 @@ EOF
             gsutil cp $ext /etc
             JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
             docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_EXTENSIONS}/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
           elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
             JUPYTER_EXTENSION_FILE=`basename $ext`
             curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}

@@ -409,14 +409,12 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # Install everything after having mounted the empty PD
   # This should not be needed anymore if the jupyter home is a directory of the PD mount point
   # See: https://github.com/DataBiosphere/leonardo/pull/4465/files
-#  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
-#    # TODO: Remove once we stop supporting non AI notebooks based images
-#    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
-#    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
-
+  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
+    # TODO: Remove once we stop supporting non AI notebooks based images
+    log 'Installing Jupyter kernelspecs'
     # Install kernelspecs inside the Jupyter container
-#    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
-#  fi
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+  fi
 
   # Install notebook.json which is used to populate Jupyter.notebook.config in JavaScript extensions.
   # This is used in the edit-mode.js extension that Terra/AoU use.
