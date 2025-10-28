@@ -61,8 +61,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "publish start a runtime message properly" in isolatedDbTest {
     val workspaceId = WorkspaceId(UUID.randomUUID())
-
     val publisherQueue = QueueFactory.makePublisherQueue()
+    val dummyRuntimeV2Service = makeInterp(publisherQueue)
     val res = for {
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
@@ -74,8 +74,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
+      _ <- dummyRuntimeV2Service
+        .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
       msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-
     } yield msg shouldBe Some(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -153,8 +154,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "publish stop a runtime message properly" in isolatedDbTest {
     val workspaceId = WorkspaceId(UUID.randomUUID())
-
     val publisherQueue = QueueFactory.makePublisherQueue()
+    val dummyRuntimeV2Service = makeInterp(publisherQueue)
     val res = for {
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
@@ -166,6 +167,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
+      _ <- dummyRuntimeV2Service
+        .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
       msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
 
     } yield msg shouldBe Some(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))

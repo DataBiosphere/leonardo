@@ -47,7 +47,6 @@ object KubernetesServiceDbQueries {
 
   /**
     * List all apps in the given workspace, with optional label filter.
-    * This method should be used by v2 app routes.
     */
   def listFullAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
                                 labelFilter: LabelMap = Map(),
@@ -119,7 +118,6 @@ object KubernetesServiceDbQueries {
 
   /**
     * Gets an active app by name and cloud context.
-    * This method should be used by v1 app routes. v2 apps should use `getActiveFullAppByWorkspaceIdAndAppName`.
     */
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext

@@ -5,6 +5,9 @@ package service
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
+// AN-570
+// Both Terra and AOU UI still rely on the runtime V2 API.
+// To remove once neither service is using it
 trait RuntimeV2Service[F[_]] {
 
   def listRuntimes(userInfo: UserInfo,

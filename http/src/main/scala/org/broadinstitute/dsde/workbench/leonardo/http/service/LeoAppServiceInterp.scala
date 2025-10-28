@@ -362,13 +362,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       allClusters <- KubernetesServiceDbQueries
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
-//AN-570
-//      // V1 endpoints use google project to determine user access
-//      // listAll apps includes both Azure and GCP apps
-//      // but Azure apps don't have a google project, so useGoogleProject is false for Azure apps
-//      partition = allClusters.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
+
       gcpApps <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, true)
-//      azureApps <- filterAppsBySamPermission(partition._2, userInfo, paramMap._3, false) AN-570
+
     } yield gcpApps
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(

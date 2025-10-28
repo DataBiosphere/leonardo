@@ -500,7 +500,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-
+# AN-570 - We are planning on deprecating the v2 routes once Terra and AOU UIs no longer rely on them
   "/api/v2/runtimes":
     get:
       summary: List all runtimes that the caller has access to

@@ -274,7 +274,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         )
 
       // v1 apps are unique by (appName, cloudContext)
-      // v2 apps are unique by (appName, workspace)
+      // v2 apps are unique by (appName, workspace) - deprecated
       // This must be enforced at the code level, because the DB schema handles both v1 and v2.
       getAppResult <- saveApp.app.workspaceId match {
         case Some(wid) => KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(wid, saveApp.app.appName)

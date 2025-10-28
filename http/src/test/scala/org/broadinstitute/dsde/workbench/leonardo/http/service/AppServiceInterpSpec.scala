@@ -1882,9 +1882,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         val resources = invocation.getArgument(0).asInstanceOf[NonEmptyList[(GoogleProject, Any)]]
         IO.pure(resources.toList)
       }
-    // mock azure app visibility AN-570
-//    when(mockAuthProvider.checkUserEnabled(any)(any)).thenReturn(IO.unit)
-//    when(mockAuthProvider.filterUserVisible(any, any)(any, any, any)).thenReturn(IO.pure(List.empty))
 
     val interp = new LeoAppServiceInterp[IO](
       appServiceConfig,
