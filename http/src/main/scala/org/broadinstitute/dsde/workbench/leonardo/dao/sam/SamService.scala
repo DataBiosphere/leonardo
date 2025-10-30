@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.sam
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
-  CloudContext,
   SamPolicyData,
   SamResourceAction,
   SamResourceId,
@@ -29,21 +28,6 @@ trait SamService[F[_]] {
   def getPetServiceAccount(bearerToken: String, googleProject: GoogleProject)(implicit
     ev: Ask[F, AppContext]
   ): F[WorkbenchEmail]
-
-  /**
-   * Gets a user's pet GCP service account using the user's token.
-   * @param bearerToken the user's access token
-   * @param cloudContext GCP cloud context.
-   * @param ev application context
-   * @return email of the pet service account, or SamException if
-   *         the pet could not be retrieved.
-   */
-  def getPetServiceAccountOrManagedIdentity(bearerToken: String, cloudContext: CloudContext)(implicit
-    ev: Ask[F, AppContext]
-  ): F[WorkbenchEmail] = {
-    val CloudContext.Gcp(googleProject) = cloudContext
-    getPetServiceAccount(bearerToken, googleProject)
-  }
 
   /**
    * Gets a user's proxy group, using a Leonardo token.

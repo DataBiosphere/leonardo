@@ -300,7 +300,8 @@ object LeoMetric {
         "cloudProvider" -> cloudProvider.asString,
         "imageType" -> imageType.toString,
         "imageUrl" -> imageUrl,
-        "status" -> status.toString
+        "status" -> status.toString,
+        "uiClient" -> runtimeUI.asString
       )
   }
 

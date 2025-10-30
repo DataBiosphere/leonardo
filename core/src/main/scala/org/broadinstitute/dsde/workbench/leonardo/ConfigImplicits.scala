@@ -33,7 +33,8 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.emap(s =>
       Either.fromOption(AppType.stringToObject.get(s), ExceptionThrown.apply(new Exception("invalid appType")))
     )
-
+  implicit val oauth2ClientIdConfigReader: ConfigReader[org.broadinstitute.dsde.workbench.oauth2.ClientId] =
+    ConfigReader.stringConfigReader.map(s => org.broadinstitute.dsde.workbench.oauth2.ClientId(s))
   implicit val uriConfigReader: ConfigReader[Uri] =
     ConfigReader.stringConfigReader.emap(s =>
       Either.catchNonFatal(Uri.unsafeFromString(s)).leftMap(ExceptionThrown.apply)
