@@ -39,7 +39,7 @@ START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 IS_GCE_FORMATTED=$(isGceFormatted)
 # Needs to be in sync with terra-docker container
 JUPYTER_HOME=/etc/jupyter
-JUPYTER_EXTENSIONS=$JUPYTER_HOME/custom/extensions
+JUPYTER_EXTENSIONS=$JUPYTER_HOME/extensions
 JUPYTER_SCRIPTS=$JUPYTER_EXTENSIONS/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
@@ -565,7 +565,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
    STEP_TIMINGS+=($(date +%s))
 
   log 'Starting Jupyter Notebook...'
-  retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_HOME}/custom/run-jupyter.sh ${NOTEBOOKS_DIR}"
+  retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_HOME}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
   # done start Jupyter
   STEP_TIMINGS+=($(date +%s))

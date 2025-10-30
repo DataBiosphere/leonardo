@@ -159,9 +159,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     bash add-google-cloud-ops-agent-repo.sh --also-install
 
     JUPYTER_HOME=/etc/jupyter
-    JUPYTER_EXTENSIONS=$JUPYTER_HOME/custom/extensions
+    JUPYTER_EXTENSIONS=$JUPYTER_HOME/extensions
     JUPYTER_SCRIPTS=$JUPYTER_EXTENSIONS/scripts
-    KERNELSPEC_HOME=$JUPYTER_HOME/share/jupyter/kernels
+    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # Set variables
     # Values like $(..) are populated by Leo when a cluster is created.
