@@ -199,7 +199,7 @@ class GKEInterpreter[F[_]](
         .setMasterAuthorizedNetworksConfig(
           new com.google.api.services.container.model.MasterAuthorizedNetworksConfig()
             .setEnabled(true)
-            .setGcpPublicCidrsAccessEnabled(true) // Always allow GCP internal traffic so we can install workflows on the cluster
+            .setGcpPublicCidrsAccessEnabled(true)
             .setCidrBlocks(
               config.clusterConfig.authorizedNetworks
                 .map(ip => new com.google.api.services.container.model.CidrBlock().setCidrBlock(ip.value))
