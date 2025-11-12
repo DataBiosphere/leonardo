@@ -199,15 +199,12 @@ class GKEInterpreter[F[_]](
         .setMasterAuthorizedNetworksConfig(
           new com.google.api.services.container.model.MasterAuthorizedNetworksConfig()
             .setEnabled(true)
+            .setGcpPublicCidrsAccessEnabled(true)
             .setCidrBlocks(
               config.clusterConfig.authorizedNetworks
                 .map(ip => new com.google.api.services.container.model.CidrBlock().setCidrBlock(ip.value))
                 .asJava
             )
-        )
-        .setPrivateClusterConfig(
-          new com.google.api.services.container.model.PrivateClusterConfig()
-            .setGcpPublicCidrsAccessEnabled(true)
         )
         .setIpAllocationPolicy(
           new com.google.api.services.container.model.IPAllocationPolicy()
