@@ -856,7 +856,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       (AppType.Galaxy, AppStatus.Deleting),
       (AppType.Galaxy, AppStatus.Stopping),
       (AppType.Galaxy, AppStatus.Stopped),
-      (AppType.Galaxy, AppStatus.Updating),
       (AppType.Allowed, AppStatus.Provisioning),
       (AppType.Allowed, AppStatus.Stopping),
       (AppType.Allowed, AppStatus.Stopped),
@@ -1349,8 +1348,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true,
-        List()
+        true
       ),
       MockSamService
     )
@@ -1498,8 +1496,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true,
-        List()
+        true
       ),
       MockSamService
     )
@@ -1540,8 +1537,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true,
-        List()
+        true
       ),
       MockSamService
     )
@@ -1581,8 +1577,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true,
-        List()
+        true
       ),
       MockSamService
     )
@@ -1619,8 +1614,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true,
-        List()
+        true
       ),
       MockSamService
     )
@@ -1663,8 +1657,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true,
-        List()
+        true
       ),
       MockSamService
     )
@@ -1707,8 +1700,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         NamespaceNameSuffix(""),
         ServiceAccountName(""),
         customApplicationAllowList,
-        true,
-        List()
+        true
       ),
       MockSamService
     )
@@ -1890,9 +1882,6 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         val resources = invocation.getArgument(0).asInstanceOf[NonEmptyList[(GoogleProject, Any)]]
         IO.pure(resources.toList)
       }
-    // mock azure app visibility
-    when(mockAuthProvider.checkUserEnabled(any)(any)).thenReturn(IO.unit)
-    when(mockAuthProvider.filterUserVisible(any, any)(any, any, any)).thenReturn(IO.pure(List.empty))
 
     val interp = new LeoAppServiceInterp[IO](
       appServiceConfig,

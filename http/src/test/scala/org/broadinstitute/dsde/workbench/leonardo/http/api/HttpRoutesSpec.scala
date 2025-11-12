@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.http.AdminRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
@@ -64,24 +63,10 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
     )
-
-  val httpRoutesAzureOnly = new HttpRoutes(
-    openIdConnectionConfiguration,
-    statusService,
-    createGcpOnlyServicesRegistry(),
-    MockAppService,
-    MockRuntimeV2Interp,
-    MockAdminServiceInterp,
-    timedUserInfoDirectives,
-    contentSecurityPolicy,
-    refererConfig,
-    true
-  )
 
   val routesWithStrictRefererConfig =
     new HttpRoutes(
@@ -90,7 +75,6 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), true)
@@ -103,7 +87,6 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), true)
@@ -116,7 +99,6 @@ class HttpRoutesSpec
       createGcpOnlyServicesRegistry(),
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       RefererConfig(Set.empty, false)
@@ -442,7 +424,7 @@ class HttpRoutesSpec
     Get("/api/v2/runtimes") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       val response = responseAs[Vector[ListRuntimeResponse2]]
-      response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
+      response.map(_.clusterName) shouldBe Vector(RuntimeName("googleruntime1"))
       validateRawCookie(header("Set-Cookie"))
     }
   }
@@ -549,25 +531,6 @@ class HttpRoutesSpec
     }
   }
 
-  it should "have expected azure routes when azure hosting mode is true" in {
-
-    val adminRoute = "/api/admin/v2/apps/update"
-    val runtimeV2Route = "/api/v2/runtimes"
-    val statusRoute = "/status"
-
-    Get(adminRoute) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-
-    Get(runtimeV2Route) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-
-    Get(statusRoute) ~> httpRoutesAzureOnly.route ~> check {
-      status should not be StatusCodes.NotFound
-    }
-  }
-
   "Kubernetes Routes" should "create an app" in {
     Post("/api/google/v1/apps/googleProject1/app1")
       .withEntity(ContentTypes.`application/json`, createAppRequest.asJson.spaces2) ~> routes.route ~> check {
@@ -651,44 +614,6 @@ class HttpRoutesSpec
     }
   }
 
-  it should "run a basic app update request" in {
-    Post(s"/api/admin/v2/apps/update")
-      .withEntity(
-        ContentTypes.`application/json`,
-        UpdateAppsRequest(None,
-                          AppType.Galaxy,
-                          CloudProvider.Gcp,
-                          List.empty,
-                          List.empty,
-                          None,
-                          None,
-                          List.empty,
-                          dryRun = false
-        ).asJson.spaces2
-      ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-  }
-
-  it should "run a dry run app update request" in {
-    Post(s"/api/admin/v2/apps/update")
-      .withEntity(
-        ContentTypes.`application/json`,
-        UpdateAppsRequest(None,
-                          AppType.Galaxy,
-                          CloudProvider.Gcp,
-                          List.empty,
-                          List.empty,
-                          None,
-                          None,
-                          List.empty,
-                          dryRun = true
-        ).asJson.spaces2
-      ) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-    }
-  }
-
   it should "run a basic delete all resources request" in {
     Delete(
       "/api/google/v1/resources/googleProject1/deleteAll?deleteDisk=false"
@@ -760,7 +685,6 @@ class HttpRoutesSpec
       gcpOnlyServicesRegistry,
       MockAppService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -780,7 +704,6 @@ class HttpRoutesSpec
       gcpOnlyServicesRegistry,
       kubernetesService,
       MockRuntimeV2Interp,
-      MockAdminServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

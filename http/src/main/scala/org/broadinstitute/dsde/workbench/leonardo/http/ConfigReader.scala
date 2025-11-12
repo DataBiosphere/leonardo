@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import _root_.pureconfig.generic.auto._
-import org.broadinstitute.dsde.workbench.azure.AzureAppRegistrationConfig
 import org.broadinstitute.dsde.workbench.leonardo.ConfigImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoMetricsMonitorConfig
@@ -16,12 +15,6 @@ object ConfigReader {
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]
 }
-final case class AzureConfig(
-  appRegistration: AzureAppRegistrationConfig,
-  allowedSharedApps: List[AppType],
-  tdr: TdrConfig,
-  hostingModeConfig: AzureHostingModeConfig
-)
 
 final case class OidcAuthConfig(
   authorityEndpoint: Uri,
@@ -37,7 +30,6 @@ final case class TdrConfig(url: String)
 final case class AppConfig(
   terraAppSetupChart: TerraAppSetupChartConfig,
   persistentDisk: PersistentDiskConfig,
-  azure: AzureConfig,
   oidc: OidcAuthConfig,
   drs: DrsConfig,
   metrics: LeoMetricsMonitorConfig

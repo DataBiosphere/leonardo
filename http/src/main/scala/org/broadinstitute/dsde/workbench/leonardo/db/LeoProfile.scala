@@ -295,16 +295,6 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         s => GpuType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid gpuType $s"))
       )
 
-    implicit val wsmResourceTypeColumnType: BaseColumnType[WsmResourceType] =
-      MappedColumnType.base[WsmResourceType, String](
-        _.toString,
-        s => WsmResourceType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid wsmResourceType $s"))
-      )
-
-    implicit val wsmControlledResourceIdColumnType: BaseColumnType[WsmControlledResourceId] =
-      MappedColumnType
-        .base[WsmControlledResourceId, String](_.value.toString, s => WsmControlledResourceId(UUID.fromString(s)))
-
     implicit val workspaceIdColumnType: BaseColumnType[WorkspaceId] =
       MappedColumnType
         .base[WorkspaceId, String](_.value.toString, s => WorkspaceId(UUID.fromString(s)))
@@ -312,14 +302,6 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val diskLinkColumnType: BaseColumnType[DiskLink] =
       MappedColumnType
         .base[DiskLink, String](_.asString, DiskLink.apply)
-
-    implicit val appControlledResourceStatusColumnType: BaseColumnType[AppControlledResourceStatus] =
-      MappedColumnType.base[AppControlledResourceStatus, String](
-        _.toString,
-        s =>
-          AppControlledResourceStatus.stringToObject
-            .getOrElse(s, throw ColumnDecodingException(s"invalid app controlled resource status ${s}"))
-      )
 
     implicit val instantSetParameter: SetParameter[Instant] =
       SetParameter.SetTimestamp.contramap(instant => java.sql.Timestamp.from(instant))
@@ -330,19 +312,6 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val bucketNameToMountColumnType: BaseColumnType[GcsBucketName] =
       MappedColumnType.base[GcsBucketName, String](_.value, GcsBucketName.apply)
 
-    implicit val updateAppTableIdColumnType: BaseColumnType[UpdateAppTableId] =
-      MappedColumnType.base[UpdateAppTableId, Long](_.value, UpdateAppTableId.apply)
-
-    implicit val updateAppJobIdColumnType: BaseColumnType[UpdateAppJobId] =
-      MappedColumnType.base[UpdateAppJobId, String](_.value.toString, x => UpdateAppJobId(UUID.fromString(x)))
-
-    implicit val updateAppJobStatusColumnType: BaseColumnType[UpdateAppJobStatus] =
-      MappedColumnType.base[UpdateAppJobStatus, String](
-        _.toString,
-        s =>
-          UpdateAppJobStatus.stringToObject
-            .getOrElse(s, throw ColumnDecodingException(s"invalid app update job status ${s}"))
-      )
   }
 
   case class ColumnDecodingException(message: String) extends Exception

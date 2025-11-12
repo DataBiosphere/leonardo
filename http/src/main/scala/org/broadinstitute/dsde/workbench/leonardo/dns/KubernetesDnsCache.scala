@@ -35,9 +35,7 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   private def getHostStatusHelper(key: KubernetesDnsCacheKey): F[HostStatus] =
     for {
       appResultOpt <- dbRef.inTransaction {
-        KubernetesServiceDbQueries.getActiveFullAppByName(key.cloudContext,
-                                                          key.appName
-        ) // TODO: support proxying Azure apps
+        KubernetesServiceDbQueries.getActiveFullAppByName(key.cloudContext, key.appName)
       }
       hostStatus <- appResultOpt match {
         case None            => F.pure[HostStatus](HostNotFound)

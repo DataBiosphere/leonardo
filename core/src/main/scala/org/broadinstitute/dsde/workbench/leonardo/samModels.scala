@@ -38,14 +38,6 @@ object SamResourceId {
     override def resourceType: SamResourceType = SamResourceType.Workspace
   }
 
-  final case class WsmResourceSamResourceId(controlledResourceId: WsmControlledResourceId) extends SamResourceId {
-    override def resourceId: String = controlledResourceId.value.toString
-    override def resourceType: SamResourceType = SamResourceType.WsmResource
-  }
-
-  final case class PrivateAzureStorageAccountSamResourceId(resourceId: String) extends SamResourceId {
-    override def resourceType = SamResourceType.PrivateAzureStorageAccount
-  }
 }
 
 /** Enumeration of Sam resource types known to Leonardo */
@@ -70,12 +62,6 @@ object SamResourceType {
   }
   final case object Workspace extends SamResourceType {
     val asString = "workspace"
-  }
-  final case object WsmResource extends SamResourceType {
-    val asString = "controlled-application-private-workspace-resource"
-  }
-  final case object PrivateAzureStorageAccount extends SamResourceType {
-    val asString = "private_azure_storage_account"
   }
 
   val stringToSamResourceType: Map[String, SamResourceType] =
@@ -246,32 +232,6 @@ object WorkspaceAction {
   val allActions = sealerate.values[WorkspaceAction]
   val stringToAction: Map[String, WorkspaceAction] =
     sealerate.collect[WorkspaceAction].map(a => (a.asString, a)).toMap
-}
-
-sealed trait WsmResourceAction extends SamResourceAction
-object WsmResourceAction {
-  final case object Write extends WsmResourceAction {
-    val asString = "write"
-  }
-  final case object Read extends WsmResourceAction {
-    val asString = "read"
-  }
-  val allActions = sealerate.values[WsmResourceAction]
-  val stringToAction: Map[String, WsmResourceAction] =
-    sealerate.collect[WsmResourceAction].map(a => (a.asString, a)).toMap
-}
-
-sealed trait PrivateAzureStorageAccountAction extends SamResourceAction
-object PrivateAzureStorageAccountAction {
-  final case object Write extends PrivateAzureStorageAccountAction {
-    val asString = "write"
-  }
-  final case object Read extends PrivateAzureStorageAccountAction {
-    val asString = "read"
-  }
-  val allActions = sealerate.values[PrivateAzureStorageAccountAction]
-  val stringToAction: Map[String, PrivateAzureStorageAccountAction] =
-    sealerate.collect[PrivateAzureStorageAccountAction].map(a => (a.asString, a)).toMap
 }
 
 /** Enumeration of Sam resource roles known to Leonardo. */

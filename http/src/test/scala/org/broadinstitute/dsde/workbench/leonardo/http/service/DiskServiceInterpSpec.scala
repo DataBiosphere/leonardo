@@ -399,24 +399,6 @@ class DiskServiceInterpTest
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list azure and gcp disks" in isolatedDbTest {
-    val samService = mock[SamService[IO]]
-    val (diskService, _) = makeDiskService(samService = samService)
-
-    val res = for {
-      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContextGcp)).save()
-      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContextAzure)).save()
-      _ = when(samService.listResources(any(), isEq(SamResourceType.PersistentDisk))(any()))
-        .thenReturn(IO.pure(List(disk1.samResource.resourceId, disk2.samResource.resourceId)))
-      listResponse <- diskService.listDisks(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
-    } yield {
-      listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
-      listResponse.map(_.labels).toSet shouldBe Set(Map("key1" -> "value1", "key2" -> "value2"))
-    }
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
   it should "list disks with a project" in isolatedDbTest {
     val samService = mock[SamService[IO]]
     val (diskService, _) = makeDiskService(samService = samService)

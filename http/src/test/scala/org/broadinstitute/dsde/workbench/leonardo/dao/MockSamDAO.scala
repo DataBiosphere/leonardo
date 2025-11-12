@@ -6,7 +6,6 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
@@ -29,8 +28,6 @@ class MockSamDAO extends SamDAO[IO] {
     new TrieMap()
   val workspaces: mutable.Map[(WorkspaceResourceSamResourceId, Authorization), Set[WorkspaceAction]] =
     new TrieMap()
-  val wsmResources: mutable.Map[(WsmResourceSamResourceId, Authorization), Set[WsmResourceAction]] =
-    new TrieMap()
   val apps: mutable.Map[(AppSamResourceId, Authorization), Set[AppAction]] = new TrieMap()
 
   var projectOwners: Map[Authorization, Set[(ProjectSamResourceId, SamPolicyName)]] = Map.empty
@@ -38,7 +35,6 @@ class MockSamDAO extends SamDAO[IO] {
   var runtimeCreators: Map[Authorization, Set[(RuntimeSamResourceId, SamPolicyName)]] = Map.empty
   var diskCreators: Map[Authorization, Set[(PersistentDiskSamResourceId, SamPolicyName)]] = Map.empty
   var appCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
-  var wmsResourceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
   var workspaceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
 
   // we don't care much about traceId in unit tests, hence providing a constant UUID here
@@ -91,12 +87,6 @@ class MockSamDAO extends SamDAO[IO] {
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
-      case SamResourceType.WsmResource =>
-        val res = wsmResources
-          .get((WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(resource))), authHeader))
-          .map(_.map(_.asString).contains(action))
-          .getOrElse(false)
-        IO.pure(res)
       case _ => IO.pure(false)
     }
 
@@ -145,15 +135,6 @@ class MockSamDAO extends SamDAO[IO] {
           .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
           .asInstanceOf[List[(R, SamRole)]]
       )
-    case SamResourceType.WsmResource =>
-      IO.pure(
-        wmsResourceCreators
-          .get(authHeader)
-          .map(_.toList)
-          .getOrElse(List.empty)
-          .map { case (resource, pn) => (resource, SamRole.stringToRole(pn.toString)) }
-          .asInstanceOf[List[(R, SamRole)]]
-      )
     case _ => IO.pure(List.empty)
   }
 
@@ -184,10 +165,6 @@ class MockSamDAO extends SamDAO[IO] {
       case SamResourceType.Workspace =>
         IO.pure(
           workspaceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
-        )
-      case SamResourceType.WsmResource =>
-        IO.pure(
-          wmsResourceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
         )
       case _ => IO.pure(List.empty)
     }
@@ -358,11 +335,6 @@ class MockSamDAO extends SamDAO[IO] {
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(petSA))
 
-  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
-    ev: Ask[IO, TraceId]
-  ): IO[Option[WorkbenchEmail]] =
-    IO.pure(Some(petMI))
-
   override def getUserProxy(
     userEmail: WorkbenchEmail
   )(implicit ev: Ask[IO, TraceId]): IO[Option[WorkbenchEmail]] =
@@ -422,13 +394,6 @@ class MockSamDAO extends SamDAO[IO] {
           .getOrElse(List.empty)
           .asInstanceOf[List[A]]
         IO.pure(res)
-      case SamResourceType.WsmResource =>
-        val res = wsmResources
-          .get((resource.asInstanceOf[WsmResourceSamResourceId], authHeader))
-          .map(_.toList)
-          .getOrElse(List.empty)
-          .asInstanceOf[List[A]]
-        IO.pure(res)
       case _ => IO.pure(List.empty)
     }
 
@@ -459,10 +424,6 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = IO.pure(true)
 
-  override def isAdminUser(userInfo: UserInfo)(implicit
-    ev: Ask[IO, TraceId]
-  ): IO[Boolean] = IO.pure(false)
-
   override def getCachedArbitraryPetAccessToken(userEmail: WorkbenchEmail)(implicit
     ev: Ask[IO, TraceId]
   ): IO[Option[String]] = IO.pure(Some("token"))
@@ -472,12 +433,6 @@ class MockSamDAO extends SamDAO[IO] {
     ev: Ask[IO, TraceId]
   ): IO[Set[SamRole]] = ???
 
-  /** Gets an action managed identity from Sam as the calling user for the given resource type,
-   * resource ID, and action. Returns the managed identity object ID. */
-  override def getAzureActionManagedIdentity(authHeader: Authorization,
-                                             resource: PrivateAzureStorageAccountSamResourceId,
-                                             action: PrivateAzureStorageAccountAction
-  )(implicit ev: Ask[IO, TraceId]): IO[Option[String]] = IO(None)
 }
 
 object MockSamDAO {

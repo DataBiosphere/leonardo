@@ -11,8 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   PersistentDiskSamResource,
   ProjectSamResource,
   RuntimeSamResource,
-  WorkspaceResource,
-  WsmResource
+  WorkspaceResource
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -110,23 +109,12 @@ object SamResource {
     def ownerRoleName(r: WorkspaceResourceSamResourceId): SamRole = ownerRoleName
     def resourceIdAsString(r: WorkspaceResourceSamResourceId): String = r.resourceId
   }
-  class WsmResource extends SamResource[WsmResourceSamResourceId] {
-    val resourceType: SamResourceType = SamResourceType.WsmResource
-    val policyNames: Set[SamPolicyName] = Set(SamPolicyName.Writer)
-    val ownerRoleName: SamRole = SamRole.Owner
-
-    def resourceType(r: WsmResourceSamResourceId): SamResourceType = resourceType
-    def policyNames(r: WsmResourceSamResourceId): Set[SamPolicyName] = policyNames
-    def ownerRoleName(r: WsmResourceSamResourceId): SamRole = ownerRoleName
-    def resourceIdAsString(r: WsmResourceSamResourceId): String = r.resourceId
-  }
 
   implicit object ProjectSamResource extends ProjectSamResource
   implicit object RuntimeSamResource extends RuntimeSamResource
   implicit object PersistentDiskSamResource extends PersistentDiskSamResource
   implicit object AppSamResource extends AppSamResource
   implicit object WorkspaceResource extends WorkspaceResource
-  implicit object WsmResource extends WsmResource
 }
 
 /**
@@ -192,14 +180,6 @@ object SamResourceAction {
       def actionAsString(a: WorkspaceAction): String = a.asString
     }
 
-  implicit def wsmResourceSamResourceAction
-    : WsmResource with SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] =
-    new WsmResource with SamResourceAction[WsmResourceSamResourceId, WsmResourceAction] {
-      val decoder = Decoder[WsmResourceAction]
-      val allActions = WsmResourceAction.allActions.toList
-      val cacheableActions = List(WsmResourceAction.Write)
-      def actionAsString(a: WsmResourceAction): String = a.asString
-    }
 }
 
 /**
@@ -300,8 +280,6 @@ trait LeoAuthProvider[F[_]] {
 
   def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean]
   def isSasAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean]
-
-  def isAdminUser(userInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[Boolean]
 
   def getLeoAuthToken: F[String]
 }

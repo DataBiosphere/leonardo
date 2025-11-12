@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unma
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
 import java.time.Instant
@@ -48,7 +47,6 @@ object KubernetesServiceDbQueries {
 
   /**
     * List all apps in the given workspace, with optional label filter.
-    * This method should be used by v2 app routes.
     */
   def listFullAppsByWorkspaceId(workspaceId: Option[WorkspaceId],
                                 labelFilter: LabelMap = Map(),
@@ -65,37 +63,6 @@ object KubernetesServiceDbQueries {
                                     creatorOnly = creatorOnly
       ),
       labelFilter
-    )
-
-  /**
-    * List all RUNNING apps that are not on the given target chart version. Used to decide which apps to update.
-    */
-  def listAppsForUpdate(targetVersion: Chart,
-                        appType: AppType,
-                        cloudProvider: CloudProvider,
-                        chartVersionsToInclude: List[Chart] = List(),
-                        chartVersionsToExclude: List[Chart] = List(),
-                        googleProject: Option[GoogleProject] = None,
-                        workspaceId: Option[WorkspaceId] = None,
-                        appNames: List[AppName] = List()
-  )(implicit
-    ec: ExecutionContext
-  ): DBIO[List[KubernetesCluster]] =
-    joinFullAppAndUnmarshal(
-      kubernetesClusterQuery
-        .filter(_.cloudProvider === cloudProvider)
-        .filterOpt(googleProject) { case (clusterTable, gp) =>
-          clusterTable.cloudContextDb === CloudContextDb(gp.value)
-        },
-      nodepoolQuery,
-      appQuery
-        .filter(_.status === (AppStatus.Running: AppStatus))
-        .filter(_.appType === appType)
-        .filter(_.chart =!= targetVersion)
-        .filterIf(chartVersionsToInclude.nonEmpty)(_.chart inSetBind chartVersionsToInclude)
-        .filterIf(chartVersionsToExclude.nonEmpty)(t => !(t.chart inSetBind chartVersionsToExclude))
-        .filterOpt(workspaceId) { case (appTable, wId) => appTable.workspaceId === wId }
-        .filterIf(appNames.nonEmpty)(_.appName inSetBind appNames)
     )
 
   /**
@@ -151,7 +118,6 @@ object KubernetesServiceDbQueries {
 
   /**
     * Gets an active app by name and cloud context.
-    * This method should be used by v1 app routes. v2 apps should use `getActiveFullAppByWorkspaceIdAndAppName`.
     */
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext

@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.client.sam.ApiException
-import org.broadinstitute.dsde.workbench.client.sam.api.{AzureApi, GoogleApi, ResourcesApi, UsersApi}
+import org.broadinstitute.dsde.workbench.client.sam.api.{GoogleApi, ResourcesApi, UsersApi}
 import org.broadinstitute.dsde.workbench.client.sam.model._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
@@ -54,32 +54,6 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
         // assert
         result.getMessage should include("sam error")
-        result.statusCode shouldBe StatusCodes.BadRequest
-      }
-    }
-
-    describe("getPetManagedIdentity") {
-      it("should retrieve a pet managed identity from Sam") {
-        // test
-        val result = newSamService().getPetManagedIdentity(tokenValue, azureCloudContext).unsafeRunSync()
-
-        // assert
-        result shouldBe managedIdentityEmail
-      }
-
-      it("should fail with a SamException") {
-        // setup
-        val azureApi = mock[AzureApi]
-        when(azureApi.getPetManagedIdentity(any)).thenThrow(new ApiException(400, "bad request"))
-
-        // test
-        val result =
-          the[SamException] thrownBy newSamService(azureApi = azureApi)
-            .getPetManagedIdentity(tokenValue, azureCloudContext)
-            .unsafeRunSync()
-
-        // assert
-        result.getMessage should include("bad request")
         result.statusCode shouldBe StatusCodes.BadRequest
       }
     }
@@ -501,10 +475,9 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
   def newSamService(resourcesApi: ResourcesApi = setUpMockResourceApi,
                     usersApi: UsersApi = setUpMockUsersApi,
-                    googleApi: GoogleApi = setUpMockGoogleApi,
-                    azureApi: AzureApi = setUpMockAzureApi
+                    googleApi: GoogleApi = setUpMockGoogleApi
   ): SamService[IO] = new SamServiceInterp(
-    setUpMockSamApiClientProvider(resourcesApi, usersApi, googleApi, azureApi),
+    setUpMockSamApiClientProvider(resourcesApi, usersApi, googleApi),
     setUpMockCloudAuthTokenProvider
   )
 
@@ -516,14 +489,12 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
 
   def setUpMockSamApiClientProvider(resourcesApi: ResourcesApi,
                                     usersApi: UsersApi,
-                                    googleApi: GoogleApi,
-                                    azureApi: AzureApi
+                                    googleApi: GoogleApi
   ): SamApiClientProvider[IO] = {
     val provider = mock[SamApiClientProvider[IO]]
     when(provider.resourcesApi(any)(any)).thenReturn(IO.pure(resourcesApi))
     when(provider.usersApi(any)(any)).thenReturn(IO.pure(usersApi))
     when(provider.googleApi(any)(any)).thenReturn(IO.pure(googleApi))
-    when(provider.azureApi(any)(any)).thenReturn(IO.pure(azureApi))
     provider
   }
 
@@ -567,19 +538,6 @@ class SamServiceInterpSpec extends AnyFunSpecLike with LeonardoTestSuite with Be
         .getUserArbitraryPetServiceAccountToken(ArgumentMatchers.eq(userEmail.value), anyList())
     ).thenReturn(tokenValue)
     googleApi
-  }
-
-  def setUpMockAzureApi: AzureApi = {
-    val azureApi = mock[AzureApi]
-    when(
-      azureApi.getPetManagedIdentity(
-        new GetOrCreateManagedIdentityRequest()
-          .tenantId(azureCloudContext.tenantId.value)
-          .subscriptionId(azureCloudContext.subscriptionId.value)
-          .managedResourceGroupName(azureCloudContext.managedResourceGroupName.value)
-      )
-    ).thenReturn(managedIdentityEmail.value)
-    azureApi
   }
 
 }
