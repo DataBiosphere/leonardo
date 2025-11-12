@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
+import org.broadinstitute.dsde.workbench.azure.{AzureCloudContext, ManagedResourceGroupName, SubscriptionId, TenantId}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
@@ -275,5 +276,16 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       )
       .toString shouldBe expectedBase + "rstudio"
 
+    Runtime
+      .getProxyUrl(
+        proxyUrlBase,
+        CloudContext
+          .Azure(AzureCloudContext(TenantId("tenantId"), SubscriptionId("sid"), ManagedResourceGroupName("mrg"))),
+        name0,
+        Set(welderImage, customDataprocImage, rstudioImage),
+        Some(IP("qi-relay.servicebus.windows.net")),
+        Map("tool" -> "Jupyter", "foo" -> "bar")
+      )
+      .toString shouldBe s"https://qi-relay.servicebus.windows.net/${name0.asString}"
   }
 }

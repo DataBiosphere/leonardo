@@ -3,6 +3,7 @@ package db
 
 import cats.data.Chain
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
@@ -23,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 
+import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
@@ -412,9 +414,14 @@ object RuntimeServiceDbQueries {
                   if (record.destroyedDate == dummyDate) None else Some(record.destroyedDate),
                   record.dateAccessed
                 )
-                val CloudContextDb(value) = record.cloudContextDb
-                val cloudContext = CloudContext.Gcp(GoogleProject(value))
-
+                val cloudContext = (record.cloudProvider, record.cloudContextDb) match {
+                  case (CloudProvider.Gcp, CloudContextDb(value)) =>
+                    CloudContext.Gcp(GoogleProject(value))
+                  case (CloudProvider.Azure, CloudContextDb(value)) =>
+                    val azureContext =
+                      AzureCloudContext.fromString(value).fold(s => throw new SQLDataException(s), identity)
+                    CloudContext.Azure(azureContext)
+                }
                 val proxyUrl = Runtime.getProxyUrl(
                   Config.proxyConfig.proxyUrlBase,
                   cloudContext,

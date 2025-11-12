@@ -22,7 +22,6 @@ services:
       LOCKING_ENABLED: "true"
       PORT: 8080
       # The following envs aren't needed for GCP. But use dummy values just so welder will be able to read config properly
-      # TODO: remove as part of https://broadworkbench.atlassian.net/browse/AN-573
       WSM_URL: "dummy"
       WORKSPACE_ID: "dummy"
       STORAGE_CONTAINER_RESOURCE_ID: "dummy"

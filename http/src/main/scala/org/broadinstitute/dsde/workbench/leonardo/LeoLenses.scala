@@ -5,6 +5,7 @@ import cats.implicits._
 import java.time.Instant
 import monocle.macros.GenLens
 import monocle.{Lens, Optional, Prism}
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
@@ -39,9 +40,19 @@ object LeoLenses {
 
   val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
   val cloudContextToGoogleProject: Lens[CloudContext, Option[GoogleProject]] =
-    Lens[CloudContext, Option[GoogleProject]] { case CloudContext.Gcp(value) =>
-      value.some
+    Lens[CloudContext, Option[GoogleProject]] { x =>
+      x match {
+        case p: CloudContext.Gcp   => p.value.some
+        case _: CloudContext.Azure => none[GoogleProject]
+      }
     }(googleProjectOpt => cloudContext => googleProjectOpt.fold(cloudContext)(p => CloudContext.Gcp(p)))
+  val cloudContextToManagedResourceGroup: Lens[CloudContext, Option[AzureCloudContext]] =
+    Lens[CloudContext, Option[AzureCloudContext]] { x =>
+      x match {
+        case _: CloudContext.Gcp   => none[AzureCloudContext]
+        case p: CloudContext.Azure => p.value.some
+      }
+    }(mrg => cloudContext => mrg.fold(cloudContext)(p => CloudContext.Azure(p)))
 
   val diskToCreator: Lens[PersistentDisk, WorkbenchEmail] = GenLens[PersistentDisk](_.auditInfo.creator)
 
@@ -77,6 +88,8 @@ object LeoLenses {
       )
     case x: RuntimeConfig.DataprocConfig =>
       Some(dataprocRuntimeToDataprocInCreateRuntimeMsg(x))
+    case _: RuntimeConfig.AzureConfig =>
+      throw AzureUnimplementedException("Azure vms should not be handled with existing create runtime message")
   } {
     case x: RuntimeConfigInCreateRuntimeMessage.GceConfig =>
       RuntimeConfig.GceConfig(

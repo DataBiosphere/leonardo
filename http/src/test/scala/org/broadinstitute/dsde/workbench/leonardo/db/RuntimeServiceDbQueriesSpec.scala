@@ -127,17 +127,16 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
 
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d2.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None
-      )
+      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
       c2 <- IO(
-        makeCluster(2, samResource = RuntimeSamResourceId(runtimeId2))
+        makeCluster(2,
+                    samResource = RuntimeSamResourceId(runtimeId2),
+                    cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
+        )
           .copy(workspaceId = Some(workspaceId2))
-          .saveWithRuntimeConfig(c2RuntimeConfig)
+          .saveWithRuntimeConfig(
+            c2RuntimeConfig
+          )
       )
       labels2 = Map(
         "clusterName" -> c2.runtimeName.asString,
@@ -146,17 +145,16 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       _ <- labelQuery.saveAllForResource(c2.id, LabelResourceType.Runtime, labels2).transaction
 
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d3.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None
-      )
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
       c3 <- IO(
-        makeCluster(3, samResource = RuntimeSamResourceId(runtimeId3))
+        makeCluster(3,
+                    samResource = RuntimeSamResourceId(runtimeId3),
+                    cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext)
+        )
           .copy(workspaceId = Some(workspaceId2))
-          .saveWithRuntimeConfig(c3RuntimeConfig)
+          .saveWithRuntimeConfig(
+            c3RuntimeConfig
+          )
       )
 
       // Note that c3 exists but is not visible
@@ -180,7 +178,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       list2 <- RuntimeServiceDbQueries
         .listRuntimes(
           runtimeIds = runtimeIds,
-          cloudProvider = Some(CloudProvider.Gcp),
+          cloudProvider = Some(CloudProvider.Azure),
           creatorEmail = Some(c2.auditInfo.creator),
           excludeStatuses = List(RuntimeStatus.Deleted),
           labelMap = labels2,
@@ -428,16 +426,11 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
       d3 <- makePersistentDisk(Some(DiskName("d3"))).save()
-      c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d3.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        CommonTestData.gpuConfig
-      )
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
       c3 <- IO(
-        makeCluster(3)
-          .saveWithRuntimeConfig(c3RuntimeConfig)
+        makeCluster(3).saveWithRuntimeConfig(
+          c3RuntimeConfig
+        )
       )
       runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId, c3.samResource: SamResourceId)
       list1 <- RuntimeServiceDbQueries
@@ -497,17 +490,13 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
 
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d3.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None
-      )
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
       c3 <- IO(
         makeCluster(3)
           .copy(workspaceId = Some(workspaceId2))
-          .saveWithRuntimeConfig(c3RuntimeConfig)
+          .saveWithRuntimeConfig(
+            c3RuntimeConfig
+          )
       )
       runtimeIds = Set(c1.samResource: SamResourceId, c2.samResource: SamResourceId, c3.samResource: SamResourceId)
 
@@ -557,87 +546,81 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
 
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d2.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None
-      )
+      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d2.id), None)
       c2 <- IO(
         makeCluster(2)
-          .copy(workspaceId = Some(workspaceId1))
-          .saveWithRuntimeConfig(c2RuntimeConfig)
+          .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .saveWithRuntimeConfig(
+            c2RuntimeConfig
+          )
       )
       c2ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c2.cloudContext, c2.runtimeName).transaction
 
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d3.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None
-      )
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d3.id), None)
       c3 <- IO(
         makeCluster(3)
-          .copy(workspaceId = Some(workspaceId2))
-          .saveWithRuntimeConfig(c3RuntimeConfig)
+          .copy(workspaceId = Some(workspaceId2), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .saveWithRuntimeConfig(
+            c3RuntimeConfig
+          )
       )
       c3ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c3.cloudContext, c3.runtimeName).transaction
 
       d4 <- makePersistentDisk(Some(DiskName("d4"))).save()
-      c4RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d4.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None
-      )
+      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d4.id), None)
       c4 <- IO(
         makeCluster(4)
-          .copy(workspaceId = Some(workspaceId1))
-          .saveWithRuntimeConfig(c4RuntimeConfig)
+          .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .saveWithRuntimeConfig(
+            c4RuntimeConfig
+          )
       )
-
       c4ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c4.cloudContext, c4.runtimeName).transaction
 
       d5 <- makePersistentDisk(Some(DiskName("d5"))).save()
-      c5RuntimeConfig = RuntimeConfig.GceWithPdConfig(
-        defaultMachineType,
-        Some(d5.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None
-      )
+      c5RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, Some(d5.id), None)
       c5 <- IO(
         makeCluster(5, Some(WorkbenchEmail("different@gmail.com")))
-          .copy(workspaceId = Some(workspaceId2))
-          .saveWithRuntimeConfig(c5RuntimeConfig)
+          .copy(workspaceId = Some(workspaceId2), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .saveWithRuntimeConfig(
+            c5RuntimeConfig
+          )
       )
-
       c5ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c5.cloudContext, c5.runtimeName).transaction
       runtimeIds = Set(c1, c2, c3, c4, c5).map(_.samResource: SamResourceId)
 
       list1 <- RuntimeServiceDbQueries
         .listRuntimes(runtimeIds = runtimeIds,
-                      cloudProvider = Some(CloudProvider.Gcp),
+                      cloudProvider = Some(CloudProvider.Azure),
                       excludeStatuses = List(RuntimeStatus.Deleted),
                       workspaceId = Some(workspaceId1)
         )
         .transaction
       list2 <- RuntimeServiceDbQueries
         .listRuntimes(runtimeIds = runtimeIds,
-                      cloudProvider = Some(CloudProvider.Gcp),
+                      cloudProvider = Some(CloudProvider.Azure),
                       excludeStatuses = List(RuntimeStatus.Deleted),
                       workspaceId = Some(workspaceId2)
         )
         .transaction
-
+      list3 <- RuntimeServiceDbQueries
+        .listRuntimes(runtimeIds = runtimeIds,
+                      cloudProvider = Some(CloudProvider.Gcp),
+                      excludeStatuses = List(RuntimeStatus.Deleted),
+                      workspaceId = Some(workspaceId1)
+        )
+        .transaction
+      list4 <- RuntimeServiceDbQueries
+        .listRuntimes(runtimeIds = runtimeIds,
+                      cloudProvider = Some(CloudProvider.Azure),
+                      excludeStatuses = List(RuntimeStatus.Deleted)
+        )
+        .transaction
       list5 <- RuntimeServiceDbQueries
         .listRuntimes(
           runtimeIds = runtimeIds,
-          cloudProvider = Some(CloudProvider.Gcp),
+          cloudProvider = Some(CloudProvider.Azure),
           creatorEmail = Some(c5ClusterRecord.get.auditInfo.creator),
           excludeStatuses = List(RuntimeStatus.Deleted),
           workspaceId = Some(workspaceId2)
@@ -652,9 +635,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig, c3ClusterRecord.get.hostIp)
       val c4Expected = toListRuntimeResponse(c4, Map.empty, c4RuntimeConfig, c4ClusterRecord.get.hostIp)
       val c5Expected = toListRuntimeResponse(c5, Map.empty, c5RuntimeConfig, c5ClusterRecord.get.hostIp)
-      list1.toSet shouldEqual Set(c1Expected, c2Expected, c4Expected)
+      list1.toSet shouldEqual Set(c2Expected, c4Expected)
       list2 should contain theSameElementsAs List(c3Expected, c5Expected)
-
+      list3 shouldEqual List(c1Expected)
+      list4.toSet shouldEqual Set(c2Expected, c3Expected, c4Expected, c5Expected)
       list5 shouldEqual List(c5Expected)
 
       elapsed should be < maxElapsed

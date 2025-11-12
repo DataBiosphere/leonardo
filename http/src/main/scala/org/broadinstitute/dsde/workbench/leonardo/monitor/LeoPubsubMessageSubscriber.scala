@@ -23,10 +23,14 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppType.appTypeToFormattedByType
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Task, TaskMetricsTags}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AllowedAppConfig, KubernetesAppConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.SamService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppNotFoundException,
+  AppTypeNotSupportedOnCloudException
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
@@ -39,6 +43,7 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, G
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudSubscriber, ReceivedMessage}
+import org.broadinstitute.dsp.{ChartVersion, HelmException}
 import org.broadinstitute.dsde.workbench.leonardo.db.LabelResourceType
 
 import java.time.Instant
@@ -101,7 +106,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           handleStopAppMessage(msg)
         case msg: StartAppMessage =>
           handleStartAppMessage(msg)
-
+        case msg: UpdateAppMessage =>
+          handleUpdateAppMessage(msg)
       }
     } yield resp
 
@@ -297,7 +303,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
-        new RuntimeException("Non GCP projects are not supported")
+        AzureUnimplementedException("Azure runtime is not supported")
       )
       poll = op match {
         case Some(opFuture) =>
@@ -873,10 +879,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId))
       )(F.pure)
-
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
-        new RuntimeException("Non GCP projects are not supported")
+        AzureUnimplementedException("Azure disk is not supported yet")
       )
       opFuture <- getGoogleDiskServiceFromRegistry().resizeDisk(googleProject, disk.zone, disk.name, msg.newSize.gb)
 
@@ -1236,30 +1241,35 @@ class LeoPubsubMessageSubscriber[F[_]](
               else F.unit
 
             // Cleans up staging bucket. Right now, only ALLOWED app uses staging bucket
-            deleteStagingBucket = for {
-              disk <- persistentDiskQuery.getById(diskId).transaction
-              CloudContext.Gcp(project) = dbApp.cluster.cloudContext
-              _ <- getGoogleStorageServiceFromRegistry()
-                .deleteBucket(project,
-                              GKEAlgebra.buildAppStagingBucketName(disk.get.name),
-                              true,
-                              traceId = Some(ctx.traceId)
-                ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
-                .compile
-                .lastOrError
-                .void
-                .handleErrorWith {
-                  case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
-                    logger.info(ctx.loggingCtx, e)(
-                      "Fail to clean up staging bucket because it doesn't exist"
-                    )
-                  case e =>
-                    logger.error(ctx.loggingCtx, e)(
-                      "Fail to clean up staging bucket"
-                    )
-                }
-            } yield ()
-
+            deleteStagingBucket = dbApp.cluster.cloudContext match {
+              case CloudContext.Gcp(project) =>
+                for {
+                  disk <- persistentDiskQuery.getById(diskId).transaction
+                  _ <- getGoogleStorageServiceFromRegistry()
+                    .deleteBucket(project,
+                                  GKEAlgebra.buildAppStagingBucketName(disk.get.name),
+                                  true,
+                                  traceId = Some(ctx.traceId)
+                    ) // using .get here should be ok because given a diskId, there will definitely be a disk record in DB
+                    .compile
+                    .lastOrError
+                    .void
+                    .handleErrorWith {
+                      case e: com.google.cloud.storage.StorageException if e.getCode == 404 =>
+                        logger.info(ctx.loggingCtx, e)(
+                          "Fail to clean up staging bucket because it doesn't exist"
+                        )
+                      case e =>
+                        logger.error(ctx.loggingCtx, e)(
+                          "Fail to clean up staging bucket"
+                        )
+                    }
+                } yield ()
+              case CloudContext.Azure(_) =>
+                logger.error(ctx.loggingCtx)(
+                  "This should never happen because Azure app doesn't go through this code path. But not failing app deletion because deleting staging bucket isn't in critical path"
+                )
+            }
             _ <- List(deleteDataDisk, deletePostgresDisk, deleteStagingBucket).parSequence_
           } yield ()
         }
@@ -1421,6 +1431,109 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
     } yield ()
 
+  private[monitor] def handleUpdateAppMessage(
+    msg: UpdateAppMessage
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      appOpt <- KubernetesServiceDbQueries
+        .getFullAppById(msg.cloudContext, msg.appId)
+        .transaction
+      appResult <- appOpt.fold(
+        F.raiseError[GetAppResult](PubsubHandleMessageError.AppNotFound(msg.appId.id, msg))
+      )(F.pure)
+
+      latestAppChartVersion <- KubernetesAppConfig.configForTypeAndCloud(appResult.app.appType,
+                                                                         msg.cloudContext.cloudProvider
+      ) match {
+        case Some(AllowedAppConfig(_, rstudioChartVersion, sasChartVersion, _, _, _, _, _, _, _)) =>
+          AllowedChartName.fromChartName(appResult.app.chart.name) match {
+            case Some(AllowedChartName.RStudio) =>
+              F.pure(rstudioChartVersion)
+            case Some(AllowedChartName.Sas) =>
+              F.pure(sasChartVersion)
+            case None =>
+              F.raiseError[ChartVersion](
+                AppTypeNotSupportedOnCloudException(msg.cloudContext.cloudProvider, appResult.app.appType, ctx.traceId)
+              )
+          }
+        case Some(conf) => F.pure(conf.chartVersion)
+        case None =>
+          F.raiseError[ChartVersion](
+            AppTypeNotSupportedOnCloudException(msg.cloudContext.cloudProvider, appResult.app.appType, ctx.traceId)
+          )
+      }
+
+      updateApp = (msg.cloudContext match {
+        case CloudContext.Gcp(_) =>
+          getGkeAlgFromRegistry()
+            .updateAndPollApp(
+              UpdateAppParams(msg.appId, msg.appName, latestAppChartVersion, msg.googleProject)
+            )
+        case CloudContext.Azure(_) =>
+          F.raiseError(new NotImplementedError("Azure functionality not implemented."))
+      }).flatMap { _ =>
+        updateAppLogQuery
+          .update(msg.appId, msg.jobId, UpdateAppJobStatus.Success, endTime = Some(ctx.now))
+          .transaction
+          .void
+      }
+
+      updateAppWithErrorHandling = updateApp
+        .handleErrorWith { throwable =>
+          for {
+            // You cannot update this log wording without updating the corresponding prod and staging alerts here
+            //     https://console.cloud.google.com/monitoring/alerting/policies/8184448493858086363?project=broad-dsde-prod
+            //     https://console.cloud.google.com/monitoring/alerting/policies/16136890211426349187?project=broad-dsde-staging
+            _ <- logger.warn(ctx.loggingCtx, throwable)(
+              s"Error updating app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"
+            )
+            error = AppError(
+              s"${s"Error updating app with id ${msg.appId.id} and cloudContext ${msg.cloudContext.asString}"}: ${throwable.getMessage}",
+              ctx.now,
+              ErrorAction.UpdateApp,
+              ErrorSource.App,
+              None,
+              Some(ctx.traceId)
+            )
+            errorId <- appErrorQuery.save(msg.appId, error).transaction
+            _ <- updateAppLogQuery
+              .update(msg.appId, msg.jobId, UpdateAppJobStatus.Error, Some(errorId), Some(ctx.now))
+              .transaction
+            _ <- throwable match {
+              // Fatal case (as in, the app is no longer usable), polling app liveness failed
+              // The two fatal cases are included separately, because later we may wish to fail fatally on `HelmException`, but roll back on `AppUpdatePollingException`
+              // This would provide more cases in which an app is left in a usable state
+              // Note that an app can also emit this error if the liveness probe fails before an update is triggered, so rolling back may not have an effect
+              case _: AppUpdatePollingException => appQuery.updateStatus(msg.appId, AppStatus.Error).transaction
+              // Fatal case, helm call failed for app chart
+              case _: HelmException => appQuery.updateStatus(msg.appId, AppStatus.Error).transaction
+              // Non fatal catch-all case, set app status back to running but append whatever error occurred in db for traceability
+              case _ => appQuery.updateStatus(msg.appId, AppStatus.Running).transaction
+            }
+          } yield ()
+        }
+        .adaptError { case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage, ctx.now, ErrorAction.UpdateApp, ErrorSource.App, None, Some(ctx.traceId)),
+            Some(msg.appId),
+            false,
+            None,
+            None,
+            None
+          )
+        }
+
+      _ <- asyncTasks.offer(
+        Task(ctx.traceId,
+             updateAppWithErrorHandling,
+             Some(handleKubernetesError),
+             ctx.now,
+             TaskMetricsTags("updateApp", None, None, msg.cloudContext.cloudProvider)
+        )
+      )
+    } yield ()
+
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>
     e match {
       case e: PubsubKubernetesError =>
@@ -1462,13 +1575,17 @@ class LeoPubsubMessageSubscriber[F[_]](
               // if the runtime fails to create.
               // Otherwise, the disk is most likely used previously by an old runtime, and we don't want to delete it
               if (runtime.status == RuntimeStatus.Creating) {
-                val CloudContext.Gcp(googleProject) = runtime.cloudContext
                 for {
+                  googleProject <- runtime.cloudContext match {
+                    case CloudContext.Gcp(value) => F.pure(value)
+                    case CloudContext.Azure(_)   => F.raiseError(new RuntimeException("This should never happen"))
+                  }
                   runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
                   gceRuntimeConfig <- runtimeConfig match {
                     case x: RuntimeConfig.GceWithPdConfig => F.pure(x.some)
                     case _                                => F.pure(none[RuntimeConfig.GceWithPdConfig])
                   }
+
                   _ <- gceRuntimeConfig.traverse_ { rc =>
                     for {
                       persistentDiskOpt <- rc.persistentDiskId.flatTraverse(did =>
@@ -1530,7 +1647,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now, Some(ctx.traceId))) >>
               clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
           )
-
+        case CloudService.AzureVm => F.unit
       }
     } yield ()
 

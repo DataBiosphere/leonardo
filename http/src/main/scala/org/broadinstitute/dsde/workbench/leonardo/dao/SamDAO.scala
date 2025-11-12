@@ -3,9 +3,11 @@ package dao
 
 import cats.mtl.Ask
 import io.circe.Decoder
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PrivateAzureStorageAccountSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 
@@ -73,6 +75,11 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
+  /** Gets a pet Azure managed identity for the calling user. */
+  def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkbenchEmail]]
+
   /** Gets the GCP proxy group for provided user email. */
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]]
 
@@ -102,6 +109,18 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Boolean]
 
+  /** Uses the user's token to query Sam's admin endpoint for their own user info.
+    * Returns true of this query is successful, indicating that the user is an admin in Sam. */
+  def isAdminUser(userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean]
+
+  /** Gets an action managed identity from Sam as the calling user for the given resource type,
+   * resource ID, and action. Returns the managed identity object ID. */
+  def getAzureActionManagedIdentity(authHeader: Authorization,
+                                    resource: PrivateAzureStorageAccountSamResourceId,
+                                    action: PrivateAzureStorageAccountAction
+  )(implicit ev: Ask[F, TraceId]): F[Option[String]]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal

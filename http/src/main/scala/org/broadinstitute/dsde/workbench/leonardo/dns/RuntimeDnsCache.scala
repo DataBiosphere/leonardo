@@ -45,7 +45,20 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
       }
       hostStatus <- runtimeOpt match {
         case Some(runtime) =>
-          hostStatusByProjectAndCluster(runtime, key.cloudContext.asInstanceOf[CloudContext.Gcp], key.runtimeName)
+          key.cloudContext match {
+            case x: CloudContext.Gcp =>
+              hostStatusByProjectAndCluster(runtime, x, key.runtimeName)
+            case _: CloudContext.Azure =>
+              runtime.hostIp match {
+                case Some(ip) =>
+                  F.pure(HostReady(Host(s"${ip.asString}"), runtime.runtimeName.asString, CloudProvider.Azure))
+                case None =>
+                  if (runtime.status.isStartable)
+                    F.pure[HostStatus](HostPaused)
+                  else
+                    F.pure[HostStatus](HostNotReady)
+              }
+          }
 
         case None =>
           F.pure[HostStatus](HostNotFound)

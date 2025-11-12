@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.concurrent.ScalaFutures
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -364,21 +365,17 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       savedDisk <- makePersistentDisk(None).save()
       savedRuntime1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType,
-                                        Some(savedDisk.id),
-                                        bootDiskSize = DiskSize(50),
-                                        zone = ZoneName("us-west2-b"),
-                                        None
+          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                    Some(savedDisk.id),
+                                    None
           )
         )
       )
       savedRuntime2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType,
-                                        Some(savedDisk.id),
-                                        bootDiskSize = DiskSize(50),
-                                        zone = ZoneName("us-west2-b"),
-                                        None
+          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                    Some(savedDisk.id),
+                                    None
           )
         )
       )

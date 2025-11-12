@@ -11,20 +11,22 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
+import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.auth.CloudAuthTokenProvider
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
+import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.Authorization
+import org.http4s.headers.{`Content-Type`, Authorization}
 import scalacache.Cache
 
 import java.io.ByteArrayInputStream
@@ -196,6 +198,20 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
         )
       )(onError)
 
+  override def getPetManagedIdentity(authorization: Authorization, cloudContext: AzureCloudContext)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[WorkbenchEmail]] =
+    metrics.incrementCounter("sam/getPetManagedIdentity") >>
+      httpClient.expectOptionOr[WorkbenchEmail](
+        Request[F](
+          method = Method.POST,
+          uri = config.samUri
+            .withPath(Uri.Path.unsafeFromString(s"/api/azure/v1/user/petManagedIdentity")),
+          headers = Headers(authorization, `Content-Type`(MediaType.application.json)),
+          entity = cloudContext
+        )
+      )(onError)
+
   override def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
     getLeoAuthToken.flatMap { leoToken =>
       metrics.incrementCounter("sam/getUserProxy") >>
@@ -301,6 +317,53 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           } yield admins.contains(workbenchEmail)
     } yield res
 
+  override def isAdminUser(userInfo: UserInfo)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Boolean] = {
+    // Sam's admin endpoints are protected so only admins can access them. Non-admin users get a
+    // 403 response. We don't actually care about the content we get in response to our request,
+    // we only care about the status code.
+    // 200 -> This is an admin user
+    // 403 -> The request "succeeded" in telling us this is not an admin user
+    // other -> The request failed
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      status <- httpClient.status(
+        Request[F](
+          method = Method.GET,
+          uri =
+            config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/admin/v1/user/email/${userInfo.userEmail.value}")),
+          headers = Headers(authHeader)
+        )
+      )
+      traceId <- ev.ask
+      isAdmin <- status match {
+        case Status.Ok        => F.pure(true)
+        case Status.Forbidden => F.pure(false)
+        case _                => F.raiseError(AuthProviderException(traceId, "", status.code))
+      }
+    } yield isAdmin
+  }
+
+  override def getAzureActionManagedIdentity(authHeader: Authorization,
+                                             resource: SamResourceId.PrivateAzureStorageAccountSamResourceId,
+                                             action: PrivateAzureStorageAccountAction
+  )(implicit ev: Ask[F, TraceId]): F[Option[String]] =
+    for {
+      _ <- metrics.incrementCounter("sam/getActionManagedIdentity")
+      resp <- httpClient.expectOptionOr[GetActionManagedIdentityResponse](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            Uri.Path.unsafeFromString(
+              s"/api/azure/v1/actionManagedIdentity/${resource.resourceType.asString}/${resource.resourceId}/${action.asString}"
+            )
+          ),
+          headers = Headers(authHeader)
+        )
+      )(onError)
+    } yield resp.map(_.objectId)
+
   private def getPetKey(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
     ev: Ask[F, TraceId]
   ): F[Option[Json]] =
@@ -369,6 +432,8 @@ object HttpSamDAO {
   implicit val runtimeActionEncoder: Encoder[RuntimeAction] = Encoder.encodeString.contramap(_.asString)
   implicit val persistentDiskActionEncoder: Encoder[PersistentDiskAction] = Encoder.encodeString.contramap(_.asString)
   implicit val appActionEncoder: Encoder[AppAction] = Encoder.encodeString.contramap(_.asString)
+  implicit val wsmAppActionEncoder: Encoder[WsmResourceAction] = Encoder.encodeString.contramap(_.asString)
+  implicit val azurRuntimeActionEncoder: Encoder[WorkspaceAction] = Encoder.encodeString.contramap(_.asString)
   implicit val policyDataEncoder: Encoder[SamPolicyData] =
     Encoder.forProduct3("memberEmails", "actions", "roles")(x => (x.memberEmails, List.empty[String], x.roles))
   implicit val samPolicyNameKeyEncoder: KeyEncoder[SamPolicyName] = new KeyEncoder[SamPolicyName] {
@@ -383,6 +448,11 @@ object HttpSamDAO {
   implicit def createSamResourceRequestEncoder[R: Encoder]: Encoder[CreateSamResourceRequest[R]] =
     Encoder.forProduct5("resourceId", "policies", "authDomain", "returnResource", "parent")(x =>
       (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
+    )
+
+  implicit val getPetManagedIdentityEncoder: Encoder[AzureCloudContext] =
+    Encoder.forProduct3("tenantId", "subscriptionId", "managedResourceGroupName")(x =>
+      (x.tenantId.value, x.subscriptionId.value, x.managedResourceGroupName.value)
     )
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
@@ -400,6 +470,10 @@ object HttpSamDAO {
     )
   implicit val appActionDecoder: Decoder[AppAction] =
     Decoder.decodeString.emap(x => AppAction.stringToAction.get(x).toRight(s"Unknown app action: $x"))
+  implicit val wsmApplicationActionDecoder: Decoder[WsmResourceAction] =
+    Decoder.decodeString.emap(x =>
+      WsmResourceAction.stringToAction.get(x).toRight(s"Unknown wsm application action: $x")
+    )
   implicit val samRoleDecoder: Decoder[SamRole] =
     Decoder.decodeString.map(x => SamRole.stringToRole.getOrElse(x, SamRole.Other(x)))
   implicit val controlledResourceActionDecoder: Decoder[WorkspaceAction] =

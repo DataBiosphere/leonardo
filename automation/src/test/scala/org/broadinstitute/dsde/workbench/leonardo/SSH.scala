@@ -28,7 +28,9 @@ object SSH {
 
   final case class SSHSession(session: Session, client: SSHClient)
   // Note that a session is a one time use resource, and only supports one command execution
-  // This method starts an ssh session to a google runtime.
+  // This method starts an ssh session to either an azure or google runtime.
+  // However, it is currently only used for azure ssh due to system limitations
+  // Specifically, azure can use username/password auth to ssh to the vm (which is specified in WSM at creation time and in vault)
   // For google, this method generates public/private keys and uploads the public key to the qa service account's OSlogin registry in the test project
   // This works when you can connect directly to the vm, but the tests do not necessarily run on broad internal IP space
   // As such, we use `executeGoogleCommand` for interacting with google VMs typically.

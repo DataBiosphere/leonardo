@@ -155,8 +155,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       // Otherwise, the disk is most likely used previously by an old runtime, and we don't want to delete it
       _ <-
         if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Creating) {
-          val CloudContext.Gcp(googleProject) = runtimeAndRuntimeConfig.runtime.cloudContext
           for {
+            googleProject <- runtimeAndRuntimeConfig.runtime.cloudContext match {
+              case CloudContext.Gcp(value) => F.pure(value)
+              case CloudContext.Azure(_)   => F.raiseError(new RuntimeException("This should never happen"))
+            }
             gceRuntimeConfig <- runtimeAndRuntimeConfig.runtimeConfig match {
               case x: RuntimeConfig.GceWithPdConfig => F.pure(x.some)
               case _                                => F.pure(none[RuntimeConfig.GceWithPdConfig])
@@ -370,6 +373,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     clusterQuery.getStagingBucket(runtime.cloudContext, runtime.runtimeName).transaction.flatMap {
       case None =>
         logger.warn(s"Could not lookup staging bucket for cluster ${runtime.projectNameString}: cluster not in db")
+      case Some(StagingBucket.Azure(_)) =>
+        logger.info(s"Not setting lifecycle for Azure staging container")
       case Some(StagingBucket.Gcp(bucketName)) =>
         val res = for {
           ctx <- ev.ask
