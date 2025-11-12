@@ -274,7 +274,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         )
 
       // v1 apps are unique by (appName, cloudContext)
-      // v2 apps are unique by (appName, workspace) - deprecated
+      // v2 apps are unique by (appName, workspace)
       // This must be enforced at the code level, because the DB schema handles both v1 and v2.
       getAppResult <- saveApp.app.workspaceId match {
         case Some(wid) => KubernetesServiceDbQueries.getActiveFullAppByWorkspaceIdAndAppName(wid, saveApp.app.appName)
@@ -360,7 +360,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .update((AppStatus.Deleted, now, None))
 
   def updateDateAccessed(appName: AppName, cloudContext: CloudContext, now: Instant): DBIO[Int] =
-    sql"""
+    cloudContext match {
+      case CloudContext.Gcp(_) =>
+        sql"""
             UPDATE APP
             JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
             JOIN KUBERNETES_CLUSTER ON KUBERNETES_CLUSTER.id = NODEPOOL.clusterId
@@ -370,6 +372,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
                   APP.destroyedDate = ${dummyDate} AND
                   APP.status != 'DELETED'
          """.asUpdate
+      case CloudContext.Azure(_) =>
+        DBIO.failed(new RuntimeException("Please don't use this query for Azure apps"))
+    }
 
   def isDiskAttached(diskId: DiskId)(implicit ec: ExecutionContext): DBIO[Boolean] =
     appQuery.filter(x => x.diskId.isDefined && x.diskId === diskId).length.result.map(_ > 0)

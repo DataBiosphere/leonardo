@@ -19,7 +19,12 @@ class CloudServiceRuntimeMonitor[F[_]: Async](
   ): Stream[F, Unit] = a match {
     case CloudService.GCE      => gceRuntimeMonitorInterp.process(runtimeId, action, checkToolsInterruptAfter)
     case CloudService.Dataproc => dataprocRuntimeMonitorInterp.process(runtimeId, action, checkToolsInterruptAfter)
-
+    case CloudService.AzureVm =>
+      Stream.eval(
+        Async[F].raiseError(
+          AzureUnimplementedException("Azure vms should not be handled with CloudServiceRuntimeMonitor")
+        )
+      )
   }
 
   def handlePollCheckCompletion(
@@ -29,6 +34,9 @@ class CloudServiceRuntimeMonitor[F[_]: Async](
       gceRuntimeMonitorInterp.handlePollCheckCompletion(monitorContext, runtimeAndRuntimeConfig)
     case CloudService.Dataproc =>
       Async[F].raiseError(new Exception("handlePollCheckCompletion not supported for Dataproc"))
-
+    case CloudService.AzureVm =>
+      Async[F].raiseError(
+        AzureUnimplementedException("Azure vms should not be handled with CloudServiceRuntimeMonitor")
+      )
   }
 }

@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesName,
   Location,
   MachineTypeName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
@@ -157,6 +158,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // Retrieve parent workspaceId for the google project
       parentWorkspaceId <- samService.lookupWorkspaceParentForGoogleProject(userInfo.accessToken.token, googleProject)
 
+      // Leo email used to give permissions when running in Azure.
       leoToken <- authProvider.getLeoAuthToken
       leoEmail <- samService.getUserEmail(leoToken)
       notifySamAndCreate = for {
@@ -363,9 +365,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         .listFullApps(cloudContext, paramMap._1, paramMap._2, creatorOnly)
         .transaction
 
-      gcpApps <- filterAppsBySamPermission(allClusters, userInfo, paramMap._3, true)
-
-    } yield gcpApps
+      // V1 endpoints use google project to determine user access
+      // listAll apps includes both Azure and GCP apps
+      // but Azure apps don't have a google project, so useGoogleProject is false for Azure apps
+      partition = allClusters.partition(_.cloudContext.isInstanceOf[CloudContext.Gcp])
+      gcpApps <- filterAppsBySamPermission(partition._1, userInfo, paramMap._3, true)
+      azureApps <- filterAppsBySamPermission(partition._2, userInfo, paramMap._3, false)
+    } yield gcpApps ++ azureApps
 
   override def deleteApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, deleteDisk: Boolean)(
     implicit as: Ask[F, AppContext]
@@ -648,7 +654,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     )
   } yield ()).transaction
 
-  // This is used by AOU to update their GKE apps configuration to enable auto delete
+  // TODO I think this is Azure-only, any point in leaving it around for GCP someday?
   override def updateApp(userInfo: UserInfo, cloudContext: CloudContext.Gcp, appName: AppName, req: UpdateAppRequest)(
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
@@ -687,7 +693,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
     val auditInfo = AuditInfo(userEmail, now, None, now)
 
     val nodepoolStatus =
-      if (autopilotEnabled) NodepoolStatus.Running
+      if (autopilotEnabled || cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running
       else NodepoolStatus.Precreating
     val defaultNodepool = for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
@@ -714,8 +720,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       cloudContext = cloudContext,
       clusterName = defaultClusterName,
       location = loc,
-      region = config.leoKubernetesConfig.clusterConfig.region,
-      status = KubernetesClusterStatus.Precreating,
+      region =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) RegionName("unset")
+        else config.leoKubernetesConfig.clusterConfig.region,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) KubernetesClusterStatus.Running
+        else KubernetesClusterStatus.Precreating,
       ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool,
@@ -915,6 +925,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       ZoneName("us-west1-a"),
       diskName,
       userInfo.userEmail,
+      // TODO: WSM will populate this, we can update in backleo if its needed for anything
       PersistentDiskSamResourceId("fakeUUID"),
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),
@@ -924,6 +935,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       None,
       None,
       labels,
+      None,
       None,
       None
     )
@@ -942,7 +954,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       NodepoolLeoId(-1),
       clusterId = clusterId,
       nodepoolName,
-      status = NodepoolStatus.Precreating,
+      status =
+        if (cloudContext.cloudProvider == CloudProvider.Azure) NodepoolStatus.Running else NodepoolStatus.Precreating,
       auditInfo,
       machineType = machineConfig.machineType,
       numNodes = machineConfig.numNodes,
@@ -1032,13 +1045,22 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
 
       // Validate disk.
       // Apps on GCP require a disk.
+      // Apps on Azure require _no_ disk.
       _ <- (cloudContext.cloudProvider, diskOpt) match {
         case (CloudProvider.Gcp, None) =>
           Left(AppRequiresDiskException(cloudContext, appName, req.appType, ctx.traceId))
+        case (CloudProvider.Azure, Some(_)) =>
+          Left(AppDiskNotSupportedException(cloudContext, appName, req.appType, ctx.traceId))
         case _ => Right(())
       }
 
-      customEnvironmentVariables = req.customEnvironmentVariables
+      // adding the relayHybridConnection name to custom env vars
+      // necessary for backwards compatibility before workspace was added to name
+      customEnvironmentVariables = (cloudContext.cloudProvider, workspaceId) match {
+        case (CloudProvider.Azure, Some(workspaceId)) =>
+          req.customEnvironmentVariables + ("RELAY_HYBRID_CONNECTION_NAME" -> s"${appName.value}-${workspaceId.value}")
+        case _ => req.customEnvironmentVariables
+      }
 
       // Generate namespace and app release names using a random 6-character string prefix.
       //
@@ -1417,6 +1439,13 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+case class AppMachineConfigNotSupportedException(traceId: TraceId)
+    extends LeoException(
+      s"Machine configuration not supported for Azure apps. Trace ID ${traceId.asString}",
+      StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
 

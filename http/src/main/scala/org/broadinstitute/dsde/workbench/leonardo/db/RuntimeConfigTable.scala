@@ -160,7 +160,28 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
             ),
             x.dateAccessed
           )
-
+        case r: RuntimeConfig.AzureConfig =>
+          Some(
+            x.id,
+            (CloudService.AzureVm: CloudService,
+             0,
+             r.machineType,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             r.persistentDiskId,
+             None,
+             r.region,
+             (None, None),
+             false,
+             false
+            ),
+            x.dateAccessed
+          )
       }
     })
 }
@@ -234,7 +255,12 @@ object RuntimeConfigTable {
           componentGatewayEnabled,
           workerPrivateAccess
         )
-
+      case CloudService.AzureVm =>
+        RuntimeConfig.AzureConfig(
+          machineType,
+          persistentDiskId,
+          region
+        )
     }
 }
 

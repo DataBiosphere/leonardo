@@ -371,6 +371,65 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Mockito
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should s"emit an exception if the app is not alive prior to upgrading" in isolatedDbTest {
+    val appDao = new MockAppDAO {
+      override def isProxyAvailable(googleProject: GoogleProject,
+                                    appName: AppName,
+                                    serviceName: ServiceName,
+                                    traceId: TraceId
+      ): IO[Boolean] = IO(false)
+    }
+    val gkeInterp =
+      new GKEInterpreter[IO](
+        Config.gkeInterpConfig,
+        bucketHelper,
+        vpcInterp,
+        MockGKEService,
+        MockKubernetesService,
+        MockHelm,
+        appDao,
+        credentials,
+        googleIamDao,
+        MockGoogleDiskService,
+        MockAppDescriptorDAO,
+        nodepoolLock,
+        FakeGoogleResourceService,
+        FakeGoogleComputeService
+      )
+
+    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
+    val disk = makePersistentDisk(Some(DiskName("d1"))).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val chart = Chart.fromString("/leonardo/sas-0.1.0")
+    val savedApp1 = makeApp(1,
+                            savedNodepool1.id,
+                            appType = AppType.Allowed,
+                            chart = chart.get,
+                            disk = Some(disk),
+                            kubernetesServiceAccountName = Some(ServiceAccountName("ksa"))
+    ).save()
+
+    val res = for {
+      _ <- gkeInterp
+        .updateAndPollApp(
+          UpdateAppParams(savedApp1.id,
+                          savedApp1.appName,
+                          ChartVersion("0.0.2"),
+                          Some(GoogleProject(savedCluster1.cloudContext.asCloudContextDb.value))
+          )
+        )
+    } yield ()
+
+    val either = res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    either.isLeft shouldBe true
+    either match {
+      case Left(value) =>
+        value.getMessage should include("is not live")
+        value.getClass shouldBe AppUpdatePollingException("message", None).getClass
+      case _ => fail()
+    }
+  }
+
   it should "error on createAndPollApp if app doesn't exist" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1, false).save()
     val res = for {

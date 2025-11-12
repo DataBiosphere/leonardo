@@ -121,7 +121,30 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       GalaxyDrsUrl("https://drshub.dsde-dev.broadinstitute.org/api/v4/drs/resolve"),
       5,
       3,
-      true
+      true,
+      List(
+        ChartVersion("0.7.3"),
+        ChartVersion("0.8.0"),
+        ChartVersion("1.2.0"),
+        ChartVersion("1.2.1"),
+        ChartVersion("1.2.2"),
+        ChartVersion("1.6.0"),
+        ChartVersion("1.6.1"),
+        ChartVersion("2.1.0"),
+        ChartVersion("2.4.4"),
+        ChartVersion("2.4.6"),
+        ChartVersion("2.4.7"),
+        ChartVersion("2.4.8"),
+        ChartVersion("2.4.9"),
+        ChartVersion("2.5.0"),
+        ChartVersion("2.5.1"),
+        ChartVersion("2.5.2"),
+        ChartVersion("2.8.0"),
+        ChartVersion("2.8.1"),
+        ChartVersion("2.9.0"),
+        ChartVersion("2.10.0"),
+        ChartVersion("2.10.1")
+      )
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }
@@ -144,6 +167,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         PollMonitorConfig(0 days, 120, 0 days),
         PollMonitorConfig(0 days, 10, 2 seconds),
         PollMonitorConfig(0 days, 10, 2 seconds),
+        InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes),
         InterruptablePollMonitorConfig(5, 1 seconds, 10 minutes),
         PollMonitorConfig(1 second, 1, 1 second)
       )

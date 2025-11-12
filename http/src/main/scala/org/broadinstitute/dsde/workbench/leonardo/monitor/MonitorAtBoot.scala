@@ -162,54 +162,66 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
                   )
                 )
             }
-            CloudContext.Gcp(googleProject) = cluster.cloudContext
-            msg <- for {
-              machineType <- computeService.get
-                .getMachineType(
-                  googleProject,
-                  ZoneName("us-central1-a"),
-                  nodepool.machineType
-                ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
-                .flatMap(opt =>
-                  F.fromOption(
-                    opt,
-                    new LeoException(s"can't find machine config for ${app.appName.value}",
-                                     traceId = Some(appContext.traceId)
+            msg <- cluster.cloudContext match {
+              case CloudContext.Gcp(googleProject) =>
+                for {
+                  machineType <- computeService.get
+                    .getMachineType(
+                      googleProject,
+                      ZoneName("us-central1-a"),
+                      nodepool.machineType
+                    ) // TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+                    .flatMap(opt =>
+                      F.fromOption(
+                        opt,
+                        new LeoException(s"can't find machine config for ${app.appName.value}",
+                                         traceId = Some(appContext.traceId)
+                        )
+                      )
                     )
-                  )
-                )
 
-              diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
-              enableIntraNodeVisibility = app.labels.get(AOU_UI_LABEL).isDefined
-              msg = CreateAppMessage(
-                googleProject,
-                action,
-                app.id,
-                app.appName,
-                diskIdOpt,
-                app.customEnvironmentVariables,
-                app.appType,
-                app.appResources.namespace,
-                Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
-                Some(appContext.traceId),
-                enableIntraNodeVisibility,
-                app.bucketNameToMount
-              )
-            } yield msg
+                  diskIdOpt = app.appResources.disk.flatMap(d =>
+                    if (d.status == DiskStatus.Creating) Some(d.id) else None
+                  )
+                  enableIntraNodeVisibility = app.labels.get(AOU_UI_LABEL).isDefined
+                  msg = CreateAppMessage(
+                    googleProject,
+                    action,
+                    app.id,
+                    app.appName,
+                    diskIdOpt,
+                    app.customEnvironmentVariables,
+                    app.appType,
+                    app.appResources.namespace,
+                    Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
+                    Some(appContext.traceId),
+                    enableIntraNodeVisibility,
+                    app.bucketNameToMount
+                  )
+                } yield msg
+
+              case CloudContext.Azure(_) =>
+                F.raiseError(new NotImplementedError("Azure functionality not implemented."))
+
+            }
+
           } yield msg
 
         case AppStatus.Deleting =>
-          val CloudContext.Gcp(googleProject) = cluster.cloudContext
-          F.pure[LeoPubsubMessage](
-            DeleteAppMessage(
-              app.id,
-              app.appName,
-              googleProject,
-              None, // Assume we do not want to delete the disk, since we don't currently persist that information
-              Some(appContext.traceId)
-            )
-          )
-
+          cluster.cloudContext match {
+            case CloudContext.Gcp(googleProject) =>
+              F.pure[LeoPubsubMessage](
+                DeleteAppMessage(
+                  app.id,
+                  app.appName,
+                  googleProject,
+                  None, // Assume we do not want to delete the disk, since we don't currently persist that information
+                  Some(appContext.traceId)
+                )
+              )
+            case CloudContext.Azure(_) =>
+              F.raiseError(new NotImplementedError("Azure functionality not implemented."))
+          }
         case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", appContext.traceId))
       }
     )
@@ -266,6 +278,9 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
             Right(
               LeoLenses.runtimeConfigPrism.getOption(runtime.runtimeConfig).get: RuntimeConfigInCreateRuntimeMessage
             )
+          case _: RuntimeConfig.AzureConfig =>
+            "Azure runtime should be handled separately. This should not happen"
+              .asLeft[RuntimeConfigInCreateRuntimeMessage]
         }
 
         for {
@@ -292,6 +307,25 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 
+  private def getAuthToken(creator: WorkbenchEmail)(implicit
+    ev: Ask[F, TraceId]
+  ): F[String] =
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        for {
+          traceId <- ev.ask
+          tokenOpt <- samDAO.getCachedArbitraryPetAccessToken(creator)
+          token <- F.fromOption(
+            tokenOpt,
+            MonitorAtBootException(s"Pet not found for user ${creator}", traceId)
+          )
+        } yield token
+      case true =>
+        for {
+          leoAuth <- samDAO.getLeoAuthToken
+          token = leoAuth.credentials.toString().split(" ")(1)
+        } yield token
+    }
 }
 
 final case class RuntimeToMonitor(

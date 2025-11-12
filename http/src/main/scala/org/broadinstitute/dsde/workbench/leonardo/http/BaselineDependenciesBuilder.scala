@@ -9,6 +9,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.kubernetes.client.openapi.ApiClient
+import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
@@ -111,7 +112,9 @@ class BaselineDependenciesBuilder {
         F.delay(CaffeineCache[F, UserEmailAndProject, Option[io.circe.Json]](underlyingPetKeyCache))
       )(_.close)
 
-      cloudAuthTokenProvider = CloudAuthTokenProvider[F](applicationConfig)
+      cloudAuthTokenProvider = CloudAuthTokenProvider[F](ConfigReader.appConfig.azure.hostingModeConfig,
+                                                         applicationConfig
+      )
 
       samClientProvider = new HttpSamApiClientProvider(httpSamDaoConfig.samUri.renderString,
                                                        httpSamDaoConfig.maxConcurrentRequests
@@ -277,12 +280,26 @@ class BaselineDependenciesBuilder {
   private def createCloudSubscriber[F[_]: Parallel](
     subscriberQueue: Queue[F, ReceivedMessage[LeoPubsubMessage]]
   )(implicit F: Async[F], logger: StructuredLogger[F]): Resource[F, CloudSubscriber[F, LeoPubsubMessage]] =
-    GoogleSubscriber.resource[F, LeoPubsubMessage](subscriberConfig, subscriberQueue)
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        GoogleSubscriber.resource[F, LeoPubsubMessage](subscriberConfig, subscriberQueue)
+      case true =>
+        AzureSubscriberInterpreter.subscriber[F, LeoPubsubMessage](
+          ConfigReader.appConfig.azure.hostingModeConfig.subscriberConfig,
+          subscriberQueue
+        )
+    }
 
   private def createCloudPublisher[F[_]](implicit
     F: Async[F],
     logger: StructuredLogger[F]
-  ): Resource[F, CloudPublisher[F]] = GooglePublisher.cloudPublisherResource[F](publisherConfig)
+  ): Resource[F, CloudPublisher[F]] =
+    ConfigReader.appConfig.azure.hostingModeConfig.enabled match {
+      case false =>
+        GooglePublisher.cloudPublisherResource[F](publisherConfig)
+      case true =>
+        AzurePublisherInterpreter.publisher[F](ConfigReader.appConfig.azure.hostingModeConfig.publisherConfig)
+    }
 
   private def buildCache[K, V](maxSize: Int,
                                expiresIn: FiniteDuration

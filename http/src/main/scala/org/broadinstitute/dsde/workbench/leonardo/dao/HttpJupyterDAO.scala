@@ -26,6 +26,12 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
+      headers <- cloudContext match {
+        case _: CloudContext.Azure =>
+          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+        case _: CloudContext.Gcp =>
+          F.pure(Headers.empty)
+      }
       res <- hostStatus match {
         case x: HostReady =>
           client
@@ -33,7 +39,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
               Request[F](
                 method = Method.GET,
                 uri = x.toNotebooksUri / "api" / "status",
-                headers = Headers.empty
+                headers = headers
               )
             )
             .handleError(_ => false)
@@ -44,6 +50,12 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   def isAllKernelsIdle(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
+      headers <- cloudContext match {
+        case _: CloudContext.Azure =>
+          samDAO.getLeoAuthToken.map(x => Headers(x) ++ Headers(SETDATEACCESSEDINSPECTOR_HEADER_IGNORE))
+        case _: CloudContext.Gcp =>
+          F.pure(Headers.empty)
+      }
       resp <- hostStatus match {
         case x: HostReady =>
           for {
@@ -51,7 +63,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
               Request[F](
                 method = Method.GET,
                 uri = x.toNotebooksUri / "api" / "sessions",
-                headers = Headers.empty
+                headers = headers
               )
             )
           } yield res.forall(k => k.kernel.executionState == Idle)

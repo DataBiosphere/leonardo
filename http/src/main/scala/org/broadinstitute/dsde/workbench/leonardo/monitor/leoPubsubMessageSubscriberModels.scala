@@ -156,7 +156,9 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object StartApp extends LeoPubsubMessageType {
     val asString = "startApp"
   }
-
+  final case object UpdateApp extends LeoPubsubMessageType {
+    val asString = "updateApp"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -230,7 +232,7 @@ object LeoPubsubMessage {
         disk.id,
         GoogleProject(
           disk.cloudContext.asString
-        ),
+        ), // TODO: we might think about use cloudContext in CreateDiskMessage to support Azure
         disk.name,
         disk.zone,
         disk.size,
@@ -313,6 +315,18 @@ object LeoPubsubMessage {
   final case class UpdateDiskMessage(diskId: DiskId, newSize: DiskSize, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
+  }
+
+  // TODO evaluate whether app update functionality is useful and working for GCP
+  final case class UpdateAppMessage(jobId: UpdateAppJobId,
+                                    appId: AppId,
+                                    appName: AppName,
+                                    cloudContext: CloudContext,
+                                    workspaceId: Option[WorkspaceId],
+                                    googleProject: Option[GoogleProject],
+                                    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateApp
   }
 }
 
@@ -483,6 +497,11 @@ object LeoPubsubCodec {
   implicit val startAppDecoder: Decoder[StartAppMessage] =
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
+  implicit val updateAppDecoder: Decoder[UpdateAppMessage] =
+    Decoder.forProduct7("jobId", "appId", "appName", "cloudContext", "workspaceId", "googleProject", "traceId")(
+      UpdateAppMessage.apply
+    )
+
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
@@ -503,6 +522,7 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.DeleteApp     => message.as[DeleteAppMessage]
         case LeoPubsubMessageType.StopApp       => message.as[StopAppMessage]
         case LeoPubsubMessageType.StartApp      => message.as[StartAppMessage]
+        case LeoPubsubMessageType.UpdateApp     => message.as[UpdateAppMessage]
 
       }
     } yield value
@@ -643,6 +663,8 @@ object LeoPubsubCodec {
           case CloudService.GCE =>
             x.as[RuntimeConfigInCreateRuntimeMessage.GceConfig] orElse x
               .as[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig]
+          case CloudService.AzureVm =>
+            throw new AzureUnimplementedException("Azure should not be used with existing create runtime message")
         }
       } yield r
     }
@@ -820,6 +842,17 @@ object LeoPubsubCodec {
       (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
+  implicit val updateAppMessageEncoder: Encoder[UpdateAppMessage] =
+    Encoder.forProduct8("messageType",
+                        "jobId",
+                        "appId",
+                        "appName",
+                        "cloudContext",
+                        "workspaceId",
+                        "googleProject",
+                        "traceId"
+    )(x => (x.messageType, x.jobId, x.appId, x.appName, x.cloudContext, x.workspaceId, x.googleProject, x.traceId))
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
     case m: CreateDiskMessage    => m.asJson
     case m: UpdateDiskMessage    => m.asJson
@@ -833,6 +866,7 @@ object LeoPubsubCodec {
     case m: DeleteAppMessage     => m.asJson
     case m: StopAppMessage       => m.asJson
     case m: StartAppMessage      => m.asJson
+    case m: UpdateAppMessage     => m.asJson
   }
 }
 
@@ -901,6 +935,61 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
+  final case class AzureDiskDeletionError(diskId: DiskId,
+                                          wsmControlledResourceId: WsmControlledResourceId,
+                                          workspaceId: WorkspaceId,
+                                          errorMsg: String
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\tdisk ${diskId.value} with resource id: ${wsmControlledResourceId.value}, \n\tmsg: ${errorMsg})"
+
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureDiskResourceDeletionError(id: Either[Long, WsmControlledResourceId],
+                                                  workspaceId: WorkspaceId,
+                                                  errorMsg: String
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\tAssociated disk resource: ${id} in workspace ${workspaceId.value}, \n\tmsg: ${errorMsg})"
+
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureRuntimeCreationError(runtimeId: Long,
+                                             workspaceId: WorkspaceId,
+                                             errorMsg: String,
+                                             useExistingDisk: Boolean
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureRuntimeDeletionError(runtimeId: Long,
+                                             diskId: Option[DiskId],
+                                             workspaceId: WorkspaceId,
+                                             errorMsg: String
+  ) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureRuntimeStartingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureRuntimeStoppingError(runtimeId: Long, errorMsg: String, traceId: TraceId)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg}, traceId: ${traceId.asString}"
+    val isRetryable: Boolean = false
+  }
+
   final case class AppNotFound(appId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"Unable to process transition finished message ${message} for app ${appId} because it was not found in the database"
@@ -908,6 +997,12 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
+  final case class AppIsAlreadyUpdatingException(message: UpdateAppMessage) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"Unable to process update for app ${message.appId} because it is already in updating status. \n\tPubsub message:${message} "
+
+    val isRetryable: Boolean = false
+  }
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)

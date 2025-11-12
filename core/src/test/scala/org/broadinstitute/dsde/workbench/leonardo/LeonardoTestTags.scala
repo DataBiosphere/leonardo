@@ -7,6 +7,7 @@ object LeonardoTestTags {
   object SlickPlainQueryTest extends Tag("SlickPlainQueryTest")
 
   // intent: do not run in given execution context
+  // this is also synonmous with 'azure test'
   object ExcludeFromJenkins extends Tag("ExcludeFromJenkins")
 
   // intent: do not run on every PR commit

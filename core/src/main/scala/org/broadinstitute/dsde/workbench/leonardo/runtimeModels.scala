@@ -66,10 +66,16 @@ object Runtime {
       .headOption
       .getOrElse(JupyterService)
 
-    new URL(
-      urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
-    )
-
+    cloudContext match {
+      case _: CloudContext.Gcp =>
+        new URL(
+          urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
+        )
+      case _: CloudContext.Azure =>
+        hostIp.fold(new URL("https://relay-not-defined-yet"))(s =>
+          new URL(s"https://${s.asString}/${runtimeName.asString}")
+        )
+    }
   }
 }
 
@@ -209,6 +215,10 @@ object CloudService extends Enum[CloudService] {
     val asString: String = "GCE"
   }
 
+  case object AzureVm extends CloudService {
+    val asString: String = "AZURE_VM"
+  }
+
   override def values: immutable.IndexedSeq[CloudService] = findValues
 }
 
@@ -244,6 +254,10 @@ object RuntimeConfigType extends Enum[RuntimeConfigType] {
 
   case object GceWithPdConfig extends RuntimeConfigType {
     val asString = "GceWithPdConfig"
+  }
+
+  case object AzureVmConfig extends RuntimeConfigType {
+    val asString = "AzureVmConfig"
   }
 
   override def values: immutable.IndexedSeq[RuntimeConfigType] = findValues
@@ -299,6 +313,14 @@ object RuntimeConfig {
     val configType: RuntimeConfigType = RuntimeConfigType.Dataproc
   }
 
+  // Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
+  final case class AzureConfig(machineType: MachineTypeName,
+                               persistentDiskId: Option[DiskId],
+                               region: Option[RegionName]
+  ) extends RuntimeConfig {
+    val cloudService: CloudService = CloudService.AzureVm
+    val configType: RuntimeConfigType = RuntimeConfigType.AzureVmConfig
+  }
 }
 
 /** Runtime user script */
