@@ -4,8 +4,6 @@ package service
 
 import cats.effect.IO
 import cats.mtl.Ask
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
@@ -23,13 +21,10 @@ object MockRuntimeV2Interp extends RuntimeV2Service[IO] {
           CommonTestData.testCluster.id,
           Some(CommonTestData.workspaceId),
           CommonTestData.testCluster.samResource,
-          RuntimeName("azureruntime1"),
-          CloudContext.Azure(azureCloudContext),
+          RuntimeName("googleruntime1"),
+          cloudContextGcp,
           CommonTestData.testCluster.auditInfo,
-          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
-                                    Some(DiskId(-1)),
-                                    None
-          ),
+          gceWithPdRuntimeConfig,
           CommonTestData.testCluster.proxyUrl,
           CommonTestData.testCluster.status,
           CommonTestData.testCluster.labels,

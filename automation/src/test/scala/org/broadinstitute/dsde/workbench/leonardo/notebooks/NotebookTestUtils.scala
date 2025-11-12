@@ -29,10 +29,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def withNotebooksListPage[T](
     runtimeProjectAndName: RuntimeProjectAndName
   )(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    val googleProject = runtimeProjectAndName.cloudContext match {
-      case CloudContext.Gcp(v)   => v
-      case CloudContext.Azure(_) => throw new RuntimeException("Azure runtime is not supported yet")
-    }
+    val CloudContext.Gcp(googleProject) = runtimeProjectAndName.cloudContext
     val notebooksListPage = JupyterServerClient.get(googleProject, runtimeProjectAndName.runtimeName)
     testCode(notebooksListPage.open)
   }

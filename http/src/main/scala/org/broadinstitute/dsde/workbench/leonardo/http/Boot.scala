@@ -64,11 +64,9 @@ object Boot extends IOApp {
         servicesDependencies.cloudSpecificDependenciesRegistry,
         servicesDependencies.kubernetesService,
         servicesDependencies.runtimeV2Service,
-        servicesDependencies.adminService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
-        refererConfig,
-        ConfigReader.appConfig.azure.hostingModeConfig.enabled
+        refererConfig
       )
 
       val httpServer = for {

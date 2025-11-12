@@ -238,8 +238,6 @@ object RuntimeFixtureSpec {
           componentGatewayEnabled = true,
           workerPrivateAccess = false
         )
-      case CloudService.AzureVm =>
-        throw new NotImplementedError()
     }
 
     CreateRuntimeRequest(

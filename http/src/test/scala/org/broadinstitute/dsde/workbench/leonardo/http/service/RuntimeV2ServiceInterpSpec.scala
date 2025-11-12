@@ -6,9 +6,8 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
-import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{SamException, SamService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -62,9 +61,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "publish start a runtime message properly" in isolatedDbTest {
     val workspaceId = WorkspaceId(UUID.randomUUID())
-
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
+    val dummyRuntimeV2Service = makeInterp(publisherQueue)
     val res = for {
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
@@ -76,10 +74,9 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- azureService
+      _ <- dummyRuntimeV2Service
         .startRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
       msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-
     } yield msg shouldBe Some(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -157,9 +154,8 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "publish stop a runtime message properly" in isolatedDbTest {
     val workspaceId = WorkspaceId(UUID.randomUUID())
-
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
+    val dummyRuntimeV2Service = makeInterp(publisherQueue)
     val res = for {
       ctx <- appContext.ask[AppContext]
       runtime <- IO(
@@ -171,7 +167,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      _ <- azureService
+      _ <- dummyRuntimeV2Service
         .stopRuntime(userInfo, runtime.runtimeName, runtime.workspaceId.get)
       msg <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
 
@@ -253,7 +249,6 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeId1 = UUID.randomUUID.toString
     val runtimeId2 = UUID.randomUUID.toString
     val projectIdGcp = cloudContextGcp.asString
-    val workspaceIdAzure = UUID.randomUUID.toString
 
     val samService = mock[SamService[IO]]
     when(samService.listResources(isEq(userInfo.accessToken.token), isEq(RuntimeSamResource.resourceType))(any()))
@@ -263,18 +258,11 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(runtimeId1))
       samResource2 <- IO(RuntimeSamResourceId(runtimeId2))
-      // GCP runtime
+      // GCP runtime 1
       runtime1 <- IO(makeCluster(1).copy(samResource = samResource1, workspaceId = workspaceIdOpt).save())
-      // Azure runtime
-      runtime2 <- IO(
-        makeCluster(2)
-          .copy(
-            samResource = samResource2,
-            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext),
-            workspaceId = Some(WorkspaceId(UUID.fromString(workspaceIdAzure)))
-          )
-          .save()
-      )
+      // GCP runtime 2
+      runtime2 <- IO(makeCluster(2).copy(samResource = samResource2, workspaceId = workspaceIdOpt).save())
+
       listResponse <- testService.listRuntimes(userInfo, None, None, Map.empty)
     } yield {
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
@@ -299,7 +287,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  it should "list runtimes with a workspace and/or cloudProvider" in isolatedDbTest {
+  it should "list runtimes with a workspace" in isolatedDbTest {
     val runtimeId1 = UUID.randomUUID.toString
     val runtimeId2 = UUID.randomUUID.toString
     val runtimeId3 = UUID.randomUUID.toString
@@ -327,22 +315,17 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       workspace2 <- IO(WorkspaceId(UUID.fromString(workspaceId2)))
       workspace3 <- IO(WorkspaceId(UUID.fromString(workspaceId3)))
 
-      // hidden runtime 1, owned workspace 1, Azure
+      // hidden runtime 1, owned workspace 1, GCP
       _ <- IO(
         makeCluster(1)
           .copy(
             samResource = samResource1,
             workspaceId = Some(workspace1),
-            cloudContext = CloudContext.Azure(
-              AzureCloudContext(
-                TenantId(workspaceId1),
-                SubscriptionId(workspaceId1),
-                ManagedResourceGroupName(workspaceId1)
-              )
-            )
+            cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
           )
           .save()
       )
+
       // hidden runtime 2, read workspace 2, owned project 1, Gcp
       _ <- IO(
         makeCluster(2)
@@ -363,22 +346,17 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           )
           .save()
       )
-      // read runtime 4, read workspace 3, Azure
+      // read runtime 4, read workspace 3, GCP
       _ <- IO(
         makeCluster(4)
           .copy(
             samResource = samResource4,
             workspaceId = Some(workspace3),
-            cloudContext = CloudContext.Azure(
-              AzureCloudContext(
-                TenantId(workspaceId3),
-                SubscriptionId(workspaceId3),
-                ManagedResourceGroupName(workspaceId3)
-              )
-            )
+            cloudContext = CloudContext.Gcp(GoogleProject(projectIdGcp1))
           )
           .save()
       )
+
       // read runtime 5, read project 2, Gcp
       _ <- IO(
         makeCluster(5)
@@ -389,18 +367,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       responseIdsWorkspace1 <- testService.listRuntimes(userInfo, Some(workspace1), None, Map.empty)
       responseIdsWorkspace2 <- testService.listRuntimes(userInfo, Some(workspace2), None, Map.empty)
       responseIdsWorkspace3 <- testService.listRuntimes(userInfo, Some(workspace3), None, Map.empty)
-      responseIdsAzure <- testService.listRuntimes(userInfo, None, Some(CloudProvider.Azure), Map.empty)
       responseIdsGcp <- testService.listRuntimes(userInfo, None, Some(CloudProvider.Gcp), Map.empty)
-      responseIdsAzureWorkspace1 <- testService.listRuntimes(userInfo,
-                                                             Some(workspace1),
-                                                             Some(CloudProvider.Azure),
-                                                             Map.empty
-      )
-      responseIdsAzureWorkspace2 <- testService.listRuntimes(userInfo,
-                                                             Some(workspace2),
-                                                             Some(CloudProvider.Azure),
-                                                             Map.empty
-      )
       responseIdsGcpWorkspace1 <- testService.listRuntimes(userInfo,
                                                            Some(workspace1),
                                                            Some(CloudProvider.Gcp),
@@ -415,11 +382,13 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       responseIdsWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1)
       responseIdsWorkspace2.map(_.samResource).toSet shouldBe Set(samResource2, samResource3)
       responseIdsWorkspace3.map(_.samResource).toSet shouldBe Set(samResource4)
-      responseIdsAzure.map(_.samResource).toSet shouldBe Set(samResource1, samResource4)
-      responseIdsGcp.map(_.samResource).toSet shouldBe Set(samResource2, samResource3, samResource5)
-      responseIdsAzureWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1)
-      responseIdsAzureWorkspace2.map(_.samResource).toSet shouldBe Set.empty
-      responseIdsGcpWorkspace1.map(_.samResource).toSet shouldBe Set.empty
+      responseIdsGcp.map(_.samResource).toSet shouldBe Set(samResource1,
+                                                           samResource2,
+                                                           samResource3,
+                                                           samResource4,
+                                                           samResource5
+      )
+      responseIdsGcpWorkspace1.map(_.samResource).toSet shouldBe Set(samResource1)
       responseIdsGcpWorkspace2.map(_.samResource).toSet shouldBe Set(samResource2, samResource3)
     }
 
@@ -489,7 +458,7 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "list runtimes filtered by creator" in isolatedDbTest {
-    val wsmId1 = WsmResourceSamResourceId(WsmControlledResourceId(UUID.randomUUID))
+    val runtimeId1 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId2 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId3 = RuntimeSamResourceId(UUID.randomUUID.toString)
     val runtimeId4 = RuntimeSamResourceId(UUID.randomUUID.toString)
@@ -500,12 +469,12 @@ class RuntimeV2ServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     when(
       samService.listResources(isEq(userInfoCreator.accessToken.token), isEq(RuntimeSamResource.resourceType))(any())
     )
-      .thenReturn(IO.pure(List(wsmId1.resourceId, runtimeId3.resourceId)))
+      .thenReturn(IO.pure(List(runtimeId1.resourceId, runtimeId3.resourceId)))
 
     val testService = makeInterp(samService = samService)
     val res = for {
       // runtime 1: I created, in a workspace I can read => visible
-      samResource1 <- IO(RuntimeSamResourceId(wsmId1.resourceId.toString))
+      samResource1 <- IO(RuntimeSamResourceId(runtimeId1.resourceId.toString))
       runtime1 <- IO(
         makeCluster(1, Some(userInfoCreator.userEmail))
           .copy(samResource = samResource1, workspaceId = Some(workspaceId1))

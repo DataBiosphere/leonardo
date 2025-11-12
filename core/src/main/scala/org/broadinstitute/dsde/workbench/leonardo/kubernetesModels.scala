@@ -43,11 +43,11 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
 
   // TODO consider renaming this method and the KubernetesClusterId class
   // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
-  def getClusterId: KubernetesClusterId =
-    cloudContext match {
-      case CloudContext.Gcp(value) => KubernetesClusterId(value, location, clusterName)
-      case CloudContext.Azure(_)   => throw new IllegalStateException("Can't get GCP ID for an Azure cluster")
-    }
+
+  def getClusterId: KubernetesClusterId = {
+    val CloudContext.Gcp(project) = cloudContext
+    KubernetesClusterId(project, location, clusterName)
+  }
 }
 
 final case class KubernetesClusterAsyncFields(loadBalancerIp: IP, apiServerIp: IP, networkInfo: NetworkFields)
@@ -236,10 +236,9 @@ final case class DefaultKubernetesLabels(cloudContext: CloudContext,
                                          creator: WorkbenchEmail,
                                          serviceAccount: WorkbenchEmail
 ) {
-  val cloudContextList = cloudContext match {
-    case CloudContext.Gcp(value)   => List("googleProject" -> value.value)
-    case CloudContext.Azure(value) => List("cloudContext" -> value.asString)
-  }
+  val CloudContext.Gcp(googleProject) = cloudContext
+  val cloudContextList = List("googleProject" -> googleProject.value)
+
   val toMap: LabelMap =
     Map(
       "appName" -> appName.value,
@@ -436,17 +435,10 @@ final case class App(id: AppId,
       // A service can optionally define a path; otherwise, use the name.
       val leafPath = service.config.path.map(_.value).getOrElse(s"/${service.config.name.value}")
       // GCP uses a Leo proxy endpoint: e.g. https://notebooks.firecloud.org/google/v1/apps/{project}/{app}/{service}
-      // Azure uses Azure relay: e.g. https://{namespace}.servicebus.windows.net/{app}-{workspaceId}/{service}
       val proxyPathOpt = cluster.cloudContext match {
         case CloudContext.Gcp(project) =>
           Some(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}${leafPath}")
-        case CloudContext.Azure(_) =>
-          // for backwards compatibility, name used to be just the appName
-          cluster.asyncFields
-            .map(_.loadBalancerIp.asString)
-            .map(base =>
-              s"${base}${customEnvironmentVariables.getOrElse("RELAY_HYBRID_CONNECTION_NAME", appName.value)}${leafPath}"
-            )
+
         case _ =>
           None
       }
@@ -506,10 +498,6 @@ object AppStatus {
 
   final case object Starting extends AppStatus {
     override def toString: String = "STARTING"
-  }
-
-  final case object Updating extends AppStatus {
-    override def toString: String = "UPDATING"
   }
 
   def values: Set[AppStatus] = sealerate.values[AppStatus]
@@ -586,25 +574,3 @@ object ComputeClass {
 }
 final case class Autodelete(autodeleteEnabled: Boolean, autodeleteThreshold: Option[AutodeleteThreshold])
 final case class Autopilot(computeClass: ComputeClass, cpuInMillicores: Int, memoryInGb: Int, ephemeralStorageInGb: Int)
-
-final case class UpdateAppTableId(value: Long) extends AnyVal
-final case class UpdateAppJobId(value: UUID) extends AnyVal
-
-sealed abstract class UpdateAppJobStatus
-object UpdateAppJobStatus {
-
-  case object Running extends UpdateAppJobStatus {
-    override def toString: String = "RUNNING"
-  }
-
-  case object Error extends UpdateAppJobStatus {
-    override def toString: String = "ERROR"
-  }
-
-  final case object Success extends UpdateAppJobStatus {
-    override def toString: String = "SUCCESS"
-  }
-
-  def values: Set[UpdateAppJobStatus] = sealerate.values[UpdateAppJobStatus]
-  def stringToObject: Map[String, UpdateAppJobStatus] = values.map(v => v.toString -> v).toMap
-}

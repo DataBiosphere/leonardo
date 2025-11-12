@@ -656,9 +656,6 @@ trait LeonardoTestUtils
     }
   }
 
-  def generateAzureDiskName(): String =
-    s"automation-test-disk-${UUID.randomUUID().toString().substring(0, 8)}"
-
   def saveDataprocLogFiles(stagingBucket: Option[GcsBucketName],
                            googleProject: GoogleProject,
                            clusterName: RuntimeName
