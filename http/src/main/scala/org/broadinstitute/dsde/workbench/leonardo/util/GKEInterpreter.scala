@@ -205,6 +205,10 @@ class GKEInterpreter[F[_]](
                 .asJava
             )
         )
+        .setPrivateClusterConfig(
+          new com.google.api.services.container.model.PrivateClusterConfig()
+            .setGcpPublicCidrsAccessEnabled(true)
+        )
         .setIpAllocationPolicy(
           new com.google.api.services.container.model.IPAllocationPolicy()
             .setUseIpAliases(true)
