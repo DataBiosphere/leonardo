@@ -54,9 +54,14 @@ trait TestProxy { this: ScalaFutures =>
 
     val sslContext: SSLContext = SSLContext.getInstance("TLS")
     sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
-    val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
+    val https: HttpsConnectionContext = ConnectionContext.httpsServer(sslContext)
 
-    serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.proxyPort, https).futureValue
+    // serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.proxyPort, https).futureValue
+    serverBinding = Http()
+      .newServerAt("0.0.0.0", proxyConfig.proxyPort)
+      .enableHttps(https)
+      .bindFlow(Route.toFlow(backendRoute))
+      .futureValue
   }
 
   def shutdownProxyServer() = {
