@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class PersistentDisk(id: DiskId,
                                 cloudContext: CloudContext,
-                                zone: ZoneName, // in the case of Azure, this will be com.azure.core.management.Region
+                                zone: ZoneName,
                                 name: DiskName,
                                 serviceAccount: WorkbenchEmail,
                                 samResource: PersistentDiskSamResourceId,
@@ -21,7 +21,6 @@ final case class PersistentDisk(id: DiskId,
                                 appRestore: Option[AppRestore],
                                 labels: LabelMap,
                                 sourceDisk: Option[DiskLink],
-                                wsmResourceId: Option[WsmControlledResourceId],
                                 workspaceId: Option[WorkspaceId]
 ) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"

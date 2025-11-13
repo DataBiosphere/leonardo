@@ -3,7 +3,6 @@ package db
 
 import java.time.Instant
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
 import org.broadinstitute.dsde.workbench.google2.{Location, NetworkName, RegionName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -14,7 +13,6 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import slick.lifted.Tag
 
-import java.sql.SQLDataException
 import scala.concurrent.ExecutionContext
 
 final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
@@ -73,7 +71,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      subNetworkIpRange
     ).shaped <> ({
       case (id,
-            (cloudProvider, cloudContextDb),
+            (_, cloudContextDb),
             clusterName,
             location,
             region,
@@ -91,14 +89,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
           ) =>
         KubernetesClusterRecord(
           id,
-          cloudProvider match {
-            case CloudProvider.Gcp =>
-              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
-            case CloudProvider.Azure =>
-              val context =
-                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
-              CloudContext.Azure(context): CloudContext
-          },
+          CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext,
           clusterName,
           location,
           region,
@@ -115,14 +106,10 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
           subNetworkIpRange
         )
     }, { r: KubernetesClusterRecord =>
-      Some(
+      Some {
+        val CloudContext.Gcp(value) = r.cloudContext
         (r.id,
-         r.cloudContext match {
-           case CloudContext.Gcp(value) =>
-             (CloudProvider.Gcp, CloudContextDb(value.value))
-           case CloudContext.Azure(value) =>
-             (CloudProvider.Azure, CloudContextDb(value.asString))
-         },
+         (CloudProvider.Gcp, CloudContextDb(value.value)),
          r.clusterName,
          r.location,
          r.region,
@@ -138,7 +125,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
          r.subNetworkName,
          r.subNetworkIpRange
         )
-      )
+      }
     })
 }
 

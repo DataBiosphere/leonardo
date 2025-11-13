@@ -51,12 +51,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                         }
                       }
                   }
-                } ~ pathPrefix("v2" / "runtimes") {
-                  pathPrefix(workspaceIdSegment / "azure" / runtimeNameSegment) { (workspaceId, runtimeName) =>
-                    path("jupyterlab") {
-                      failWith(new NotImplementedError)
-                    }
-                  }
                 } ~
                   // "runtimes" proxy routes
                   pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>

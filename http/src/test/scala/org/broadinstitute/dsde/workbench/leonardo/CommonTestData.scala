@@ -8,7 +8,6 @@ import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.azure._
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
@@ -424,7 +423,6 @@ object CommonTestData {
                          appRestore: Option[AppRestore] = None,
                          zoneName: Option[ZoneName] = None,
                          cloudContextOpt: Option[CloudContext] = None,
-                         wsmResourceId: Option[WsmControlledResourceId] = wsmResourceIdOpt,
                          workspaceId: Option[WorkspaceId] = workspaceIdOpt
   ): PersistentDisk =
     PersistentDisk(
@@ -443,7 +441,6 @@ object CommonTestData {
       appRestore,
       Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3"),
       None,
-      wsmResourceId,
       workspaceId
     )
 
@@ -487,11 +484,6 @@ object CommonTestData {
     dataprocRole = DataprocRole.Worker,
     createdDate = Instant.now().truncatedTo(ChronoUnit.MICROS)
   )
-
-  val azureRegion: com.azure.core.management.Region = com.azure.core.management.Region.US_EAST
-
-  val azureCloudContext =
-    AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
   val workspaceId = WorkspaceId(UUID.randomUUID())
   val workspaceCreatedDate = java.time.OffsetDateTime.parse("1970-01-01T12:15:30-07:00")
   val workspaceIdForCloning = WorkspaceId(UUID.randomUUID())
@@ -502,9 +494,6 @@ object CommonTestData {
   val workspaceIdOpt = Some(workspaceId)
   val workspaceId2 = WorkspaceId(UUID.randomUUID())
   val workspaceId3 = WorkspaceId(UUID.randomUUID())
-  val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
-  val wsmResourceIdOpt = Some(wsmResourceId)
-  val cloudContextAzure = CloudContext.Azure(azureCloudContext)
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
     instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)

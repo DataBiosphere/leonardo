@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import ca.mrvisser.sealerate
-import org.broadinstitute.dsde.workbench.azure.AzureCloudContext
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import java.util.UUID
 
@@ -23,11 +22,6 @@ object CloudContext {
     override val asStringWithProvider = s"Gcp/${value.value}"
     override def cloudProvider: CloudProvider = CloudProvider.Gcp
   }
-  final case class Azure(value: AzureCloudContext) extends CloudContext {
-    override val asString = value.asString
-    override val asStringWithProvider = s"Azure/${value.asString}"
-    override def cloudProvider: CloudProvider = CloudProvider.Azure
-  }
 }
 
 sealed abstract class CloudProvider extends Product with Serializable {
@@ -36,9 +30,6 @@ sealed abstract class CloudProvider extends Product with Serializable {
 object CloudProvider {
   final case object Gcp extends CloudProvider {
     override val asString = "GCP"
-  }
-  final case object Azure extends CloudProvider {
-    override val asString = "AZURE"
   }
 
   val stringToCloudProvider = sealerate.values[CloudProvider].map(p => (p.asString, p)).toMap
@@ -51,26 +42,4 @@ object StagingBucket {
   final case class Gcp(value: GcsBucketName) extends StagingBucket {
     override def asString: String = value.value
   }
-  final case class Azure(storageContainerName: org.broadinstitute.dsde.workbench.azure.ContainerName)
-      extends StagingBucket {
-    override def asString: String = s"${storageContainerName.value}"
-  }
-}
-
-/**
- * Can't extend final enum State from WSM, so made a wrapper
- * WSM state can be Some(BROKEN, CREATING, DELETING, READY, UPDATING) or None
- * if None --> there is no record of this resource in WSM
- * (already deleted or never existed in WSM, need to clean up leo resources)
- */
-case class WsmState(state: Option[String]) {
-
-  val deletableStatuses: Set[String] = Set("BROKEN", "READY", "NONE")
-
-  def value: String = state.getOrElse("NONE").toUpperCase()
-
-  /** Any in-progress state cannot be deleted: CREATING, DELETING, UPDATING */
-  def isDeletable: Boolean = deletableStatuses contains this.value
-
-  def isDeleted: Boolean = this.value == "NONE"
 }

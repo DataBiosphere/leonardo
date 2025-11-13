@@ -111,13 +111,10 @@ object DataAccess {
       TableQuery[ClusterImageTable].delete andThen
       TableQuery[ScopeTable].delete andThen
       TableQuery[PatchTable].delete andThen
-      TableQuery[RuntimeControlledResourceTable].delete andThen
-      TableQuery[AppControlledResourceTable].delete andThen
       TableQuery[ClusterTable].delete andThen
       RuntimeConfigQueries.runtimeConfigs.delete andThen
       persistentDiskQuery.nullifyDiskIds andThen
       TableQuery[ServiceTable].delete andThen
-      TableQuery[UpdateAppLogTable].delete andThen
       TableQuery[AppErrorTable].delete andThen
       TableQuery[AppUsageTable].delete andThen
       TableQuery[AppTable].delete andThen

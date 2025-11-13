@@ -72,23 +72,23 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     test.size shouldBe 5
     // Cromwell on GCP on Terra
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.Terra, cromwellChart, true)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.Terra, cromwellChart)
     ) shouldBe Some(1)
     // Galaxy on GCP
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Galaxy, AppStatus.Running, RuntimeUI.Terra, galaxyChart, true)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Galaxy, AppStatus.Running, RuntimeUI.Terra, galaxyChart)
     ) shouldBe Some(1)
     // Custom app on GCP
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Custom, AppStatus.Running, RuntimeUI.Terra, customChart, true)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Custom, AppStatus.Running, RuntimeUI.Terra, customChart)
     ) shouldBe Some(1)
     // Cromwell on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.AoU, cromwellChart, true)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Cromwell, AppStatus.Running, RuntimeUI.AoU, cromwellChart)
     ) shouldBe Some(1)
     // RStudio on GCP on AoU
     test.get(
-      AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, rstudioChart, true)
+      AppStatusMetric(CloudProvider.Gcp, AppType.Allowed, AppStatus.Running, RuntimeUI.AoU, rstudioChart)
     ) shouldBe Some(1)
   }
 
@@ -138,29 +138,14 @@ class LeoMetricsMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                       ServiceName("cromwell"),
                       RuntimeUI.Terra,
                       true,
-                      cromwellChart,
-                      true
+                      cromwellChart
       )
     ) shouldBe Some(1)
     test.get(
-      AppHealthMetric(CloudProvider.Gcp,
-                      AppType.Galaxy,
-                      ServiceName("galaxy"),
-                      RuntimeUI.Terra,
-                      true,
-                      galaxyChart,
-                      true
-      )
+      AppHealthMetric(CloudProvider.Gcp, AppType.Galaxy, ServiceName("galaxy"), RuntimeUI.Terra, true, galaxyChart)
     ) shouldBe Some(1)
     test.get(
-      AppHealthMetric(CloudProvider.Gcp,
-                      AppType.Cromwell,
-                      ServiceName("cromwell"),
-                      RuntimeUI.AoU,
-                      true,
-                      cromwellChart,
-                      true
-      )
+      AppHealthMetric(CloudProvider.Gcp, AppType.Cromwell, ServiceName("cromwell"), RuntimeUI.AoU, true, cromwellChart)
     ) shouldBe Some(1)
 
   }
