@@ -159,7 +159,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     bash add-google-cloud-ops-agent-repo.sh --also-install
 
     JUPYTER_HOME=/etc/jupyter
-    JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
+    JUPYTER_EXTENSIONS=$JUPYTER_HOME/extensions
+    JUPYTER_SCRIPTS=$JUPYTER_EXTENSIONS/scripts
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # Set variables
@@ -168,7 +169,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Avoid exporting variables unless they are needed by external scripts or docker-compose files.
     export CLOUD_SERVICE='DATAPROC'
     # Needs to be in sync with terra-docker container
-    export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
+    export USER_HOME=$(jupyterHomeDirectory)
     export CLUSTER_NAME=$(clusterName)
     export RUNTIME_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)
@@ -360,7 +361,7 @@ EOF
             gsutil cp $ext /etc
             JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
             docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_EXTENSIONS}/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
           elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
             JUPYTER_EXTENSION_FILE=`basename $ext`
             curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
@@ -459,7 +460,7 @@ EOF
 
       # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
       # A better to do this might be to take welder host as an argument to the script
-      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' ${JUPYTER_EXTENSIONS}/jupyter_delocalize.py"
 
       # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
       # This is to make it so that older images will still work after we change notebooks location to home dir
@@ -471,20 +472,20 @@ EOF
       # Install nbstripout and set gitignore in Git Config
       docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
             && python -m nbstripout --install --global \
-            && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
+            && git config --global core.excludesfile $USER_HOME/gitignore_global"
 
       # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
-      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
-           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
-           && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
-           && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
-           && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_SCRIPTS/install_jupyter_contrib_nbextensions.sh \
+           && mkdir -p $USER_HOME/.jupyter/custom/ \
+           && cp $JUPYTER_EXTENSIONS/google_sign_in.js $USER_HOME/.jupyter/custom/ \
+           && ls -la $JUPYTER_EXTENSIONS/extension_entry_jupyter.js \
+           && cp $JUPYTER_EXTENSIONS/extension_entry_jupyter.js $USER_HOME/.jupyter/custom/custom.js \
+           && cp $JUPYTER_EXTENSIONS/safe-mode.js $USER_HOME/.jupyter/custom/ \
+           && cp $JUPYTER_EXTENSIONS/edit-mode.js $USER_HOME/.jupyter/custom/ \
            && mkdir -p $JUPYTER_HOME/nbconfig"
 
       log 'Starting Jupyter Notebook...'
-      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
+      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_HOME}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
       STEP_TIMINGS+=($(date +%s))
     fi
