@@ -567,9 +567,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
    STEP_TIMINGS+=($(date +%s))
 
    # Move jupyter_localize_extension and jupyter_delocalize to site-packages so they can be found by jupyter
-   RUN mv $JUPYTER_HOME/extensions/jupyter_delocalize.py $JUPYTER_HOME/lib/python3.10/site-packages
-   RUN mv $JUPYTER_HOME/extensions/jupyter_localize_extension.py $JUPYTER_HOME/lib/python3.10/site-packages
-
+   RUN mv $JUPYTER_EXTENSIONS/jupyter_delocalize.py $JUPYTER_HOME/lib/python3.10/site-packages
+   RUN mv $JUPYTER_EXTENSIONS/jupyter_localize_extension.py $JUPYTER_HOME/lib/python3.10/site-packages
 
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_HOME}/run-jupyter.sh ${NOTEBOOKS_DIR}"
