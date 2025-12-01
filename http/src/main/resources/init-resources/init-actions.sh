@@ -159,7 +159,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     bash add-google-cloud-ops-agent-repo.sh --also-install
 
     JUPYTER_HOME=/etc/jupyter
-#    JUPYTER_EXTENSIONS=$JUPYTER_HOME/extensions
+    JUPYTER_EXTENSIONS=$JUPYTER_HOME/extensions
     JUPYTER_SCRIPTS=$JUPYTER_EXTENSIONS/scripts
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
