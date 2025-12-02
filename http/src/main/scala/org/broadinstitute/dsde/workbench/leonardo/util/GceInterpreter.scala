@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
@@ -112,7 +111,6 @@ class GceInterpreter[F[_]](
         .fromOption(config.clusterResourcesConfig.cloudInit,
                     new LeoException("No cloud init file defined for GCE VM.", traceId = Some(ctx.traceId))
         )
-        else ClusterResourcesConfig.path
       cloudInitFileContent = scala.io.Source
         .fromResource(s"${ClusterResourcesConfig.basePath}/${cloudInit.asString}")
         .getLines()

@@ -365,8 +365,16 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # This is to make it so that older images will still work after we change notebooks location to home dir
     docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
+  # Determine jupyter path based on image type
+  # images based on the new terra-base have jupyter installed in /etc/jupyter/bin/jupyter
+  if docker exec $JUPYTER_SERVER_NAME test -f /etc/jupyter/.terra-base-marker; then
+    JUPYTER_PATH="/etc/jupyter/bin/jupyter"
+  else
+    JUPYTER_PATH="/opt/conda/bin/jupyter"
+  fi
+
     # Start Jupyter server
-    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || $JUPYTER_PATH notebook)"
 fi
 
 # Configuring RStudio, if enabled
