@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
@@ -111,8 +112,14 @@ class GceInterpreter[F[_]](
         .fromOption(config.clusterResourcesConfig.cloudInit,
                     new LeoException("No cloud init file defined for GCE VM.", traceId = Some(ctx.traceId))
         )
+      // if the user is using the new terra-base jupyter image, a different set of init scripts is needed
+      // the terra-base init scripts have some different paths etc and are within the folder 'base-init-resources'
+      initResourcesPath =
+        if (params.runtimeImages.exists(img => img.imageType == Jupyter && img.imageUrl.contains("terra-base")))
+          ClusterResourcesConfig.basePath
+        else ClusterResourcesConfig.path
       cloudInitFileContent = scala.io.Source
-        .fromResource(s"${ClusterResourcesConfig.basePath}/${cloudInit.asString}")
+        .fromResource(s"${initResourcesPath}/${cloudInit.asString}")
         .getLines()
         .toList
         .mkString("\n")
