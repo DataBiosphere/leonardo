@@ -24,7 +24,7 @@ object Dependencies {
   val workbenchGoogleV = s"0.35-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.8-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.9-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.9.1"
 
@@ -125,7 +125,7 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.7" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.1"
-  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
+  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % "0.25.0"
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion

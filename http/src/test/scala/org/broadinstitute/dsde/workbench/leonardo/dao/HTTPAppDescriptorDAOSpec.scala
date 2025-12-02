@@ -9,7 +9,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.http4s.client.Client
 import org.http4s._
-import org.http4s.blaze.client.BlazeClientBuilder
+import org.http4s.ember.client.EmberClientBuilder
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import scala.concurrent.ExecutionContext.global
 
@@ -87,7 +87,7 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
   // allows http retrieval
   def withAppDescriptorDAO(testCode: HttpAppDescriptorDAO[IO] => Any): Unit = {
     val daoResource = for {
-      client <- BlazeClientBuilder[IO](global).resource
+      client <- EmberClientBuilder[IO](global).resource
       clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
     } yield new HttpAppDescriptorDAO[IO](clientWithLogging)
 

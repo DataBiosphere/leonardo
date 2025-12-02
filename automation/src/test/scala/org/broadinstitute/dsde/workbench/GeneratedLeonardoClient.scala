@@ -17,7 +17,7 @@ import org.http4s._
 import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.headers.Authorization
-import org.http4s.blaze.client.BlazeClientBuilder
+import org.http4s.ember.client.EmberClientBuilder
 
 import scala.concurrent.duration._
 
@@ -30,9 +30,7 @@ object GeneratedLeonardoClient {
 
   val client: Resource[IO, Client[IO]] =
     for {
-      blockingEc <- ExecutionContexts.cachedThreadPool[IO]
-      retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5))
-      client <- BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
+      client <- EmberClientBuilder.default[IO].build.map(c => Retry(RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5)))(c))
     } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   def runtimeInStateOrError(status: ClusterStatus): DoneCheckable[GetRuntimeResponse] =

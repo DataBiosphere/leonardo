@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{SamPolicyName, SamResourceTyp
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
 import org.http4s.Uri
-import org.http4s.blaze.client.BlazeClientBuilder
+import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.flatspec.AnyFlatSpec
@@ -185,7 +185,7 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   // val client: Client[IO] = EmberClientBuilder.default[IO].build.allocated.unsafeRunSync()._1
 
   val client: Client[IO] =
-    BlazeClientBuilder[IO](ExecutionContext.global).resource.allocated.unsafeRunSync()._1
+    EmberClientBuilder[IO](ExecutionContext.global).resource.allocated.unsafeRunSync()._1
 
   /*
   we should use these tests to ensure that our client class correctly handles responses from the provider - i.e. decoding, error mapping, validation

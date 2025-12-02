@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, 
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
-import org.http4s.blaze.client.BlazeClientBuilder
+import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.client.middleware.Logger
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
@@ -65,7 +65,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   def withDockerDAO(testCode: HttpDockerDAO[IO] => Any): Unit = {
     val dockerDAOResource = for {
-      client <- BlazeClientBuilder[IO](scala.concurrent.ExecutionContext.global).resource
+      client <- EmberClientBuilder[IO](scala.concurrent.ExecutionContext.global).resource
       clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
       dockerDAO = HttpDockerDAO[IO](clientWithLogging)
     } yield dockerDAO

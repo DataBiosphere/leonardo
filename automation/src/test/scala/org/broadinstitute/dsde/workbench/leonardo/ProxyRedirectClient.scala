@@ -4,7 +4,7 @@ import cats.effect.{IO, Ref}
 import cats.implicits._
 import fs2._
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.proxyRedirectServerPortKey
-import org.http4s.blaze.server.BlazeServerBuilder
+import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.client.Client
 import org.http4s.dsl.io._
 import org.http4s.headers.{`Content-Type`, Referer}
@@ -96,7 +96,7 @@ object ProxyRedirectClient {
     for {
       // Note this uses `bindAny` which will bind to an arbitrary port. We can't use a dedicated port
       // because multiple test suites may be running on the same host in different class loaders.
-      server <- BlazeServerBuilder[IO].bindAny("0.0.0.0").withHttpApp(route).resource.allocated
+      server <- EmberServerBuilder[IO].bindAny("0.0.0.0").withHttpApp(route).resource.allocated
     } yield server
   }
 

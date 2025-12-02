@@ -8,29 +8,14 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
+import fs2.io.net.Network
+import fs2.io.net.tls.TLSContext
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, CloudAuthTokenProvider, SamAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
-  applicationConfig,
-  asyncTaskProcessorConfig,
-  autoFreezeConfig,
-  dataprocConfig,
-  dateAccessUpdaterConfig,
-  gceConfig,
-  gkeClusterConfig,
-  httpSamDaoConfig,
-  imageConfig,
-  kubernetesDnsCacheConfig,
-  proxyConfig,
-  publisherConfig,
-  pubsubConfig,
-  runtimeDnsCacheConfig,
-  samAuthConfig,
-  subscriberConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, dataprocConfig, dateAccessUpdaterConfig, gceConfig, gkeClusterConfig, httpSamDaoConfig, imageConfig, kubernetesDnsCacheConfig, proxyConfig, publisherConfig, pubsubConfig, runtimeDnsCacheConfig, samAuthConfig, subscriberConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{HttpSamApiClientProvider, SamService, SamServiceInterp}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -46,9 +31,9 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
-import org.http4s.blaze.client
+import org.http4s.ember.client
 import org.http4s.client.RequestKey
-import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
+import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
@@ -312,19 +297,20 @@ class BaselineDependenciesBuilder {
     )
 
     for {
+      // Convert SSLContext to TLSContext[F]
+      tlsContext <- Resource.eval(Network[F].tlsContext.fromSSLContext(sslContext))
       httpClient <- client
-        .BlazeClientBuilder[F]
-        .withSslContext(sslContext)
+        .EmberClientBuilder
+        .default[F]
+        .withTLSContext(tlsContext)
         // Note a custom resolver is needed for making requests through the Leo proxy
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
         // hostname resolution, so it's okay to use for all clients.
-        .withCustomDnsResolver(dnsResolver)
-        .withConnectTimeout(30 seconds)
-        .withRequestTimeout(60 seconds)
-        .withMaxTotalConnections(100)
-        .withMaxWaitQueueLimit(1024)
-        .withMaxIdleDuration(30 seconds)
-        .resource
+//        .withCustomDnsResolver(dnsResolver)
+        .withTimeout(60 seconds)
+        .withMaxTotal(100)
+        .withIdleConnectionTime(30 seconds)
+        .build
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
       )
