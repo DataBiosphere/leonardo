@@ -35,7 +35,7 @@ else
   DOCKER_COMPOSE='docker-compose'
   DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
 fi
-export USER_HOME=$(jupyterHomeDirectory)
+export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 export RSTUDIO_USER_HOME=/home/rstudio
 export GOOGLE_PROJECT=$(googleProject)
 export CLUSTER_NAME=$(clusterName)
@@ -145,7 +145,7 @@ function validateCert() {
       DATAPROC_IMAGES_TO_RESTART+=(-f /etc/jupyter-docker-compose.yaml )
     fi
 
-    if [ "${CLOUD_SERVICE}" == 'DATAPROC' ]
+    if [ "${CLOUD_SERVICE}" == 'DATAPROC']
     then
       ${DOCKER_COMPOSE} "${DATAPROC_IMAGES_TO_RESTART[@]}" restart &> /var/start_output.txt || EXIT_CODE=$?
     else
@@ -312,7 +312,7 @@ else
 
         # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
         # A better to do this might be to take welder host as an argument to the script
-        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/extensions/jupyter_delocalize.py"
+        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
     fi
 fi
 
@@ -366,7 +366,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
     # Start Jupyter server
-    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/run-jupyter.sh $NOTEBOOKS_DIR || /etc/jupyter/bin/jupyter notebook)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
 fi
 
 # Configuring RStudio, if enabled

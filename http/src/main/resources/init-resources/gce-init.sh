@@ -40,9 +40,8 @@ START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 IS_GCE_FORMATTED=$(isGceFormatted)
 # Needs to be in sync with terra-docker container
 JUPYTER_HOME=/etc/jupyter
-JUPYTER_EXTENSIONS=$JUPYTER_HOME/extensions
-JUPYTER_SCRIPTS=$JUPYTER_EXTENSIONS/scripts
-USER_HOME=$(jupyterHomeDirectory)
+JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
+JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
@@ -411,11 +410,13 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # Install everything after having mounted the empty PD
   # This should not be needed anymore if the jupyter home is a directory of the PD mount point
   # See: https://github.com/DataBiosphere/leonardo/pull/4465/files
-  if [ ! "$USER_HOME" = "/home/jupyter" ] ; then
+  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
     # TODO: Remove once we stop supporting non AI notebooks based images
-    log 'Installing Jupyter kernelspecs'
+    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
+    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
+
     # Install kernelspecs inside the Jupyter container
-    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
   fi
 
   # Install notebook.json which is used to populate Jupyter.notebook.config in JavaScript extensions.
@@ -446,14 +447,14 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
         docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
         JUPYTER_EXTENSION_FILE=`basename $ext`
         curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
         docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
       else
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_pip_install_notebook_extension.sh $ext
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
       fi
     done
   fi
@@ -467,9 +468,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
         docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       else
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_pip_install_server_extension.sh $ext
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
       fi
     done
   fi
@@ -484,9 +485,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
         docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
       else
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_pip_install_combined_extension.sh $ext
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
       fi
     done
   fi
@@ -502,14 +503,14 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         $GSUTIL_CMD cp -r $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
         docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
         JUPYTER_EXTENSION_FILE=`basename $ext`
         curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
         docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
       else
-        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/jupyter_install_lab_extension.sh $ext
+        retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
       fi
     done
   fi
@@ -523,26 +524,24 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
   # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' $JUPYTER_EXTENSIONS/jupyter_delocalize.py"
-
-  log 'Wget the gitignore_global file, set gitignore in Git Config'
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' /etc/jupyter/custom/jupyter_delocalize.py"
 
   # Copy gitignore into jupyter container (ask AOU?)
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget -N https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global \
-  && git config --global core.excludesfile $USER_HOME/gitignore_global"
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "wget -N https://raw.githubusercontent.com/DataBiosphere/terra-docker/045a139dbac19fbf2b8c4080b8bc7fff7fc8b177/terra-jupyter-aou/gitignore_global"
 
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "whoami"
-
-  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "ls -l $JUPYTER_EXTENSIONS"
+  # Install nbstripout and set gitignore in Git Config (ask AOU?)
+  docker exec $JUPYTER_SERVER_NAME /bin/bash -c "pip install nbstripout \
+        && nbstripout --install --global \
+        && git config --global core.excludesfile $JUPYTER_USER_HOME/gitignore_global"
 
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
-  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_SCRIPTS/install_jupyter_contrib_nbextensions.sh \
-       && mkdir -p $USER_HOME/.jupyter/custom/ \
-       && cp $JUPYTER_EXTENSIONS/google_sign_in.js $USER_HOME/.jupyter/custom/ \
-       && ls -la $JUPYTER_EXTENSIONS/extension_entry_jupyter.js \
-       && cp $JUPYTER_EXTENSIONS/extension_entry_jupyter.js $USER_HOME/.jupyter/custom/custom.js \
-       && cp $JUPYTER_EXTENSIONS/safe-mode.js $USER_HOME/.jupyter/custom/ \
-       && cp $JUPYTER_EXTENSIONS/edit-mode.js $USER_HOME/.jupyter/custom/ \
+  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+       && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
+       && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+       && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && mkdir -p $JUPYTER_HOME/nbconfig"
 
   # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
@@ -566,12 +565,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
    # done start user script
    STEP_TIMINGS+=($(date +%s))
 
-   # Move jupyter_localize_extension and jupyter_delocalize to site-packages so they can be found by jupyter
-   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "mv ${JUPYTER_EXTENSIONS}/jupyter_delocalize.py ${JUPYTER_HOME}/lib/python3.10/site-packages"
-   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "mv ${JUPYTER_EXTENSIONS}/jupyter_localize_extension.py ${JUPYTER_HOME}/lib/python3.10/site-packages"
-
   log 'Starting Jupyter Notebook...'
-  retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_HOME}/run-jupyter.sh ${NOTEBOOKS_DIR}"
+  retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
   # done start Jupyter
   STEP_TIMINGS+=($(date +%s))
