@@ -1,7 +1,0 @@
-{
-  "googleProject": $(googleProject),
-  "clusterName": $(clusterName),
-  "loginHint": $(loginHint),
-  "googleClientId": $(googleClientId),
-  "welderEnabled": $(welderEnabled)
-}

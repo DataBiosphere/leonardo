@@ -18,6 +18,5 @@ case class ClusterResourcesConfig(
 )
 
 object ClusterResourcesConfig {
-  val path = "init-resources"
-  val basePath = "base-init-resources"
+  val basePath = "init-resources"
 }

@@ -112,14 +112,9 @@ class GceInterpreter[F[_]](
         .fromOption(config.clusterResourcesConfig.cloudInit,
                     new LeoException("No cloud init file defined for GCE VM.", traceId = Some(ctx.traceId))
         )
-      // if the user is using the new terra-base jupyter image, a different set of init scripts is needed
-      // the terra-base init scripts have some different paths etc and are within the folder 'base-init-resources'
-      initResourcesPath =
-        if (params.runtimeImages.exists(img => img.imageType == Jupyter && img.imageUrl.contains("terra-base")))
-          ClusterResourcesConfig.basePath
         else ClusterResourcesConfig.path
       cloudInitFileContent = scala.io.Source
-        .fromResource(s"${initResourcesPath}/${cloudInit.asString}")
+        .fromResource(s"${ClusterResourcesConfig.basePath}/${cloudInit.asString}")
         .getLines()
         .toList
         .mkString("\n")
