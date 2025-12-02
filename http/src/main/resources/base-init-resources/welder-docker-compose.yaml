@@ -1,0 +1,38 @@
+# Note: we need to stay on docker-compose version 2 because version 3 doesn't support
+# configuring memory options in container mode. See discussion in:
+# https://docs.docker.com/compose/compose-file/#resources
+# https://github.com/docker/compose/issues/4513
+version: '2.4'
+services:
+  welder:
+    container_name: "${WELDER_SERVER_NAME}"
+    image: "${WELDER_DOCKER_IMAGE}"
+    entrypoint: "/opt/docker/bin/entrypoint.sh"
+    network_mode: host
+    restart: always
+    environment:
+      # TODO what env vars are actually needed here?
+      GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
+      STAGING_BUCKET: "${STAGING_BUCKET}"
+      CLUSTER_NAME: "${RUNTIME_NAME}"
+      RUNTIME_NAME: "${RUNTIME_NAME}"
+      OWNER_EMAIL: "${OWNER_EMAIL}"
+      SHOULD_BACKGROUND_SYNC: "${SHOULD_BACKGROUND_SYNC}"
+      CLOUD_PROVIDER: gcp
+      LOCKING_ENABLED: "true"
+      PORT: 8080
+      # The following envs aren't needed for GCP. But use dummy values just so welder will be able to read config properly
+      # TODO: remove as part of https://broadworkbench.atlassian.net/browse/AN-573
+      WSM_URL: "dummy"
+      WORKSPACE_ID: "dummy"
+      STORAGE_CONTAINER_RESOURCE_ID: "dummy"
+      STAGING_STORAGE_CONTAINER_RESOURCE_ID: "dummy"
+      AZURE_MANAGEMENT_URL: "dummy"
+    volumes:
+      # shared with jupyter
+      - ${WORK_DIRECTORY}:/work
+    # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
+    mem_limit: ${WELDER_MEM_LIMIT}
+    mem_reservation: ${WELDER_MEM_LIMIT}
+    # disable swap by setting it to the same value as mem_limit
+    memswap_limit: ${WELDER_MEM_LIMIT}

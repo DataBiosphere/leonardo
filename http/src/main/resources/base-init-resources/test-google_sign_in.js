@@ -1,2 +1,0 @@
-$(userEmailLoginHint)
-$(defaultClientId)
