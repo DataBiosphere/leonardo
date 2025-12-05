@@ -8,8 +8,6 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
-import fs2.io.net.Network
-import fs2.io.net.tls.TLSContext
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
@@ -32,11 +30,12 @@ import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudS
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.ember.client
-import org.http4s.client.RequestKey
+import org.http4s.client.{Client, RequestKey}
 import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
+import org.http4s.Uri.Ipv4Address
 
 import java.net.{InetSocketAddress, SocketException}
 import java.time.Instant
@@ -44,6 +43,8 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
+
+import fs2.io.net.tls.TLSContext
 
 /**
  * This class builds the baseline dependencies for the Leo App.
@@ -295,22 +296,49 @@ class BaselineDependenciesBuilder {
           case _                                          => RetryPolicy.defaultRetriable(req, result)
         }
     )
+    val tlsContext = Resource.eval(
+            fs2.io.net.tls.TLSContext[F].fromSSLContext(sslContext)
+          )
 
     for {
-      // Convert SSLContext to TLSContext[F]
-      tlsContext <- Resource.eval(Network[F].tlsContext.fromSSLContext(sslContext))
-      httpClient <- client
+      // Convert javax.net.ssl.SSLContext to fs2.io.net. tls.TLSContext
+//      tlsContext = Resource.eval(
+//        fs2.io.net.tls.TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
+//      )
+        httpClient <- client
         .EmberClientBuilder
         .default[F]
-        .withTLSContext(tlsContext)
-        // Note a custom resolver is needed for making requests through the Leo proxy
-        // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
-        // hostname resolution, so it's okay to use for all clients.
-//        .withCustomDnsResolver(dnsResolver)
+        .withTLSContext(Resource.eval(
+          fs2.io.net.tls.TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
+        ))
         .withTimeout(60 seconds)
         .withMaxTotal(100)
         .withIdleConnectionTime(30 seconds)
         .build
+        // Note: a custom resolver is needed for making requests through the Leo proxy
+        // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
+        // hostname resolution, so it's okay to use for all clients.
+        // this custom resolver wrapper intercepts requests and modifies the URI to use the resolved IP address
+        .map { baseClient =>
+          // Wrap the client to intercept requests and resolve DNS
+          Client[F] { req =>
+            for {
+              resolved <- Resource.eval(Async[F].fromEither(
+                dnsResolver(RequestKey.fromRequest(req))
+              ))
+              // Modify request to use resolved address if needed
+              modifiedReq = req.withUri(
+                req.uri.copy(authority = req.uri.authority.map(a =>
+                  a.copy(host = Ipv4Address.fromInet4Address(
+                    resolved.getAddress.asInstanceOf[java.net.Inet4Address]
+                  ))
+                ))
+              )
+              resp <- baseClient.run(modifiedReq)
+            } yield resp
+          }
+        }
+
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
       )

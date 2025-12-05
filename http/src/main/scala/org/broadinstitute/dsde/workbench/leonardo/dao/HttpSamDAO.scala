@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import _root_.fs2._
 import _root_.io.circe._
 import _root_.org.typelevel.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCode._
@@ -69,9 +68,8 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Request[F](
             method = Method.POST,
             uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self")),
-            entity = Entity.strict(Chunk.array("app.terra.bio/#terms-of-service".getBytes(UTF_8)).toByteVector),
             headers = Headers(leoToken)
-          )
+          ).withEntity("app.terra.bio/#terms-of-service")
         )
         .whenA(!isRegistered.enabled)
     } yield ()

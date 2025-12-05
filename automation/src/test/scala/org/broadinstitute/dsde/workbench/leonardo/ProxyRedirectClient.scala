@@ -2,12 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{IO, Ref}
 import cats.implicits._
+import com.comcast.ip4s.IpLiteralSyntax
 import fs2._
+import fs2.io.net.Network
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.proxyRedirectServerPortKey
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.client.Client
 import org.http4s.dsl.io._
-import org.http4s.headers.{`Content-Type`, Referer}
+import org.http4s.headers.{Referer, `Content-Type`}
 import org.http4s.implicits._
 import org.http4s.server.Server
 import org.http4s._
@@ -34,7 +36,7 @@ object ProxyRedirectClient {
   def startServer(): IO[Int] =
     for {
       serverAndShutDown <- ProxyRedirectClient.server
-      port = serverAndShutDown._1.address.port.value
+      port = serverAndShutDown._1.address.getPort
       _ <- serverRef.modify(mp => (mp, mp + (port -> serverAndShutDown)))
     } yield port
 
@@ -87,16 +89,22 @@ object ProxyRedirectClient {
       .intersperse("\n")
       .through(text.utf8.encode)
 
-  private def server: IO[(Server, IO[Unit])] = {
+  private def server(implicit network: Network[IO]): IO[(Server, IO[Unit])] = {
     val route = HttpRoutes
       .of[IO] { case GET -> Root / "proxyRedirectClient" :? Rurl(rurl) =>
         Ok(getContent(rurl), `Content-Type`(MediaType.text.html))
       }
       .orNotFound
     for {
-      // Note this uses `bindAny` which will bind to an arbitrary port. We can't use a dedicated port
+      // Note this uses port 0, which will bind to an arbitrary port. We can't use a dedicated port
       // because multiple test suites may be running on the same host in different class loaders.
-      server <- EmberServerBuilder[IO].bindAny("0.0.0.0").withHttpApp(route).resource.allocated
+      server <- EmberServerBuilder
+        .default[IO]
+        .withHost(ipv4"0.0.0.0")
+        .withPort(port"0")
+        .withHttpApp(route)
+        .build
+        .allocated
     } yield server
   }
 

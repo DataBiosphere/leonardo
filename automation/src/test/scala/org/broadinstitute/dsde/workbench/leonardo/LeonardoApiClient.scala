@@ -3,25 +3,18 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{
-  streamFUntilDone,
-  streamUntilDoneOrTimeout,
-  DiskName,
-  MachineTypeName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName, streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.http4s._
-import org.http4s.ember.client.EmberClientBuilder
-import org.http4s.circe.CirceEntityEncoder._
+import org.http4s.circe.CirceEntityCodec._
 import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
+import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.headers._
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -148,8 +141,7 @@ object LeonardoApiClient {
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
             ),
-            entity = createRuntime2Request
-          )
+          ).withEntity(createRuntime2Request)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -221,8 +213,7 @@ object LeonardoApiClient {
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
             ),
-            entity = req
-          )
+          ).withEntity(req)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -233,7 +224,7 @@ object LeonardoApiClient {
         }
     } yield r
 
-  // This line causes the body to be decoded as JSON, which will prevent error messagges from being seen
+  // This line causes the body to be decoded as JSON, which will prevent error messages from being seen
   // If you care about the error message, place the function before this line
   import org.http4s.circe.CirceEntityDecoder._
 
@@ -363,8 +354,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            entity = createDiskRequest
-          )
+          ).withEntity(createDiskRequest)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -390,8 +380,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            entity = req
-          )
+          ).withEntity(req)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -518,8 +507,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")),
-            entity = createAppRequest
-          )
+          ).withEntity(createAppRequest)
         )
         .use { resp =>
           if (resp.status.isSuccess)
