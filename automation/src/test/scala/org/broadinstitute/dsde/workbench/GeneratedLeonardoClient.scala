@@ -30,7 +30,10 @@ object GeneratedLeonardoClient {
 
   val client: Resource[IO, Client[IO]] =
     for {
-      client <- EmberClientBuilder.default[IO].build.map(c => Retry(RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5)))(c))
+      client <- EmberClientBuilder
+        .default[IO]
+        .build
+        .map(c => Retry(RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5)))(c))
     } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   def runtimeInStateOrError(status: ClusterStatus): DoneCheckable[GetRuntimeResponse] =

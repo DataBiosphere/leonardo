@@ -3,7 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName, streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  DiskName,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -46,7 +52,10 @@ object LeonardoApiClient {
 
   val client: Resource[IO, Client[IO]] =
     for {
-      client <- EmberClientBuilder.default[IO].build.map(c => Retry(RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5)))(c))
+      client <- EmberClientBuilder
+        .default[IO]
+        .build
+        .map(c => Retry(RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5)))(c))
     } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   val defaultCreateRequestZone = ZoneName("us-east1-b")
@@ -140,7 +149,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
-            ),
+            )
           ).withEntity(createRuntime2Request)
         )
         .use { resp =>
@@ -212,7 +221,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
-            ),
+            )
           ).withEntity(req)
         )
         .use { resp =>
@@ -353,7 +362,7 @@ object LeonardoApiClient {
             method = Method.POST,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
           ).withEntity(createDiskRequest)
         )
         .use { resp =>
@@ -379,7 +388,7 @@ object LeonardoApiClient {
             method = Method.PATCH,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
           ).withEntity(req)
         )
         .use { resp =>
@@ -506,7 +515,7 @@ object LeonardoApiClient {
             method = Method.POST,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")),
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"))
           ).withEntity(createAppRequest)
         )
         .use { resp =>

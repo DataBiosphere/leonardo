@@ -4,10 +4,12 @@ import akka.actor.ActorSystem
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.effect.{Async, Ref, Resource}
 import cats.{Monad, Parallel}
+import com.comcast.ip4s
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
+import fs2.io.net.Network
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
@@ -43,7 +45,6 @@ import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
-
 import fs2.io.net.tls.TLSContext
 
 /**
@@ -280,7 +281,7 @@ class BaselineDependenciesBuilder {
       .recordStats()
       .build[K, V]()
 
-  private def buildHttpClient[F[_]: Async: StructuredLogger](
+  private def buildHttpClient[F[_]: Async: StructuredLogger: Network](
     sslContext: SSLContext,
     dnsResolver: RequestKey => Either[Throwable, InetSocketAddress],
     metricsPrefix: Option[String],
@@ -296,21 +297,44 @@ class BaselineDependenciesBuilder {
           case _                                          => RetryPolicy.defaultRetriable(req, result)
         }
     )
-    val tlsContext = Resource.eval(
-            fs2.io.net.tls.TLSContext[F].fromSSLContext(sslContext)
-          )
+
+    val tlsContext = TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
+
+    // Middleware to apply custom DNS resolution
+    val dnsMiddleware: org.http4s.client.Client[F] => org.http4s.client.Client[F] = { client =>
+      org.http4s.client.Client[F] { req =>
+        val resolvedReq = req.uri.host match {
+          case Some(host) =>
+            val requestKey = RequestKey(
+              req.uri.scheme. getOrElse(org.http4s.Uri. Scheme.http),
+              host
+            )
+            dnsResolver(requestKey) match {
+              case Right(addr) =>
+                // Update URI with resolved IP but keep Host header with original hostname
+                val newUri = req. uri.copy(
+                  authority = req.uri.authority.map(_. copy(
+                    host = apply(ip4s.Ipv4Address.fromInet4Address(addr.getAddress).getOrElse(host)
+                  ))
+                )
+                req.withUri(newUri). putHeaders(org.http4s.headers.Host(host. renderString))
+              case Left(err) =>
+                StructuredLogger[F].warn(err)(s"DNS resolution failed for ${host. renderString}, using default")
+                req
+            }
+          case None => req
+        }
+        client.run(resolvedReq)
+      }
+    }
 
     for {
       // Convert javax.net.ssl.SSLContext to fs2.io.net. tls.TLSContext
-//      tlsContext = Resource.eval(
-//        fs2.io.net.tls.TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
-//      )
+//      tlsContext = TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
         httpClient <- client
         .EmberClientBuilder
-        .default[F]
-        .withTLSContext(Resource.eval(
-          fs2.io.net.tls.TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
-        ))
+        .default
+        .withTLSContext(tlsContext)
         .withTimeout(60 seconds)
         .withMaxTotal(100)
         .withIdleConnectionTime(30 seconds)
