@@ -158,8 +158,6 @@ object Dependencies {
   def excludeNettyCodecHttp = ExclusionRule("io.netty", "netty-codec-http")
   def excludeAzureNetty = ExclusionRule("com.azure", "azure-core-http-netty")
 
-  //  def excludeAzureStairway = ExclusionRule("bio.terra", "stairway-azure")
-
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
   def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot,
