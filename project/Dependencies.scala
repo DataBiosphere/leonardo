@@ -154,10 +154,19 @@ object Dependencies {
   def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
   def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
   def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
+  def excludeJsonSmart = ExclusionRule("net.minidev", "json-smart")
+  def excludeNettyCodecHttp = ExclusionRule("io.netty", "netty-codec-http")
+  def excludeAzureNetty = ExclusionRule("com.azure", "azure-core-http-netty")
+
+  //  def excludeAzureStairway = ExclusionRule("bio.terra", "stairway-azure")
 
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeFlagsmith)
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot,
+    excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus,
+    excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml,
+    excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeFlagsmith,
+    excludeJsonSmart, excludeNettyCodecHttp, excludeAzureNetty)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
   val sam = excludeJakarta("org.broadinstitute.dsde.workbench" %% "sam-client" % samV)
 
@@ -251,9 +260,13 @@ object Dependencies {
     okHttp % Test
   )
 
+  def excludeNettyCodecHttp2 = ExclusionRule("io.netty", "netty-codec-http2")
+  def excludeIoPactPlugin = ExclusionRule("io.pact.plugin.driver")
+
+
   val pact4sDependencies = Seq(
-    pact4sScalaTest,
-    pact4sCirce,
+    pact4sScalaTest.excludeAll(excludeNettyCodecHttp2, excludeIoPactPlugin),
+    pact4sCirce.excludeAll(excludeNettyCodecHttp2, excludeIoPactPlugin),
     http4sEmberClient,
     http4sDsl,
     http4sEmberServer,
