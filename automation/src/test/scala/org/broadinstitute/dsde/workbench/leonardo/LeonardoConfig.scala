@@ -12,7 +12,7 @@ object LeonardoConfig extends CommonConfig {
   object Leonardo {
     val apiUrl: String = leonardo.getString("apiUrl")
     val notebooksServiceAccountEmail: String = leonardo.getString("notebooksServiceAccountEmail")
-    val baseImageUrl:  String = leonardo.getString("baseImageUrl")
+    val baseImageUrl: String = leonardo.getString("baseImageUrl")
     val rImageUrl: String = leonardo.getString("rImageUrl")
     val pythonImageUrl: String = leonardo.getString("pythonImageUrl")
     val hailImageUrl: String = leonardo.getString("hailImageUrl")
