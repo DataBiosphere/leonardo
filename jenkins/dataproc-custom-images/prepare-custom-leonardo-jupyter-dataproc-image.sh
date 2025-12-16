@@ -17,6 +17,7 @@ set -e -x
 #
 # Note: You can check which version of the AOU image is used in prod here: https://github.com/all-of-us/workbench/blob/main/api/config/config_prod.json#L15C1-L16C1
 
+terra_base="us.gcr.io/broad-dsp-gcr-public/terra-base:0.0.1"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.6"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.7"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.7"
@@ -33,7 +34,7 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 
 # This array determines which of the above images are baked into the custom dataproc 2.2.x image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+docker_image_var_names="welder_server terra-base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
 
 # Comment the above and uncomment this to create the dataproc 2.1.x image
 # You would also need to revert the dataproc versions in the create_dataproc_image.sh like this:
