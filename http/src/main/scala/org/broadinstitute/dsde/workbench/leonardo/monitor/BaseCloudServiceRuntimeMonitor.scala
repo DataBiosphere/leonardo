@@ -112,7 +112,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
                     mainInstance: Option[DataprocInstance],
-                    deleteRuntime: Boolean = false
+                    deleteRuntime: Boolean = true
   )(implicit
     ev: Ask[F, AppContext]
   ): F[CheckResult] =
@@ -590,7 +590,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               Some("tool_start_up")
             ),
             mainDataprocInstance,
-            false
+            deleteRuntimeOnFail
           )
       }
     } yield r
