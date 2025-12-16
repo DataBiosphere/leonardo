@@ -106,7 +106,7 @@ class RuntimeDataprocSpec extends BillingProjectFixtureSpec with ParallelTestExe
               false
             )
           ),
-          toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
+          toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GAR))
         )
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)

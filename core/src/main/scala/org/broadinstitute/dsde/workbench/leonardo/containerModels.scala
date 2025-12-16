@@ -12,9 +12,12 @@ sealed trait ContainerRegistry extends EnumEntry with Product with Serializable 
 object ContainerRegistry extends Enum[ContainerRegistry] {
   val values = findValues
 
-  final case object GCR extends ContainerRegistry {
-    val regex: Regex =
-      """^((?:us\.|eu\.|asia\.)?gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+  final case object GAR extends ContainerRegistry {
+    val regex: Regex = {
+      // with GCR switching to GAR but keeping the old addresses valid, this accepts both gcr.io and gar.io addresses
+      """^((?:us\.|eu\.|asia\.)?(?:gcr|gar)\.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+    }
+
     override def toString: String = "GCR"
   }
 

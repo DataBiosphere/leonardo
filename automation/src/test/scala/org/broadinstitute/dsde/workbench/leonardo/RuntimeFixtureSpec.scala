@@ -115,7 +115,7 @@ trait RuntimeFixtureSpec
           billingProject,
           runtimeName,
           getRuntimeRequest(cloudService.getOrElse(CloudService.GCE),
-                            toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)),
+                            toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GAR)),
                             welderRegistry
           )
         )

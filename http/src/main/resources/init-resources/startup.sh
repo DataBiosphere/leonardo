@@ -367,6 +367,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # Determine jupyter path based on image type
   # images based on the new terra-base have jupyter installed in /etc/jupyter/bin/jupyter
+  # this marker is added as one of the last steps in the new base image here:
+  # https://github.com/DataBiosphere/terra-docker/blob/9aa343ae91ad1c94ca5a9f9e5bee02cc5d943b58/terra-base/Dockerfile#L235
   if docker exec $JUPYTER_SERVER_NAME test -f /etc/jupyter/.terra-base-marker; then
     JUPYTER_PATH="/etc/jupyter/bin/jupyter"
   else
