@@ -183,31 +183,36 @@ class SamClientSpec extends AnyFlatSpec with Matchers with RequestResponsePactFo
   override val pact: RequestResponsePact = pactDslResponse.toPact
 
   // val client: Client[IO] = EmberClientBuilder.default[IO].build.allocated.unsafeRunSync()._1
-
-  val client: Client[IO] =
-    EmberClientBuilder
-      .default[IO]
-      .build
-      .allocated
-      .unsafeRunSync()
-      ._1
-
   /*
   we should use these tests to ensure that our client class correctly handles responses from the provider - i.e. decoding, error mapping, validation
    */
   it should "get Sam ok status" in {
-    new SamClientImpl[IO](client, Uri.unsafeFromString(mockServer.getUrl), mockAuthToken(MockSamDAO.petSA))
-      .fetchSystemStatus()
+    val result = EmberClientBuilder
+      .default[IO]
+      .build
+      .use { client =>
+        new SamClientImpl[IO](client, Uri.unsafeFromString(mockServer.getUrl), mockAuthToken(MockSamDAO.petSA))
+          .fetchSystemStatus()
+      }
       .attempt
-      .unsafeRunSync() shouldBe Right(okSystemStatus)
+      .unsafeRunSync()
+
+    result shouldBe Right(okSystemStatus)
   }
 
   it should "fetch authorized workspace resources" in {
-    new SamClientImpl[IO](client, Uri.unsafeFromString(mockServer.getUrl), mockAuthToken(MockSamDAO.petSA))
-      .fetchResourcePolicies[WorkspaceResourceSamResourceId](Authorization(mockAuthToken(MockSamDAO.petSA)),
-                                                             SamResourceType.Workspace
-      )
+    val result = EmberClientBuilder
+      .default[IO]
+      .build
+      .use { client =>
+        new SamClientImpl[IO](client, Uri.unsafeFromString(mockServer.getUrl), mockAuthToken(MockSamDAO.petSA))
+          .fetchResourcePolicies[WorkspaceResourceSamResourceId](Authorization(mockAuthToken(MockSamDAO.petSA)),
+                                                                 SamResourceType.Workspace
+          )
+      }
       .attempt
-      .unsafeRunSync() shouldBe Right(workspaceResourceResponse) // workspaceResourceResponse1 also works
+      .unsafeRunSync()
+
+    result shouldBe Right(workspaceResourceResponse) // workspaceResourceResponse1 also works
   }
 }
