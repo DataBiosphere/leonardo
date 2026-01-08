@@ -64,11 +64,14 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
   )
 
   def withDockerDAO(testCode: HttpDockerDAO[IO] => Any): Unit = {
-    val dockerDAOResource = for {
-      client <- EmberClientBuilder[IO](scala.concurrent.ExecutionContext.global).resource
-      clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
-      dockerDAO = HttpDockerDAO[IO](clientWithLogging)
-    } yield dockerDAO
+    val dockerDAOResource: cats.effect.Resource[IO, HttpDockerDAO[IO]] =
+      EmberClientBuilder
+        .default[IO]
+        .build
+        .map { client =>
+          val clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
+          HttpDockerDAO[IO](clientWithLogging)
+        }
 
     dockerDAOResource.use(dao => IO(testCode(dao))).unsafeRunSync()
   }

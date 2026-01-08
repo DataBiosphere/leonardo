@@ -86,10 +86,14 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
 
   // allows http retrieval
   def withAppDescriptorDAO(testCode: HttpAppDescriptorDAO[IO] => Any): Unit = {
-    val daoResource = for {
-      client <- EmberClientBuilder[IO](global).resource
-      clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
-    } yield new HttpAppDescriptorDAO[IO](clientWithLogging)
+    val daoResource: cats.effect.Resource[IO, HttpAppDescriptorDAO[IO]] =
+      EmberClientBuilder
+        .default[IO]
+        .build
+        .map { client =>
+          val clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
+          new HttpAppDescriptorDAO[IO](clientWithLogging)
+        }
 
     daoResource.use(dao => IO(testCode(dao))).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

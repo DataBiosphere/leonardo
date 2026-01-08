@@ -173,7 +173,10 @@ class AppDependenciesBuilderSpec
 
   private def createBaselineDependenciesBuilderMock = {
     val baselineDependenciesBuilder = mock[BaselineDependenciesBuilder]
-    when(baselineDependenciesBuilder.createBaselineDependencies[IO]()(any(), any(), any(), any(), any(), any(), any()))
+    when(
+      baselineDependenciesBuilder
+        .createBaselineDependencies[IO]()(any(), any(), any(), any(), any(), any(), any(), any())
+    )
       .thenReturn(Resource.pure[IO, BaselineDependencies[IO]](baselineDependenciesMock))
 
     baselineDependenciesBuilder
