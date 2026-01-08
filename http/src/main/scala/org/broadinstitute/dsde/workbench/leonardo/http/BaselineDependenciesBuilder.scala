@@ -4,18 +4,35 @@ import akka.actor.ActorSystem
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.effect.{Async, Ref, Resource}
 import cats.{Monad, Parallel}
-import com.comcast.ip4s
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import fs2.io.net.Network
+import com.comcast.ip4s.{Ipv4Address => Ip4sIpv4Address}
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.{GooglePublisher, GoogleSubscriber}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, CloudAuthTokenProvider, SamAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.config.Config.{applicationConfig, asyncTaskProcessorConfig, autoFreezeConfig, dataprocConfig, dateAccessUpdaterConfig, gceConfig, gkeClusterConfig, httpSamDaoConfig, imageConfig, kubernetesDnsCacheConfig, proxyConfig, publisherConfig, pubsubConfig, runtimeDnsCacheConfig, samAuthConfig, subscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
+  applicationConfig,
+  asyncTaskProcessorConfig,
+  autoFreezeConfig,
+  dataprocConfig,
+  dateAccessUpdaterConfig,
+  gceConfig,
+  gkeClusterConfig,
+  httpSamDaoConfig,
+  imageConfig,
+  kubernetesDnsCacheConfig,
+  proxyConfig,
+  publisherConfig,
+  pubsubConfig,
+  runtimeDnsCacheConfig,
+  samAuthConfig,
+  subscriberConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.sam.{HttpSamApiClientProvider, SamService, SamServiceInterp}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -31,9 +48,8 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudSubscriber, ReceivedMessage}
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
-import org.http4s.ember.client
-import org.http4s.client.{Client, RequestKey}
-import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
+import org.http4s.client.RequestKey
+import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
@@ -59,6 +75,7 @@ class BaselineDependenciesBuilder {
   )(implicit
     logger: StructuredLogger[F],
     F: Async[F],
+    network: Network[F],
     ec: ExecutionContext,
     as: ActorSystem,
     dbRef: DbReference[F],
@@ -287,8 +304,6 @@ class BaselineDependenciesBuilder {
     metricsPrefix: Option[String],
     withRetry: Boolean
   ): Resource[F, org.http4s.client.Client[F]] = {
-    // Retry all SocketExceptions to deal with pooled HTTP connections getting closed.
-    // See https://broadworkbench.atlassian.net/browse/IA-4069.
     val retryPolicy = RetryPolicy[F](
       RetryPolicy.exponentialBackoff(30 seconds, 5),
       (req, result) =>
@@ -305,21 +320,22 @@ class BaselineDependenciesBuilder {
       org.http4s.client.Client[F] { req =>
         val resolvedReq = req.uri.host match {
           case Some(host) =>
-            val requestKey = RequestKey(
-              req.uri.scheme. getOrElse(org.http4s.Uri. Scheme.http),
-              host
-            )
+            val requestKey = RequestKey.fromRequest(req)
             dnsResolver(requestKey) match {
               case Right(addr) =>
-                // Update URI with resolved IP but keep Host header with original hostname
-                val newUri = req. uri.copy(
-                  authority = req.uri.authority.map(_. copy(
-                    host = apply(ip4s.Ipv4Address.fromInet4Address(addr.getAddress).getOrElse(host)
-                  ))
+                // Use ip4s conversion and wrap with org.http4s.Uri.Ipv4Address
+                val maybeHost: Option[org.http4s.Uri.Host] = addr.getAddress match {
+                  case inet4: java.net.Inet4Address =>
+                    val ip4sAddr = Ip4sIpv4Address.fromInet4Address(inet4)
+                    Some(Ipv4Address(ip4sAddr))
+                  case _ => None
+                }
+                val newUri = req.uri.copy(
+                  authority = req.uri.authority.map(a => a.copy(host = maybeHost.getOrElse(a.host)))
                 )
-                req.withUri(newUri). putHeaders(org.http4s.headers.Host(host. renderString))
+                req.withUri(newUri).putHeaders(org.http4s.headers.Host(host.renderString))
               case Left(err) =>
-                StructuredLogger[F].warn(err)(s"DNS resolution failed for ${host. renderString}, using default")
+                StructuredLogger[F].warn(err)(s"DNS resolution failed for ${host.renderString}, using default")
                 req
             }
           case None => req
@@ -329,44 +345,23 @@ class BaselineDependenciesBuilder {
     }
 
     for {
-      // Convert javax.net.ssl.SSLContext to fs2.io.net. tls.TLSContext
-//      tlsContext = TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
-        httpClient <- client
-        .EmberClientBuilder
-        .default
+      httpClient <- org.http4s.ember.client.EmberClientBuilder.default
         .withTLSContext(tlsContext)
         .withTimeout(60 seconds)
         .withMaxTotal(100)
         .withIdleConnectionTime(30 seconds)
         .build
-        // Note: a custom resolver is needed for making requests through the Leo proxy
-        // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
-        // hostname resolution, so it's okay to use for all clients.
-        // this custom resolver wrapper intercepts requests and modifies the URI to use the resolved IP address
         .map { baseClient =>
-          // Wrap the client to intercept requests and resolve DNS
-          Client[F] { req =>
-            for {
-              resolved <- Resource.eval(Async[F].fromEither(
-                dnsResolver(RequestKey.fromRequest(req))
-              ))
-              // Modify request to use resolved address if needed
-              modifiedReq = req.withUri(
-                req.uri.copy(authority = req.uri.authority.map(a =>
-                  a.copy(host = Ipv4Address.fromInet4Address(
-                    resolved.getAddress.asInstanceOf[java.net.Inet4Address]
-                  ))
-                ))
-              )
-              resp <- baseClient.run(modifiedReq)
-            } yield resp
-          }
+          // Wrap the client with DNS middleware to produce a client that resolves per-request
+          dnsMiddleware(baseClient)
         }
 
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
       )
+
       clientWithRetry = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
+
       finalClient <- metricsPrefix match {
         case None => Resource.pure[F, org.http4s.client.Client[F]](clientWithRetry)
         case Some(prefix) =>
