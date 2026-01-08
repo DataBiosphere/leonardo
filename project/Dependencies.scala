@@ -18,7 +18,7 @@ object Dependencies {
   val pact4sV = "0.16.2"
   val commonsBeanUtilsV = "1.11.0"
 
-  private val workbenchLibsHash = "653ef7fd-SNAP"
+  private val workbenchLibsHash = "41ed6208-SNAP"
   val serviceTestV = s"6.1-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
   val workbenchGoogleV = s"0.35-$workbenchLibsHash"
@@ -130,6 +130,7 @@ object Dependencies {
   val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
+
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
   val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
