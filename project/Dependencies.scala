@@ -252,9 +252,13 @@ object Dependencies {
     okHttp % Test
   )
 
+  def excludeNettyCodecHttp2 = ExclusionRule("io.netty", "netty-codec-http2")
+  def excludeIoPactPlugin = ExclusionRule("io.pact.plugin.driver")
+
+
   val pact4sDependencies = Seq(
-    pact4sScalaTest,
-    pact4sCirce,
+    pact4sScalaTest.excludeAll(excludeNettyCodecHttp2, excludeIoPactPlugin),
+    pact4sCirce.excludeAll(excludeNettyCodecHttp2, excludeIoPactPlugin),
     http4sEmberClient,
     http4sDsl,
     http4sEmberServer,
