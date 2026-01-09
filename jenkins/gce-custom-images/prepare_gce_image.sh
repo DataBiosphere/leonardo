@@ -15,7 +15,7 @@ set -e -x
 #
 # Constants and Global Vars
 #
-terra_base="us.gcr.io/broad-dsp-gcr-public/terra-base:0.0.1"
+terra_base="us.gcr.io/broad-dsp-gcr-public/terra-base:1.0.0"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.6"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.7"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.7"

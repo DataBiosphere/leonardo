@@ -17,7 +17,7 @@ set -e -x
 #
 # Note: You can check which version of the AOU image is used in prod here: https://github.com/all-of-us/workbench/blob/main/api/config/config_prod.json#L15C1-L16C1
 
-terra_base="us.gcr.io/broad-dsp-gcr-public/terra-base:0.0.1"
+terra_base="us.gcr.io/broad-dsp-gcr-public/terra-base:1.0.0"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.6"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.7"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.7"

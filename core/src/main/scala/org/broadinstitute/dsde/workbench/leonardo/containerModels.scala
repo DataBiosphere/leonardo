@@ -17,7 +17,7 @@ object ContainerRegistry extends Enum[ContainerRegistry] {
       // with GCR switching to GAR but keeping the old addresses valid, this accepts both gcr.io and gar.io addresses
       """^((?:us\.|eu\.|asia\.)?(?:gcr|gar)\.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
 
-    override def toString: String = "GCR"
+    override def toString: String = "GAR"
   }
 
   final case object GHCR extends ContainerRegistry {

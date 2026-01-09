@@ -275,7 +275,7 @@ EOF
     # If any image is hosted in a GAR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
     # NOTE: GCR images are now hosted on GAR, but the file paths haven't changed, they automatically redirect.
-    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
+    if grep -qF "gcr.io|gar.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
       log 'Authorizing GCR/GAR...'
       gcloud auth configure-docker
     fi
@@ -329,7 +329,10 @@ EOF
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-      log 'Installing Jupydocker kernelspecs...'
+      log 'Installing Jupyter kernelspecs...'
+      # Install kernelspecs inside the Jupyter container
+      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+
 
       # Install notebook.json
       if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
