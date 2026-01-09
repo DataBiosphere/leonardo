@@ -386,6 +386,10 @@ fi
 # This needs to happen before we start up containers because the jupyter user needs to be the owner of the PD
 chmod a+rwx ${WORK_DIRECTORY}
 
+# make sure permissions are set so that the jupyter user can read/write to the .jupyter directory
+sudo chown -R jupyter:user ~/home/jupyter/.jupyter
+
+
 # Docker compose up, starting all of the containers
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
