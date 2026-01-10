@@ -537,15 +537,13 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
   docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && chown -R jupyter:users ~$JUPYTER_USER_HOME/.jupyter \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
        && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
        && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && mkdir -p $JUPYTER_HOME/nbconfig"
-
-  # make sure permissions are set so that the jupyter user owns the .jupyter directory
-  docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "chown -R jupyter:users ~$JUPYTER_USER_HOME/.jupyter"
 
   # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
   # This is to make it so that older images will still work after we change notebooks location to home dir
