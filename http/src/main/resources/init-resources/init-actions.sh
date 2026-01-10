@@ -486,8 +486,8 @@ EOF
            && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
            && mkdir -p $JUPYTER_HOME/nbconfig"
 
-      # make sure permissions are set so that the jupyter user owns the .jupyter directory
-      docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "chown -R jupyter:user ~/home/jupyter/.jupyter"
+      # give the jupyter user ownership of the .jupyter directory for extensions to function properly
+      docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "chown -R jupyter:users ~$JUPYTER_HOME/.jupyter"
 
 
       log 'Starting Jupyter Notebook...'
