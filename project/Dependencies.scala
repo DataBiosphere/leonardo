@@ -15,7 +15,7 @@ object Dependencies {
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
-  val pact4sV = "0.16.2"
+  val pact4sV = "0.16.3"
   val commonsBeanUtilsV = "1.11.0"
 
   private val workbenchLibsHash = "dc1d534"
@@ -132,8 +132,11 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
-  val pact4sScalaTest =   "io.github.jbwheatley"  %% "pact4s-scalatest" % pact4sV % Test
-  val pact4sCirce =       "io.github.jbwheatley"  %% "pact4s-circe"     % pact4sV
+  // Exclude transitive netty from pact4s and add explicit newer netty in `Dependencies.scala`
+  val pact4sScalaTest = "io.github.jbwheatley" %% "pact4s-scalatest" % pact4sV % Test excludeAll ExclusionRule("io.netty", "netty-codec-http")
+  val pact4sCirce     = "io.github.jbwheatley" %% "pact4s-circe"     % pact4sV     excludeAll ExclusionRule("io.netty", "netty-codec-http")
+  // Add explicit netty dependency where appropriate (e.g. pact4sDependencies or core/http deps)
+  val nettyCodecHttp: ModuleID = "io.netty" % "netty-codec-http" % "4.2.2.Final"
   val commonsBeanUtils = "commons-beanutils" % "commons-beanutils" % commonsBeanUtilsV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
@@ -259,12 +262,11 @@ object Dependencies {
   )
 
   def excludeNettyCodecHttp2 = ExclusionRule("io.netty", "netty-codec-http2")
-  def excludeIoPactPlugin = ExclusionRule("io.pact.plugin.driver")
-
 
   val pact4sDependencies = Seq(
-    pact4sScalaTest.excludeAll(excludeNettyCodecHttp2, excludeIoPactPlugin),
-    pact4sCirce.excludeAll(excludeNettyCodecHttp2, excludeIoPactPlugin),
+    pact4sScalaTest.excludeAll(excludeNettyCodecHttp2),
+    pact4sCirce.excludeAll(excludeNettyCodecHttp2),
+    nettyCodecHttp,
     http4sEmberClient,
     http4sDsl,
     http4sEmberServer,
