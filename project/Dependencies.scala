@@ -132,7 +132,7 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
-  // Exclude transitive netty from pact4s and add explicit newer netty in `Dependencies.scala`
+  // Exclude transitive old netty from pact4s and add explicit newer netty in `Dependencies.scala`
   val pact4sScalaTest = "io.github.jbwheatley" %% "pact4s-scalatest" % pact4sV % Test excludeAll ExclusionRule("io.netty", "netty-codec-http")
   val pact4sCirce     = "io.github.jbwheatley" %% "pact4s-circe"     % pact4sV     excludeAll ExclusionRule("io.netty", "netty-codec-http")
   // Add explicit netty dependency where appropriate (e.g. pact4sDependencies or core/http deps)
