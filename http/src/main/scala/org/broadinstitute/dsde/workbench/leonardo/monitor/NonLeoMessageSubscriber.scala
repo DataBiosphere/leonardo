@@ -17,12 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
-  CryptoMining,
-  CryptoMiningScc,
-  DeleteKubernetesClusterMessage,
-  DeleteNodepoolMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{CryptoMining, CryptoMiningAbuseEvent, CryptoMiningScc, DeleteKubernetesClusterMessage, DeleteNodepoolMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.cryptominingUserMessageEncoder
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, DeleteNodepoolParams, GKEAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -80,6 +75,7 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
     case m: NonLeoMessage.CryptoMining                   => handleCryptoMiningMessage(m)
     case m: NonLeoMessage.DeleteNodepoolMessage          => handleDeleteNodepoolMessage(m)
     case m: NonLeoMessage.CryptoMiningScc                => handleCryptoMiningMessageScc(m)
+    case m: NonLeoMessage.CryptoMiningAbuseEvent         => handleCryptoMiningAbuseEventMessage(m)
   }
 
   private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(implicit
@@ -111,6 +107,36 @@ class NonLeoMessageSubscriber[F[_]](config: NonLeoMessageSubscriberConfig,
     msg: NonLeoMessage.CryptoMiningScc
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     deleteCryptominingRuntime(msg.resource.googleProject, msg.resource.runtimeName, msg.resource.zone, "scc")
+
+  private[monitor] def handleCryptoMiningAbuseEventMessage(
+                                                     msg: NonLeoMessage.CryptoMiningAbuseEvent
+                                                   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
+
+    for {
+      _ <-
+        if (
+          !(msg.detectionType == "CRYPTO_MINING")
+        )
+          logger.error(s"Unexpected cryptomining detection type: ${msg.detectionType}")
+        else
+          for {
+            runtimeFromGoogle <- computeService.getInstance(msg.googleProject,
+              msg.resource.labels.zone,
+              InstanceName(msg.resource.labels.instanceId.toString)
+            )
+            // We mark the runtime as Deleted, and delete the instance.
+            // If instance deletion fails for some reason, it will be cleaned up by resource-validator
+            _ <- runtimeFromGoogle.traverse { instance =>
+              deleteCryptominingRuntime(msg.googleProject,
+                RuntimeName(instance.getName),
+                msg.resource.labels.zone,
+                "google abuse event detector"
+              )
+            }
+          } yield ()
+    } yield()
+  }
+
 
   private[monitor] def handleCryptoMiningMessage(
     msg: NonLeoMessage.CryptoMining
@@ -280,6 +306,35 @@ object NonLeoMessageSubscriber {
       finding <- c.downField("finding").as[Finding]
     } yield CryptoMiningScc(resource, finding)
   }
+
+  implicit val cryptoMiningAbuseEventDetailsDecoder: Decoder[CryptoMiningAbuseEventDetails] = Decoder.instance { c =>
+    for {
+      detectionType <- c.downField("detectionType").as[String]
+      vmResource <- c.downField("cryptominingEvent").downField("vmResource").as[String]
+    } yield CryptoMiningAbuseEventDetails(detectionType, vmResource)
+  }
+
+  implicit val cryptoMiningAbuseEventDecoder: Decoder[CryptoMiningAbuseEvent] = Decoder.instance { c =>
+    for {
+      eventDetails <- c.downField("jsonPayload").as[CryptoMiningAbuseEventDetails]
+
+      //projects/{project-id}/zones/{zone}/instances/{instance-id}
+      instanceId = eventDetails.vmResource.split("/")(5).toLong
+      zone = ZoneName(eventDetails.vmResource.split("/")(3))
+      resource = GoogleResource(GoogleLabels(instanceId, zone))
+
+      logName <- c.downField("logName").as[String]
+      // logName looks like `projects/general-dev-billing-account/logs/cryptomining`
+      // we're extracting google project from logName instead of `labels` because `labels` are easier to spoof.
+      // We're using instance id from `labels` which is relatively okay because worst case is we're deleting an instance
+      // in this user's own billing project
+      splitted = logName.split("/")
+      googleProject <- Either
+        .catchNonFatal(GoogleProject(splitted(1)))
+        .leftMap(t => DecodingFailure(s"can't parse google project from logName due to ${t}", List.empty))
+    } yield CryptoMiningAbuseEvent(eventDetails.detectionType, resource, googleProject)
+  }
+
   implicit val deleteNodepoolDecoder: Decoder[DeleteNodepoolMessage] =
     Decoder.forProduct3("nodepoolId", "googleProject", "traceId")(DeleteNodepoolMessage.apply)
 
@@ -304,11 +359,15 @@ object NonLeoMessage {
   // Cryptoming messages generated from our custom cryptomining detector
   final case class CryptoMining(textPayload: String, resource: GoogleResource, googleProject: GoogleProject)
       extends NonLeoMessage {
-    val messageType: String = "crypto-minining"
+    val messageType: String = "crypto-mining"
   }
   // Cryptoming messages generated from Google's Security Command Center service
   final case class CryptoMiningScc(resource: CryptoMiningSccResource, finding: Finding) extends NonLeoMessage {
-    val messageType: String = "crypto-minining-scc"
+    val messageType: String = "crypto-mining-scc"
+  }
+  // Cryptoming messages generated from Google, within a user's project
+  final case class CryptoMiningAbuseEvent(detectionType: String, resource: GoogleResource, googleProject: GoogleProject) extends NonLeoMessage {
+    val messageType: String = "crypto-mining-abuse-event"
   }
   final case class DeleteNodepoolMessage(nodepoolId: NodepoolLeoId,
                                          googleProject: GoogleProject,
@@ -337,6 +396,11 @@ final case class CryptoMiningSccResource(
   cloudService: CloudService,
   runtimeName: RuntimeName,
   zone: ZoneName
+)
+
+final case class CryptoMiningAbuseEventDetails(
+                                                detectionType: String, //"CRYPTO_MINING"
+                                                vmResource: String, //projects/terra-805a7c14/zones/us-central1-a/instances/6317670314499867435"
 )
 
 final case class NonLeoMessageSubscriberConfig(userDiskDeviceName: DeviceName)
