@@ -399,8 +399,8 @@ final case class CryptoMiningSccResource(
 )
 
 final case class CryptoMiningAbuseEventDetails(
-                                                detectionType: String, //"CRYPTO_MINING"
-                                                vmResource: String, //projects/terra-805a7c14/zones/us-central1-a/instances/6317670314499867435"
+                                                detectionType: String,
+                                                vmResource: String,
 )
 
 final case class NonLeoMessageSubscriberConfig(userDiskDeviceName: DeviceName)
