@@ -311,8 +311,8 @@ object NonLeoMessageSubscriber {
   implicit val cryptoMiningAbuseEventDetailsDecoder: Decoder[CryptoMiningAbuseEventDetails] = Decoder.instance { c =>
     for {
       detectionType <- c.downField("detectionType").as[String]
-      vmResource <- c.downField("cryptominingEvent").downField("vmResource").as[String]
-    } yield CryptoMiningAbuseEventDetails(detectionType, vmResource)
+      vmResource <- c.downField("cryptoMiningEvent").downField("vmResource").as[Array[String]]
+    } yield CryptoMiningAbuseEventDetails(detectionType, vmResource(0))
   }
 
   implicit val cryptoMiningAbuseEventDecoder: Decoder[CryptoMiningAbuseEvent] = Decoder.instance { c =>
@@ -341,7 +341,7 @@ object NonLeoMessageSubscriber {
 
   implicit val nonLeoMessageDecoder: Decoder[NonLeoMessage] = Decoder.instance { x =>
     deleteKubernetesClusterDecoder.tryDecode(x) orElse (cryptoMiningDecoder.tryDecode(x)) orElse (deleteNodepoolDecoder
-      .tryDecode(x)) orElse (cryptoMiningSccDecoder.tryDecode(x))
+      .tryDecode(x)) orElse (cryptoMiningAbuseEventDecoder.tryDecode(x)) orElse (cryptoMiningSccDecoder.tryDecode(x))
   }
 
   implicit val userSubjectIdEncoder: Encoder[UserSubjectId] = Encoder.encodeString.contramap(_.asString)

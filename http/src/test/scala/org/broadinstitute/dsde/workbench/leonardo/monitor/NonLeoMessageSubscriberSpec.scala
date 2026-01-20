@@ -173,6 +173,60 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     decode[NonLeoMessage](jsonString) shouldBe Right(expectedResult)
   }
 
+  it should "decode NonLeoMessage.CryptominingAbuseEvent properly" in {
+    val jsonString =
+      """
+{
+        |  "insertId": "9062669515527671957",
+        |  "jsonPayload": {
+        |    "@type": "type.googleapis.com/google.cloud.abuseevent.logging.v1.AbuseEvent",
+        |    "detectionType": "CRYPTO_MINING",
+        |    "reason": "The monitored resource is mining cryptocurrencies (e.g. Bitcoin, Chia) which is against GCP TOS.",
+        |    "action": "NOTIFY",
+        |    "remediationLink": "https://cloud.google.com/docs/security/respond-to-abuse-misuse",
+        |    "cryptoMiningEvent": {
+        |      "destinationIp": [
+        |        "3.145.74.39"
+        |      ],
+        |      "detectedMiningStartTime": "2026-01-20T11:40:00Z",
+        |      "detectedMiningEndTime": "2026-01-20T12:04:00Z",
+        |      "vmIp": [
+        |        "35.232.132.254"
+        |      ],
+        |      "vmResource": [
+        |        "projects/terra-805a7c14/zones/us-central1-a/instances/4713536777184052026"
+        |      ],
+        |      "remotePort": [
+        |        8169
+        |      ]
+        |    }
+        |  },
+        |  "resource": {
+        |    "type": "abuseevent.googleapis.com/Location",
+        |    "labels": {
+        |      "location": "global",
+        |      "resource_container": "projects/135908015598"
+        |    }
+        |  },
+        |  "timestamp": "2026-01-20T12:15:59.202758798Z",
+        |  "severity": "NOTICE",
+        |  "labels": {
+        |    "abuseevent.googleapis.com/vm_resource": "projects/terra-805a7c14/zones/us-central1-a/instances/4713536777184052026"
+        |  },
+        |  "logName": "projects/terra-805a7c14/logs/abuseevent.googleapis.com%2Fabuse_events",
+        |  "receiveTimestamp": "2026-01-20T12:16:00.119885442Z"
+        |}
+        |""".stripMargin
+    val expectedResult = NonLeoMessage.CryptoMiningAbuseEvent(
+      "CRYPTO_MINING",
+      GoogleResource(
+        GoogleLabels(4713536777184052026L, ZoneName("us-central1-a"))
+      ),
+      GoogleProject("terra-805a7c14")
+    )
+    decode[NonLeoMessage](jsonString) shouldBe Right(expectedResult)
+  }
+
   it should "ignore NonLeoMessage.CryptominingScc when category is not supported" in {
     val jsonString =
       """
@@ -293,6 +347,31 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
                                     CommonTestData.defaultGceRuntimeConfig.zone
             ),
             Finding(SccCategory("Execution: Cryptocurrency Mining Combined Detection"))
+          )
+        )
+        statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
+        deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
+      } yield {
+        statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
+        deletedFrom.get shouldBe "cryptomining: scc"
+      }
+    }
+  }
+
+  it should "handle cryptomining-abuse-event message" in isolatedDbTest {
+    ioAssertion {
+      for {
+        runtime <- IO(
+          makeCluster(1)
+            .copy(status = RuntimeStatus.Running)
+            .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeConfig)
+        )
+        subscriber = makeSubscribler()
+        _ <- subscriber.messageResponder(
+          NonLeoMessage.CryptoMiningAbuseEvent(
+            "CRYPTO_MINING",
+            GoogleResource(GoogleLabels(runtime.id, CommonTestData.defaultGceRuntimeConfig.zone)),
+            GoogleProject(runtime.cloudContext.asString)
           )
         )
         statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
