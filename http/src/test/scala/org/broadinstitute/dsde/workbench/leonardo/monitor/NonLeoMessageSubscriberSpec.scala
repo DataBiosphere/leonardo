@@ -380,7 +380,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
       } yield {
         statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
-        deletedFrom.get shouldBe "cryptomining: scc"
+        deletedFrom.get shouldBe "cryptomining: google abuse event detector"
       }
     }
   }
