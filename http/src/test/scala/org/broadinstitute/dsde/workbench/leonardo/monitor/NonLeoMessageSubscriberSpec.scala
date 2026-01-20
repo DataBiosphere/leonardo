@@ -173,6 +173,60 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     decode[NonLeoMessage](jsonString) shouldBe Right(expectedResult)
   }
 
+  it should "decode NonLeoMessage.CryptominingAbuseEvent properly" in {
+    val jsonString =
+      """
+{
+        |  "insertId": "9062669515527671957",
+        |  "jsonPayload": {
+        |    "@type": "type.googleapis.com/google.cloud.abuseevent.logging.v1.AbuseEvent",
+        |    "detectionType": "CRYPTO_MINING",
+        |    "reason": "The monitored resource is mining cryptocurrencies (e.g. Bitcoin, Chia) which is against GCP TOS.",
+        |    "action": "NOTIFY",
+        |    "remediationLink": "https://cloud.google.com/docs/security/respond-to-abuse-misuse",
+        |    "cryptoMiningEvent": {
+        |      "destinationIp": [
+        |        "00.000.000.000"
+        |      ],
+        |      "detectedMiningStartTime": "2026-01-20T11:40:00Z",
+        |      "detectedMiningEndTime": "2026-01-20T12:04:00Z",
+        |      "vmIp": [
+        |        "0.000.000.000"
+        |      ],
+        |      "vmResource": [
+        |        "projects/general-dev-billing-account/zones/us-central1-a/instances/4713536777184052026"
+        |      ],
+        |      "remotePort": [
+        |        8169
+        |      ]
+        |    }
+        |  },
+        |  "resource": {
+        |    "type": "abuseevent.googleapis.com/Location",
+        |    "labels": {
+        |      "location": "global",
+        |      "resource_container": "projects/1089695574439"
+        |    }
+        |  },
+        |  "timestamp": "2026-01-20T12:15:59.202758798Z",
+        |  "severity": "NOTICE",
+        |  "labels": {
+        |    "abuseevent.googleapis.com/vm_resource": "projects/general-dev-billing-account/zones/us-central1-a/instances/4713536777184052026"
+        |  },
+        |  "logName": "projects/general-dev-billing-account/logs/abuseevent.googleapis.com%2Fabuse_events",
+        |  "receiveTimestamp": "2026-01-20T12:16:00.119885442Z"
+        |}
+        |""".stripMargin
+    val expectedResult = NonLeoMessage.CryptoMiningAbuseEvent(
+      "CRYPTO_MINING",
+      GoogleResource(
+        GoogleLabels(4713536777184052026L, ZoneName("us-central1-a"))
+      ),
+      GoogleProject("general-dev-billing-account")
+    )
+    decode[NonLeoMessage](jsonString) shouldBe Right(expectedResult)
+  }
+
   it should "ignore NonLeoMessage.CryptominingScc when category is not supported" in {
     val jsonString =
       """
@@ -300,6 +354,33 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       } yield {
         statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
         deletedFrom.get shouldBe "cryptomining: scc"
+      }
+    }
+  }
+
+  it should "handle cryptomining-abuse-event message" in isolatedDbTest {
+    ioAssertion {
+      for {
+        runtime <- IO(makeCluster(1).save())
+        computeService = new FakeGoogleComputeService {
+          override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+            ev: Ask[IO, TraceId]
+          ): cats.effect.IO[scala.Option[com.google.cloud.compute.v1.Instance]] =
+            IO.pure(Some(Instance.newBuilder().setName(runtime.runtimeName.asString).build()))
+        }
+        subscriber = makeSubscribler(computeService = computeService)
+        _ <- subscriber.handleCryptoMiningAbuseEventMessage(
+          NonLeoMessage
+            .CryptoMiningAbuseEvent("CRYPTO_MINING",
+                                    GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
+                                    GoogleProject(runtime.cloudContext.asString)
+            )
+        )
+        statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
+        deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
+      } yield {
+        statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
+        deletedFrom.get shouldBe "cryptomining: google abuse event detector"
       }
     }
   }
