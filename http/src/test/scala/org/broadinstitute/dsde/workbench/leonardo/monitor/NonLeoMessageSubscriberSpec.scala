@@ -364,7 +364,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         runtime <- IO(makeCluster(1).save())
         computeService = new FakeGoogleComputeService {
           override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
-                                                                                                       ev: Ask[IO, TraceId]
+            ev: Ask[IO, TraceId]
           ): cats.effect.IO[scala.Option[com.google.cloud.compute.v1.Instance]] =
             IO.pure(Some(Instance.newBuilder().setName(runtime.runtimeName.asString).build()))
         }
@@ -372,8 +372,8 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         _ <- subscriber.handleCryptoMiningAbuseEventMessage(
           NonLeoMessage
             .CryptoMiningAbuseEvent("CRYPTO_MINING",
-              GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
-              GoogleProject(runtime.cloudContext.asString)
+                                    GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
+                                    GoogleProject(runtime.cloudContext.asString)
             )
         )
         statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
