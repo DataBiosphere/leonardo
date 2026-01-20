@@ -325,7 +325,7 @@ object NonLeoMessageSubscriber {
       resource = GoogleResource(GoogleLabels(instanceId, zone))
 
       logName <- c.downField("logName").as[String]
-      // logName looks like `projects/general-dev-billing-account/logs/cryptomining`
+      // logName looks like `projects/general-dev-billing-account/logs/abuseevent.googleapis.com%2Fabuse_events`
       // we're extracting google project from logName instead of `labels` because `labels` are easier to spoof.
       // We're using instance id from `labels` which is relatively okay because worst case is we're deleting an instance
       // in this user's own billing project

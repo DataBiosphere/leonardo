@@ -186,15 +186,15 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         |    "remediationLink": "https://cloud.google.com/docs/security/respond-to-abuse-misuse",
         |    "cryptoMiningEvent": {
         |      "destinationIp": [
-        |        "3.145.74.39"
+        |        "00.000.000.000"
         |      ],
         |      "detectedMiningStartTime": "2026-01-20T11:40:00Z",
         |      "detectedMiningEndTime": "2026-01-20T12:04:00Z",
         |      "vmIp": [
-        |        "35.232.132.254"
+        |        "0.000.000.000"
         |      ],
         |      "vmResource": [
-        |        "projects/terra-805a7c14/zones/us-central1-a/instances/4713536777184052026"
+        |        "projects/general-dev-billing-account/zones/us-central1-a/instances/4713536777184052026"
         |      ],
         |      "remotePort": [
         |        8169
@@ -205,15 +205,15 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         |    "type": "abuseevent.googleapis.com/Location",
         |    "labels": {
         |      "location": "global",
-        |      "resource_container": "projects/135908015598"
+        |      "resource_container": "projects/1089695574439"
         |    }
         |  },
         |  "timestamp": "2026-01-20T12:15:59.202758798Z",
         |  "severity": "NOTICE",
         |  "labels": {
-        |    "abuseevent.googleapis.com/vm_resource": "projects/terra-805a7c14/zones/us-central1-a/instances/4713536777184052026"
+        |    "abuseevent.googleapis.com/vm_resource": "projects/general-dev-billing-account/zones/us-central1-a/instances/4713536777184052026"
         |  },
-        |  "logName": "projects/terra-805a7c14/logs/abuseevent.googleapis.com%2Fabuse_events",
+        |  "logName": "projects/general-dev-billing-account/logs/abuseevent.googleapis.com%2Fabuse_events",
         |  "receiveTimestamp": "2026-01-20T12:16:00.119885442Z"
         |}
         |""".stripMargin
@@ -222,7 +222,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       GoogleResource(
         GoogleLabels(4713536777184052026L, ZoneName("us-central1-a"))
       ),
-      GoogleProject("terra-805a7c14")
+      GoogleProject("general-dev-billing-account")
     )
     decode[NonLeoMessage](jsonString) shouldBe Right(expectedResult)
   }
