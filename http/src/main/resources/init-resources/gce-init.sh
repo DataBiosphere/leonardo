@@ -243,6 +243,12 @@ for Disk in "${AllsdDisks[@]}"; do
 done
 DISK_DEVICE_ID=${FreesdDisks}
 
+# Resize persistent disk if needed.
+# Must be done before trying to start the servers, otherwise it will fail to start if the disk is full.
+echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+resize2fs ${DISK_DEVICE_ID}
+
+
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   # It's likely that the persistent disk was previously mounted on another VM and wasn't properly unmounted
@@ -625,11 +631,6 @@ RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
 fi
-
-# Resize persistent disk if needed.
-echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-resize2fs ${DISK_DEVICE_ID}
-
 
 # Remove any unneeded cached images to save disk space.
 # Do this asynchronously so it doesn't hold up cluster creation
