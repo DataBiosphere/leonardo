@@ -243,12 +243,6 @@ for Disk in "${AllsdDisks[@]}"; do
 done
 DISK_DEVICE_ID=${FreesdDisks}
 
-# Resize persistent disk if needed.
-# Must be done before trying to start the servers, otherwise it will fail to start if the disk is full.
-echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-resize2fs ${DISK_DEVICE_ID}
-
-
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   # It's likely that the persistent disk was previously mounted on another VM and wasn't properly unmounted
@@ -261,6 +255,11 @@ if [ "$IS_GCE_FORMATTED" == "false" ] ; then
 fi
 
 mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+
+# Resize persistent disk if needed.
+# Must be done before trying to start the servers, otherwise it will fail to start if the disk is full.
+echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+resize2fs ${DISK_DEVICE_ID}
 
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
