@@ -256,6 +256,11 @@ fi
 
 mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 
+# Resize persistent disk if needed.
+# Must be done before trying to start the servers, otherwise it will fail to start if the disk is full.
+echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+resize2fs ${DISK_DEVICE_ID}
+
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
@@ -625,11 +630,6 @@ RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
 fi
-
-# Resize persistent disk if needed.
-echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-resize2fs ${DISK_DEVICE_ID}
-
 
 # Remove any unneeded cached images to save disk space.
 # Do this asynchronously so it doesn't hold up cluster creation
