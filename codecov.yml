@@ -25,5 +25,4 @@ ignore:
   - "automation"
   - "codegen_java"
   - "jenkins"
-  - "pact4s"
   - "docker"
