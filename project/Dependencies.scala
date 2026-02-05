@@ -131,7 +131,6 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
-  // Add explicit netty dependency where appropriate (e.g. core/http deps)
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val terraCommonLibV = "1.1.38-SNAPSHOT"
