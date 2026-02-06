@@ -5,17 +5,12 @@ object Dependencies {
 
   val akkaV = "2.6.20"
   val akkaHttpV = "10.2.10"
-  val googleV = "1.23.0"
-  val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.17"
   val http4sVersion = "1.0.0-M38" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
   val slickV = "3.4.1"
   val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
-  val opencensusV = "0.29.0"
-  val munitCatsEffectV = "1.0.7"
-  val commonsBeanUtilsV = "1.11.0"
 
   private val workbenchLibsHash = "dc1d534"
   val serviceTestV = s"6.1-$workbenchLibsHash"
@@ -38,11 +33,8 @@ object Dependencies {
   val excludeGson = ExclusionRule(organization = "com.google.code.gson", name = "gson")
   val excludeGoogleApiClient = ExclusionRule(organization = "com.google.api-client", name = "google-api-client")
   val excludeGoogleHttpClient = ExclusionRule(organization = "com.google.http-client", name = "google-http-client")
-  val excludeJacksonCore = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-core")
-  val excludeJacksonAnnotation = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-annotations")
   val excludeSlf4j = ExclusionRule(organization = "org.slf4j", name = "slf4j-api")
   val excludeTypesafeConfig = ExclusionRule(organization = "com.typesafe", name = "config")
-  val excludeTypesafeSslConfig = ExclusionRule(organization = "com.typesafe", name = "ssl-config-core")
   val excludeGoogleError = ExclusionRule(organization = "com.google.errorprone", name = "error_prone_annotations")
   val excludeHttpComponent = ExclusionRule(organization = "org.apache.httpcomponents", name = "httpclient")
   val excludeReactiveStream = ExclusionRule(organization = "org.reactivestreams", name = "reactive-streams")
@@ -127,9 +119,6 @@ object Dependencies {
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
-  val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
-  val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
-  val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
@@ -137,7 +126,6 @@ object Dependencies {
   val samV = "v0.0.274"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
-  def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
   def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi)
   def excludeSpringBoot = ExclusionRule("org.springframework.boot")
   def excludeSpringAop = ExclusionRule("org.springframework.spring-aop")
