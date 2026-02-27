@@ -11,13 +11,6 @@ COPY automation-tests-docker-entrypoint.sh /app
 
 RUN touch /app/key.json
 
-# Install Python 3.10 for gcloud compatibility (3.9 is no longer supported)
-RUN apt-get update \
-  && apt-get install -y python3.10 \
-  && rm -rf /var/lib/apt/lists/*
-
-ENV CLOUDSDK_PYTHON=python3.10
-
 # Downloading gcloud package
 # https://cloud.google.com/sdk/docs/install#linux
 # https://stackoverflow.com/questions/28372328/how-to-install-the-google-cloud-sdk-in-a-docker-image

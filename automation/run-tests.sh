@@ -7,6 +7,10 @@ set -e -x
 # Path to leonardo-account.json for the qa domain
 # LEONARDO_ACCOUNT_JSON_PATH
 
+# Install Python 3.10 for gcloud compatibility (3.9 is no longer supported)
+apt-get update -qq && apt-get install -y python3.10 && rm -rf /var/lib/apt/lists/*
+export CLOUDSDK_PYTHON=python3.10
+
 # Install gcloud CLI
 # Downloading gcloud package
 # https://cloud.google.com/sdk/docs/install#linux
