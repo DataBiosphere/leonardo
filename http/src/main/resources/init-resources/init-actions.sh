@@ -275,7 +275,7 @@ EOF
     # If any image is hosted in a GAR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
     # NOTE: GCR images are now hosted on GAR, but the file paths haven't changed, they automatically redirect.
-    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
+    if grep -qF "gcr.io|gar.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
       log 'Authorizing GCR/GAR...'
       gcloud auth configure-docker
     fi
@@ -329,7 +329,6 @@ EOF
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-      log 'Installing Jupydocker kernelspecs...'
 
       # Install notebook.json
       if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
@@ -476,6 +475,7 @@ EOF
       # Install the custom jupyter extensions needed to lock notebooks into edit or safe modes (required by AOU)
       docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
            && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && chown -R jupyter:users $JUPYTER_USER_HOME/.jupyter \
            && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
            && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
            && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \

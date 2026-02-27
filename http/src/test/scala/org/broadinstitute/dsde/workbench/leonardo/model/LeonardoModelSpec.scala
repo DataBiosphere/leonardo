@@ -169,14 +169,16 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe true
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe false
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("eu.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
-    ContainerRegistry.GCR.regex.pattern
+    ContainerRegistry.GAR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe true
+    ContainerRegistry.GAR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
+    ContainerRegistry.GAR.regex.pattern.asPredicate().test("us.gar.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
+    ContainerRegistry.GAR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe false
+    ContainerRegistry.GAR.regex.pattern.asPredicate().test("eu.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
+    ContainerRegistry.GAR.regex.pattern.asPredicate().test("eu.gar.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
+    ContainerRegistry.GAR.regex.pattern
       .asPredicate()
       .test("asia.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
-    ContainerRegistry.GCR.regex.pattern
+    ContainerRegistry.GAR.regex.pattern
       .asPredicate()
       .test("unknown.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe false
 
@@ -212,7 +214,7 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
   "ContainerImage.stringToJupyterDockerImage" should "match GCR first, and then dockerhub" in {
     ContainerImage.fromImageUrl("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (Some(
-      ContainerImage("us.gcr.io/broad-dsp-gcr-public/ubuntu1804", ContainerRegistry.GCR)
+      ContainerImage("us.gcr.io/broad-dsp-gcr-public/ubuntu1804", ContainerRegistry.GAR)
     ))
     ContainerImage.fromImageUrl("asd/asdf") shouldBe (Some(
       ContainerImage("asd/asdf", ContainerRegistry.DockerHub)

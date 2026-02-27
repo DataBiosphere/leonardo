@@ -378,7 +378,7 @@ class RuntimeServiceInterpTest
   it should "successfully create a cluster with an rstudio image" in isolatedDbTest {
     val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName2")
-    val rstudioImage = ContainerImage("some-rstudio-image", ContainerRegistry.GCR)
+    val rstudioImage = ContainerImage("some-rstudio-image", ContainerRegistry.GAR)
     val request = emptyCreateRuntimeReq.copy(
       toolDockerImage = Some(rstudioImage)
     )
@@ -564,7 +564,7 @@ class RuntimeServiceInterpTest
           userInfo,
           cloudContext,
           runtimeName2,
-          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GCR))
+          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GAR))
         )
         .attempt
       r3 <- runtimeService
@@ -634,7 +634,7 @@ class RuntimeServiceInterpTest
           userInfo,
           cloudContext,
           runtimeName2,
-          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GCR))
+          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GAR))
         )
         .attempt
 

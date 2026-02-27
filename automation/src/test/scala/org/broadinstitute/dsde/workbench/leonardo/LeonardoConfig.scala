@@ -12,14 +12,14 @@ object LeonardoConfig extends CommonConfig {
   object Leonardo {
     val apiUrl: String = leonardo.getString("apiUrl")
     val notebooksServiceAccountEmail: String = leonardo.getString("notebooksServiceAccountEmail")
+    val baseImageUrl: String = leonardo.getString("baseImageUrl")
     val rImageUrl: String = leonardo.getString("rImageUrl")
     val pythonImageUrl: String = leonardo.getString("pythonImageUrl")
     val hailImageUrl: String = leonardo.getString("hailImageUrl")
     val gatkImageUrl: String = leonardo.getString("gatkImageUrl")
     val aouImageUrl: String = leonardo.getString("aouImageUrl")
-    val baseImageUrl: String = leonardo.getString("baseImageUrl")
     val rstudioBioconductorImage =
-      ContainerImage(leonardo.getString("rstudioBioconductorImageUrl"), ContainerRegistry.GCR)
+      ContainerImage(leonardo.getString("rstudioBioconductorImageUrl"), ContainerRegistry.GAR)
 
     private val topic = ProjectTopicName.of(gcs.getString("serviceProject"), leonardo.getString("topicName"))
     val location: Location = Location(leonardo.getString("location"))

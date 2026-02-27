@@ -213,7 +213,7 @@ class RuntimeCreationDiskSpec extends BillingProjectFixtureSpec with ParallelTes
       )
 
       val createRuntime2Request = createRuntimeRequest.copy(toolDockerImage =
-        Some(ContainerImage(LeonardoConfig.Leonardo.pythonImageUrl, ContainerRegistry.GCR))
+        Some(ContainerImage(LeonardoConfig.Leonardo.pythonImageUrl, ContainerRegistry.GAR))
       ) // this just needs to be a different image from default image Leonardo uses, which is gatk
 
       val createRuntimeCloneRequest = createRuntime2Request.copy(

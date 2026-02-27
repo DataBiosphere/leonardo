@@ -256,6 +256,11 @@ fi
 
 mount -t ext4 -O discard,defaults ${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 
+# Resize persistent disk if needed.
+# Must be done before trying to start the servers, otherwise it will fail to start if the disk is full.
+echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+resize2fs ${DISK_DEVICE_ID}
+
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
@@ -537,6 +542,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # Starts the locking logic (used for AOU). google_sign_in.js  is likely not used anymore
   docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
        && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && chown -R jupyter:users $JUPYTER_USER_HOME/.jupyter \
        && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
        && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
@@ -624,11 +630,6 @@ RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
 fi
-
-# Resize persistent disk if needed.
-echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-resize2fs ${DISK_DEVICE_ID}
-
 
 # Remove any unneeded cached images to save disk space.
 # Do this asynchronously so it doesn't hold up cluster creation
