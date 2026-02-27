@@ -334,8 +334,8 @@ class BaselineDependenciesBuilder {
                   authority = req.uri.authority.map(a => a.copy(host = maybeHost.getOrElse(a.host)))
                 )
                 req.withUri(newUri).putHeaders(org.http4s.headers.Host(host.renderString))
-              case Left(err) =>
-                StructuredLogger[F].warn(err)(s"DNS resolution failed for ${host.renderString}, using default")
+              case Left(_) =>
+                // No explicit proxy mapping for this host; let ember use default DNS and TLS.
                 req
             }
           case None => req

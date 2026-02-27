@@ -41,7 +41,15 @@ object ProxyResolver {
         case RequestKey(s, auth) =>
           val port = auth.port.getOrElse(if (s == Uri.Scheme.https) 443 else 80)
           val host = auth.host.value
-          Either.catchNonFatal(dispatcher.unsafeRunSync(resolveInternal(host, port)))
+          // Only rewrite to IP for explicitly mapped hosts. Returning Left for unmapped hosts
+          // lets the ember client handle DNS and TLS normally, preserving TLS SNI for HTTPS
+          // connections to external services (SAM, Docker Hub, etc.).
+          // Note: resolveAkka still falls back to OS DNS for unmapped hosts (correct for Akka proxy).
+          val mapping = dispatcher.unsafeRunSync(hostToIpMapping.get)
+          mapping.get(host) match {
+            case Some(ip) => Right(new InetSocketAddress(ip.asString, port))
+            case None     => Left(new NoSuchElementException(s"No proxy mapping for host: $host"))
+          }
       }
 
     override def resolveAkka(host: String, port: Int): Future[InetSocketAddress] =
