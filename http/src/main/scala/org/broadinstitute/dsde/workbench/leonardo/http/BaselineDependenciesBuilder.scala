@@ -315,35 +315,6 @@ class BaselineDependenciesBuilder {
 
     val tlsContext = TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
 
-    // Middleware to apply custom DNS resolution
-    val dnsMiddleware: org.http4s.client.Client[F] => org.http4s.client.Client[F] = { client =>
-      org.http4s.client.Client[F] { req =>
-        val resolvedReq = req.uri.host match {
-          case Some(host) =>
-            val requestKey = RequestKey.fromRequest(req)
-            dnsResolver(requestKey) match {
-              case Right(addr) =>
-                // Use ip4s conversion and wrap with org.http4s.Uri.Ipv4Address
-                val maybeHost: Option[org.http4s.Uri.Host] = addr.getAddress match {
-                  case inet4: java.net.Inet4Address =>
-                    val ip4sAddr = Ip4sIpv4Address.fromInet4Address(inet4)
-                    Some(Ipv4Address(ip4sAddr))
-                  case _ => None
-                }
-                val newUri = req.uri.copy(
-                  authority = req.uri.authority.map(a => a.copy(host = maybeHost.getOrElse(a.host)))
-                )
-                req.withUri(newUri).putHeaders(org.http4s.headers.Host(host.renderString))
-              case Left(_) =>
-                // No explicit proxy mapping for this host; let ember use default DNS and TLS.
-                req
-            }
-          case None => req
-        }
-        client.run(resolvedReq)
-      }
-    }
-
     for {
       httpClient <- org.http4s.ember.client.EmberClientBuilder.default
         .withTLSContext(tlsContext)
@@ -351,10 +322,7 @@ class BaselineDependenciesBuilder {
         .withMaxTotal(100)
         .withIdleConnectionTime(30 seconds)
         .build
-        .map { baseClient =>
-          // Wrap the client with DNS middleware to produce a client that resolves per-request
-          dnsMiddleware(baseClient)
-        }
+        .map(dnsMiddleware(dnsResolver))
 
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
@@ -377,6 +345,36 @@ class BaselineDependenciesBuilder {
       }
     } yield finalClient
   }
+  private def dnsMiddleware[F[_]: cats.effect.MonadCancelThrow](
+    dnsResolver: RequestKey => Either[Throwable, InetSocketAddress]
+  )(client: org.http4s.client.Client[F]): org.http4s.client.Client[F] =
+    org.http4s.client.Client[F] { req =>
+      client.run(resolveRequest(req, dnsResolver))
+    }
+
+  private def resolveRequest[F[_]](
+    req: Request[F],
+    dnsResolver: RequestKey => Either[Throwable, InetSocketAddress]
+  ): Request[F] =
+    req.uri.host match {
+      case None => req
+      case Some(host) =>
+        dnsResolver(RequestKey.fromRequest(req)) match {
+          case Left(_) => req
+          case Right(addr) =>
+            val newUri = req.uri.copy(
+              authority = req.uri.authority.map(a => a.copy(host = resolveIp4sHost(addr).getOrElse(a.host)))
+            )
+            req.withUri(newUri).putHeaders(org.http4s.headers.Host(host.renderString))
+        }
+    }
+
+  private def resolveIp4sHost(addr: InetSocketAddress): Option[org.http4s.Uri.Host] =
+    addr.getAddress match {
+      case inet4: java.net.Inet4Address => Some(Ipv4Address(Ip4sIpv4Address.fromInet4Address(inet4)))
+      case _                            => None
+    }
+
   private def logAction[F[_]: Monad: StructuredLogger](s: String): F[Unit] =
     StructuredLogger[F].info(s)
 }
