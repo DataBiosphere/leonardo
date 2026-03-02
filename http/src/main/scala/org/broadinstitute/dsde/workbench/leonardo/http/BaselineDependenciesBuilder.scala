@@ -133,14 +133,14 @@ class BaselineDependenciesBuilder {
           cloudAuthTokenProvider
         )
       )
-      jupyterDao <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_jupyter_client"), false).map(
-        client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
+      jupyterDao <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_jupyter_client"), false).map(client =>
+        new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
-      welderDao <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_welder_client"), false).map(
-        client => new HttpWelderDAO[F](runtimeDnsCache, client, samDao)
+      welderDao <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_welder_client"), false).map(client =>
+        new HttpWelderDAO[F](runtimeDnsCache, client, samDao)
       )
-      rstudioDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_rstudio_client"), false).map(
-        client => new HttpRStudioDAO(runtimeDnsCache, client)
+      rstudioDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_rstudio_client"), false).map(client =>
+        new HttpRStudioDAO(runtimeDnsCache, client)
       )
       appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).map(client =>
         new HttpAppDAO(kubernetesDnsCache, client)
@@ -148,9 +148,7 @@ class BaselineDependenciesBuilder {
       appDescriptorDAO <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
-      dockerDao <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client =>
-        HttpDockerDAO[F](client)
-      )
+      dockerDao <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client => HttpDockerDAO[F](client))
 
       // Set up identity providers
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
