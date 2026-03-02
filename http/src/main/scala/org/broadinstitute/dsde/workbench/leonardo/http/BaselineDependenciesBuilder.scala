@@ -321,6 +321,7 @@ class BaselineDependenciesBuilder {
         .withTimeout(60 seconds)
         .withMaxTotal(100)
         .withIdleConnectionTime(30 seconds)
+        .withMaxResponseHeaderSize(16384)
         .build
         .map(dnsMiddleware(dnsResolver))
 
