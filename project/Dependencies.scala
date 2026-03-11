@@ -9,7 +9,7 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.17"
-  val http4sVersion = "1.0.0-M38" //Do not upgrade to M40 until workbench-libs does (missing M40 for blaze as of 08/2023
+  val http4sVersion = "0.23.33"
   val slickV = "3.4.1"
   val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
@@ -17,13 +17,13 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val commonsBeanUtilsV = "1.11.0"
 
-  private val workbenchLibsHash = "dc1d534"
+  private val workbenchLibsHash = "41ed6208-SNAP"
   val serviceTestV = s"6.1-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
   val workbenchGoogleV = s"0.35-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
-  val workbenchOauth2V = "0.8-3e0cf25"
+  val workbenchOauth2V = s"0.9-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.9.1"
 
@@ -124,12 +124,12 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.7" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.1"
-  val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
-  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
+  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % "0.25.0"
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
+
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
@@ -152,15 +152,10 @@ object Dependencies {
   def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
   def excludeJsonSmart = ExclusionRule("net.minidev", "json-smart")
   def excludeNettyCodecHttp = ExclusionRule("io.netty", "netty-codec-http")
-  def excludeAzureNetty = ExclusionRule("com.azure", "azure-core-http-netty")
 
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot,
-    excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus,
-    excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml,
-    excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeFlagsmith,
-    excludeJsonSmart, excludeNettyCodecHttp, excludeAzureNetty)
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeFlagsmith, excludeJsonSmart, excludeNettyCodecHttp)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
   val sam = excludeJakarta("org.broadinstitute.dsde.workbench" %% "sam-client" % samV)
 
@@ -207,7 +202,6 @@ object Dependencies {
     http4sPrometheus,
     "de.heikoseeberger" %% "akka-http-circe" % "1.39.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleRpc,
-
     hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
@@ -216,7 +210,7 @@ object Dependencies {
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
     "com.auth0" % "java-jwt" % "4.4.0",
-    http4sBlazeServer % Test,
+    http4sEmberServer % Test,
     scalaTestSelenium,
     scalaTestMockito,
   )
@@ -250,7 +244,7 @@ object Dependencies {
     scalaTest,
     scalaTestSelenium,
     scalaTestMockito,
-    http4sBlazeServer % Test,
+    http4sEmberServer % Test,
     okHttp % Test
   )
 

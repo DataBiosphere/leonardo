@@ -16,12 +16,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.http4s._
-import org.http4s.blaze.client.BlazeClientBuilder
-import org.http4s.circe.CirceEntityEncoder._
+import org.http4s.circe.CirceEntityCodec._
 import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
+import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.headers._
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -53,9 +52,10 @@ object LeonardoApiClient {
 
   val client: Resource[IO, Client[IO]] =
     for {
-      blockingEc <- ExecutionContexts.cachedThreadPool[IO]
-      retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5))
-      client <- BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
+      client <- EmberClientBuilder
+        .default[IO]
+        .build
+        .map(c => Retry(RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5)))(c))
     } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   val defaultCreateRequestZone = ZoneName("us-east1-b")
@@ -149,9 +149,8 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
-            ),
-            entity = createRuntime2Request
-          )
+            )
+          ).withEntity(createRuntime2Request)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -222,9 +221,8 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
-            ),
-            entity = req
-          )
+            )
+          ).withEntity(req)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -235,7 +233,7 @@ object LeonardoApiClient {
         }
     } yield r
 
-  // This line causes the body to be decoded as JSON, which will prevent error messagges from being seen
+  // This line causes the body to be decoded as JSON, which will prevent error messages from being seen
   // If you care about the error message, place the function before this line
   import org.http4s.circe.CirceEntityDecoder._
 
@@ -364,9 +362,8 @@ object LeonardoApiClient {
             method = Method.POST,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            entity = createDiskRequest
-          )
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
+          ).withEntity(createDiskRequest)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -391,9 +388,8 @@ object LeonardoApiClient {
             method = Method.PATCH,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            entity = req
-          )
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
+          ).withEntity(req)
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
@@ -519,9 +515,8 @@ object LeonardoApiClient {
             method = Method.POST,
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
-              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")),
-            entity = createAppRequest
-          )
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"))
+          ).withEntity(createAppRequest)
         )
         .use { resp =>
           if (resp.status.isSuccess)
