@@ -21,8 +21,8 @@ then
   export CLOUD_SERVICE='GCE'
   export WORK_DIRECTORY='/mnt/disks/work'
   CERT_DIRECTORY='/var/certs'
-  GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
-  GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
+  GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260319 gsutil'
+  GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260319 gcloud'
   DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
   DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 
@@ -126,7 +126,9 @@ function validateCert() {
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul  4 20:31:52 2026 GMT`
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-  if [[ "$notAfter" != *"notAfter=Jul  4"* ]] ; then
+  ## TODO: Update the date pattern below to match your NEW certificate's expiration date
+  ## For example, if new certs expire "Mar 15 ... 2027", use *"notAfter=Mar 15"*
+  if [[ "$notAfter" != *"notAfter=Mar 19"* ]] ; then
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
