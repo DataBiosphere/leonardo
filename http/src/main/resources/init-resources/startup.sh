@@ -21,8 +21,8 @@ then
   export CLOUD_SERVICE='GCE'
   export WORK_DIRECTORY='/mnt/disks/work'
   CERT_DIRECTORY='/var/certs'
-  GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260319 gsutil'
-  GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260319 gcloud'
+  GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
+  GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
   DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
   DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 
