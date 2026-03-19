@@ -21,8 +21,8 @@ then
   export CLOUD_SERVICE='GCE'
   export WORK_DIRECTORY='/mnt/disks/work'
   CERT_DIRECTORY='/var/certs'
-  GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
-  GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
+  GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260319 gsutil'
+  GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260319 gcloud'
   DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
   DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 
@@ -123,12 +123,19 @@ function failScriptIfError() {
 function validateCert() {
   certFileDirectory=$1
   ## This helps when we need to rotate certs.
+  notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul  4 20:31:52 2026 GMT`
 
+  ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
+  ## TODO: Update the date pattern below to match your NEW certificate's expiration date
+  ## For example, if new certs expire "Mar 15 ... 2027", use *"notAfter=Mar 15"*
+  if [[ "$notAfter" != *"notAfter=Mar 18"* ]] ; then
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
     IMAGES_TO_RESTART=(-f /var/docker-compose-files/proxy-docker-compose-gce.yaml)
+    DATAPROC_IMAGES_TO_RESTART=(-f /etc/proxy-docker-compose.yaml)
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ]; then
       IMAGES_TO_RESTART+=(-f /var/docker-compose-files/welder-docker-compose-gce.yaml)
       DATAPROC_IMAGES_TO_RESTART+=(-f /etc/welder-docker-compose.yaml)
     fi
@@ -149,14 +156,14 @@ function validateCert() {
 
     failScriptIfError ${GSUTIL_CMD}
     retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
 
-    # Log updated certificate info
-    newNotAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt`
-    newNotBefore=`openssl x509 -startdate -noout -in ${certFileDirectory}/jupyter-server.crt`
-    newCertSerial=`openssl x509 -serial -noout -in ${certFileDirectory}/jupyter-server.crt`
-    log "NEW certificate expiration: ${newNotAfter}"
-    log "NEW certificate issued: ${newNotBefore}"
+#
+# Main
+## The PD should be the only `sd` disk that is not mounted yet
 AllsdDisks=($(lsblk --nodeps --noheadings --output NAME --paths | grep -i "sd"))
+FreesdDisks=()
 for Disk in "${AllsdDisks[@]}"; do
     Mounts="$(lsblk -no MOUNTPOINT "${Disk}")"
     if [ -z "$Mounts" ]; then
