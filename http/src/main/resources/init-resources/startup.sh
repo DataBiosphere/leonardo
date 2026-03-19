@@ -128,7 +128,7 @@ function validateCert() {
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
   ## TODO: Update the date pattern below to match your NEW certificate's expiration date
   ## For example, if new certs expire "Mar 15 ... 2027", use *"notAfter=Mar 15"*
-  if [[ "$notAfter" != *"notAfter=Mar 19"* ]] ; then
+  if [[ "$notAfter" != *"notAfter=Mar 18"* ]] ; then
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
