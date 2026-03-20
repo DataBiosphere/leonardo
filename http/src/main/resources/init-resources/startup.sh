@@ -126,8 +126,8 @@ function validateCert() {
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul  4 20:31:52 2026 GMT`
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-  ## TODO: Update the date pattern below to match your NEW certificate's expiration date
-  ## For example, if new certs expire "Mar 15 ... 2027", use *"notAfter=Mar 15"*
+  ##  Update the date pattern below to match your NEW certificate's expiration date
+  ##  You can check the cert expiration date with `openssl x509 -enddate -noout -in /var/certs/jupyter-server.crt`
   if [[ "$notAfter" != *"notAfter=Mar 18"* ]] ; then
     ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
     ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
