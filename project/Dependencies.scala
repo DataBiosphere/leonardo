@@ -151,11 +151,11 @@ object Dependencies {
   def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
   def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
   def excludeJsonSmart = ExclusionRule("net.minidev", "json-smart")
-  def excludeNettyCodecHttp = ExclusionRule("io.netty", "netty-codec-http")
+  def excludeNettyCodecHttp2 = ExclusionRule("io.netty", "netty-codec-http2")
 
   // [IA-4939] commons-text:1.9 is unsafe
   def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeFlagsmith, excludeJsonSmart, excludeNettyCodecHttp)
+  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeFlagsmith, excludeJsonSmart, excludeNettyCodecHttp2)
   val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
   val sam = excludeJakarta("org.broadinstitute.dsde.workbench" %% "sam-client" % samV)
 
