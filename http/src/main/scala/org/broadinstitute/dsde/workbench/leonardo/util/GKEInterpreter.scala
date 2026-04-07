@@ -1177,7 +1177,11 @@ class GKEInterpreter[F[_]](
         val call = F.fromFuture(
           F.delay(
             googleIamDAO
-              .addRoles(googleProject, app.googleServiceAccount, IamMemberTypes.ServiceAccount, Set("roles/batch.jobsEditor"))
+              .addRoles(googleProject,
+                        app.googleServiceAccount,
+                        IamMemberTypes.ServiceAccount,
+                        Set("roles/batch.jobsEditor")
+              )
               .void
           )
         )
@@ -1191,7 +1195,9 @@ class GKEInterpreter[F[_]](
       // Grant the pet SA serviceAccountUser on the Batch SA so it can specify it as the job runner identity.
       // Only attempted when the Batch SA lives in the same project as the user (i.e. not a shared platform SA).
       // For cross-project Batch SAs, this binding must be set up externally (e.g. via Terraform).
-      gcpBatchSaProject = GoogleProject(gcpBatchSa.split("@").lastOption.getOrElse("").replace(".iam.gserviceaccount.com", ""))
+      gcpBatchSaProject = GoogleProject(
+        gcpBatchSa.split("@").lastOption.getOrElse("").replace(".iam.gserviceaccount.com", "")
+      )
       _ <-
         if (gcpBatchSaProject == googleProject)
           F.fromFuture(
