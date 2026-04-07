@@ -36,7 +36,9 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
                 headers = Headers.empty
               )
             )
-            .handleErrorWith(e => logger.warn(e)(s"isProxyAvailable failed for ${cloudContext}/${runtimeName}").as(false))
+            .handleErrorWith(e =>
+              logger.warn(e)(s"isProxyAvailable failed for ${cloudContext}/${runtimeName}").as(false)
+            )
         case _ => F.pure(false)
       }
     } yield res

@@ -701,48 +701,46 @@ class GKEInterpreter[F[_]](
 
         case _ =>
           // GKE/Helm path for all other app types
-          googleClusterOpt
-            .traverse { googleCluster =>
-              val uninstallCharts = for {
-                helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+          googleClusterOpt.traverse { googleCluster =>
+            val uninstallCharts = for {
+              helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
-                _ <- logger.info(ctx.loggingCtx)(
-                  s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
-                )
+              _ <- logger.info(ctx.loggingCtx)(
+                s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}"
+              )
 
-                _ <- helmClient
-                  .uninstall(app.release, true)
-                  .run(helmAuthContext)
+              _ <- helmClient
+                .uninstall(app.release, true)
+                .run(helmAuthContext)
 
-                last <- streamFUntilDone(
-                  kubeService.listPodStatus(dbCluster.getClusterId, KubernetesNamespace(namespaceName)),
-                  config.monitorConfig.deleteApp.maxAttempts,
-                  config.monitorConfig.deleteApp.interval
-                ).compile.lastOrError
+              last <- streamFUntilDone(
+                kubeService.listPodStatus(dbCluster.getClusterId, KubernetesNamespace(namespaceName)),
+                config.monitorConfig.deleteApp.maxAttempts,
+                config.monitorConfig.deleteApp.interval
+              ).compile.lastOrError
 
-                _ <-
-                  if (!podDoneCheckable.isDone(last)) {
-                    val msg =
-                      s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
-                          .filterNot(isPodDone)
-                          .map(_.name.value)
-                          .mkString(", ")}"
-                    logger.error(ctx.loggingCtx)(msg) >>
-                      F.raiseError[Unit](AppDeletionException(msg))
-                  } else F.unit
+              _ <-
+                if (!podDoneCheckable.isDone(last)) {
+                  val msg =
+                    s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString}. The following pods are not in a terminal state: ${last
+                        .filterNot(isPodDone)
+                        .map(_.name.value)
+                        .mkString(", ")}"
+                  logger.error(ctx.loggingCtx)(msg) >>
+                    F.raiseError[Unit](AppDeletionException(msg))
+                } else F.unit
 
-                _ <- helmClient
-                  .uninstall(getTerraAppSetupChartReleaseName(app.release), true)
-                  .run(helmAuthContext)
-              } yield ()
+              _ <- helmClient
+                .uninstall(getTerraAppSetupChartReleaseName(app.release), true)
+                .run(helmAuthContext)
+            } yield ()
 
-              uninstallCharts.handleErrorWith { e =>
-                logger.info(ctx.loggingCtx)(
-                  s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString} failed with error ${e.getMessage}"
-                )
-              }
+            uninstallCharts.handleErrorWith { e =>
+              logger.info(ctx.loggingCtx)(
+                s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getClusterId.toString} failed with error ${e.getMessage}"
+              )
             }
-            .void >>
+          }.void >>
             kubeService
               .deleteNamespace(dbApp.cluster.getClusterId, KubernetesNamespace(dbApp.app.appResources.namespace)) >>
             streamUntilDoneOrTimeout(
@@ -1056,11 +1054,13 @@ class GKEInterpreter[F[_]](
         .mkString("\n")
 
       // Derive postgres disk name using the same naming convention as the subscriber
-      postgresDiskName = GKEAlgebra.getGalaxyPostgresDiskName(nfsDisk.name, config.galaxyDiskConfig.postgresDiskNameSuffix)
+      postgresDiskName = GKEAlgebra.getGalaxyPostgresDiskName(nfsDisk.name,
+                                                              config.galaxyDiskConfig.postgresDiskNameSuffix
+      )
 
       // Persistent-volume-size passed to ansible-pull (leave ~11 GiB for filesystem overhead on 150 GB disk)
       pvSizeGi = math.max(1, nfsDisk.size.gb - 11)
-      pvSize   = s"${pvSizeGi}Gi"
+      pvSize = s"${pvSizeGi}Gi"
 
       // GCP Batch SA: prefer value from customEnvironmentVariables, fall back to config default
       gcpBatchSa = app.customEnvironmentVariables.getOrElse(
@@ -1181,9 +1181,9 @@ class GKEInterpreter[F[_]](
           instanceOpt.flatMap { inst =>
             import scala.jdk.CollectionConverters._
             for {
-              iface  <- Option(inst.getNetworkInterfacesList).flatMap(_.asScala.headOption)
-              cfg    <- Option(iface.getAccessConfigsList).flatMap(_.asScala.headOption)
-              natIp  <- Option(cfg.getNatIP).filter(_.nonEmpty)
+              iface <- Option(inst.getNetworkInterfacesList).flatMap(_.asScala.headOption)
+              cfg <- Option(iface.getAccessConfigsList).flatMap(_.asScala.headOption)
+              natIp <- Option(cfg.getNatIP).filter(_.nonEmpty)
             } yield IP(natIp)
           }
         },
