@@ -60,6 +60,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.iam.IamMemberTypes
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp._
@@ -1169,6 +1170,45 @@ class GKEInterpreter[F[_]](
         .build()
 
       _ <- computeService.createInstance(googleProject, zoneParam, instance)
+
+      // Grant the pet SA permission to submit and monitor GCP Batch jobs in this project.
+      // Galaxy uses the VM's attached SA (pet SA) to call the Batch API.
+      _ <- {
+        val call = F.fromFuture(
+          F.delay(
+            googleIamDAO
+              .addRoles(googleProject, app.googleServiceAccount, IamMemberTypes.ServiceAccount, Set("roles/batch.jobsEditor"))
+              .void
+          )
+        )
+        val retryConfig = RetryPredicates.retryConfigWithPredicates(when409)
+        tracedRetryF(retryConfig)(
+          call,
+          s"googleIamDAO.addRoles(batch.jobsEditor) for pet SA ${app.googleServiceAccount.value} in project ${googleProject.value}"
+        ).compile.lastOrError
+      }
+
+      // Grant the pet SA serviceAccountUser on the Batch SA so it can specify it as the job runner identity.
+      // Only attempted when the Batch SA lives in the same project as the user (i.e. not a shared platform SA).
+      // For cross-project Batch SAs, this binding must be set up externally (e.g. via Terraform).
+      gcpBatchSaProject = GoogleProject(gcpBatchSa.split("@").lastOption.getOrElse("").replace(".iam.gserviceaccount.com", ""))
+      _ <-
+        if (gcpBatchSaProject == googleProject)
+          F.fromFuture(
+            F.delay(
+              googleIamDAO.addIamPolicyBindingOnServiceAccount(
+                googleProject,
+                WorkbenchEmail(gcpBatchSa),
+                app.googleServiceAccount,
+                Set("roles/iam.serviceAccountUser")
+              )
+            )
+          )
+        else
+          logger.info(ctx.loggingCtx)(
+            s"Batch SA $gcpBatchSa is in a different project ($gcpBatchSaProject) than ${googleProject.value}; " +
+              s"skipping serviceAccountUser binding — must be configured externally"
+          )
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Galaxy VM instance ${instanceName.value} submitted for project ${googleProject.value}; polling for external IP"
