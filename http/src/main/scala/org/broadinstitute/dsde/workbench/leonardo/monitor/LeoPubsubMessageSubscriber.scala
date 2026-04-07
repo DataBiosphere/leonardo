@@ -999,10 +999,15 @@ class LeoPubsubMessageSubscriber[F[_]](
           } yield res
         } else F.unit
 
+      // Galaxy uses VM-based deployment: no GKE cluster or nodepool is created.
+      // The VM is launched inside createAndPollApp instead.
+      effectiveClusterOrNodepoolOp =
+        if (msg.appType == AppType.Galaxy) F.unit else createClusterOrNodepoolOp
+
       // build asynchronous task
       task = for {
         // parallelize disk creation and cluster/nodepool monitoring
-        _ <- List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
+        _ <- List(createDiskOp, createSecondDiskOp, effectiveClusterOrNodepoolOp).parSequence_
 
         // create and monitor app
         _ <- getGkeAlgFromRegistry()

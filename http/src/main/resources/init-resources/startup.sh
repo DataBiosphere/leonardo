@@ -122,6 +122,10 @@ function failScriptIfError() {
 
 function validateCert() {
   certFileDirectory=$1
+  ## Only the master node has certs; worker nodes in multi-node Dataproc clusters do not.
+  if [ ! -f "${certFileDirectory}/jupyter-server.crt" ]; then
+    return 0
+  fi
   ## This helps when we need to rotate certs.
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul  4 20:31:52 2026 GMT`
 
