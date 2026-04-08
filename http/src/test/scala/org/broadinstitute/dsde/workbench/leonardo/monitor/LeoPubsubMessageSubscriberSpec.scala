@@ -1449,7 +1449,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
     val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val makeApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell)
     val savedApp1 = makeApp1
       .copy(appResources =
         makeApp1.appResources.copy(
@@ -1540,7 +1540,7 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appName,
           Some(disk.id),
           Map.empty,
-          AppType.Galaxy,
+          AppType.Cromwell,
           savedApp1.appResources.namespace,
           None,
           Some(tr),
@@ -1889,7 +1889,8 @@ class LeoPubsubMessageSubscriberSpec
           false,
           Some(GcsBucketName("fc-bucket"))
         )
-        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        // maxConcurrentTasks=1 ensures tasks run sequentially so the idempotency check fires for the 2nd task
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 1), queue)
         // send message twice
         _ <- leoSubscriber.handleCreateAppMessage(msg)
         _ <- leoSubscriber.handleCreateAppMessage(msg)

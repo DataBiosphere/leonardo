@@ -401,34 +401,44 @@ class GKEInterpreter[F[_]](
       app = dbApp.app
       dbCluster = dbApp.cluster
       googleProject = params.googleProject
+      // Idempotency: if the app is already Running, skip creation to avoid double-recording usage
+      _ <-
+        if (app.status == AppStatus.Running)
+          logger.info(ctx.loggingCtx)(
+            s"App ${app.appName.value} is already Running, skipping creation (idempotent)"
+          )
+        else
+          for {
+            diskOpt <- appQuery.getDiskId(app.id).transaction
+            diskId <- F.fromOption(diskOpt, DiskNotFoundForAppException(app.id, ctx.traceId))
 
-      diskOpt <- appQuery.getDiskId(app.id).transaction
-      diskId <- F.fromOption(diskOpt, DiskNotFoundForAppException(app.id, ctx.traceId))
+            _ <- logger.info(ctx.loggingCtx)(s"Begin App(${app.appName.value}) Creation.")
 
-      _ <- logger.info(ctx.loggingCtx)(s"Begin App(${app.appName.value}) Creation.")
+            nfsDisk <- F.fromOption(
+              dbApp.app.appResources.disk,
+              AppCreationException(
+                s"NFS disk not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}"
+              )
+            )
 
-      nfsDisk <- F.fromOption(
-        dbApp.app.appResources.disk,
-        AppCreationException(s"NFS disk not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}")
-      )
+            // Galaxy uses a VM-based deployment; all other app types use the GKE/Helm path.
+            _ <- app.appType match {
+              case AppType.Galaxy =>
+                installGalaxyVm(dbCluster, app, nfsDisk, googleProject) >>
+                  persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction.void
 
-      // Galaxy uses a VM-based deployment; all other app types use the GKE/Helm path.
-      _ <- app.appType match {
-        case AppType.Galaxy =>
-          installGalaxyVm(dbCluster, app, nfsDisk, googleProject) >>
-            persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction.void
+              case _ =>
+                createAndPollAppViaHelm(params, dbApp, app, dbCluster, nfsDisk, diskId, googleProject, ctx)
+            }
 
-        case _ =>
-          createAndPollAppViaHelm(params, dbApp, app, dbCluster, nfsDisk, diskId, googleProject, ctx)
-      }
+            _ <- logger.info(ctx.loggingCtx)(
+              s"Finished app creation for app ${app.appName.value}"
+            )
 
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Finished app creation for app ${app.appName.value}"
-      )
-
-      readyTime <- F.realTimeInstant
-      _ <- appUsageQuery.recordStart(params.appId, readyTime)
-      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+            readyTime <- F.realTimeInstant
+            _ <- appUsageQuery.recordStart(params.appId, readyTime)
+            _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+          } yield ()
     } yield ()
 
   // GKE/Helm path for non-Galaxy app types (Cromwell, Allowed, Custom).
