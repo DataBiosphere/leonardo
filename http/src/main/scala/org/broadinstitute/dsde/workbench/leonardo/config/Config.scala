@@ -138,7 +138,6 @@ object Config {
       config.as[DiskSize]("bootDiskSizeGb"),
       config.as[DiskSize]("postgresDiskSizeGb"),
       config.as[String]("postgresDiskNameSuffix"),
-      config.as[String]("gcpBatchServiceAccountEmail"),
       config.as[String]("gitRepo"),
       config.as[String]("gitBranch")
     )

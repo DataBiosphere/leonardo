@@ -8,8 +8,10 @@ import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.{
   AccessConfig,
+  Allowed,
   AttachedDisk,
   AttachedDiskInitializeParams,
+  Firewall,
   Instance,
   Items,
   Metadata,
@@ -37,6 +39,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
   streamUntilDoneOrTimeout,
   tracedRetryF,
+  FirewallRuleName,
   GoogleComputeService,
   GoogleDiskService,
   GoogleResourceService,
@@ -59,7 +62,12 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{
+  GcsBucketName,
+  GoogleProject,
+  ServiceAccountDisplayName,
+  ServiceAccountName
+}
 import org.broadinstitute.dsde.workbench.model.google.iam.IamMemberTypes
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -424,7 +432,7 @@ class GKEInterpreter[F[_]](
             // Galaxy uses a VM-based deployment; all other app types use the GKE/Helm path.
             _ <- app.appType match {
               case AppType.Galaxy =>
-                installGalaxyVm(dbCluster, app, nfsDisk, googleProject) >>
+                installGalaxyVm(dbCluster, app, nfsDisk, googleProject, params.restore) >>
                   persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction.void
 
               case _ =>
@@ -1038,7 +1046,8 @@ class GKEInterpreter[F[_]](
     dbCluster: KubernetesCluster,
     app: App,
     nfsDisk: PersistentDisk,
-    googleProject: GoogleProject
+    googleProject: GoogleProject,
+    restore: Boolean
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1073,16 +1082,23 @@ class GKEInterpreter[F[_]](
       pvSizeGi = math.max(1, nfsDisk.size.gb - 11)
       pvSize = s"${pvSizeGi}Gi"
 
-      // GCP Batch SA: prefer value from customEnvironmentVariables, fall back to config default
-      gcpBatchSa = app.customEnvironmentVariables.getOrElse(
-        "gcp_batch_service_account_email",
-        config.galaxyVmConfig.gcpBatchServiceAccountEmail
-      )
+      // Get or create the galaxy-batch-runner SA in the user's project.
+      gcpBatchSa <- F
+        .fromFuture(
+          F.delay(
+            googleIamDAO.getOrCreateServiceAccount(
+              googleProject,
+              ServiceAccountName("galaxy-batch-runner"),
+              ServiceAccountDisplayName("Galaxy Batch Runner"),
+              executionContext
+            )
+          )
+        )
+        .map(sa => sa.email.value)
 
-      // restore_galaxy flag
-      restoreGalaxy = app.customEnvironmentVariables.getOrElse("restore_galaxy", "false")
-
-      // Disks
+      // Disks — data and postgres disks are always pre-existing by the time this method runs
+      // (created by createDiskOp / createSecondDiskOp, or retained from a previous app).
+      // Use setSource to attach existing disks; only the boot disk is created fresh.
       bootDisk = AttachedDisk
         .newBuilder()
         .setBoot(true)
@@ -1103,14 +1119,8 @@ class GKEInterpreter[F[_]](
         .setBoot(false)
         .setDeviceName("galaxy-data")
         .setAutoDelete(false)
-        .setInitializeParams(
-          AttachedDiskInitializeParams
-            .newBuilder()
-            .setDiskName(nfsDisk.name.value)
-            .setDiskSizeGb(nfsDisk.size.gb)
-            .setDiskType(nfsDisk.diskType.googleString(googleProject, zoneParam))
-            .putAllLabels(Map("leonardo" -> "true").asJava)
-            .build()
+        .setSource(
+          s"projects/${googleProject.value}/zones/${zoneParam.value}/disks/${nfsDisk.name.value}"
         )
         .build()
 
@@ -1120,13 +1130,8 @@ class GKEInterpreter[F[_]](
         .setBoot(false)
         .setDeviceName("galaxy-postgres-data")
         .setAutoDelete(false)
-        .setInitializeParams(
-          AttachedDiskInitializeParams
-            .newBuilder()
-            .setDiskName(postgresDiskName.value)
-            .setDiskSizeGb(config.galaxyVmConfig.postgresDiskSizeGb.gb)
-            .putAllLabels(Map("leonardo" -> "true").asJava)
-            .build()
+        .setSource(
+          s"projects/${googleProject.value}/zones/${zoneParam.value}/disks/${postgresDiskName.value}"
         )
         .build()
 
@@ -1168,7 +1173,7 @@ class GKEInterpreter[F[_]](
             .addItems(Items.newBuilder().setKey("google-logging-enabled").setValue("true").build())
             .addItems(Items.newBuilder().setKey("gcp_batch_service_account_email").setValue(gcpBatchSa).build())
             .addItems(Items.newBuilder().setKey("persistent-volume-size").setValue(pvSize).build())
-            .addItems(Items.newBuilder().setKey("restore_galaxy").setValue(restoreGalaxy).build())
+            .addItems(Items.newBuilder().setKey("restore_galaxy").setValue(restore.toString).build())
             .addItems(Items.newBuilder().setKey("git-repo").setValue(config.galaxyVmConfig.gitRepo).build())
             .addItems(Items.newBuilder().setKey("git-branch").setValue(config.galaxyVmConfig.gitBranch).build())
             .addItems(Items.newBuilder().setKey("gcp-region").setValue(regionParam.value).build())
@@ -1224,6 +1229,52 @@ class GKEInterpreter[F[_]](
           logger.info(ctx.loggingCtx)(
             s"Batch SA $gcpBatchSa is in a different project ($gcpBatchSaProject) than ${googleProject.value}; " +
               s"skipping serviceAccountUser binding — must be configured externally"
+          )
+
+      // Grant the Batch SA the project-level roles it needs to run jobs and attach a service account to Batch VMs.
+      // See https://github.com/galaxyproject/galaxy-k8s-boot?tab=readme-ov-file#prerequisites
+      _ <- {
+        val call = F.fromFuture(
+          F.delay(
+            googleIamDAO
+              .addRoles(googleProject,
+                        WorkbenchEmail(gcpBatchSa),
+                        IamMemberTypes.ServiceAccount,
+                        Set("roles/batch.jobsEditor", "roles/iam.serviceAccountUser")
+              )
+              .void
+          )
+        )
+        val retryConfig = RetryPredicates.retryConfigWithPredicates(when409)
+        tracedRetryF(retryConfig)(
+          call,
+          s"googleIamDAO.addRoles(batch.jobsEditor, iam.serviceAccountUser) for Batch SA $gcpBatchSa in project ${googleProject.value}"
+        ).compile.lastOrError
+      }
+
+      // Create an NFS firewall rule so GCP Batch VMs can reach the Galaxy VM's NFS server.
+      // Idempotent: skipped if the rule already exists.
+      nfsFwName = FirewallRuleName("leonardo-galaxy-allow-nfs-for-batch")
+      nfsFwExists <- computeService.getFirewallRule(googleProject, nfsFwName)
+      _ <-
+        if (nfsFwExists.isEmpty) {
+          val nfsFirewall = Firewall
+            .newBuilder()
+            .setName(nfsFwName.value)
+            .setNetwork(s"projects/${googleProject.value}/global/networks/${network.value}")
+            .addSourceRanges("10.0.0.0/8")
+            .addTargetTags(config.vpcNetworkTag.value)
+            .addAllowed(Allowed.newBuilder().setIPProtocol("tcp").addPorts("2049").build())
+            .addAllowed(Allowed.newBuilder().setIPProtocol("udp").addPorts("2049").build())
+            .addAllowed(Allowed.newBuilder().setIPProtocol("tcp").addPorts("111").build())
+            .addAllowed(Allowed.newBuilder().setIPProtocol("udp").addPorts("111").build())
+            .build()
+          computeService
+            .addFirewallRule(googleProject, nfsFirewall)
+            .flatMap(op => F.blocking(op.get()).void)
+        } else
+          logger.info(ctx.loggingCtx)(
+            s"NFS firewall rule ${nfsFwName.value} already exists, skipping creation"
           )
 
       _ <- logger.info(ctx.loggingCtx)(

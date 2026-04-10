@@ -100,7 +100,6 @@ final case class GalaxyVmConfig(
   bootDiskSizeGb: DiskSize,
   postgresDiskSizeGb: DiskSize,
   postgresDiskNameSuffix: String,
-  gcpBatchServiceAccountEmail: String,
   gitRepo: String,
   gitBranch: String
 )
