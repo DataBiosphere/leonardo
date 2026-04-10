@@ -62,12 +62,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BuildHelmChartValues.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
-import org.broadinstitute.dsde.workbench.model.google.{
-  GcsBucketName,
-  GoogleProject,
-  ServiceAccountDisplayName,
-  ServiceAccountName
-}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountDisplayName}
 import org.broadinstitute.dsde.workbench.model.google.iam.IamMemberTypes
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -1088,9 +1083,8 @@ class GKEInterpreter[F[_]](
           F.delay(
             googleIamDAO.getOrCreateServiceAccount(
               googleProject,
-              ServiceAccountName("galaxy-batch-runner"),
-              ServiceAccountDisplayName("Galaxy Batch Runner"),
-              executionContext
+              org.broadinstitute.dsde.workbench.model.google.ServiceAccountName("galaxy-batch-runner"),
+              ServiceAccountDisplayName("Galaxy Batch Runner")
             )
           )
         )
