@@ -50,7 +50,8 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
         // Galaxy VM apps serve HTTP on port 80. The proxy should connect via plain HTTP,
-        // and we map the fake hostname to the VM's internal IP (stored in loadBalancerIp).
+        // and we map the fake hostname to the VM's external IP (stored in loadBalancerIp).
+        // External IP is used because Leo's pod is in a different VPC from the user's workspace project.
         val isGalaxyVm = appResult.app.appType == Galaxy
         hostToIpMapping
           .getAndUpdate(_ + (h.address -> ip))

@@ -938,9 +938,9 @@ class LeoPubsubMessageSubscriberSpec
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       // Galaxy VM path does not create/poll GKE nodepools — their status stays Unspecified
       getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
-      // Galaxy VM path stores internal IP as loadBalancerIp (proxy routes to VM via HTTP on port 80); network fields are not populated
+      // Galaxy VM path stores external IP as loadBalancerIp (proxy uses external IP because Leo VPC ≠ user VPC); network fields are not populated
       getApp.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP("10.0.0.1"),
+        KubernetesClusterAsyncFields(IP("1.2.3.4"),
                                      IP(""),
                                      NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
         )
@@ -1092,9 +1092,9 @@ class LeoPubsubMessageSubscriberSpec
       getApp1.app.appResources.kubernetesServiceAccountName shouldBe Some(
         ServiceAccountName("gxy-ksa")
       )
-      // Galaxy VM path stores internal IP as loadBalancerIp (proxy routes to VM via HTTP on port 80); network fields are not populated
+      // Galaxy VM path stores external IP as loadBalancerIp (proxy uses external IP because Leo VPC ≠ user VPC); network fields are not populated
       getApp1.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP("10.0.0.1"),
+        KubernetesClusterAsyncFields(IP("1.2.3.4"),
                                      IP(""),
                                      NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
         )
@@ -1854,9 +1854,9 @@ class LeoPubsubMessageSubscriberSpec
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       // Galaxy VM path does not create/poll GKE nodepools — their status stays Unspecified
       getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
-      // Galaxy VM path stores internal IP as loadBalancerIp (proxy routes to VM via HTTP on port 80); network fields are not populated
+      // Galaxy VM path stores external IP as loadBalancerIp (proxy uses external IP because Leo VPC ≠ user VPC); network fields are not populated
       getApp.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP("10.0.0.1"),
+        KubernetesClusterAsyncFields(IP("1.2.3.4"),
                                      IP(""),
                                      NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
         )

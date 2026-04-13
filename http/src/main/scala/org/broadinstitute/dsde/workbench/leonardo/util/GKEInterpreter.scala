@@ -1304,16 +1304,20 @@ class GKEInterpreter[F[_]](
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Galaxy VM ${instanceName.value} has internal IP ${internalIp.asString} / external IP ${externalIp.asString}; storing internal IP in cluster async fields"
+        s"Galaxy VM ${instanceName.value} has internal IP ${internalIp.asString} / external IP ${externalIp.asString}; storing external IP in cluster async fields for proxy access"
       )
 
-      // Store the VM's internal IP as the cluster load balancer IP consumed by KubernetesDnsCache.
+      // Store the VM's external IP as the cluster load balancer IP consumed by KubernetesDnsCache.
       // The proxy will connect to this IP via HTTP on port 80 (Galaxy VM serves HTTP, not HTTPS).
+      // We use the external IP because Leo's GKE cluster is in Leo's GCP project while the Galaxy VM
+      // is in the user's workspace project — the two VPCs are not peered, so the internal IP is
+      // not routable from Leo's pod. The leonardo-allow-http firewall rule (0.0.0.0/0 → port 80,
+      // targeting VMs with the "leonardo" tag) allows Leo to reach the VM on its external IP.
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
           dbCluster.id,
           KubernetesClusterAsyncFields(
-            internalIp,
+            externalIp,
             IP(""),
             NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
           )
@@ -1322,15 +1326,15 @@ class GKEInterpreter[F[_]](
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Polling Galaxy readiness for app ${app.appName.value} via proxy (backend: ${internalIp.asString}:80)"
+        s"Polling Galaxy readiness for app ${app.appName.value} via proxy (backend: ${externalIp.asString}:80)"
       )
 
       // Wait for Galaxy's nginx to respond.
-      // Uses a direct HTTP check to the VM's internal IP on port 80, bypassing the Leo proxy
+      // Uses a direct HTTP check to the VM's external IP on port 80, bypassing the Leo proxy
       // hostname chain (which would require the proxy wildcard DNS to be reachable from within
       // the Leo pod — unreliable in BEE environments due to hairpin NAT).
       isDone <- streamFUntilDone(
-        appDao.isVmReachable(internalIp, 80, ctx.traceId),
+        appDao.isVmReachable(externalIp, 80, ctx.traceId),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
