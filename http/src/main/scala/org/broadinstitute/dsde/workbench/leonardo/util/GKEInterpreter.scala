@@ -1060,7 +1060,9 @@ class GKEInterpreter[F[_]](
       )
 
       // Load cloud-config content bundled from galaxy-k8s-boot bin/user_data.sh.
-      // Intentionally not fetched at runtime to avoid unexpected production changes.
+      // Passed as the "user-data" metadata key, processed by cloud-init on first boot only.
+      // The galaxy-k8s-boot custom image has cloud-init pre-installed; "#cloud-config" must be
+      // the first line for cloud-init to recognise the file format.
       // To update, sync manually from https://github.com/galaxyproject/galaxy-k8s-boot/blob/dev/bin/user_data.sh
       userDataContent = scala.io.Source
         .fromResource("init-resources/galaxy-user-data.sh")

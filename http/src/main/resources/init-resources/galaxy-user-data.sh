@@ -1,6 +1,6 @@
+#cloud-config
 # Sourced from https://github.com/galaxyproject/galaxy-k8s-boot/blob/dev/bin/user_data.sh
 # When updating this file, sync it manually from that repository and verify the changes.
-#cloud-config
 write_files:
   - path: /usr/local/bin/galaxy_bootstrap.sh
     permissions: '0755'
