@@ -1275,41 +1275,45 @@ class GKEInterpreter[F[_]](
         s"Galaxy VM instance ${instanceName.value} submitted for project ${googleProject.value}; polling for external IP"
       )
 
-      // Poll until the instance has an external IP, then store it as the cluster's load balancer IP
-      // so that KubernetesDnsCache can resolve the proxy host.
-      externalIpOpt <- streamFUntilDone(
+      // Poll until the instance has both internal and external IPs assigned.
+      // We store the internal IP as the proxy backend (KubernetesDnsCache loadBalancerIp) so that
+      // the Leo proxy connects to the VM over the internal VPC network using plain HTTP.
+      // The external IP is only used for the readiness health check (TCP to port 80).
+      ipPairOpt <- streamFUntilDone(
         computeService.getInstance(googleProject, zoneParam, instanceName).map { instanceOpt =>
           instanceOpt.flatMap { inst =>
             import scala.jdk.CollectionConverters._
             for {
               iface <- Option(inst.getNetworkInterfacesList).flatMap(_.asScala.headOption)
+              internalIp = IP(iface.getNetworkIP)
               cfg <- Option(iface.getAccessConfigsList).flatMap(_.asScala.headOption)
               natIp <- Option(cfg.getNatIP).filter(_.nonEmpty)
-            } yield IP(natIp)
+            } yield (internalIp, IP(natIp))
           }
         },
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).compile.lastOrError
 
-      externalIp <- F.fromOption(
-        externalIpOpt,
+      (internalIp, externalIp) <- F.fromOption(
+        ipPairOpt,
         AppCreationException(
-          s"Galaxy VM ${instanceName.value} did not obtain an external IP after ${config.monitorConfig.createApp.interruptAfter}",
+          s"Galaxy VM ${instanceName.value} did not obtain an IP after ${config.monitorConfig.createApp.interruptAfter}",
           traceId = Some(ctx.traceId)
         )
       )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Galaxy VM ${instanceName.value} has external IP ${externalIp.asString}; storing in cluster async fields"
+        s"Galaxy VM ${instanceName.value} has internal IP ${internalIp.asString} / external IP ${externalIp.asString}; storing internal IP in cluster async fields"
       )
 
-      // Store the VM's external IP as the cluster load balancer IP consumed by KubernetesDnsCache
+      // Store the VM's internal IP as the cluster load balancer IP consumed by KubernetesDnsCache.
+      // The proxy will connect to this IP via HTTP on port 80 (Galaxy VM serves HTTP, not HTTPS).
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
           dbCluster.id,
           KubernetesClusterAsyncFields(
-            externalIp,
+            internalIp,
             IP(""),
             NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
           )
@@ -1318,10 +1322,13 @@ class GKEInterpreter[F[_]](
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Polling Galaxy readiness for app ${app.appName.value} at ${externalIp.asString}:80"
+        s"Polling Galaxy readiness for app ${app.appName.value} via proxy (backend: ${internalIp.asString}:80)"
       )
 
-      // Wait for Galaxy's nginx ingress to respond on port 80
+      // Wait for Galaxy's nginx to respond.
+      // Uses isProxyAvailable which routes through the Leo proxy. The proxy now connects to the
+      // VM's internal IP on port 80 (plain HTTP) because KubernetesDnsCache sets useHttp=true for
+      // Galaxy apps and stores the internal IP as loadBalancerIp.
       isDone <- streamFUntilDone(
         appDao.isProxyAvailable(googleProject, app.appName, ServiceName("galaxy"), ctx.traceId),
         config.monitorConfig.createApp.maxAttempts,

@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, GetAppResult}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.{AppName, CloudContext, CloudProvider}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -48,8 +49,13 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
       case None => F.pure[HostStatus](HostNotReady)
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
+        // Galaxy VM apps serve HTTP on port 80. The proxy should connect via plain HTTP,
+        // and we map the fake hostname to the VM's internal IP (stored in loadBalancerIp).
+        val isGalaxyVm = appResult.app.appType == Galaxy
         hostToIpMapping
           .getAndUpdate(_ + (h.address -> ip))
-          .as[HostStatus](HostReady(h, "", CloudProvider.Gcp)) // TODO: update this once we start support AKS
+          .as[HostStatus](
+            HostReady(h, "", CloudProvider.Gcp, useHttp = isGalaxyVm)
+          ) // TODO: update this once we start support AKS
     }
 }

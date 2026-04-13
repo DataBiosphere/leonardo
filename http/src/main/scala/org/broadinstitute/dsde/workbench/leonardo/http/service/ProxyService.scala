@@ -256,7 +256,7 @@ class ProxyService(
 
       hostStatus <- getRuntimeTargetHost(cloudContext, runtimeName)
       _ <- hostStatus match {
-        case HostReady(_, _, _) =>
+        case HostReady(_, _, _, _) =>
           dateAccessUpdaterQueue.offer(
             UpdateDateAccessedMessage(UpdateTarget.Runtime(runtimeName), cloudContext, ctx.now)
           )
@@ -350,7 +350,7 @@ class ProxyService(
         } else IO.unit
       hostStatus <- getAppTargetHost(cloudContext, appName)
       _ <- hostStatus match {
-        case HostReady(_, _, _) =>
+        case HostReady(_, _, _, _) =>
           dateAccessUpdaterQueue.offer(UpdateDateAccessedMessage(UpdateTarget.App(appName), cloudContext, ctx.now))
         case _ => IO.unit
       }
@@ -376,16 +376,16 @@ class ProxyService(
     for {
       ctx <- ev.ask[AppContext]
       res <- hostContext.status match {
-        case HostReady(targetHost, _, _) =>
+        case HostReady(targetHost, _, _, useHttp) =>
           // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
           // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
           // The presence of this header distinguishes WebSocket from http requests.
           val res = for {
             response <- request.attribute(AttributeKeys.webSocketUpgrade) match {
               case Some(upgrade) =>
-                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
+                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade, useHttp)))
               case None =>
-                IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
+                IO.fromFuture(IO(handleHttpRequest(targetHost, request, useHttp)))
             }
             r <-
               if (response.status.isFailure())
@@ -418,9 +418,10 @@ class ProxyService(
       }
     } yield res
 
-  private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
-
+  private def handleHttpRequest(targetHost: Host,
+                                request: HttpRequest,
+                                useHttp: Boolean = false
+  ): Future[HttpResponse] = {
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
     // in as a Source[HttpRequest] and responses are returned as a Sink[HttpResponse]. The transformation
@@ -429,12 +430,24 @@ class ProxyService(
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http()
-      .connectionTo(targetHost.address)
-      .toPort(proxyConfig.proxyPort)
-      .withCustomHttpsConnectionContext(httpsConnectionContext)
-      .withClientConnectionSettings(clientConnectionSettings)
-      .https()
+    // Galaxy VM apps use plain HTTP on port 80; all other backends use HTTPS on proxyConfig.proxyPort.
+    val flow =
+      if (useHttp) {
+        logger.debug(s"Opening http connection to ${targetHost.address}:80")
+        Http()
+          .connectionTo(targetHost.address)
+          .toPort(80)
+          .withClientConnectionSettings(clientConnectionSettings)
+          .http()
+      } else {
+        logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
+        Http()
+          .connectionTo(targetHost.address)
+          .toPort(proxyConfig.proxyPort)
+          .withCustomHttpsConnectionContext(httpsConnectionContext)
+          .withClientConnectionSettings(clientConnectionSettings)
+          .https()
+      }
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -492,7 +505,8 @@ class ProxyService(
 
   private def handleWebSocketRequest(targetHost: Host,
                                      request: HttpRequest,
-                                     upgrade: WebSocketUpgrade
+                                     upgrade: WebSocketUpgrade,
+                                     useHttp: Boolean = false
   ): Future[HttpResponse] = {
     logger.info(s"Opening websocket connection to ${targetHost.address}")
 
@@ -509,19 +523,35 @@ class ProxyService(
     // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
     // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
     // Note that we are rewriting the paths for any requests that are routed to /proxy/*/*/jupyter/
-    val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(
-        request.uri.copy(path = rewriteJupyterPath(request.uri.path),
-                         authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
-                         scheme = "wss"
-        ),
-        extraHeaders = filterHeaders(request.headers),
-        upgrade.requestedProtocols.headOption
-      ),
-      flow,
-      httpsConnectionContext,
-      settings = clientConnectionSettings
-    )
+    // Galaxy VM apps use ws:// on port 80; all other backends use wss:// on proxyConfig.proxyPort.
+    val (responseFuture, (publisher, subscriber)) =
+      if (useHttp)
+        Http().singleWebSocketRequest(
+          WebSocketRequest(
+            request.uri.copy(path = rewriteJupyterPath(request.uri.path),
+                             authority = request.uri.authority.copy(host = targetHost, port = 80),
+                             scheme = "ws"
+            ),
+            extraHeaders = filterHeaders(request.headers),
+            upgrade.requestedProtocols.headOption
+          ),
+          flow,
+          settings = clientConnectionSettings
+        )
+      else
+        Http().singleWebSocketRequest(
+          WebSocketRequest(
+            request.uri.copy(path = rewriteJupyterPath(request.uri.path),
+                             authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
+                             scheme = "wss"
+            ),
+            extraHeaders = filterHeaders(request.headers),
+            upgrade.requestedProtocols.headOption
+          ),
+          flow,
+          httpsConnectionContext,
+          settings = clientConnectionSettings
+        )
 
     // If we got a valid WebSocketUpgradeResponse, call handleMessages with our publisher/subscriber, which are
     // already materialized from the HttpRequest.
