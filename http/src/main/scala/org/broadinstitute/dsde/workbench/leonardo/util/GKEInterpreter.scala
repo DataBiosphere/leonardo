@@ -1326,11 +1326,11 @@ class GKEInterpreter[F[_]](
       )
 
       // Wait for Galaxy's nginx to respond.
-      // Uses isProxyAvailable which routes through the Leo proxy. The proxy now connects to the
-      // VM's internal IP on port 80 (plain HTTP) because KubernetesDnsCache sets useHttp=true for
-      // Galaxy apps and stores the internal IP as loadBalancerIp.
+      // Uses a direct HTTP check to the VM's internal IP on port 80, bypassing the Leo proxy
+      // hostname chain (which would require the proxy wildcard DNS to be reachable from within
+      // the Leo pod — unreliable in BEE environments due to hairpin NAT).
       isDone <- streamFUntilDone(
-        appDao.isProxyAvailable(googleProject, app.appName, ServiceName("galaxy"), ctx.traceId),
+        appDao.isVmReachable(internalIp, 80, ctx.traceId),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
