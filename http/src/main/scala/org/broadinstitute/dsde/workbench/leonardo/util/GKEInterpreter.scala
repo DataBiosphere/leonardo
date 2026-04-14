@@ -711,6 +711,10 @@ class GKEInterpreter[F[_]](
                   s"Failed to delete Galaxy VM ${instanceName.value}: ${e.getMessage}. Continuing with app deletion."
                 )
               }
+            // Mark the cluster DB record as deleted so future app creation in this project is not blocked.
+            // For Galaxy, the "cluster" is a pure DB abstraction (no real GKE cluster); it must be
+            // cleaned up here because no separate cluster-deletion pubsub message is sent.
+            _ <- kubernetesClusterQuery.markAsDeleted(dbCluster.id, ctx.now).transaction
           } yield ()
 
         case _ =>
@@ -1196,7 +1200,7 @@ class GKEInterpreter[F[_]](
               .void
           )
         )
-        val retryConfig = RetryPredicates.retryConfigWithPredicates(when409)
+        val retryConfig = RetryPredicates.retryConfigWithPredicates(when409, whenGroupDoesNotExist)
         tracedRetryF(retryConfig)(
           call,
           s"googleIamDAO.addRoles(batch.jobsEditor) for pet SA ${app.googleServiceAccount.value} in project ${googleProject.value}"
@@ -1241,7 +1245,7 @@ class GKEInterpreter[F[_]](
               .void
           )
         )
-        val retryConfig = RetryPredicates.retryConfigWithPredicates(when409)
+        val retryConfig = RetryPredicates.retryConfigWithPredicates(when409, whenGroupDoesNotExist)
         tracedRetryF(retryConfig)(
           call,
           s"googleIamDAO.addRoles(batch.jobsEditor, iam.serviceAccountUser) for Batch SA $gcpBatchSa in project ${googleProject.value}"
