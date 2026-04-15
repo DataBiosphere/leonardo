@@ -88,6 +88,13 @@ write_files:
       GCP_BATCH_SERVICE_ACCOUNT_EMAIL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcp_batch_service_account_email" -H "Metadata-Flavor: Google" 2>/dev/null || echo "galaxy-batch-runner@anvil-and-terra-development.iam.gserviceaccount.com")
       echo "[$(date)] - GCP Batch service account email: ${GCP_BATCH_SERVICE_ACCOUNT_EMAIL}"
 
+      # Leo proxy path prefix for this Galaxy app (e.g. /proxy/google/v1/apps/{project}/{appName}/galaxy).
+      # Passed to ansible as galaxy_url_prefix so Galaxy generates correct absolute links (JS/CSS/API)
+      # that include the full proxy path. Without this Galaxy emits links rooted at / which the
+      # browser resolves against Leo's host and gets 404s → blank page.
+      GALAXY_URL_PREFIX=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/galaxy-url-prefix" -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+      echo "[$(date)] - Galaxy URL prefix: ${GALAXY_URL_PREFIX}"
+
       GIT_REPO=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/git-repo" -H "Metadata-Flavor: Google" 2>/dev/null || echo "https://github.com/galaxyproject/galaxy-k8s-boot.git")
       GIT_BRANCH=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/git-branch" -H "Metadata-Flavor: Google" 2>/dev/null || echo "master")
 
@@ -106,6 +113,11 @@ write_files:
           echo "[$(date)] - Galaxy Restore Mode: Enabled"
       else
           echo "[$(date)] - Galaxy Restore Mode: Disabled"
+      fi
+
+      if [ -n "$GALAXY_URL_PREFIX" ]; then
+          PULL_ARGS+=(--extra-vars "galaxy_url_prefix=${GALAXY_URL_PREFIX}")
+          echo "[$(date)] - Galaxy URL prefix passed to ansible: ${GALAXY_URL_PREFIX}"
       fi
 
       PULL_ARGS+=(playbook.yml)

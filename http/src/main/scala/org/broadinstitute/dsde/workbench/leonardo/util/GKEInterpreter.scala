@@ -1184,6 +1184,20 @@ class GKEInterpreter[F[_]](
             .addItems(Items.newBuilder().setKey("gcp-region").setValue(regionParam.value).build())
             .addItems(Items.newBuilder().setKey("gcp-network").setValue(network.value).build())
             .addItems(Items.newBuilder().setKey("gcp-subnet").setValue(subnetwork.value).build())
+            // Galaxy needs to know its public URL prefix so it generates correct absolute links
+            // (JS, CSS, API calls) that include the full Leo proxy path.
+            // galaxy-k8s-boot's ansible playbook must accept galaxy_url_prefix and set it in
+            // Galaxy's helm values (galaxy.yml). Without this, Galaxy generates links rooted at /
+            // which the browser resolves against Leo's host and gets 404s → blank page.
+            .addItems(
+              Items
+                .newBuilder()
+                .setKey("galaxy-url-prefix")
+                .setValue(
+                  s"/proxy/google/v1/apps/${googleProject.value}/${app.appName.value}/galaxy"
+                )
+                .build()
+            )
             .build()
         )
         .putAllLabels(Map("leonardo" -> "true").asJava)
