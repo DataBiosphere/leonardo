@@ -1079,8 +1079,13 @@ class GKEInterpreter[F[_]](
                                                               config.galaxyDiskConfig.postgresDiskNameSuffix
       )
 
-      // Persistent-volume-size passed to ansible-pull (leave ~11 GiB for filesystem overhead on 150 GB disk)
-      pvSizeGi = math.max(1, nfsDisk.size.gb - 11)
+      // Persistent-volume-size passed to ansible-pull.
+      // nfsDisk.size.gb is in decimal GB; convert to binary GiB before subtracting filesystem overhead.
+      // Example: a 500 GB disk = (500 * 10^9) / 2^30 ≈ 465 GiB, so we request 465 - 11 = 454 GiB.
+      // Using raw gb - 11 (treating GB as GiB) overestimates by ~23 GiB on a 500 GB disk and
+      // causes the NFS provisioner to fail with "insufficient available space".
+      diskSizeGiB = (nfsDisk.size.gb.toLong * 1000L * 1000L * 1000L) / (1024L * 1024L * 1024L)
+      pvSizeGi = math.max(1, diskSizeGiB - 11)
       pvSize = s"${pvSizeGi}Gi"
 
       // Get or create the galaxy-batch-runner SA in the user's project.
