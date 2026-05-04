@@ -11,6 +11,7 @@ object Dependencies {
   val scalaTestV = "3.2.17"
   val http4sVersion = "0.23.33"
   val slickV = "3.4.1"
+  val nettyCodecHttpV = "4.1.132.Final"
   val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
@@ -130,6 +131,7 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
 
+  val nettyCodecHttp: ModuleID = "io.netty" % "netty-codec-http" % nettyCodecHttpV
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
@@ -221,6 +223,7 @@ object Dependencies {
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
   val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
 
+  val commonOverrides = List(nettyCodecHttp)
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
