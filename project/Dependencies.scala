@@ -57,7 +57,7 @@ object Dependencies {
 
   val jose4j: ModuleID =  "org.bitbucket.b_c" % "jose4j" % "0.9.4"
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.4.14"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.5.25"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.3"
