@@ -89,7 +89,8 @@ object Settings {
     organization  := "org.broadinstitute.dsde.workbench",
     scalaVersion  := "2.13.12",
     resolvers ++= commonResolvers,
-    scalacOptions ++= commonCompilerSettings
+    scalacOptions ++= commonCompilerSettings,
+    dependencyOverrides ++= Dependencies.commonOverrides
   )
 
   val coreSettings = commonSettings ++ commonTestSettings ++ List(
