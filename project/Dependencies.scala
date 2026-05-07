@@ -248,6 +248,7 @@ object Dependencies {
     scalaTest,
     scalaTestSelenium,
     scalaTestMockito,
+    http4sEmberClient,
     http4sEmberServer % Test,
     okHttp % Test
   )
