@@ -9,7 +9,7 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.17"
-  val http4sVersion = "0.23.33"
+  val http4sVersion = "1.0.0-M38"
   val slickV = "3.4.1"
   val nettyCodecHttpV = "4.1.132.Final"
   val guavaV = "32.1.3-jre"
@@ -18,7 +18,7 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val commonsBeanUtilsV = "1.11.0"
 
-  private val workbenchLibsHash = "41ed6208-SNAP"
+  private val workbenchLibsHash = "be59bd7"
   val serviceTestV = s"6.1-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
   val workbenchGoogleV = s"0.35-$workbenchLibsHash"
@@ -125,7 +125,7 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.7" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.1"
-  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % "0.25.0"
+  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % "1.0.0-M38"
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
@@ -202,6 +202,7 @@ object Dependencies {
     akkaHttpTestKit,
     akkaStream,
     http4sPrometheus,
+    http4sEmberClient,
     "de.heikoseeberger" %% "akka-http-circe" % "1.39.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleRpc,
     hikariCP,
