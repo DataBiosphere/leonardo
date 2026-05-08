@@ -355,20 +355,11 @@ class ProxyService(
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${cloudContext.asString}/${appName.value}/${serviceName.value}")
-      // Galaxy VM apps serve at /, but Leo forwards the full proxy path
-      // (e.g. /proxy/google/v1/apps/{project}/{app}/galaxy). Strip the Leo
-      // prefix so Galaxy's nginx sees requests rooted at /.
-      adjustedRequest = hostStatus match {
-        case HostReady(_, _, _, useHttp) if useHttp =>
-          val prefix = s"/proxy/google/v1/apps/${cloudContext.asString}/${appName.value}/${serviceName.value}"
-          val stripped = request.uri.path.toString.stripPrefix(prefix) match {
-            case "" | "/" => "/"
-            case p        => p
-          }
-          request.withUri(request.uri.withPath(Uri.Path(stripped)))
-        case _ => request
-      }
-      r <- proxyInternal(hostContext, adjustedRequest)
+      // Galaxy VM apps: forward the full Leo proxy path to the VM unchanged.
+      // galaxy-k8s-boot configures nginx location blocks and galaxy_url_prefix
+      // using the ingress.path value (= the Leo proxy prefix), so the VM expects
+      // to receive the full path including the prefix.
+      r <- proxyInternal(hostContext, request)
       appType <- appQuery.getAppType(appName).transaction
       result = if (r.status.isSuccess()) "success" else "failure"
       _ <- metrics.incrementCounter(

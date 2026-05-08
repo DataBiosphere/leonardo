@@ -116,7 +116,7 @@ write_files:
       fi
 
       if [ -n "$GALAXY_URL_PREFIX" ]; then
-          PULL_ARGS+=(--extra-vars "galaxy_url_prefix=${GALAXY_URL_PREFIX}")
+          PULL_ARGS+=(--extra-vars "galaxy_prefix=${GALAXY_URL_PREFIX}")
           echo "[$(date)] - Galaxy URL prefix passed to ansible: ${GALAXY_URL_PREFIX}"
       fi
 
