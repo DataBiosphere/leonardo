@@ -185,7 +185,9 @@ object HttpDockerDAO {
   val dockerHubAuthUri = Uri.unsafeFromString("https://auth.docker.io")
   val ghcrAuthUri = Uri.unsafeFromString("https://ghcr.io")
   val dockerHubRegistryUri = Uri.unsafeFromString("https://registry-1.docker.io")
-  val clusterToolEnv = Map(Jupyter -> "JUPYTER_HOME", RStudio -> "RSTUDIO_HOME")
+  // RStudio must be checked before Jupyter: an image may inherit JUPYTER_HOME from a Jupyter
+  // base image while also defining RSTUDIO_HOME, and the more specific signal should win.
+  val clusterToolEnv = List(RStudio -> "RSTUDIO_HOME", Jupyter -> "JUPYTER_HOME")
 
   def apply[F[_]: Concurrent](httpClient: Client[F])(implicit logger: Logger[F]): HttpDockerDAO[F] =
     new HttpDockerDAO[F](httpClient)
