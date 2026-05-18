@@ -36,7 +36,7 @@ object ProxyRedirectClient {
   def startServer(): IO[Int] =
     for {
       serverAndShutDown <- ProxyRedirectClient.server
-      port = serverAndShutDown._1.address.getPort
+      port = serverAndShutDown._1.address.port.value
       _ <- serverRef.modify(mp => (mp, mp + (port -> serverAndShutDown)))
     } yield port
 
