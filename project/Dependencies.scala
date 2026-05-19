@@ -13,6 +13,7 @@ object Dependencies {
   val slickV = "3.4.1"
   val nettyCodecHttpV = "4.1.132.Final"
   val guavaV = "32.1.3-jre"
+  val bouncyCastleV = "1.84"
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
@@ -133,6 +134,9 @@ object Dependencies {
 
   val nettyCodecHttp: ModuleID = "io.netty" % "netty-codec-http" % nettyCodecHttpV
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
+  val bcprov: ModuleID  = "org.bouncycastle" % "bcprov-jdk18on" % bouncyCastleV
+  val bcpkix: ModuleID  = "org.bouncycastle" % "bcpkix-jdk18on" % bouncyCastleV
+  val bcutil: ModuleID  = "org.bouncycastle" % "bcutil-jdk18on" % bouncyCastleV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val terraCommonLibV = "1.1.38-SNAPSHOT"
@@ -224,7 +228,7 @@ object Dependencies {
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
   val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
 
-  val commonOverrides = List(nettyCodecHttp)
+  val commonOverrides = List(nettyCodecHttp, bcprov, bcpkix, bcutil)
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
