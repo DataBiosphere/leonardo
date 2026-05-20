@@ -26,9 +26,9 @@ object Merging {
     case x if x.endsWith("/module-info.class")           => MergeStrategy.discard
     // For the following error:
     // Error:  Deduplicate found different file contents in the following:
-    // Error:    Jar name = bcpkix-jdk18on-1.78.jar, jar org = org.bouncycastle, entry target = META-INF/versions/9/OSGI-INF/MANIFEST.MF
-    // Error:    Jar name = bcprov-jdk18on-1.78.jar, jar org = org.bouncycastle, entry target = META-INF/versions/9/OSGI-INF/MANIFEST.MF
-    // Error:    Jar name = bcutil-jdk18on-1.78.jar, jar org = org.bouncycastle, entry target = META-INF/versions/9/OSGI-INF/MANIFEST.MF
+    // Error:    Jar name = bcpkix-jdk18on-1.84.jar, jar org = org.bouncycastle, entry target = META-INF/versions/9/OSGI-INF/MANIFEST.MF
+    // Error:    Jar name = bcprov-jdk18on-1.84.jar, jar org = org.bouncycastle, entry target = META-INF/versions/9/OSGI-INF/MANIFEST.MF
+    // Error:    Jar name = bcutil-jdk18on-1.84.jar, jar org = org.bouncycastle, entry target = META-INF/versions/9/OSGI-INF/MANIFEST.MF
     case x if x.endsWith("/OSGI-INF/MANIFEST.MF") =>
       MergeStrategy.first
     case x if x.contains("bouncycastle") =>
