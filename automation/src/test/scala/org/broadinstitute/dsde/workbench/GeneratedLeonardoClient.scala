@@ -18,6 +18,8 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.headers.Authorization
 import org.http4s.ember.client.EmberClientBuilder
+import org.typelevel.log4cats.LoggerFactory
+import org.typelevel.log4cats.slf4j.Slf4jFactory
 
 import scala.concurrent.duration._
 
@@ -26,6 +28,7 @@ import scala.concurrent.duration._
  * Favor this client over `LeonardoApiClient`
  */
 object GeneratedLeonardoClient {
+  implicit val loggerFactory: LoggerFactory[IO] = Slf4jFactory.create[IO]
   private val rootUri = Uri.fromString(LeonardoConfig.Leonardo.apiUrl)
 
   val client: Resource[IO, Client[IO]] =

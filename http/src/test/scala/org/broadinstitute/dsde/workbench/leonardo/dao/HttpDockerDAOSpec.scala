@@ -12,6 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.client.middleware.Logger
+import org.typelevel.log4cats.LoggerFactory
+import org.typelevel.log4cats.slf4j.Slf4jFactory
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -19,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
+  implicit val loggerFactory: LoggerFactory[IO] = Slf4jFactory.create[IO]
   val jupyterImages = List(
     // TODO this will break if AoU moves off Dockerhub and we delete these images
     // dockerhub with tag

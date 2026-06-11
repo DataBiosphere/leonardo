@@ -13,9 +13,12 @@ import org.http4s.headers.{`Content-Type`, Referer}
 import org.http4s.implicits._
 import org.http4s.server.Server
 import org.http4s._
+import org.typelevel.log4cats.LoggerFactory
+import org.typelevel.log4cats.slf4j.Slf4jFactory
 
 // This is for setting `REFERER` header in automation tests
 object ProxyRedirectClient {
+  implicit val loggerFactory: LoggerFactory[IO] = Slf4jFactory.create[IO]
   // serverRef is Singleton http4s server to serve the proxy redirect page.
   // Explanation of the type:
   //   `Ref` is a cats-effect reference, used to cache a single instance of the server
