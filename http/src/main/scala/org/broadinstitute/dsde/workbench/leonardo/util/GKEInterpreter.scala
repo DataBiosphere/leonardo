@@ -1063,12 +1063,11 @@ class GKEInterpreter[F[_]](
         SetUpProjectNetworkParams(googleProject, regionParam)
       )
 
-      // Load cloud-config content bundled from galaxy-k8s-boot bin/user_data.sh.
-      // Passed as the "user-data" metadata key, processed by cloud-init on first boot only.
-      // The galaxy-k8s-boot custom image has cloud-init pre-installed; "#cloud-config" must be
-      // the first line for cloud-init to recognise the file format.
+      // Load the startup-script passed to the GCE Guest Agent via the "startup-script" metadata key.
+      // The Guest Agent executes it on every boot, unlike cloud-init user-data which the pre-baked
+      // galaxy-k8s-boot image treats as already-run and skips.
       // To update, sync manually from https://github.com/galaxyproject/galaxy-k8s-boot/blob/anvil/bin/user_data.sh
-      userDataContent <- F.fromTry(
+      startupScriptContent <- F.fromTry(
         scala.util.Using(scala.io.Source.fromResource("init-resources/galaxy-user-data.sh"))(_.mkString)
       )
 
@@ -1172,7 +1171,7 @@ class GKEInterpreter[F[_]](
         .setMetadata(
           Metadata
             .newBuilder()
-            .addItems(Items.newBuilder().setKey("user-data").setValue(userDataContent).build())
+            .addItems(Items.newBuilder().setKey("startup-script").setValue(startupScriptContent).build())
             .addItems(Items.newBuilder().setKey("google-logging-enabled").setValue("true").build())
             .addItems(Items.newBuilder().setKey("gcp_batch_service_account_email").setValue(gcpBatchSa).build())
             .addItems(Items.newBuilder().setKey("persistent-volume-size").setValue(pvSize).build())
