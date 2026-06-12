@@ -1067,12 +1067,10 @@ class GKEInterpreter[F[_]](
       // Passed as the "user-data" metadata key, processed by cloud-init on first boot only.
       // The galaxy-k8s-boot custom image has cloud-init pre-installed; "#cloud-config" must be
       // the first line for cloud-init to recognise the file format.
-      // To update, sync manually from https://github.com/galaxyproject/galaxy-k8s-boot/blob/dev/bin/user_data.sh
-      userDataContent = scala.io.Source
-        .fromResource("init-resources/galaxy-user-data.sh")
-        .getLines()
-        .toList
-        .mkString("\n")
+      // To update, sync manually from https://github.com/galaxyproject/galaxy-k8s-boot/blob/anvil/bin/user_data.sh
+      userDataContent <- F.fromTry(
+        scala.util.Using(scala.io.Source.fromResource("init-resources/galaxy-user-data.sh"))(_.mkString)
+      )
 
       // Derive postgres disk name using the same naming convention as the subscriber
       postgresDiskName = GKEAlgebra.getGalaxyPostgresDiskName(nfsDisk.name,
@@ -1184,10 +1182,12 @@ class GKEInterpreter[F[_]](
             .addItems(Items.newBuilder().setKey("gcp-region").setValue(regionParam.value).build())
             .addItems(Items.newBuilder().setKey("gcp-network").setValue(network.value).build())
             .addItems(Items.newBuilder().setKey("gcp-subnet").setValue(subnetwork.value).build())
-            // Galaxy needs to know its public URL prefix so it generates correct absolute links
-            // (JS, CSS, API calls) that include the full Leo proxy path.
-            // galaxy-k8s-boot's ansible playbook must accept galaxy_url_prefix and set it in
-            // Galaxy's helm values (galaxy.yml). Without this, Galaxy generates links rooted at /
+            // Galaxy admin user email — used by the post-install job to create the initial Galaxy admin.
+            .addItems(
+              Items.newBuilder().setKey("galaxy-user-email").setValue(app.auditInfo.creator.value).build()
+            )
+            // Leo proxy path prefix passed to ansible-pull as galaxy_prefix so Galaxy's nginx ingress
+            // is configured at the correct subpath. Without this, Galaxy generates links rooted at /
             // which the browser resolves against Leo's host and gets 404s → blank page.
             .addItems(
               Items
@@ -1230,7 +1230,7 @@ class GKEInterpreter[F[_]](
       // Only attempted when the Batch SA lives in the same project as the user (i.e. not a shared platform SA).
       // For cross-project Batch SAs, this binding must be set up externally (e.g. via Terraform).
       gcpBatchSaProject = GoogleProject(
-        gcpBatchSa.split("@").lastOption.getOrElse("").replace(".iam.gserviceaccount.com", "")
+        gcpBatchSa.split("@").lift(1).map(_.stripSuffix(".iam.gserviceaccount.com")).getOrElse("")
       )
       _ <-
         if (gcpBatchSaProject == googleProject)
@@ -1300,10 +1300,9 @@ class GKEInterpreter[F[_]](
         s"Galaxy VM instance ${instanceName.value} submitted for project ${googleProject.value}; polling for external IP"
       )
 
-      // Poll until the instance has both internal and external IPs assigned.
-      // We store the internal IP as the proxy backend (KubernetesDnsCache loadBalancerIp) so that
-      // the Leo proxy connects to the VM over the internal VPC network using plain HTTP.
-      // The external IP is only used for the readiness health check (TCP to port 80).
+      // Poll until the instance has an external IP assigned (needed for both proxy routing and readiness check).
+      // We store the external IP because Leo's GKE cluster and the Galaxy VM are in different GCP projects
+      // whose VPCs are not peered, making the internal IP unreachable from Leo's pod.
       ipPairOpt <- streamFUntilDone(
         computeService.getInstance(googleProject, zoneParam, instanceName).map { instanceOpt =>
           instanceOpt.flatMap { inst =>

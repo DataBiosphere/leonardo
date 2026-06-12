@@ -1,5 +1,5 @@
 #cloud-config
-# Sourced from https://github.com/galaxyproject/galaxy-k8s-boot/blob/dev/bin/user_data.sh
+# Sourced from https://github.com/galaxyproject/galaxy-k8s-boot/blob/anvil/bin/user_data.sh
 # When updating this file, sync it manually from that repository and verify the changes.
 write_files:
   - path: /usr/local/bin/galaxy_bootstrap.sh
@@ -73,7 +73,7 @@ write_files:
       # 3. Run ansible-pull
       sudo -u debian bash -c '
       export HOME=/home/debian
-      HOST_IP=$(curl -s ifconfig.me)
+      HOST_IP=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip" -H "Metadata-Flavor: Google" 2>/dev/null || curl -s ifconfig.me)
 
       PV_SIZE=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/persistent-volume-size" -H "Metadata-Flavor: Google" 2>/dev/null)
       if [ -z "$PV_SIZE" ]; then
@@ -89,14 +89,16 @@ write_files:
       echo "[$(date)] - GCP Batch service account email: ${GCP_BATCH_SERVICE_ACCOUNT_EMAIL}"
 
       # Leo proxy path prefix for this Galaxy app (e.g. /proxy/google/v1/apps/{project}/{appName}/galaxy).
-      # Passed to ansible as galaxy_url_prefix so Galaxy generates correct absolute links (JS/CSS/API)
-      # that include the full proxy path. Without this Galaxy emits links rooted at / which the
-      # browser resolves against Leo's host and gets 404s → blank page.
+      # Passed to ansible as galaxy_prefix so Galaxy's nginx ingress is configured at the correct subpath.
+      # Without this Galaxy generates links rooted at / which the browser resolves against Leo's host → 404s.
       GALAXY_URL_PREFIX=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/galaxy-url-prefix" -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
       echo "[$(date)] - Galaxy URL prefix: ${GALAXY_URL_PREFIX}"
 
+      GALAXY_USER=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/galaxy-user-email" -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+      echo "[$(date)] - Galaxy user email: ${GALAXY_USER}"
+
       GIT_REPO=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/git-repo" -H "Metadata-Flavor: Google" 2>/dev/null || echo "https://github.com/galaxyproject/galaxy-k8s-boot.git")
-      GIT_BRANCH=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/git-branch" -H "Metadata-Flavor: Google" 2>/dev/null || echo "master")
+      GIT_BRANCH=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/git-branch" -H "Metadata-Flavor: Google" 2>/dev/null || echo "anvil")
 
       PULL_ARGS=(
         -U "${GIT_REPO}"
@@ -135,7 +137,7 @@ write_files:
       nfs_size="${PV_SIZE}"
       galaxy_persistence_size="${PV_SIZE}"
       galaxy_db_password="gxy-db-password"
-      galaxy_user="dev@galaxyproject.org"
+      galaxy_user="${GALAXY_USER}"
       EOF
 
       echo "[$(date)] - Inventory file created at /tmp/ansible-inventory/localhost; running ansible-pull..."
