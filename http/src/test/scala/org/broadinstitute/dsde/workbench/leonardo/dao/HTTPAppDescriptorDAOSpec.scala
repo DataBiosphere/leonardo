@@ -10,10 +10,13 @@ import org.scalatest.matchers.should.Matchers
 import org.http4s.client.Client
 import org.http4s._
 import org.http4s.ember.client.EmberClientBuilder
+import org.typelevel.log4cats.LoggerFactory
+import org.typelevel.log4cats.slf4j.Slf4jFactory
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import scala.concurrent.ExecutionContext.global
 
 class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
+  implicit val loggerFactory: LoggerFactory[IO] = Slf4jFactory.create[IO]
   // NOTE: If this is not a valid link, tests will fail
   val appYamlURI: Uri = Uri.uri("https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/rstudio/app.yaml")
   // NOTE: no tests here actually use the http response from this URI

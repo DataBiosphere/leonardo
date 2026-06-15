@@ -22,8 +22,8 @@ import org.http4s.client.middleware.{Retry, RetryPolicy}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
-import org.typelevel.log4cats.Logger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.{Logger, LoggerFactory}
+import org.typelevel.log4cats.slf4j.{Slf4jFactory, Slf4jLogger}
 import scalacache.caffeine.CaffeineCache
 
 import java.util.UUID
@@ -34,6 +34,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
   val cloudAuthProvider = mock[CloudAuthTokenProvider[IO]]
   val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"), false, 1 seconds, 10, 15)
   implicit def unsafeLogger: Logger[IO] = Slf4jLogger.getLogger[IO]
+  implicit val loggerFactory: LoggerFactory[IO] = Slf4jFactory.create[IO]
   val underlyingPetTokenCache = Caffeine
     .newBuilder()
     .maximumSize(httpSamDaoConfig.petCacheMaxSize)
