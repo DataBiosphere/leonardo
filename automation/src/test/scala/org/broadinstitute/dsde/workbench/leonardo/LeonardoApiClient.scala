@@ -22,8 +22,8 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.headers._
-import org.typelevel.log4cats.StructuredLogger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.{LoggerFactory, StructuredLogger}
+import org.typelevel.log4cats.slf4j.{Slf4jFactory, Slf4jLogger}
 
 import java.util.UUID
 import java.util.concurrent.TimeoutException
@@ -38,6 +38,7 @@ import scala.util.control.NoStackTrace
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
   implicit val logger: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
+  implicit val loggerFactory: LoggerFactory[IO] = Slf4jFactory.create[IO]
 
   implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[IO, A]): EntityBody[IO] =
     encoder.toEntity(body).body

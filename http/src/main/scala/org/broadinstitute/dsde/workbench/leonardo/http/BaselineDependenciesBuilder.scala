@@ -55,7 +55,8 @@ import org.broadinstitute.dsde.workbench.util2.messaging.{CloudPublisher, CloudS
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.client.middleware.{Logger => Http4sLogger, Metrics, Retry, RetryPolicy}
-import org.typelevel.log4cats.StructuredLogger
+import org.typelevel.log4cats.{LoggerFactory, StructuredLogger}
+import org.typelevel.log4cats.slf4j.Slf4jFactory
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
 import java.net.SocketException
@@ -119,6 +120,7 @@ class BaselineDependenciesBuilder {
       )(_.close)
 
       cloudAuthTokenProvider = CloudAuthTokenProvider[F](applicationConfig)
+      implicit0(loggerFactory: LoggerFactory[F]) = Slf4jFactory.create[F]
 
       samClientProvider = new HttpSamApiClientProvider(httpSamDaoConfig.samUri.renderString,
                                                        httpSamDaoConfig.maxConcurrentRequests
@@ -299,7 +301,7 @@ class BaselineDependenciesBuilder {
       .recordStats()
       .build[K, V]()
 
-  private def buildHttpClient[F[_]: Async: StructuredLogger: Network](
+  private def buildHttpClient[F[_]: Async: StructuredLogger: Network: LoggerFactory](
     sslContext: SSLContext,
     hostToIpMapping: Ref[F, Map[String, IP]],
     metricsPrefix: Option[String],
