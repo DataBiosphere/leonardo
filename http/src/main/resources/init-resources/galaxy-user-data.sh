@@ -126,7 +126,7 @@ if [ -n "$GALAXY_URL_PREFIX" ]; then
     mkdir -p /tmp/ansible-extra-vars
     cat > /tmp/ansible-extra-vars/galaxy_prefix.yml << EOF
 galaxy_helm_extra_sets:
-  - value: "configs.galaxy\\.yml.galaxy_url_prefix=${GALAXY_URL_PREFIX}"
+  - value: 'configs.galaxy\.yml.galaxy_url_prefix=${GALAXY_URL_PREFIX}'
 EOF
     PULL_ARGS+=(--extra-vars "@/tmp/ansible-extra-vars/galaxy_prefix.yml")
     echo "[$(date)] - Galaxy URL prefix passed to ansible: ${GALAXY_URL_PREFIX}"
