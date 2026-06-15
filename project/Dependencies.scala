@@ -9,7 +9,7 @@ object Dependencies {
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.17"
-  val http4sVersion = "1.0.0-M38"
+  val http4sVersion = "1.0.0-M45"
   val slickV = "3.4.1"
   val nettyV = "4.1.133.Final"
   val guavaV = "32.1.3-jre"
@@ -19,13 +19,13 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val commonsBeanUtilsV = "1.11.0"
 
-  private val workbenchLibsHash = "3a18911"
+  private val workbenchLibsHash = "a91095a"
   val serviceTestV = s"6.1-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
   val workbenchGoogleV = s"0.35-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.40-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.41-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.9-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.10-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.9.1"
 
