@@ -1098,6 +1098,8 @@ class GKEInterpreter[F[_]](
         )
         .map(sa => sa.email.value)
 
+      galaxyUrlPrefix = s"/proxy/google/v1/apps/${googleProject.value}/${app.appName.value}/galaxy"
+
       // Disks — data and postgres disks are always pre-existing by the time this method runs
       // (created by createDiskOp / createSecondDiskOp, or retained from a previous app).
       // Use setSource to attach existing disks; only the boot disk is created fresh.
@@ -1192,9 +1194,7 @@ class GKEInterpreter[F[_]](
               Items
                 .newBuilder()
                 .setKey("galaxy-url-prefix")
-                .setValue(
-                  s"/proxy/google/v1/apps/${googleProject.value}/${app.appName.value}/galaxy"
-                )
+                .setValue(galaxyUrlPrefix)
                 .build()
             )
             .build()
@@ -1352,12 +1352,11 @@ class GKEInterpreter[F[_]](
         s"Polling Galaxy readiness for app ${app.appName.value} via proxy (backend: ${externalIp.asString}:80)"
       )
 
-      // Wait for Galaxy's nginx to respond.
-      // Uses a direct HTTP check to the VM's external IP on port 80, bypassing the Leo proxy
-      // hostname chain (which would require the proxy wildcard DNS to be reachable from within
-      // the Leo pod — unreliable in BEE environments due to hairpin NAT).
+      // Wait for Galaxy to be fully ready: poll the actual galaxy prefix path, not just /.
+      // nginx returns 404 for / (no ingress rule at root) and 502 for the galaxy path while
+      // pods are starting — both are < 400 = false. Only returns true once Galaxy responds 200.
       isDone <- streamFUntilDone(
-        appDao.isVmReachable(externalIp, 80, ctx.traceId),
+        appDao.isVmReachable(externalIp, 80, ctx.traceId, galaxyUrlPrefix),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError

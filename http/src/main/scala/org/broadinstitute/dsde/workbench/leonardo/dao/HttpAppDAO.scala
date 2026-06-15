@@ -45,16 +45,20 @@ class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client:
       case _ => Async[F].pure(false) // Update once we support Relay for apps
     }
 
-  def isVmReachable(ip: org.broadinstitute.dsde.workbench.model.IP, port: Int, traceId: TraceId): F[Boolean] =
+  def isVmReachable(ip: org.broadinstitute.dsde.workbench.model.IP,
+                    port: Int,
+                    traceId: TraceId,
+                    path: String = "/"
+  ): F[Boolean] =
     client
       .status(
         Request[F](
           method = Method.GET,
-          uri = Uri.unsafeFromString(s"http://${ip.asString}:${port}/"),
+          uri = Uri.unsafeFromString(s"http://${ip.asString}:${port}${path}"),
           headers = Headers(Header.Raw(CIString("X-Request-ID"), traceId.asString))
         )
       )
-      .map(status => status.code < 500)
+      .map(status => status.code < 400)
       .handleErrorWith(t =>
         logger.error(Map("traceId" -> traceId.asString), t)("Fail to check if VM is reachable").as(false)
       )
@@ -67,5 +71,9 @@ trait AppDAO[F[_]] {
                        traceId: TraceId
   ): F[Boolean]
 
-  def isVmReachable(ip: org.broadinstitute.dsde.workbench.model.IP, port: Int, traceId: TraceId): F[Boolean]
+  def isVmReachable(ip: org.broadinstitute.dsde.workbench.model.IP,
+                    port: Int,
+                    traceId: TraceId,
+                    path: String = "/"
+  ): F[Boolean]
 }

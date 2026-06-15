@@ -14,7 +14,7 @@ class MockAppDAO(isUp: Boolean = true) extends AppDAO[IO] {
   ): IO[Boolean] =
     IO.pure(isUp)
 
-  override def isVmReachable(ip: IP, port: Int, traceId: TraceId): IO[Boolean] =
+  override def isVmReachable(ip: IP, port: Int, traceId: TraceId, path: String = "/"): IO[Boolean] =
     IO.pure(isUp)
 }
 object MockAppDAO extends MockAppDAO(isUp = true)
