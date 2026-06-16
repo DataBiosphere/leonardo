@@ -1170,11 +1170,12 @@ class LeoPubsubMessageSubscriber[F[_]](
         // When keeping the disk (diskId absent), record which app last used it so the next
         // create-app call can restore from it. For VM-based Galaxy there is no PVC, so we
         // only save lastUsedBy; PersistentDiskComponent maps this to AppRestore.Other.
-        _ <- if (msg.diskId.isEmpty)
-          dbApp.app.appResources.disk.traverse_ { disk =>
-            persistentDiskQuery.updateLastUsedBy(disk.id, msg.appId).transaction
-          }
-        else F.unit
+        _ <-
+          if (msg.diskId.isEmpty)
+            dbApp.app.appResources.disk.traverse_ { disk =>
+              persistentDiskQuery.updateLastUsedBy(disk.id, msg.appId).transaction
+            }
+          else F.unit
 
         // detach/delete disk when we need to delete disk
         _ <- msg.diskId.traverse_ { diskId =>
