@@ -11,7 +11,7 @@ object Dependencies {
   val scalaTestV = "3.2.17"
   val http4sVersion = "1.0.0-M45"
   val slickV = "3.4.1"
-  val nettyCodecHttpV = "4.1.133.Final"
+  val nettyV = "4.1.133.Final"
   val guavaV = "32.1.3-jre"
   val bouncyCastleV = "1.84"
   val monocleV = "3.2.0"
@@ -132,7 +132,24 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
 
-  val nettyCodecHttp: ModuleID = "io.netty" % "netty-codec-http" % nettyCodecHttpV
+  val nettyBuffer: ModuleID = "io.netty" % "netty-buffer" % nettyV
+  val nettyCodec: ModuleID = "io.netty" % "netty-codec" % nettyV
+  val nettyCodecHttp: ModuleID = "io.netty" % "netty-codec-http" % nettyV
+  val nettyCodecHttp2: ModuleID = "io.netty" % "netty-codec-http2" % nettyV
+  val nettyCodecSocks: ModuleID = "io.netty" % "netty-codec-socks" % nettyV
+  val nettyCommon: ModuleID = "io.netty" % "netty-common" % nettyV
+  val nettyHandler: ModuleID = "io.netty" % "netty-handler" % nettyV
+  val nettyHandlerProxy: ModuleID = "io.netty" % "netty-handler-proxy" % nettyV
+  val nettyResolver: ModuleID = "io.netty" % "netty-resolver" % nettyV
+  val nettyTransport: ModuleID = "io.netty" % "netty-transport" % nettyV
+  val nettyTransportNativeEpoll: ModuleID = "io.netty" % "netty-transport-native-epoll" % nettyV
+  val nettyTransportNativeUnixCommon: ModuleID = "io.netty" % "netty-transport-native-unix-common" % nettyV
+  val nettyCodecDns: ModuleID = "io.netty" % "netty-codec-dns" % nettyV
+  val nettyResolverDns: ModuleID = "io.netty" % "netty-resolver-dns" % nettyV
+  val nettyResolverDnsNativeMacos: ModuleID = "io.netty" % "netty-resolver-dns-native-macos" % nettyV
+  val nettyResolverDnsClassesMacos: ModuleID = "io.netty" % "netty-resolver-dns-classes-macos" % nettyV
+  val nettyTransportNativeKqueue: ModuleID = "io.netty" % "netty-transport-native-kqueue" % nettyV
+  val nettyTransportClassesKqueue: ModuleID = "io.netty" % "netty-transport-classes-kqueue" % nettyV
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val bcprov: ModuleID  = "org.bouncycastle" % "bcprov-jdk18on" % bouncyCastleV
   val bcpkix: ModuleID  = "org.bouncycastle" % "bcpkix-jdk18on" % bouncyCastleV
@@ -228,7 +245,14 @@ object Dependencies {
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
   val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
 
-  val commonOverrides = List(nettyCodecHttp, bcprov, bcpkix, bcutil)
+  val commonOverrides = List(
+    nettyBuffer, nettyCodec, nettyCodecDns, nettyCodecHttp, nettyCodecHttp2, nettyCodecSocks,
+    nettyCommon, nettyHandler, nettyHandlerProxy, nettyResolver,
+    nettyResolverDns, nettyResolverDnsNativeMacos, nettyResolverDnsClassesMacos,
+    nettyTransport, nettyTransportNativeEpoll, nettyTransportNativeUnixCommon,
+    nettyTransportNativeKqueue, nettyTransportClassesKqueue,
+    bcprov, bcpkix, bcutil
+  )
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
