@@ -587,7 +587,12 @@ class ProxyService(
     "Sec-WebSocket-Protocol",
     "UpgradeToWebSocket",
     "Upgrade",
-    "Connection"
+    "Connection",
+    // Strip the user's Leo/Terra bearer token: backends must not receive it.
+    // Galaxy 23.1+ treats any Authorization: Bearer value as a Galaxy API key;
+    // forwarding the Terra JWT causes Galaxy to return 400 for every API call.
+    // Leo is the auth boundary — backends authenticate via their own mechanisms.
+    "Authorization"
   ).map(_.toLowerCase)
 }
 

@@ -1352,11 +1352,12 @@ class GKEInterpreter[F[_]](
         s"Polling Galaxy readiness for app ${app.appName.value} via proxy (backend: ${externalIp.asString}:80)"
       )
 
-      // Wait for Galaxy to be fully ready: poll the actual galaxy prefix path, not just /.
-      // nginx returns 404 for / (no ingress rule at root) and 502 for the galaxy path while
-      // pods are starting — both are < 400 = false. Only returns true once Galaxy responds 200.
+      // Poll /api/version rather than the bare prefix path: nginx can return a 301 redirect
+      // (trailing-slash normalisation) for the bare path while Galaxy pods are still starting,
+      // which would satisfy < 400 and mark the app Running too early. /api/version requires
+      // Galaxy's Python API to be fully initialised and only returns 200 at that point.
       isDone <- streamFUntilDone(
-        appDao.isVmReachable(externalIp, 80, ctx.traceId, galaxyUrlPrefix),
+        appDao.isVmReachable(externalIp, 80, ctx.traceId, s"$galaxyUrlPrefix/api/version"),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError

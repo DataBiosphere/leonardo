@@ -118,17 +118,6 @@ fi
 
 if [ -n "$GALAXY_URL_PREFIX" ]; then
     PULL_ARGS+=(--extra-vars "galaxy_prefix=${GALAXY_URL_PREFIX}")
-    # Also configure Galaxy's own galaxy_url_prefix so it generates correct subpath links.
-    # galaxy_prefix only sets the nginx ingress path; without galaxy_url_prefix in galaxy.yml,
-    # Galaxy generates /static/... links that the browser resolves without the prefix → blank page.
-    # galaxy_helm_extra_sets is a variable the anvil playbook merges into Helm set_values.
-    # The YAML file avoids shell-escaping the nested key (configs.galaxy\.yml.*).
-    mkdir -p /tmp/ansible-extra-vars
-    cat > /tmp/ansible-extra-vars/galaxy_prefix.yml << EOF
-galaxy_helm_extra_sets:
-  - value: 'configs.galaxy\.yml.galaxy.galaxy_url_prefix=${GALAXY_URL_PREFIX}'
-EOF
-    PULL_ARGS+=(--extra-vars "@/tmp/ansible-extra-vars/galaxy_prefix.yml")
     echo "[$(date)] - Galaxy URL prefix passed to ansible: ${GALAXY_URL_PREFIX}"
 fi
 
