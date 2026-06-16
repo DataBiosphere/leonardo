@@ -828,6 +828,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
+                (Some(FormattedBy.Galaxy), Some(AppRestore.Other(_))) |
                 (Some(FormattedBy.Cromwell), Some(AppRestore.Other(_))) |
                 (Some(FormattedBy.Allowed), Some(AppRestore.Other(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
