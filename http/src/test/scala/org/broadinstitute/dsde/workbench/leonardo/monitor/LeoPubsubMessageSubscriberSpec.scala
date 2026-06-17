@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.util2.InstanceName
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
@@ -924,7 +924,6 @@ class LeoPubsubMessageSubscriberSpec
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
       appRestore <- persistentDiskQuery.getAppDiskRestore(savedApp1.appResources.disk.get.id).transaction
-      galaxyRestore = appRestore.map(_.asInstanceOf[GalaxyRestore])
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
@@ -946,8 +945,9 @@ class LeoPubsubMessageSubscriberSpec
         )
       )
       getDisk.status shouldBe DiskStatus.Ready
-      // Galaxy VM path does not use PVCs — no GalaxyRestore is recorded
-      galaxyRestore shouldBe None
+      // Galaxy VM path: GKEInterpreter.createAndPollApp calls updateLastUsedBy, so appRestore is
+      // AppRestore.Other (no PVC ID — VM-based Galaxy has no Kubernetes PVC).
+      appRestore shouldBe Some(AppRestore.Other(savedApp1.id))
     }
 
     implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release))
