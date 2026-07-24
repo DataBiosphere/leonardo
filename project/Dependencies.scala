@@ -256,7 +256,7 @@ object Dependencies {
   val automationOverrides = List(guava)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.18.0" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.22.1" % "test",
     logbackClassic % "test",
     leonardoClient,
     ssh,
