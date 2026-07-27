@@ -19,13 +19,13 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val commonsBeanUtilsV = "1.11.0"
 
-  private val workbenchLibsHash = "a91095a"
-  val serviceTestV = s"6.1-$workbenchLibsHash"
+  private val workbenchLibsHash = "adcc4d4"
+  val serviceTestV = s"6.2-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.35-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.41-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.10-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.36-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.42-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.10-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.11-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.9.1"
 
