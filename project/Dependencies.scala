@@ -19,13 +19,13 @@ object Dependencies {
   val munitCatsEffectV = "1.0.7"
   val commonsBeanUtilsV = "1.11.0"
 
-  private val workbenchLibsHash = "a91095a"
-  val serviceTestV = s"6.1-$workbenchLibsHash"
+  private val workbenchLibsHash = "fccb671"
+  val serviceTestV = s"6.2-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
-  val workbenchGoogleV = s"0.35-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.41-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.9-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.10-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.36-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.43-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.10-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.11-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.9.1"
 
@@ -156,7 +156,7 @@ object Dependencies {
   val bcutil: ModuleID  = "org.bouncycastle" % "bcutil-jdk18on" % bouncyCastleV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val terraCommonLibV = "1.1.38-SNAPSHOT"
+  val terraCommonLibV = "1.1.54-SNAPSHOT"
   val samV = "v0.0.448"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
@@ -253,7 +253,11 @@ object Dependencies {
     nettyTransportNativeKqueue, nettyTransportClassesKqueue,
     bcprov, bcpkix, bcutil
   )
-  val automationOverrides = List(guava)
+  val automationOverrides = List(
+    guava,
+    // semconv version to satisfy selenium:
+    "io.opentelemetry.semconv" % "opentelemetry-semconv" % "1.29.0-alpha"
+  )
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.22.1" % "test",
