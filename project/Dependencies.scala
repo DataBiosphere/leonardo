@@ -156,7 +156,7 @@ object Dependencies {
   val bcutil: ModuleID  = "org.bouncycastle" % "bcutil-jdk18on" % bouncyCastleV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val terraCommonLibV = "1.1.50-SNAPSHOT"
+  val terraCommonLibV = "1.1.54-SNAPSHOT"
   val samV = "v0.0.448"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
