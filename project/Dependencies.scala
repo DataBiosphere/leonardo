@@ -253,7 +253,11 @@ object Dependencies {
     nettyTransportNativeKqueue, nettyTransportClassesKqueue,
     bcprov, bcpkix, bcutil
   )
-  val automationOverrides = List(guava)
+  val automationOverrides = List(
+    guava,
+    // semconv version to satisfy selenium:
+    "io.opentelemetry.semconv" % "opentelemetry-semconv" % "1.29.0-alpha"
+  )
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.22.1" % "test",
