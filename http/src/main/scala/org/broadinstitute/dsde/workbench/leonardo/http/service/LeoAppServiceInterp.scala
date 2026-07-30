@@ -170,9 +170,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
           getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
         )
 
-        saveClusterResult <- KubernetesServiceDbQueries
-          .saveOrGetClusterForApp(saveCluster, ctx.traceId)
-          .transaction(isolationLevel = TransactionIsolation.Serializable)
+        // Galaxy VM apps each get their own Leo cluster record. If multiple Galaxy apps shared
+        // a cluster, the last VM to start would overwrite the cluster's loadBalancerIp, routing
+        // all users' proxy requests to the same (wrong) VM. GKE-based apps continue to share a
+        // cluster per project as before.
+        saveClusterResult <-
+          if (req.appType == AppType.Galaxy)
+            KubernetesServiceDbQueries.saveNewClusterForApp(saveCluster).transaction
+          else
+            KubernetesServiceDbQueries
+              .saveOrGetClusterForApp(saveCluster, ctx.traceId)
+              .transaction(isolationLevel = TransactionIsolation.Serializable)
         // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
         _ <-
           if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)

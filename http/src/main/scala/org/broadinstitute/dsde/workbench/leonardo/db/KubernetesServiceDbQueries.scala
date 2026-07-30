@@ -117,6 +117,19 @@ object KubernetesServiceDbQueries {
     } yield eitherClusterOrError
 
   /**
+    * Always persists a new KubernetesCluster record (never reuses an existing one).
+    * Used for Galaxy VM apps: each VM needs its own cluster record to store a unique
+    * loadBalancerIp, so that multiple Galaxy VMs in the same project don't overwrite
+    * each other's IP in the cluster table.
+    */
+  def saveNewClusterForApp(
+    saveKubernetesCluster: SaveKubernetesCluster
+  )(implicit ec: ExecutionContext): DBIO[ClusterDoesNotExist] =
+    kubernetesClusterQuery
+      .save(saveKubernetesCluster)
+      .map(c => ClusterDoesNotExist(c, DefaultNodepool.fromNodepool(c.nodepools.head)))
+
+  /**
     * Gets an active app by name and cloud context.
     */
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
