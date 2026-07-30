@@ -166,6 +166,25 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                        None,
                                        getAppSamPolicyMap(userEmail, leoEmail, req.accessScope)
         )
+
+        // For Galaxy VM apps, check disk attachment before creating a cluster record. Without this
+        // early check, saveNewClusterForApp would be attempted first; if it succeeded we'd then
+        // get DiskAlreadyAttachedException from processPersistentDiskRequest, leaving an orphaned
+        // cluster record. Doing the check here keeps the error path clean.
+        _ <- if (req.appType == AppType.Galaxy) {
+          req.diskConfig.flatTraverse { diskReq =>
+            persistentDiskQuery.getActiveByName(cloudContext, diskReq.name).transaction
+          }.flatMap {
+            case Some(pd) =>
+              appQuery.isDiskAttached(pd.id).transaction.flatMap { isAttached =>
+                if (isAttached)
+                  F.raiseError[Unit](DiskAlreadyAttachedException(cloudContext, pd.name, ctx.traceId))
+                else F.unit
+              }
+            case None => F.unit
+          }
+        } else F.unit
+
         saveCluster <- F.fromEither(
           getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
         )
