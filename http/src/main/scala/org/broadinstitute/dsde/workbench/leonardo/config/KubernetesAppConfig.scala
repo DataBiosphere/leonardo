@@ -101,7 +101,9 @@ final case class GalaxyVmConfig(
   postgresDiskSizeGb: DiskSize,
   postgresDiskNameSuffix: String,
   gitRepo: String,
-  gitBranch: String
+  gitBranch: String,
+  orchUrl: String,
+  drsUrl: String
 )
 
 final case class ContainerRegistryUsername(asString: String) extends AnyVal

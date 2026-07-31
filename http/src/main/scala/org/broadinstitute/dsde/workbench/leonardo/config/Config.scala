@@ -139,7 +139,9 @@ object Config {
       config.as[DiskSize]("postgresDiskSizeGb"),
       config.as[String]("postgresDiskNameSuffix"),
       config.as[String]("gitRepo"),
-      config.as[String]("gitBranch")
+      config.as[String]("gitBranch"),
+      config.as[String]("orchUrl"),
+      config.as[String]("drsUrl")
     )
   }
 

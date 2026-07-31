@@ -82,6 +82,15 @@ GCP_BATCH_SERVICE_ACCOUNT_EMAIL=$(curl -s -f "http://metadata.google.internal/co
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "galaxy-batch-runner@anvil-and-terra-development.iam.gserviceaccount.com")
 echo "[$(date)] - GCP Batch service account email: ${GCP_BATCH_SERVICE_ACCOUNT_EMAIL}"
 
+TERRA_WORKSPACE=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-workspace" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+TERRA_NAMESPACE=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-namespace" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+TERRA_DRS_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-drs-url" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+TERRA_API_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-api-url" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+
 # Leo proxy path prefix (e.g. /proxy/google/v1/apps/{project}/{appName}/galaxy).
 # Passed to ansible-pull as galaxy_prefix so Galaxy nginx ingress is configured at
 # the correct subpath. Without this Galaxy generates links rooted at / which the
@@ -107,6 +116,10 @@ PULL_ARGS=(
   --accept-host-key
   --limit 127.0.0.1
   --extra-vars "gcp_batch_service_account_email=${GCP_BATCH_SERVICE_ACCOUNT_EMAIL}"
+  --extra-vars "terra_workspace=${TERRA_WORKSPACE}"
+  --extra-vars "terra_namespace=${TERRA_NAMESPACE}"
+  --extra-vars "terra_drs_url=${TERRA_DRS_URL}"
+  --extra-vars "terra_api_url=${TERRA_API_URL}"
 )
 
 if [ "$RESTORE_GALAXY" = "true" ]; then
