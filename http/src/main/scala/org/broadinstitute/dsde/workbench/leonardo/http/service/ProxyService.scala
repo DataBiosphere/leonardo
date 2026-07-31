@@ -5,7 +5,7 @@ package service
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{`Content-Disposition`, OAuth2BearerToken}
+import akka.http.scaladsl.model.headers.{`Content-Disposition`, OAuth2BearerToken, RawHeader}
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.http.scaladsl.unmarshalling.Unmarshal
@@ -459,8 +459,14 @@ class ProxyService(
     // Rewrite the path if it is proxy/*/*/jupyter/, otherwise pass it through as is (see rewriteJupyterPath)
     val rewrittenPath = rewriteJupyterPath(request.uri.path)
 
-    // 1. filter out headers not needed for the backend server
-    val newHeaders = filterHeaders(request.headers)
+    // 1. filter out headers not needed for the backend server, then inject X-Forwarded-Proto.
+    // Galaxy VM backends receive plain HTTP from Leo (TLS is terminated here), so we
+    // must declare the original scheme so tusd (running with -behind-proxy) generates
+    // Location: https://... rather than http://, which browsers block as mixed content.
+    val filteredHeaders = filterHeaders(request.headers)
+    val newHeaders =
+      if (useHttp) filteredHeaders :+ RawHeader("X-Forwarded-Proto", "https")
+      else filteredHeaders
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.rawQueryString)
     // 3. build a new HttpRequest
