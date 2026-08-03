@@ -120,6 +120,7 @@ PULL_ARGS=(
   --extra-vars "terra_namespace=${TERRA_NAMESPACE}"
   --extra-vars "terra_drs_url=${TERRA_DRS_URL}"
   --extra-vars "terra_api_url=${TERRA_API_URL}"
+  --extra-vars "ingress_use_forwarded_headers=true"
 )
 
 if [ "$RESTORE_GALAXY" = "true" ]; then
