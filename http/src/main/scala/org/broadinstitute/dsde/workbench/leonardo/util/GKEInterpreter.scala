@@ -1187,7 +1187,7 @@ class GKEInterpreter[F[_]](
               Items
                 .newBuilder()
                 .setKey("terra-workspace")
-                .setValue(app.workspaceId.map(_.value.toString).getOrElse(""))
+                .setValue(app.customEnvironmentVariables.getOrElse(WORKSPACE_NAME_KEY, ""))
                 .build()
             )
             .addItems(Items.newBuilder().setKey("terra-namespace").setValue(googleProject.value).build())
