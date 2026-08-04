@@ -879,8 +879,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                     )
                 }
               } yield lastUsed.some
-            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
-                (Some(FormattedBy.Allowed), None) =>
+            // Galaxy VM writes restore info only after a successful install. If an app
+            // failed during creation before that point, the disk has no data and can
+            // be reused as a fresh install.
+            case (Some(FormattedBy.Galaxy), None) =>
+              F.pure(none[LastUsedApp])
+            case (Some(FormattedBy.Cromwell), None) | (Some(FormattedBy.Allowed), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException(s"Existing ${diskResult.disk.id} found, but no restore info found in DB",
                                  traceId = Some(ctx.traceId)
