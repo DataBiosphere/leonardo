@@ -1190,7 +1190,14 @@ class GKEInterpreter[F[_]](
                 .setValue(app.customEnvironmentVariables.getOrElse(WORKSPACE_NAME_KEY, ""))
                 .build()
             )
-            .addItems(Items.newBuilder().setKey("terra-namespace").setValue(googleProject.value).build())
+            .addItems(
+              Items
+                .newBuilder()
+                .setKey("terra-namespace")
+                .setValue(app.customEnvironmentVariables.getOrElse(WORKSPACE_NAMESPACE_KEY, ""))
+                .build()
+            )
+            .addItems(Items.newBuilder().setKey("gcp-project-id").setValue(googleProject.value).build())
             .addItems(Items.newBuilder().setKey("terra-drs-url").setValue(config.galaxyVmConfig.drsUrl).build())
             .addItems(Items.newBuilder().setKey("terra-api-url").setValue(config.galaxyVmConfig.orchUrl).build())
             // Galaxy admin user email — used by the post-install job to create the initial Galaxy admin.

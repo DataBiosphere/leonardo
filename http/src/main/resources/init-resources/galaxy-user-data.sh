@@ -86,6 +86,8 @@ TERRA_WORKSPACE=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 TERRA_NAMESPACE=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-namespace" \
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+GCP_PROJECT_ID=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcp-project-id" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 TERRA_DRS_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-drs-url" \
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 TERRA_API_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-api-url" \
@@ -121,7 +123,7 @@ PULL_ARGS=(
   --extra-vars "terra_drs_url=${TERRA_DRS_URL}"
   --extra-vars "terra_api_url=${TERRA_API_URL}"
   --extra-vars "ingress_use_forwarded_headers=true"
-  --extra-vars "gcp_project_id=${TERRA_NAMESPACE}"
+  --extra-vars "gcp_project_id=${GCP_PROJECT_ID}"
 )
 
 if [ "$RESTORE_GALAXY" = "true" ]; then
