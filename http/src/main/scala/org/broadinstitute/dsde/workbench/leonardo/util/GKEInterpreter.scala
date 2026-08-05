@@ -1165,7 +1165,9 @@ class GKEInterpreter[F[_]](
             .addAllScopes(
               List(
                 "https://www.googleapis.com/auth/cloud-platform",
-                "https://www.googleapis.com/auth/logging.write"
+                "https://www.googleapis.com/auth/logging.write",
+                "https://www.googleapis.com/auth/userinfo.email",
+                "https://www.googleapis.com/auth/userinfo.profile"
               ).asJava
             )
             .build()
