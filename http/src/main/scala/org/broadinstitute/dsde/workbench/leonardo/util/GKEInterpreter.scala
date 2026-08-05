@@ -1214,6 +1214,17 @@ class GKEInterpreter[F[_]](
                 .setValue(galaxyUrlPrefix)
                 .build()
             )
+            // Full HTTPS base URL of the Leo proxy (scheme + host). Combined with galaxy-url-prefix
+            // in the startup script to form galaxy_infrastructure_url, which tells Galaxy to generate
+            // https:// absolute links. Without this Galaxy uses its internal http:// connection and
+            // produces http:// links (e.g. history export URLs) that browsers reject for the Secure cookie.
+            .addItems(
+              Items
+                .newBuilder()
+                .setKey("galaxy-proxy-base-url")
+                .setValue(config.leoUrlBase.toString.stripSuffix("/"))
+                .build()
+            )
             .build()
         )
         .putAllLabels(Map("leonardo" -> "true").asJava)

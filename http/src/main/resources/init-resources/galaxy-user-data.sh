@@ -101,6 +101,14 @@ GALAXY_URL_PREFIX=$(curl -s -f "http://metadata.google.internal/computeMetadata/
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 echo "[$(date)] - Galaxy URL prefix: ${GALAXY_URL_PREFIX}"
 
+GALAXY_PROXY_BASE_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/galaxy-proxy-base-url" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+# Full HTTPS URL Galaxy uses to generate absolute links (history exports, API callbacks, etc.).
+# Without this Galaxy infers http:// from its internal connection and produces links that
+# browsers refuse to send the Secure LeoToken cookie on.
+GALAXY_INFRASTRUCTURE_URL="${GALAXY_PROXY_BASE_URL}${GALAXY_URL_PREFIX}"
+echo "[$(date)] - Galaxy infrastructure URL: ${GALAXY_INFRASTRUCTURE_URL}"
+
 GALAXY_USER=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/galaxy-user-email" \
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 echo "[$(date)] - Galaxy user email: ${GALAXY_USER}"
@@ -136,6 +144,11 @@ fi
 if [ -n "$GALAXY_URL_PREFIX" ]; then
     PULL_ARGS+=(--extra-vars "galaxy_prefix=${GALAXY_URL_PREFIX}")
     echo "[$(date)] - Galaxy URL prefix passed to ansible: ${GALAXY_URL_PREFIX}"
+fi
+
+if [ -n "$GALAXY_INFRASTRUCTURE_URL" ]; then
+    PULL_ARGS+=(--extra-vars "galaxy_infrastructure_url=${GALAXY_INFRASTRUCTURE_URL}")
+    echo "[$(date)] - Galaxy infrastructure URL passed to ansible: ${GALAXY_INFRASTRUCTURE_URL}"
 fi
 
 PULL_ARGS+=(playbook.yml)
