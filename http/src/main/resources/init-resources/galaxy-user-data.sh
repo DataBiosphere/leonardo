@@ -134,8 +134,7 @@ PULL_ARGS=(
   --accept-host-key
   --limit 127.0.0.1
   --extra-vars "gcp_batch_service_account_email=${GCP_BATCH_SERVICE_ACCOUNT_EMAIL}"
-  --extra-vars "terra_workspace=${TERRA_WORKSPACE}"
-  --extra-vars "terra_namespace=${TERRA_NAMESPACE}"
+  --extra-vars "{\"terra_workspace\": \"${TERRA_WORKSPACE}\", \"terra_namespace\": \"${TERRA_NAMESPACE}\"}"
   --extra-vars "terra_drs_url=${TERRA_DRS_URL}"
   --extra-vars "terra_api_url=${TERRA_API_URL}"
   --extra-vars "ingress_use_forwarded_headers=true"
