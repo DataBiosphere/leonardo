@@ -1188,13 +1188,6 @@ class GKEInterpreter[F[_]](
             .addItems(
               Items
                 .newBuilder()
-                .setKey("gcp-batch-boot-image")
-                .setValue(config.galaxyVmConfig.sourceImage.asString)
-                .build()
-            )
-            .addItems(
-              Items
-                .newBuilder()
                 .setKey("terra-workspace")
                 .setValue(app.customEnvironmentVariables.getOrElse(WORKSPACE_NAME_KEY, ""))
                 .build()
