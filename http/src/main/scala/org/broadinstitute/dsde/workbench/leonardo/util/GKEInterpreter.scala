@@ -1185,7 +1185,13 @@ class GKEInterpreter[F[_]](
             .addItems(Items.newBuilder().setKey("gcp-region").setValue(regionParam.value).build())
             .addItems(Items.newBuilder().setKey("gcp-network").setValue(network.value).build())
             .addItems(Items.newBuilder().setKey("gcp-subnet").setValue(subnetwork.value).build())
-            .addItems(Items.newBuilder().setKey("gcp-batch-boot-image").setValue(config.galaxyVmConfig.sourceImage.asString).build())
+            .addItems(
+              Items
+                .newBuilder()
+                .setKey("gcp-batch-boot-image")
+                .setValue(config.galaxyVmConfig.sourceImage.asString)
+                .build()
+            )
             .addItems(
               Items
                 .newBuilder()
