@@ -93,6 +93,9 @@ GCP_NETWORK=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/ins
 GCP_SUBNET=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcp-subnet" \
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 echo "[$(date)] - GCP network: ${GCP_NETWORK}, subnet: ${GCP_SUBNET}"
+GCP_BATCH_BOOT_IMAGE=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcp-batch-boot-image" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+echo "[$(date)] - GCP Batch boot image: ${GCP_BATCH_BOOT_IMAGE}"
 TERRA_DRS_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-drs-url" \
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 TERRA_API_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-api-url" \
@@ -147,6 +150,11 @@ fi
 if [ -n "$GCP_SUBNET" ]; then
     PULL_ARGS+=(--extra-vars "gcp_batch_subnet=${GCP_SUBNET}")
     echo "[$(date)] - GCP Batch subnet passed to ansible: ${GCP_SUBNET}"
+fi
+
+if [ -n "$GCP_BATCH_BOOT_IMAGE" ]; then
+    PULL_ARGS+=(--extra-vars "gcp_batch_boot_image=${GCP_BATCH_BOOT_IMAGE}")
+    echo "[$(date)] - GCP Batch boot image passed to ansible: ${GCP_BATCH_BOOT_IMAGE}"
 fi
 
 if [ "$RESTORE_GALAXY" = "true" ]; then
