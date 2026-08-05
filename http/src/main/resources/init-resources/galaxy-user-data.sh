@@ -88,6 +88,11 @@ TERRA_NAMESPACE=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 GCP_PROJECT_ID=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcp-project-id" \
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+GCP_NETWORK=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcp-network" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+GCP_SUBNET=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/gcp-subnet" \
+  -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
+echo "[$(date)] - GCP network: ${GCP_NETWORK}, subnet: ${GCP_SUBNET}"
 TERRA_DRS_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-drs-url" \
   -H "Metadata-Flavor: Google" 2>/dev/null || echo "")
 TERRA_API_URL=$(curl -s -f "http://metadata.google.internal/computeMetadata/v1/instance/attributes/terra-api-url" \
@@ -133,6 +138,16 @@ PULL_ARGS=(
   --extra-vars "ingress_use_forwarded_headers=true"
   --extra-vars "gcp_project_id=${GCP_PROJECT_ID}"
 )
+
+if [ -n "$GCP_NETWORK" ]; then
+    PULL_ARGS+=(--extra-vars "gcp_batch_network=${GCP_NETWORK}")
+    echo "[$(date)] - GCP Batch network passed to ansible: ${GCP_NETWORK}"
+fi
+
+if [ -n "$GCP_SUBNET" ]; then
+    PULL_ARGS+=(--extra-vars "gcp_batch_subnet=${GCP_SUBNET}")
+    echo "[$(date)] - GCP Batch subnet passed to ansible: ${GCP_SUBNET}"
+fi
 
 if [ "$RESTORE_GALAXY" = "true" ]; then
     PULL_ARGS+=(--extra-vars "restore_galaxy=true")
