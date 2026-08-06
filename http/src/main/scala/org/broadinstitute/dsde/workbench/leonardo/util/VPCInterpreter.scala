@@ -72,9 +72,23 @@ final class VPCInterpreter[F[_]: Parallel](
       networkFromLabel = projectLabels.flatMap(_.get(config.vpcConfig.highSecurityProjectNetworkLabel.value))
       subnetworkFromLabel = projectLabels.flatMap(_.get(config.vpcConfig.highSecurityProjectSubnetworkLabel.value))
       (network, subnetwork) <- (networkFromLabel, subnetworkFromLabel) match {
-        // If we found project labels, we're done
+        // If we found project labels the subnet is pre-created (high-security project).
+        // Check that Private Google Access is enabled; GCP Batch VMs need it to reach
+        // batch.googleapis.com when they have no external IP.
         case (Some(network), Some(subnet)) =>
-          F.pure((NetworkName(network), SubnetworkName(subnet)))
+          for {
+            subnetOpt <- googleComputeService.getSubnetwork(params.project, params.region, SubnetworkName(subnet))
+            _ <- subnetOpt match {
+              case Some(s) if !s.getPrivateIpGoogleAccess =>
+                logger.warn(Map("traceId" -> ctx.asString))(
+                  s"Subnet $subnet in project ${params.project.value} / region ${params.region.value} " +
+                    s"does not have Private Google Access enabled. GCP Batch jobs will fail to reach " +
+                    s"batch.googleapis.com. Enable it with: gcloud compute networks subnets update $subnet " +
+                    s"--region ${params.region.value} --project ${params.project.value} --enable-private-ip-google-access"
+                )
+              case _ => F.unit
+            }
+          } yield (NetworkName(network), SubnetworkName(subnet))
         // Otherwise, we potentially need to create the network and subnet
         case (None, None) =>
           for {
@@ -231,9 +245,10 @@ final class VPCInterpreter[F[_]: Parallel](
       .setName(name.value)
       .setRegion(region.value)
       .setNetwork(buildNetworkUri(project, config.vpcConfig.networkName))
-      .setIpCidrRange(
-        subnetRegionIpRange.value
-      )
+      .setIpCidrRange(subnetRegionIpRange.value)
+      // Enable Private Google Access so that VMs without an external IP (e.g. GCP Batch
+      // agent VMs) can still reach Google APIs such as batch.googleapis.com.
+      .setPrivateIpGoogleAccess(true)
       .build
 
   private[util] def buildFirewall(googleProject: GoogleProject,
