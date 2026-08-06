@@ -309,8 +309,20 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
               logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
             }
           case None =>
-            logger.info(s"Referer header is missing")
-            logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
+            // Neither Referer nor Origin — final fallback: Sec-Fetch-Site.
+            // Browsers always populate this header and it cannot be forged by
+            // page scripts (Sec-* is a forbidden header prefix).  "same-origin"
+            // guarantees the request was initiated by the same origin, so it
+            // cannot be a CSRF attack.  This covers no-cors resource loads
+            // (e.g. <script> / <link> tags) from pages with a strict referrer
+            // policy that strip both Referer and Origin.
+            optionalHeaderValueByName("Sec-Fetch-Site") flatMap {
+              case Some(site) if site == "same-origin" =>
+                pass
+              case _ =>
+                logger.info(s"Referer header is missing and no valid Origin or Sec-Fetch-Site")
+                logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
+            }
         }
     }
 }
