@@ -1288,7 +1288,7 @@ class GKEInterpreter[F[_]](
               .addRoles(googleProject,
                         WorkbenchEmail(gcpBatchSa),
                         IamMemberTypes.ServiceAccount,
-                        Set("roles/batch.jobsEditor", "roles/iam.serviceAccountUser", "roles/batch.agentReporter")
+                        Set("roles/batch.jobsEditor", "roles/iam.serviceAccountUser", "roles/batch.agentReporter", "roles/logging.logWriter")
               )
               .void
           )
