@@ -267,14 +267,22 @@ STEP_TIMINGS+=($(date +%s))
 # Enable GPU drivers on top of the base Google DeepLearning default image
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
-  version="535.154.05"
-  isAvailable=$(cos-extensions list|grep $version)
-  if [[ -z "$isAvailable" ]]; then
-      # Install default version on the COS image
-      cos-extensions install gpu
+  # Specify the current R580 LTS as a branch [0] so that runtimes pick up security and bug fixes over time.
+  # Pre-existing runtimes on cos-113-18244-85-64 do not have 580 available [1] so fall back to our previous pin.
+  #
+  # [0] https://docs.cloud.google.com/container-optimized-os/docs/how-to/run-gpus#install-driver
+  # [1] https://docs.cloud.google.com/container-optimized-os/docs/release-notes/m113#cos-113-18244-85-64
+  targetVersion="R580"
+  fallbackVersion="535.154.05"
+  availableDrivers=$(cos-extensions list || true)
+  if echo "${availableDrivers}" | grep -qF "${targetVersion}" ; then
+      cos-extensions install gpu -- --version "${targetVersion}"
+  elif echo "${availableDrivers}" | grep -qF "${fallbackVersion}" ; then
+      cos-extensions install gpu -- --version "${fallbackVersion}"
   else
-      cos-extensions install gpu -- --version $version
+      cos-extensions install gpu
   fi
+
   mount --bind /var/lib/nvidia /var/lib/nvidia
   mount -o remount,exec /var/lib/nvidia
 
