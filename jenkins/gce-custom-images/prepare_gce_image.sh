@@ -20,14 +20,9 @@ terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.6"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.7"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.7"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.9"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.16"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.21.0"
-
-# Note that this is the version used currently by AOU in production, the one above can be staged for testing
-# You can check which version of the AOU image is used in prod here: https://github.com/all-of-us/workbench/blob/main/api/config/config_prod.json#L15C1-L16C1
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.7.5"
 google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20260310"
@@ -39,7 +34,7 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 
 # This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
+docker_image_var_names="welder_server terra_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
 
 #
 # Functions
