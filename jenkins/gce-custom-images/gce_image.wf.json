@@ -67,8 +67,7 @@
         },
         "delete-inst-install": {
             "DeleteResources": {
-                "Instances": ["inst-install"],
-                "GCSPaths":["${GCSPATH}"]
+                "Instances": ["inst-install"]
             }
         }
     },
