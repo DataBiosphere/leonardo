@@ -181,14 +181,16 @@ RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
-  # The driver major version, e.g. R580, is constant for the duration of the COS milestone [0][1] and receives
-  # bugfixes and security patches over time. Validate new major version as part of upgrading to a new COS.
+  # Install the default major version [0] for this COS milestone, e.g. R580.
+  # The default is constant for the duration of the milestone [1] and receives bugfixes and security patches over time.
+  # Validate new major version as part of upgrading to a new COS.
   #
   # COS 113: R535 (existing fleet)
   # COS 129: R580 (2026 upgrade)
   #
-  # [0] Exception: a later driver installs when a brand new GPU model is present that cannot use the default
-  # [1] https://docs.cloud.google.com/container-optimized-os/docs/how-to/run-gpus#install-driver
+  # [0] https://docs.cloud.google.com/container-optimized-os/docs/how-to/run-gpus#install-driver
+  # [1] Exception: when new GPU models release after the default driver was cut, they get a newer default.
+  #     https://docs.cloud.google.com/container-optimized-os/docs/release-notes/m113#February_12_2025
   cos-extensions install gpu -- -version=default
 
   mount --bind /var/lib/nvidia /var/lib/nvidia
