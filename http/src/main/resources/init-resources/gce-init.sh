@@ -68,8 +68,8 @@ DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
 # Toolbox is specific to COS images and is needed to access functionalities like gcloud
 # See https://cloud.google.com/container-optimized-os/docs/how-to/toolbox
-GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
+GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260310 gsutil'
+GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260310 gcloud'
 
 # Welder configuration, Rstudio files are saved every X seconds in the background but Jupyter notebooks are not
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
