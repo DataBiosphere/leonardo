@@ -22,7 +22,7 @@ terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-biocond
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.9"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.16"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
-openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
+openidc_proxy="mirror.gcr.io/broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.21.0"
 
 # Note that this is the version used currently by AOU in production, the one above can be staged for testing
@@ -31,8 +31,8 @@ terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.1.9"
 google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20230714"
-docker_composer="docker/compose:1.29.2"
-docker_composer_with_auth="cryptopants/docker-compose-gcr"
+docker_composer="mirror.gcr.io/docker/compose:1.29.2"
+docker_composer_with_auth="mirror.gcr.io/cryptopants/docker-compose-gcr"
 
 # If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
@@ -82,28 +82,41 @@ function retry {
 }
 
 function log() {
-    printf '[%s]: %s\n' \
-        "$(date +'%Y-%m-%dT%H:%M:%S%z')" \
-        "$*"
+    local _msg
+    _msg="$(printf '[%s]: %s' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$*")"
+    echo "${_msg}"
+    # COS sends startup-script output to journald, not the serial console, so echo to the console
+    # too. That makes these lines visible in Daisy's streamed serial-port1.log and live via
+    # `gcloud compute instances get-serial-port-output`.
+    echo "${_msg}" > /dev/console 2>/dev/null || true
 }
 
 #
 # Main
 #
 
+_script_start=$(date +%s)
+log "TIMING SCRIPT-START (uptime $(cut -d. -f1 /proc/uptime)s)"
+
 # Pull the docker images -- this caches them in the GCE snapshot.
 if [[ -n ${docker_image_var_names:?} ]]; then
     for _docker_image_var_name in ${docker_image_var_names:?}
     do
         _docker_image="${!_docker_image_var_name:?}"
+        _pull_start=$(date +%s)
+        log "TIMING PULL-START ${_docker_image:?}"
         retry 5 docker pull "${_docker_image:?}"
+        log "TIMING PULL-DONE  ${_docker_image:?} $(( $(date +%s) - _pull_start ))s"
     done
+    log "TIMING PULL-ALL-DONE $(( $(date +%s) - _script_start ))s"
 else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
 fi
 
 log 'Cached docker images:'
 docker images
+
+log "TIMING SCRIPT-END $(( $(date +%s) - _script_start ))s, shutting down"
 
 # Shut down the instance after it is done, which is used by the Daisy workflow's wait-for-inst-install
 # step to determine when provisioning is done.
