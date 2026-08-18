@@ -26,7 +26,19 @@ anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-biocond
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.7.5"
 google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20260310"
+
+# Compose v1 is vigorously obsolete, this is the last release from 2021
+# Old Docker clients can keep talking to new Docker daemons ≤28
+# COS 129 has Docker 27 so this is Fine For Now (tm)
+#
+# https://hub.docker.com/r/docker/compose
+# https://docs.docker.com/engine/release-notes/29/#breaking-changes
 docker_composer="docker/compose:1.29.2"
+
+# More 2021 abandonware. COS ships docker-credential-gcr but containerized compose can't see it.
+# Used for private user-provided images (do we still need to support that feature?)
+#
+# https://hub.docker.com/r/cryptopants/docker-compose-gcr
 docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
 # If you change this you must also change Leo reference.conf!
