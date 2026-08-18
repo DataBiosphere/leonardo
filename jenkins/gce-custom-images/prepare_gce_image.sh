@@ -37,8 +37,10 @@ docker_composer="docker/compose:1.29.2"
 
 # More 2021 abandonware. COS ships docker-credential-gcr but containerized compose can't see it.
 # Used for private user-provided images (do we still need to support that feature?)
+# Can we pre-pull images on the host for compose to find?
 #
 # https://hub.docker.com/r/cryptopants/docker-compose-gcr
+# https://docs.cloud.google.com/container-optimized-os/docs/how-to/run-container-instance#accessing_private_images_in_or
 docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
 # If you change this you must also change Leo reference.conf!
