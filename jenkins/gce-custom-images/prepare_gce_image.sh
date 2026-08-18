@@ -22,7 +22,7 @@ terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-biocond
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.9"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.16"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
-openidc_proxy="mirror.gcr.io/broadinstitute/openidc-proxy:2.3.1_2"
+openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.21.0"
 
 # Note that this is the version used currently by AOU in production, the one above can be staged for testing
@@ -31,8 +31,8 @@ terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.1.9"
 google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20230714"
-docker_composer="mirror.gcr.io/docker/compose:1.29.2"
-docker_composer_with_auth="mirror.gcr.io/cryptopants/docker-compose-gcr"
+docker_composer="docker/compose:1.29.2"
+docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
 # If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
