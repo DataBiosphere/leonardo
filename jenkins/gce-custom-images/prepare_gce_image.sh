@@ -99,15 +99,26 @@ _script_start=$(date +%s)
 log "TIMING SCRIPT-START (uptime $(cut -d. -f1 /proc/uptime)s)"
 
 # Pull the docker images -- this caches them in the GCE snapshot.
+_pull_concurrency=4
 if [[ -n ${docker_image_var_names:?} ]]; then
     for _docker_image_var_name in ${docker_image_var_names:?}
     do
-        _docker_image="${!_docker_image_var_name:?}"
-        _pull_start=$(date +%s)
-        log "TIMING PULL-START ${_docker_image:?}"
-        retry 5 docker pull "${_docker_image:?}"
-        log "TIMING PULL-DONE  ${_docker_image:?} $(( $(date +%s) - _pull_start ))s"
-    done
+        echo "${!_docker_image_var_name:?}"
+    done | xargs -P "${_pull_concurrency:?}" -I{} bash -c '
+        _image="$1"
+        _start=$(date +%s)
+        for _attempt in 1 2 3 4 5; do
+            if docker pull "${_image}" > /dev/null 2>&1; then
+                printf "[%s]: TIMING PULL-DONE  %s %ss\n" \
+                    "$(date +%Y-%m-%dT%H:%M:%S%z)" "${_image}" "$(( $(date +%s) - _start ))" \
+                    | tee /dev/console
+                exit 0
+            fi
+            sleep $((2 ** _attempt))
+        done
+        printf "[%s]: TIMING PULL-FAILED %s after 5 attempts\n" \
+            "$(date +%Y-%m-%dT%H:%M:%S%z)" "${_image}" | tee /dev/console
+        exit 255' _ {}
     log "TIMING PULL-ALL-DONE $(( $(date +%s) - _script_start ))s"
 else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
