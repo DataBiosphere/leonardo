@@ -39,7 +39,7 @@
                 {
                     "Name": "inst-install",
                     "Disks": [{"Source": "boot-disk"}],
-                    "MachineType": "n4d-highcpu-8",
+                    "MachineType": "c4d-highmem-8",
                     "StartupScript": "${installation_script_name}",
                     "Scopes": ["https://www.googleapis.com/auth/cloud-platform"]
                 }
