@@ -68,8 +68,8 @@ DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
 # Toolbox is specific to COS images and is needed to access functionalities like gcloud
 # See https://cloud.google.com/container-optimized-os/docs/how-to/toolbox
-GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20230714 gcloud'
+GSUTIL_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260310 gsutil'
+GCLOUD_CMD='docker run --rm -v /var:/var us.gcr.io/cos-cloud/toolbox:v20260310 gcloud'
 
 # Welder configuration, Rstudio files are saved every X seconds in the background but Jupyter notebooks are not
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
@@ -267,14 +267,18 @@ STEP_TIMINGS+=($(date +%s))
 # Enable GPU drivers on top of the base Google DeepLearning default image
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
-  version="535.154.05"
-  isAvailable=$(cos-extensions list|grep $version)
-  if [[ -z "$isAvailable" ]]; then
-      # Install default version on the COS image
-      cos-extensions install gpu
-  else
-      cos-extensions install gpu -- --version $version
-  fi
+  # Install the default major version [0] for this COS milestone, e.g. R580.
+  # The default is constant for the duration of the milestone [1] and receives bugfixes and security patches over time.
+  # Validate new major version as part of upgrading to a new COS.
+  #
+  # COS 113: R535 (existing fleet)
+  # COS 129: R580 (2026 upgrade)
+  #
+  # [0] https://docs.cloud.google.com/container-optimized-os/docs/how-to/run-gpus#install-driver
+  # [1] Exception: when new GPU models release after the default driver was cut, they get a newer default.
+  #     https://docs.cloud.google.com/container-optimized-os/docs/release-notes/m113#February_12_2025
+  cos-extensions install gpu -- -version=default
+
   mount --bind /var/lib/nvidia /var/lib/nvidia
   mount -o remount,exec /var/lib/nvidia
 

@@ -20,18 +20,27 @@ terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.6"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.7"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.7"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.9"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.16"
-welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:8667bfe"
+welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:3944358"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.21.0"
 
-# Note that this is the version used currently by AOU in production, the one above can be staged for testing
-# You can check which version of the AOU image is used in prod here: https://github.com/all-of-us/workbench/blob/main/api/config/config_prod.json#L15C1-L16C1
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.13"
+cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.7.5"
+google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20260310"
 
-cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.1.9"
-google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20230714"
+# Compose v1 is vigorously obsolete, this is the last release from 2021
+# Old Docker clients can keep talking to new Docker daemons ≤28
+# COS 129 has Docker 27 so this is Fine For Now (tm)
+#
+# https://hub.docker.com/r/docker/compose
+# https://docs.docker.com/engine/release-notes/29/#breaking-changes
 docker_composer="docker/compose:1.29.2"
+
+# More 2021 abandonware. COS ships docker-credential-gcr but containerized compose can't see it.
+# Used for private user-provided images (do we still need to support that feature?)
+# Can we pre-pull images on the host for compose to find?
+#
+# https://hub.docker.com/r/cryptopants/docker-compose-gcr
+# https://docs.cloud.google.com/container-optimized-os/docs/how-to/run-container-instance#accessing_private_images_in_or
 docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
 # If you change this you must also change Leo reference.conf!
@@ -39,7 +48,7 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 
 # This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
+docker_image_var_names="welder_server terra_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
 
 #
 # Functions
