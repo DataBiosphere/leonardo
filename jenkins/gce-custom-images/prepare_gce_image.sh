@@ -115,6 +115,7 @@ log 'Cached docker images:'
 docker images
 
 # Discard freed blocks before imaging
+sync
 fstrim -av
 
 # Shut down the instance after it is done, which is used by the Daisy workflow's wait-for-inst-install
