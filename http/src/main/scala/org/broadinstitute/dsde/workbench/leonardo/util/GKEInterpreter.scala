@@ -1285,10 +1285,15 @@ class GKEInterpreter[F[_]](
         val call = F.fromFuture(
           F.delay(
             googleIamDAO
-              .addRoles(googleProject,
-                        WorkbenchEmail(gcpBatchSa),
-                        IamMemberTypes.ServiceAccount,
-                        Set("roles/batch.jobsEditor", "roles/iam.serviceAccountUser", "roles/batch.agentReporter", "roles/logging.logWriter")
+              .addRoles(
+                googleProject,
+                WorkbenchEmail(gcpBatchSa),
+                IamMemberTypes.ServiceAccount,
+                Set("roles/batch.jobsEditor",
+                    "roles/iam.serviceAccountUser",
+                    "roles/batch.agentReporter",
+                    "roles/logging.logWriter"
+                )
               )
               .void
           )
