@@ -10,7 +10,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
-import com.google.cloud.compute.v1.{Disk, Operation}
+import com.google.cloud.compute.v1.{AccessConfig, Disk, Instance, NetworkInterface, Operation}
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -21,14 +21,17 @@ import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => 
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GKEModels,
+  GoogleComputeService,
   GoogleDiskService,
   GoogleStorageService,
   KubernetesModels,
   MachineTypeName,
-  RegionName,
+  NetworkName,
+  SubnetworkName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
+import org.broadinstitute.dsde.workbench.util2.InstanceName
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
@@ -97,6 +100,25 @@ class LeoPubsubMessageSubscriberSpec
     ): Future[Unit] = Future.successful(())
   }
   val iamDAO = new MockGoogleIamDAO
+
+  // Returns a GCE instance with internal IP "10.0.0.1" and external IP "1.2.3.4" so Galaxy VM IP polling succeeds in tests.
+  val galaxyComputeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
+    override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+      ev: Ask[IO, TraceId]
+    ): IO[Option[Instance]] = {
+      val inst = Instance
+        .newBuilder()
+        .addNetworkInterfaces(
+          NetworkInterface
+            .newBuilder()
+            .setNetworkIP("10.0.0.1")
+            .addAccessConfigs(AccessConfig.newBuilder().setNatIP("1.2.3.4").build())
+            .build()
+        )
+        .build()
+      IO.pure(Some(inst))
+    }
+  }
   val resourceService = new FakeGoogleResourceService {
     override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
       IO(Some(1L))
@@ -902,33 +924,30 @@ class LeoPubsubMessageSubscriberSpec
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
       appRestore <- persistentDiskQuery.getAppDiskRestore(savedApp1.appResources.disk.get.id).transaction
-      galaxyRestore = appRestore.map(_.asInstanceOf[GalaxyRestore])
-      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
-        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
-      getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
+      // Galaxy VM path does not create/poll GKE nodepools — their status stays Unspecified
+      getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Unspecified
       getApp.app.errors shouldBe List.empty
       getApp.app.status shouldBe AppStatus.Running
       getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
         ServiceAccountName("gxy-ksa")
       )
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
-      getApp.nodepool.status shouldBe NodepoolStatus.Running
+      // Galaxy VM path does not create/poll GKE nodepools — their status stays Unspecified
+      getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
+      // Galaxy VM path stores external IP as loadBalancerIp (proxy uses external IP because Leo VPC ≠ user VPC); network fields are not populated
       getApp.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
-                                     IP("0.0.0.0"),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
-                                                   ipRange
-                                     )
+                                     IP(""),
+                                     NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
         )
       )
       getDisk.status shouldBe DiskStatus.Ready
-      galaxyRestore shouldBe Some(
-        GalaxyRestore(PvcId(s"nfs-pvc-id1"), getApp.app.id)
-      )
+      // Galaxy VM path: GKEInterpreter.createAndPollApp calls updateLastUsedBy, so appRestore is
+      // AppRestore.Other (no PVC ID — VM-based Galaxy has no Kubernetes PVC).
+      appRestore shouldBe Some(AppRestore.Other(savedApp1.id))
     }
 
     implicit val gkeAlg: GKEAlgebra[IO] = makeGKEInterp(nodepoolLock, List(savedApp1.release))
@@ -1062,25 +1081,22 @@ class LeoPubsubMessageSubscriberSpec
         .transaction
       getApp1 = getAppOpt1.get
       getApp2 = getAppOpt2.get
-      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
-        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getApp1.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp2.cluster.status shouldBe KubernetesClusterStatus.Running
-      getApp1.nodepool.status shouldBe NodepoolStatus.Running
-      getApp2.nodepool.status shouldBe NodepoolStatus.Running
+      // Galaxy VM path does not create/poll GKE nodepools — their status stays Unspecified
+      getApp1.nodepool.status shouldBe NodepoolStatus.Unspecified
+      getApp2.nodepool.status shouldBe NodepoolStatus.Unspecified
       getApp1.app.errors shouldBe List()
       getApp1.app.status shouldBe AppStatus.Running
       getApp1.app.appResources.kubernetesServiceAccountName shouldBe Some(
         ServiceAccountName("gxy-ksa")
       )
+      // Galaxy VM path stores external IP as loadBalancerIp (proxy uses external IP because Leo VPC ≠ user VPC); network fields are not populated
       getApp1.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
-                                     IP("0.0.0.0"),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
-                                                   ipRange
-                                     )
+                                     IP(""),
+                                     NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
         )
       )
       getApp2.app.errors shouldBe List()
@@ -1298,7 +1314,9 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle an error in delete app" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+    // Use Cromwell (GKE/Helm path) so the deleteNamespace error triggers AppStatus.Error.
+    // Galaxy now uses the VM path which swallows deleteInstance errors gracefully.
+    val savedApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell).save()
     val mockAckConsumer = mock[AckHandler]
 
     val assertions = for {
@@ -1432,7 +1450,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
     val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val makeApp1 = makeApp(1, savedNodepool1.id, appType = AppType.Cromwell)
     val savedApp1 = makeApp1
       .copy(appResources =
         makeApp1.appResources.copy(
@@ -1523,7 +1541,7 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appName,
           Some(disk.id),
           Map.empty,
-          AppType.Galaxy,
+          AppType.Cromwell,
           savedApp1.appResources.namespace,
           None,
           Some(tr),
@@ -1676,7 +1694,9 @@ class LeoPubsubMessageSubscriberSpec
           savedApp1.appName,
           None,
           Map.empty,
-          AppType.Galaxy,
+          // Use Cromwell so the GKE cluster creation path is taken and mockGKEService.createCluster can throw.
+          // Galaxy skips cluster creation (VM path), so the mock would have no effect.
+          AppType.Cromwell,
           savedApp1.appResources.namespace,
           None,
           Some(tr),
@@ -1821,26 +1841,24 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
-      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
-        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
-      getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
+      // Galaxy VM path does not create/poll GKE nodepools — their status stays Unspecified
+      getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Unspecified
       getApp.app.errors shouldBe List()
       getApp.app.status shouldBe AppStatus.Running
       getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
         ServiceAccountName("gxy-ksa")
       )
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
-      getApp.nodepool.status shouldBe NodepoolStatus.Running
+      // Galaxy VM path does not create/poll GKE nodepools — their status stays Unspecified
+      getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
+      // Galaxy VM path stores external IP as loadBalancerIp (proxy uses external IP because Leo VPC ≠ user VPC); network fields are not populated
       getApp.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
-                                     IP("0.0.0.0"),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
-                                                   ipRange
-                                     )
+                                     IP(""),
+                                     NetworkFields(NetworkName(""), SubnetworkName(""), IpRange(""))
         )
       )
       getDisk.status shouldBe DiskStatus.Ready
@@ -1872,7 +1890,8 @@ class LeoPubsubMessageSubscriberSpec
           false,
           Some(GcsBucketName("fc-bucket"))
         )
-        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        // maxConcurrentTasks=1 ensures tasks run sequentially so the idempotency check fires for the 2nd task
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 1), queue)
         // send message twice
         _ <- leoSubscriber.handleCreateAppMessage(msg)
         _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -2024,7 +2043,7 @@ class LeoPubsubMessageSubscriberSpec
       MockAppDescriptorDAO,
       lock,
       resourceService,
-      FakeGoogleComputeService
+      galaxyComputeService
     )
 
   def makeLeoSubscriber(

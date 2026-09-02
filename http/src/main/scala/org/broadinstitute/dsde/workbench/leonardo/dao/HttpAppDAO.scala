@@ -23,7 +23,7 @@ class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client:
                        traceId: TraceId
   ): F[Boolean] =
     Proxy.getAppTargetHost[F](kubernetesDnsCache, CloudContext.Gcp(googleProject), appName) flatMap {
-      case HostReady(targetHost, _, _) =>
+      case HostReady(targetHost, _, _, _) =>
         val serviceUrl = serviceName match {
           case ServiceName("welder-service") =>
             s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/status/"
@@ -44,6 +44,24 @@ class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client:
           )
       case _ => Async[F].pure(false) // Update once we support Relay for apps
     }
+
+  def isVmReachable(ip: org.broadinstitute.dsde.workbench.model.IP,
+                    port: Int,
+                    traceId: TraceId,
+                    path: String = "/"
+  ): F[Boolean] =
+    client
+      .status(
+        Request[F](
+          method = Method.GET,
+          uri = Uri.unsafeFromString(s"http://${ip.asString}:${port}${path}"),
+          headers = Headers(Header.Raw(CIString("X-Request-ID"), traceId.asString))
+        )
+      )
+      .map(status => status.code < 400)
+      .handleErrorWith(t =>
+        logger.error(Map("traceId" -> traceId.asString), t)("Fail to check if VM is reachable").as(false)
+      )
 }
 
 trait AppDAO[F[_]] {
@@ -51,5 +69,11 @@ trait AppDAO[F[_]] {
                        appName: AppName,
                        serviceName: ServiceName,
                        traceId: TraceId
+  ): F[Boolean]
+
+  def isVmReachable(ip: org.broadinstitute.dsde.workbench.model.IP,
+                    port: Int,
+                    traceId: TraceId,
+                    path: String = "/"
   ): F[Boolean]
 }

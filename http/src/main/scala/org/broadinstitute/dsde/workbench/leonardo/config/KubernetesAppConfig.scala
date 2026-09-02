@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
+import org.broadinstitute.dsde.workbench.google2.{KubernetesSerializableName, MachineTypeName}
+import KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.leonardo.AppType._
+import org.broadinstitute.dsde.workbench.leonardo.CustomImage.GceCustomImage
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
@@ -91,6 +93,18 @@ final case class CustomAppConfig(chartName: ChartName,
   val cloudProvider: CloudProvider = CloudProvider.Gcp
   val appType: AppType = AppType.Custom
 }
+
+final case class GalaxyVmConfig(
+  sourceImage: GceCustomImage,
+  machineType: MachineTypeName,
+  bootDiskSizeGb: DiskSize,
+  postgresDiskSizeGb: DiskSize,
+  postgresDiskNameSuffix: String,
+  gitRepo: String,
+  gitBranch: String,
+  orchUrl: String,
+  drsUrl: String
+)
 
 final case class ContainerRegistryUsername(asString: String) extends AnyVal
 final case class ContainerRegistryPassword(asString: String) extends AnyVal

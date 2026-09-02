@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="lbaldo" id="lbaldo_20260730_allow_multiple_galaxy_vm_clusters">
+        <!-- Galaxy VM-based deployment creates one Leo KubernetesCluster record per app (rather than
+             one per project) so that each app can store its own VM's external IP via updateAsyncFields
+             without overwriting another app's IP. Drop the project-level uniqueness constraint so that
+             multiple active cluster records can coexist in the same cloud context.
+             Application-level Serializable-isolation logic in saveOrGetClusterForApp continues to
+             enforce single-cluster-per-project semantics for GKE-based apps. -->
+        <dropUniqueConstraint tableName="KUBERNETES_CLUSTER" constraintName="IDX_KUBERNETES_CLUSTER_UNIQUE_V2"/>
+    </changeSet>
+</databaseChangeLog>

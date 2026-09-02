@@ -691,6 +691,28 @@ class ProxyRoutesSpec
 
   }
 
+  it should "pass when Sec-Fetch-Site is same-origin and both Referer and Origin are absent" in {
+    val routesWithWildcardReferer =
+      createHttpRoute(MockJupyterDAO, RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), enabled = true))
+
+    // Simulates a no-cors <script>/<link> load from a page with a strict referrer policy.
+    // No Referer, no Origin — only Sec-Fetch-Site: same-origin.
+    Get(s"/proxy/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(RawHeader("Sec-Fetch-Site", "same-origin")) ~> routesWithWildcardReferer.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+    }
+
+    // Sec-Fetch-Site: cross-site without Referer or Origin should still be rejected.
+    Get(s"/proxy/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(RawHeader("Sec-Fetch-Site", "cross-site")) ~> routesWithWildcardReferer.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
   "Proxy utils" should "fail to decode b2c token if token expired" ignore {
     val token = "" // use a valid expired token for testing
     val now = Instant.now()

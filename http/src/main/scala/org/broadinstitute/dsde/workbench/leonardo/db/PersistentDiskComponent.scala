@@ -113,7 +113,11 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           formattedBy,
           formattedBy.flatMap {
             case FormattedBy.Galaxy =>
-              (galaxyPvcId, lastUsedBy).mapN((gp, lb) => GalaxyRestore(gp, lb))
+              // GKE-based Galaxy stores a PVC ID; VM-based Galaxy has no PVC so falls back to Other.
+              galaxyPvcId match {
+                case Some(pvcId) => lastUsedBy.map(lb => GalaxyRestore(pvcId, lb))
+                case None        => lastUsedBy.map(Other)
+              }
             case FormattedBy.Cromwell                 => lastUsedBy.map(Other)
             case FormattedBy.Allowed                  => lastUsedBy.map(Other)
             case FormattedBy.GCE | FormattedBy.Custom => None

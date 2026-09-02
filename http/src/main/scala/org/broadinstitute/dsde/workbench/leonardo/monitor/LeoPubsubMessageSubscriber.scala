@@ -980,9 +980,14 @@ class LeoPubsubMessageSubscriber[F[_]](
         )
         .void
 
-      // create second Galaxy disk asynchronously
+      // Restore mode: disk already exists (no new disk to create) for a Galaxy app.
+      // In this case we skip creating new disks and pass restore=true so the VM
+      // runs the Ansible restore playbook instead of a fresh install.
+      restore = msg.appType == AppType.Galaxy && msg.createDisk.isEmpty
+
+      // create second Galaxy disk asynchronously (only for fresh installs)
       createSecondDiskOp =
-        if (msg.appType == AppType.Galaxy && disk.isDefined) {
+        if (msg.appType == AppType.Galaxy && disk.isDefined && !restore) {
           val d = disk.get // it's safe to do `.get` here because we've verified
           for {
             res <- createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, d.name)
@@ -999,15 +1004,20 @@ class LeoPubsubMessageSubscriber[F[_]](
           } yield res
         } else F.unit
 
+      // Galaxy uses VM-based deployment: no GKE cluster or nodepool is created.
+      // The VM is launched inside createAndPollApp instead.
+      effectiveClusterOrNodepoolOp =
+        if (msg.appType == AppType.Galaxy) F.unit else createClusterOrNodepoolOp
+
       // build asynchronous task
       task = for {
         // parallelize disk creation and cluster/nodepool monitoring
-        _ <- List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
+        _ <- List(createDiskOp, createSecondDiskOp, effectiveClusterOrNodepoolOp).parSequence_
 
         // create and monitor app
         _ <- getGkeAlgFromRegistry()
           .createAndPollApp(
-            CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType, msg.bucketNameToMount)
+            CreateAppParams(msg.appId, msg.project, msg.appName, msg.machineType, msg.bucketNameToMount, restore)
           )
           .onError { case e =>
             cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk, e)
