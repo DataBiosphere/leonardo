@@ -43,9 +43,8 @@ DAISY_IMAGE_TAG="release"
 # When updating, to find the resource path:
 #    1. run `gcloud compute images list --no-standard-images --project=cos-cloud | grep lts` to get the list of available container-optimized OS images
 #    2. select the image of interest, say, `cos-89-16108-403-22`
-#    3. run `gcloud compute images describe cos-89-16108-403-22 --project cos-cloud | grep selfLink`
-#    4. extract the segments starting with 'projects'
-BASE_IMAGE="projects/cos-cloud/global/images/cos-113-18244-85-64"
+#    3. run `gcloud compute images describe cos-89-16108-403-22 --project cos-cloud --format="value(selfLink.scope(v1))"`
+BASE_IMAGE="projects/cos-cloud/global/images/cos-129-19506-299-137"
 
 if [[ "$VALIDATE_WORKFLOW" == "true" ]]; then
   DAISY_CONTAINER="gcr.io/compute-image-tools/daisy:${DAISY_IMAGE_TAG} -validate"
