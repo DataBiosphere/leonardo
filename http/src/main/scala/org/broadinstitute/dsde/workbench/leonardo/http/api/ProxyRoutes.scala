@@ -285,25 +285,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       pass
     }
 
-  // Returns true for paths that serve static assets (by extension or /static/ path segment).
-  // These are safe to exempt from CSRF referer checks because they are GET-only, read-only,
-  // and cannot modify server state.
+  // Returns true for paths that serve inert static assets (by extension or /static/ path segment).
+  // These are safe to exempt from CSRF referer checks: they are non-executable binary or script
+  // resources (JS, CSS, images, fonts) that Leo proxies as-is and that cannot themselves submit
+  // forms or trigger state-changing requests. HTML is intentionally excluded because HTML files
+  // can contain <form> elements that POST to modify server state.
   private[api] def isStaticAssetPath(path: String): Boolean = {
-    val staticExtensions = Set(".js",
-                               ".css",
-                               ".png",
-                               ".ico",
-                               ".woff",
-                               ".woff2",
-                               ".svg",
-                               ".map",
-                               ".gif",
-                               ".jpg",
-                               ".jpeg",
-                               ".ttf",
-                               ".eot",
-                               ".html"
-    )
+    val staticExtensions =
+      Set(".js", ".css", ".png", ".ico", ".woff", ".woff2", ".svg", ".map", ".gif", ".jpg", ".jpeg", ".ttf", ".eot")
     path.contains("/static/") || staticExtensions.exists(path.endsWith)
   }
 
