@@ -91,6 +91,7 @@ object Settings {
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings,
     dependencyOverrides ++= Dependencies.commonOverrides,
+    excludeDependencies ++= Dependencies.commonExcludes,
     libraryDependencySchemes += "org.http4s" %% "http4s-core" % "always"
   )
 

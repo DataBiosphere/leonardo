@@ -13,7 +13,6 @@ object Dependencies {
   val slickV = "3.4.1"
   val nettyV = "4.1.135.Final"
   val guavaV = "32.1.3-jre"
-  val bouncyCastleV = "1.84"
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
   val munitCatsEffectV = "1.0.7"
@@ -151,9 +150,6 @@ object Dependencies {
   val nettyTransportNativeKqueue: ModuleID = "io.netty" % "netty-transport-native-kqueue" % nettyV
   val nettyTransportClassesKqueue: ModuleID = "io.netty" % "netty-transport-classes-kqueue" % nettyV
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
-  val bcprov: ModuleID  = "org.bouncycastle" % "bcprov-jdk18on" % bouncyCastleV
-  val bcpkix: ModuleID  = "org.bouncycastle" % "bcpkix-jdk18on" % bouncyCastleV
-  val bcutil: ModuleID  = "org.bouncycastle" % "bcutil-jdk18on" % bouncyCastleV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val terraCommonLibV = "1.1.54-SNAPSHOT"
@@ -250,9 +246,15 @@ object Dependencies {
     nettyCommon, nettyHandler, nettyHandlerProxy, nettyResolver,
     nettyResolverDns, nettyResolverDnsNativeMacos, nettyResolverDnsClassesMacos,
     nettyTransport, nettyTransportNativeEpoll, nettyTransportNativeUnixCommon,
-    nettyTransportNativeKqueue, nettyTransportClassesKqueue,
-    bcprov, bcpkix, bcutil
+    nettyTransportNativeKqueue, nettyTransportClassesKqueue
   )
+
+  // BouncyCastle arrived transitively via `io.kubernetes:client-java` and is not used.
+  // Can clean up when we remove Kubernetes support (CTM-657)
+  val commonExcludes = List(
+    ExclusionRule("org.bouncycastle")
+  )
+
   val automationOverrides = List(
     guava,
     // semconv version to satisfy selenium:
