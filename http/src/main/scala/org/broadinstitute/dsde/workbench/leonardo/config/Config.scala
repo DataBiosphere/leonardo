@@ -152,6 +152,7 @@ object Config {
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySizeBytes]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults"),
+      config.as[DiskType]("bootDiskType"),
       config.as[FiniteDuration]("setMetadataPollDelay"),
       config.as[Int]("setMetadataPollMaxAttempts")
     )

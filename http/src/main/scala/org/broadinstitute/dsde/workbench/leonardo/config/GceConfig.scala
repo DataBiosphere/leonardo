@@ -11,6 +11,7 @@ case class GceConfig(sourceImage: GceCustomImage,
                      defaultScopes: Set[String],
                      gceReservedMemory: Option[MemorySizeBytes],
                      runtimeConfigDefaults: RuntimeConfig.GceConfig,
+                     bootDiskType: DiskType,
                      setMetadataPollDelay: FiniteDuration,
                      setMetadataPollMaxAttempts: Int
 )
