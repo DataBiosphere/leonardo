@@ -11,7 +11,10 @@ object HostStatus {
   final case object HostNotFound extends HostStatus
   final case object HostNotReady extends HostStatus
   final case object HostPaused extends HostStatus
-  final case class HostReady(hostname: Host, path: String, cloudProvider: CloudProvider) extends HostStatus {
+  // useHttp = true means the proxy connects to the backend via plain HTTP (port 80) instead of
+  // HTTPS (proxyConfig.proxyPort). Used for Galaxy VM apps whose nginx serves HTTP only.
+  final case class HostReady(hostname: Host, path: String, cloudProvider: CloudProvider, useHttp: Boolean = false)
+      extends HostStatus {
     def toUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/proxy/${path}")
 
     def toNotebooksUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/notebooks/${path}")

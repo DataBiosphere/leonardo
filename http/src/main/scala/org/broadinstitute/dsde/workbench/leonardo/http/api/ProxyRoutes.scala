@@ -270,11 +270,31 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     if (refererConfig.enabled) {
       optionalHeaderValueByType(Upgrade) flatMap {
         case Some(upgrade) if upgrade.hasWebSocket => pass
-        case _                                     => checkReferer
+        case _ =>
+          extractUri flatMap { uri =>
+            if (isStaticAssetPath(uri.path.toString()))
+              // Static assets (JS, CSS, images) are GET-only and cannot be exploited via CSRF,
+              // so skip the referer check. This is necessary for environments (e.g. dev with GCP IAP)
+              // where Sec-Fetch-* headers are stripped by an intermediate proxy before reaching Leo.
+              pass
+            else
+              checkReferer
+          }
       }
     } else {
       pass
     }
+
+  // Returns true for paths that serve inert static assets (by extension or /static/ path segment).
+  // These are safe to exempt from CSRF referer checks: they are non-executable binary or script
+  // resources (JS, CSS, images, fonts) that Leo proxies as-is and that cannot themselves submit
+  // forms or trigger state-changing requests. HTML is intentionally excluded because HTML files
+  // can contain <form> elements that POST to modify server state.
+  private[api] def isStaticAssetPath(path: String): Boolean = {
+    val staticExtensions =
+      Set(".js", ".css", ".png", ".ico", ".woff", ".woff2", ".svg", ".map", ".gif", ".jpg", ".jpeg", ".ttf", ".eot")
+    path.contains("/static/") || staticExtensions.exists(path.endsWith)
+  }
 
   private def requestPath(req: HttpRequest): String = req.uri.toString
   private val logRequestPath = DebuggingDirectives.logRequest(requestPath _)
@@ -293,7 +313,36 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
           logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
         }
       case None =>
-        logger.info(s"Referer header is missing")
-        logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
+        // Referer is absent — check the Origin header as a fallback. Browsers send Origin
+        // on fetch/module-import requests (e.g. Galaxy visualization plugin assets loaded
+        // by analysis.bundled.js) even when Referer is stripped by the referrer policy.
+        // Origin provides equivalent CSRF protection: it cannot be forged by HTML forms
+        // and is set to the initiating document's origin by the browser.
+        optionalHeaderValueByType(`Origin`) flatMap {
+          case Some(origin) =>
+            val hasValidOrigin = origin.origins.exists { o =>
+              refererConfig.validHosts.contains(o.host.toString()) || refererConfig.validHosts.contains("*")
+            }
+            if (hasValidOrigin) pass
+            else {
+              logger.info(s"Referer header is missing and Origin ${origin.value} is not allowed")
+              logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
+            }
+          case None =>
+            // Neither Referer nor Origin — final fallback: Sec-Fetch-Site.
+            // Browsers always populate this header and it cannot be forged by
+            // page scripts (Sec-* is a forbidden header prefix).  "same-origin"
+            // guarantees the request was initiated by the same origin, so it
+            // cannot be a CSRF attack.  This covers no-cors resource loads
+            // (e.g. <script> / <link> tags) from pages with a strict referrer
+            // policy that strip both Referer and Origin.
+            optionalHeaderValueByName("Sec-Fetch-Site") flatMap {
+              case Some(site) if site == "same-origin" =>
+                pass
+              case _ =>
+                logger.info(s"Referer header is missing and no valid Origin or Sec-Fetch-Site")
+                logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
+            }
+        }
     }
 }

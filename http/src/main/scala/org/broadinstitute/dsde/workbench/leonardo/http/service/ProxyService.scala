@@ -5,7 +5,7 @@ package service
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{`Content-Disposition`, OAuth2BearerToken}
+import akka.http.scaladsl.model.headers.{`Content-Disposition`, Location, OAuth2BearerToken, RawHeader}
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.http.scaladsl.unmarshalling.Unmarshal
@@ -256,7 +256,7 @@ class ProxyService(
 
       hostStatus <- getRuntimeTargetHost(cloudContext, runtimeName)
       _ <- hostStatus match {
-        case HostReady(_, _, _) =>
+        case HostReady(_, _, _, _) =>
           dateAccessUpdaterQueue.offer(
             UpdateDateAccessedMessage(UpdateTarget.Runtime(runtimeName), cloudContext, ctx.now)
           )
@@ -350,11 +350,15 @@ class ProxyService(
         } else IO.unit
       hostStatus <- getAppTargetHost(cloudContext, appName)
       _ <- hostStatus match {
-        case HostReady(_, _, _) =>
+        case HostReady(_, _, _, _) =>
           dateAccessUpdaterQueue.offer(UpdateDateAccessedMessage(UpdateTarget.App(appName), cloudContext, ctx.now))
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${cloudContext.asString}/${appName.value}/${serviceName.value}")
+      // Galaxy VM apps: forward the full Leo proxy path to the VM unchanged.
+      // galaxy-k8s-boot configures nginx location blocks and galaxy_url_prefix
+      // using the ingress.path value (= the Leo proxy prefix), so the VM expects
+      // to receive the full path including the prefix.
       r <- proxyInternal(hostContext, request)
       appType <- appQuery.getAppType(appName).transaction
       result = if (r.status.isSuccess()) "success" else "failure"
@@ -376,16 +380,16 @@ class ProxyService(
     for {
       ctx <- ev.ask[AppContext]
       res <- hostContext.status match {
-        case HostReady(targetHost, _, _) =>
+        case HostReady(targetHost, _, _, useHttp) =>
           // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
           // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
           // The presence of this header distinguishes WebSocket from http requests.
           val res = for {
             response <- request.attribute(AttributeKeys.webSocketUpgrade) match {
               case Some(upgrade) =>
-                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
+                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade, useHttp)))
               case None =>
-                IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
+                IO.fromFuture(IO(handleHttpRequest(targetHost, request, useHttp)))
             }
             r <-
               if (response.status.isFailure())
@@ -418,9 +422,10 @@ class ProxyService(
       }
     } yield res
 
-  private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
-
+  private def handleHttpRequest(targetHost: Host,
+                                request: HttpRequest,
+                                useHttp: Boolean = false
+  ): Future[HttpResponse] = {
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
     // in as a Source[HttpRequest] and responses are returned as a Sink[HttpResponse]. The transformation
@@ -429,12 +434,24 @@ class ProxyService(
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http()
-      .connectionTo(targetHost.address)
-      .toPort(proxyConfig.proxyPort)
-      .withCustomHttpsConnectionContext(httpsConnectionContext)
-      .withClientConnectionSettings(clientConnectionSettings)
-      .https()
+    // Galaxy VM apps use plain HTTP on port 80; all other backends use HTTPS on proxyConfig.proxyPort.
+    val flow =
+      if (useHttp) {
+        logger.debug(s"Opening http connection to ${targetHost.address}:80")
+        Http()
+          .connectionTo(targetHost.address)
+          .toPort(80)
+          .withClientConnectionSettings(clientConnectionSettings)
+          .http()
+      } else {
+        logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
+        Http()
+          .connectionTo(targetHost.address)
+          .toPort(proxyConfig.proxyPort)
+          .withCustomHttpsConnectionContext(httpsConnectionContext)
+          .withClientConnectionSettings(clientConnectionSettings)
+          .https()
+      }
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -442,8 +459,14 @@ class ProxyService(
     // Rewrite the path if it is proxy/*/*/jupyter/, otherwise pass it through as is (see rewriteJupyterPath)
     val rewrittenPath = rewriteJupyterPath(request.uri.path)
 
-    // 1. filter out headers not needed for the backend server
-    val newHeaders = filterHeaders(request.headers)
+    // 1. filter out headers not needed for the backend server, then inject X-Forwarded-Proto.
+    // Galaxy VM backends receive plain HTTP from Leo (TLS is terminated here), so we
+    // must declare the original scheme so tusd (running with -behind-proxy) generates
+    // Location: https://... rather than http://, which browsers block as mixed content.
+    val filteredHeaders = filterHeaders(request.headers)
+    val newHeaders =
+      if (useHttp) filteredHeaders :+ RawHeader("X-Forwarded-Proto", "https")
+      else filteredHeaders
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.rawQueryString)
     // 3. build a new HttpRequest
@@ -462,10 +485,24 @@ class ProxyService(
     Source
       .single(newRequest)
       .via(flow)
+      .map(if (useHttp) fixLocationScheme else identity)
       .map(fixContentDisposition)
       .runWith(Sink.head)
       .flatMap(_.toStrict(requestTimeout))
   }
+
+  // Galaxy VM backends speak HTTP to Leo, which terminates TLS for the client. Any
+  // absolute URL they return must use https:// so the browser can follow it from an
+  // https:// page without a mixed-content block. The primary case is the TUS upload
+  // Location header generated by tusd with -behind-proxy.
+  private def fixLocationScheme(httpResponse: HttpResponse): HttpResponse =
+    httpResponse.header[Location] match {
+      case Some(loc) if loc.uri.scheme == "http" =>
+        val newHeaders =
+          httpResponse.headers.filterNot(_.isInstanceOf[Location]) :+ Location(loc.uri.withScheme("https"))
+        httpResponse.withHeaders(newHeaders)
+      case _ => httpResponse
+    }
 
   // This is our current workaround for a bug that causes notebooks to download with "utf-8''" prepended to the file name
   // This is due to an akka-http bug currently being worked on here: https://github.com/playframework/playframework/issues/7719
@@ -492,7 +529,8 @@ class ProxyService(
 
   private def handleWebSocketRequest(targetHost: Host,
                                      request: HttpRequest,
-                                     upgrade: WebSocketUpgrade
+                                     upgrade: WebSocketUpgrade,
+                                     useHttp: Boolean = false
   ): Future[HttpResponse] = {
     logger.info(s"Opening websocket connection to ${targetHost.address}")
 
@@ -509,19 +547,35 @@ class ProxyService(
     // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
     // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
     // Note that we are rewriting the paths for any requests that are routed to /proxy/*/*/jupyter/
-    val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(
-        request.uri.copy(path = rewriteJupyterPath(request.uri.path),
-                         authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
-                         scheme = "wss"
-        ),
-        extraHeaders = filterHeaders(request.headers),
-        upgrade.requestedProtocols.headOption
-      ),
-      flow,
-      httpsConnectionContext,
-      settings = clientConnectionSettings
-    )
+    // Galaxy VM apps use ws:// on port 80; all other backends use wss:// on proxyConfig.proxyPort.
+    val (responseFuture, (publisher, subscriber)) =
+      if (useHttp)
+        Http().singleWebSocketRequest(
+          WebSocketRequest(
+            request.uri.copy(path = rewriteJupyterPath(request.uri.path),
+                             authority = request.uri.authority.copy(host = targetHost, port = 80),
+                             scheme = "ws"
+            ),
+            extraHeaders = filterHeaders(request.headers),
+            upgrade.requestedProtocols.headOption
+          ),
+          flow,
+          settings = clientConnectionSettings
+        )
+      else
+        Http().singleWebSocketRequest(
+          WebSocketRequest(
+            request.uri.copy(path = rewriteJupyterPath(request.uri.path),
+                             authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
+                             scheme = "wss"
+            ),
+            extraHeaders = filterHeaders(request.headers),
+            upgrade.requestedProtocols.headOption
+          ),
+          flow,
+          httpsConnectionContext,
+          settings = clientConnectionSettings
+        )
 
     // If we got a valid WebSocketUpgradeResponse, call handleMessages with our publisher/subscriber, which are
     // already materialized from the HttpRequest.
@@ -553,7 +607,12 @@ class ProxyService(
     "Sec-WebSocket-Protocol",
     "UpgradeToWebSocket",
     "Upgrade",
-    "Connection"
+    "Connection",
+    // Strip the user's Leo/Terra bearer token: backends must not receive it.
+    // Galaxy 23.1+ treats any Authorization: Bearer value as a Galaxy API key;
+    // forwarding the Terra JWT causes Galaxy to return 400 for every API call.
+    // Leo is the auth boundary — backends authenticate via their own mechanisms.
+    "Authorization"
   ).map(_.toLowerCase)
 }
 

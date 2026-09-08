@@ -125,4 +125,5 @@
     <include file="changesets/20251024_delete_app_controlled_resource_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20251024_delete_runtime_controlled_resource_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20251024_delete_update_app_log_table.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20260730_allow_multiple_galaxy_vm_clusters.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

@@ -166,13 +166,43 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                                        None,
                                        getAppSamPolicyMap(userEmail, leoEmail, req.accessScope)
         )
+
+        // For Galaxy VM apps, check disk attachment before creating a cluster record. Without this
+        // early check, saveNewClusterForApp would be attempted first; if it succeeded we'd then
+        // get DiskAlreadyAttachedException from processPersistentDiskRequest, leaving an orphaned
+        // cluster record. Doing the check here keeps the error path clean.
+        _ <-
+          if (req.appType == AppType.Galaxy) {
+            req.diskConfig
+              .flatTraverse { diskReq =>
+                persistentDiskQuery.getActiveByName(cloudContext, diskReq.name).transaction
+              }
+              .flatMap {
+                case Some(pd) =>
+                  appQuery.isDiskAttached(pd.id).transaction.flatMap { isAttached =>
+                    if (isAttached)
+                      F.raiseError[Unit](DiskAlreadyAttachedException(cloudContext, pd.name, ctx.traceId))
+                    else F.unit
+                  }
+                case None => F.unit
+              }
+          } else F.unit
+
         saveCluster <- F.fromEither(
           getSavableCluster(userEmail, cloudContext, req.autopilot.isDefined, ctx.now)
         )
 
-        saveClusterResult <- KubernetesServiceDbQueries
-          .saveOrGetClusterForApp(saveCluster, ctx.traceId)
-          .transaction(isolationLevel = TransactionIsolation.Serializable)
+        // Galaxy VM apps each get their own Leo cluster record. If multiple Galaxy apps shared
+        // a cluster, the last VM to start would overwrite the cluster's loadBalancerIp, routing
+        // all users' proxy requests to the same (wrong) VM. GKE-based apps continue to share a
+        // cluster per project as before.
+        saveClusterResult <-
+          if (req.appType == AppType.Galaxy)
+            KubernetesServiceDbQueries.saveNewClusterForApp(saveCluster).transaction
+          else
+            KubernetesServiceDbQueries
+              .saveOrGetClusterForApp(saveCluster, ctx.traceId)
+              .transaction(isolationLevel = TransactionIsolation.Serializable)
         // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
         _ <-
           if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
@@ -828,6 +858,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
         } else {
           (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
             case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _))) |
+                (Some(FormattedBy.Galaxy), Some(AppRestore.Other(_))) |
                 (Some(FormattedBy.Cromwell), Some(AppRestore.Other(_))) |
                 (Some(FormattedBy.Allowed), Some(AppRestore.Other(_))) =>
               val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
@@ -848,8 +879,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
                     )
                 }
               } yield lastUsed.some
-            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) |
-                (Some(FormattedBy.Allowed), None) =>
+            // Galaxy VM writes restore info only after a successful install. If an app
+            // failed during creation before that point, the disk has no data and can
+            // be reused as a fresh install.
+            case (Some(FormattedBy.Galaxy), None) =>
+              F.pure(none[LastUsedApp])
+            case (Some(FormattedBy.Cromwell), None) | (Some(FormattedBy.Allowed), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException(s"Existing ${diskResult.disk.id} found, but no restore info found in DB",
                                  traceId = Some(ctx.traceId)

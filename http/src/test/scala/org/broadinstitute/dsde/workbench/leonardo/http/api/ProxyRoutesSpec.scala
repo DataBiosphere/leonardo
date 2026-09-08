@@ -691,6 +691,66 @@ class ProxyRoutesSpec
 
   }
 
+  it should "pass when Sec-Fetch-Site is same-origin and both Referer and Origin are absent" in {
+    val routesWithWildcardReferer =
+      createHttpRoute(MockJupyterDAO, RefererConfig(Set("*", "bvdp-saturn-dev.appspot.com/"), enabled = true))
+
+    // Simulates a no-cors <script>/<link> load from a page with a strict referrer policy.
+    // No Referer, no Origin — only Sec-Fetch-Site: same-origin.
+    Get(s"/proxy/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(RawHeader("Sec-Fetch-Site", "same-origin")) ~> routesWithWildcardReferer.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+    }
+
+    // Sec-Fetch-Site: cross-site without Referer or Origin should still be rejected.
+    Get(s"/proxy/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(RawHeader("Sec-Fetch-Site", "cross-site")) ~> routesWithWildcardReferer.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "pass for static asset paths even when Referer, Origin and Sec-Fetch-Site are all absent" in {
+    // Simulates dev environment where GCP IAP strips Sec-Fetch-* headers before Leo receives them.
+    val routesWithReferer =
+      createHttpRoute(MockJupyterDAO, RefererConfig(Set("bvdp-saturn-dev.appspot.com/"), enabled = true))
+
+    // Static JS file — should be exempt from referer check
+    Get(s"/proxy/$googleProject/$clusterName/jupyter/static/plugins/visualizations/plotly/static/index.js")
+      .addHeader(Cookie(tokenCookie)) ~> routesWithReferer.route ~> check {
+      handled shouldBe true
+      status should not equal StatusCodes.Unauthorized
+    }
+
+    // Static CSS file
+    Get(s"/proxy/$googleProject/$clusterName/galaxy/static/style.css")
+      .addHeader(Cookie(tokenCookie)) ~> routesWithReferer.route ~> check {
+      handled shouldBe true
+      status should not equal StatusCodes.Unauthorized
+    }
+
+    // Non-static path without Referer/Origin/Sec-Fetch-Site should still be rejected
+    Get(s"/proxy/$googleProject/$clusterName/galaxy/api/histories")
+      .addHeader(Cookie(tokenCookie)) ~> routesWithReferer.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "isStaticAssetPath detect static paths correctly" in {
+    val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
+    proxyRoutes.isStaticAssetPath(
+      "/proxy/proj/app/galaxy/static/plugins/visualizations/plotly/static/index.js"
+    ) shouldBe true
+    proxyRoutes.isStaticAssetPath("/proxy/proj/app/galaxy/static/style.css") shouldBe true
+    proxyRoutes.isStaticAssetPath("/proxy/proj/app/jupyter/static/base/images/logo.png") shouldBe true
+    proxyRoutes.isStaticAssetPath("/proxy/proj/app/galaxy/api/histories") shouldBe false
+    proxyRoutes.isStaticAssetPath("/proxy/proj/app/galaxy/api/version") shouldBe false
+  }
+
   "Proxy utils" should "fail to decode b2c token if token expired" ignore {
     val token = "" // use a valid expired token for testing
     val now = Instant.now()

@@ -635,7 +635,9 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     publisherQueue.tryTake.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).get shouldBe a[DeleteAppMessage]
   }
 
-  it should "error creating an app with an existing disk if no restore info found" in isolatedDbTest {
+  it should "allow creating a Galaxy app with an existing disk that has no restore info (failed provisioning case)" in isolatedDbTest {
+    // Galaxy writes restore info only after a successful install. If the previous app
+    // failed during creation, the disk has no data and should be reusable as a fresh install.
     val disk = makePersistentDisk(None, formattedBy = Some(FormattedBy.Galaxy))
       .copy(cloudContext = cloudContextGcp)
       .save()
@@ -652,7 +654,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe s"Existing ${disk.id} found, but no restore info found in DB"
+    res shouldBe a[Right[_, _]]
   }
 
   it should "error on creation of a galaxy app without a disk" in isolatedDbTest {

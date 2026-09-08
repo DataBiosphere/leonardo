@@ -131,6 +131,20 @@ object Config {
     )
   }
 
+  implicit private val galaxyVmConfigReader: ValueReader[GalaxyVmConfig] = ValueReader.relative { config =>
+    GalaxyVmConfig(
+      config.as[GceCustomImage]("sourceImage"),
+      config.as[MachineTypeName]("machineType"),
+      config.as[DiskSize]("bootDiskSizeGb"),
+      config.as[DiskSize]("postgresDiskSizeGb"),
+      config.as[String]("postgresDiskNameSuffix"),
+      config.as[String]("gitRepo"),
+      config.as[String]("gitBranch"),
+      config.as[String]("orchUrl"),
+      config.as[String]("drsUrl")
+    )
+  }
+
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
       config.as[GceCustomImage]("customGceImage"),
@@ -498,6 +512,7 @@ object Config {
   val googleGroupsConfig = config.as[GoogleGroupsConfig]("groups")
 
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
+  val galaxyVmConfig = config.as[GalaxyVmConfig]("galaxyVm")
   val gceConfig = config.as[GceConfig]("gce")
   val imageConfig = config.as[ImageConfig]("image")
   val prometheusConfig = config.as[PrometheusConfig]("prometheus")
@@ -902,13 +917,13 @@ object Config {
       vpcConfig.networkTag,
       org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader.appConfig.terraAppSetupChart,
       gkeIngressConfig,
-      gkeGalaxyAppConfig,
       gkeCromwellAppConfig,
       gkeCustomAppConfig,
       gkeAllowedAppConfig,
       appMonitorConfig,
       gkeClusterConfig,
       proxyConfig,
-      gkeGalaxyDiskConfig
+      gkeGalaxyDiskConfig,
+      galaxyVmConfig
     )
 }

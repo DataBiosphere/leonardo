@@ -74,16 +74,6 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
     savedCluster1.nodepools.size shouldBe 1
   }
 
-  it should "prevent duplicate (googleProject, destroyedDate) kubernetes clusters" in isolatedDbTest {
-    val cluster1 = makeKubeCluster(1)
-
-    cluster1.save()
-    val caught = the[java.sql.SQLIntegrityConstraintViolationException] thrownBy {
-      cluster1.save()
-    }
-    caught.getMessage should include("IDX_KUBERNETES_CLUSTER_UNIQUE")
-  }
-
   it should "update async fields" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
 

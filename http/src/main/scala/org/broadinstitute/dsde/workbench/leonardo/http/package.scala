@@ -34,6 +34,7 @@ package object http {
   val creatorOnlyValue = SamRole.Creator.asString
   val bucketPathMaxLength = 1024
   val WORKSPACE_NAME_KEY = "WORKSPACE_NAME"
+  val WORKSPACE_NAMESPACE_KEY = "WORKSPACE_NAMESPACE"
 
   implicit val errorReportSource: ErrorReportSource = ErrorReportSource("leonardo")
   implicit def dbioToIO[A](dbio: DBIO[A]): DBIOOps[A] = new DBIOOps(dbio)
