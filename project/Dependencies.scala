@@ -11,7 +11,6 @@ object Dependencies {
   val scalaTestV = "3.2.17"
   val http4sVersion = "1.0.0-M45"
   val slickV = "3.4.1"
-  val nettyV = "4.1.135.Final"
   val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
   val opencensusV = "0.29.0"
@@ -34,7 +33,6 @@ object Dependencies {
   val excludeGuavaJDK5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeGuava = ExclusionRule(organization = "com.google.guava", name = "guava")
   val excludeWorkbenchMetrics = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-metrics_${scalaV}")
-  val excludeIoGrpc = ExclusionRule(organization = "io.grpc", name = "grpc-core")
   val excludeFindbugsJsr = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeGson = ExclusionRule(organization = "com.google.code.gson", name = "gson")
   val excludeGoogleApiClient = ExclusionRule(organization = "com.google.api-client", name = "google-api-client")
@@ -69,8 +67,6 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.58.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
-
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-17" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-4-5" % "3.2.12.0" % Test // https://github.com/scalatest/scalatestplus-mockito
@@ -80,7 +76,6 @@ object Dependencies {
   // workbench-google pulls in workbench-{util, model, metrics} and workbench-metrics pulls in workbench-util.
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
   val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (
-    excludeIoGrpc,
     excludeFindbugsJsr,
     excludeGoogleApiClient,
     excludeGoogleError,
@@ -90,7 +85,6 @@ object Dependencies {
     excludeKms)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
     excludeWorkbenchMetrics,
-    excludeIoGrpc,
     excludeFindbugsJsr,
     excludeGoogleError,
     excludeHttpComponent,
@@ -108,7 +102,6 @@ object Dependencies {
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
-    excludeIoGrpc,
     excludeGuava
   )
 
@@ -131,51 +124,15 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
   val http4sCirce       = "org.http4s"        %% "http4s-circe"  % http4sVersion
 
-  val nettyBuffer: ModuleID = "io.netty" % "netty-buffer" % nettyV
-  val nettyCodec: ModuleID = "io.netty" % "netty-codec" % nettyV
-  val nettyCodecHttp: ModuleID = "io.netty" % "netty-codec-http" % nettyV
-  val nettyCodecHttp2: ModuleID = "io.netty" % "netty-codec-http2" % nettyV
-  val nettyCodecSocks: ModuleID = "io.netty" % "netty-codec-socks" % nettyV
-  val nettyCommon: ModuleID = "io.netty" % "netty-common" % nettyV
-  val nettyHandler: ModuleID = "io.netty" % "netty-handler" % nettyV
-  val nettyHandlerProxy: ModuleID = "io.netty" % "netty-handler-proxy" % nettyV
-  val nettyResolver: ModuleID = "io.netty" % "netty-resolver" % nettyV
-  val nettyTransport: ModuleID = "io.netty" % "netty-transport" % nettyV
-  val nettyTransportNativeEpoll: ModuleID = "io.netty" % "netty-transport-native-epoll" % nettyV
-  val nettyTransportNativeUnixCommon: ModuleID = "io.netty" % "netty-transport-native-unix-common" % nettyV
-  val nettyCodecDns: ModuleID = "io.netty" % "netty-codec-dns" % nettyV
-  val nettyResolverDns: ModuleID = "io.netty" % "netty-resolver-dns" % nettyV
-  val nettyResolverDnsNativeMacos: ModuleID = "io.netty" % "netty-resolver-dns-native-macos" % nettyV
-  val nettyResolverDnsClassesMacos: ModuleID = "io.netty" % "netty-resolver-dns-classes-macos" % nettyV
-  val nettyTransportNativeKqueue: ModuleID = "io.netty" % "netty-transport-native-kqueue" % nettyV
-  val nettyTransportClassesKqueue: ModuleID = "io.netty" % "netty-transport-classes-kqueue" % nettyV
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
-  val terraCommonLibV = "1.1.54-SNAPSHOT"
   val samV = "v0.0.448"
 
   def excludeJakartaActivationApi = ExclusionRule("jakarta.activation", "jakarta.activation-api")
   def excludeJakartaXmlBindApi = ExclusionRule("jakarta.xml.bind", "jakarta.xml.bind-api")
   def excludeJakarta(m: ModuleID): ModuleID = m.excludeAll(excludeJakartaActivationApi)
-  def excludeSpringBoot = ExclusionRule("org.springframework.boot")
-  def excludeSpringAop = ExclusionRule("org.springframework.spring-aop")
-  def excludeSpringData = ExclusionRule("org.springframework.data")
-  def excludeSpringFramework = ExclusionRule("org.springframework")
-  def excludeOpenCensus = ExclusionRule("io.opencensus")
-  def excludeGoogleFindBugs = ExclusionRule("com.google.code.findbugs")
-  def excludeBroadWorkbench = ExclusionRule("org.broadinstitute.dsde.workbench")
-  def excludePostgresql = ExclusionRule("org.postgresql", "postgresql")
-  def excludeSnakeyaml = ExclusionRule("org.yaml", "snakeyaml")
-  def excludeLiquibase = ExclusionRule("org.liquibase", "liquibase-core")
-  def excludeFlagsmith = ExclusionRule("com.flagsmith", "flagsmith-java-client")
-  def excludeJsonSmart = ExclusionRule("net.minidev", "json-smart")
-  def excludeNettyCodecHttp2 = ExclusionRule("io.netty", "netty-codec-http2")
 
-  // [IA-4939] commons-text:1.9 is unsafe
-  def excludeCommonsText = ExclusionRule("org.apache.commons", "commons-text")
-  def tclExclusions(m: ModuleID): ModuleID = m.excludeAll(excludeSpringBoot, excludeSpringAop, excludeSpringData, excludeSpringFramework, excludeOpenCensus, excludeGoogleFindBugs, excludeBroadWorkbench, excludePostgresql, excludeSnakeyaml, excludeSlf4j, excludeCommonsText, excludeLiquibase, excludeFlagsmith, excludeJsonSmart, excludeNettyCodecHttp2)
-  val terraCommonLib = tclExclusions(excludeJakarta("bio.terra" % "terra-common-lib" % terraCommonLibV classifier "plain"))
   val sam = excludeJakarta("org.broadinstitute.dsde.workbench" %% "sam-client" % samV)
 
   val coreDependencies = List(
@@ -204,7 +161,6 @@ object Dependencies {
     http4sDsl,
     scalaTestScalaCheck,
     logbackClassic,
-    terraCommonLib,
     sam
   )
 
@@ -221,7 +177,6 @@ object Dependencies {
     http4sPrometheus,
     http4sEmberClient,
     "de.heikoseeberger" %% "akka-http-circe" % "1.39.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
-    googleRpc,
     hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
@@ -240,14 +195,6 @@ object Dependencies {
   // You should not be using SSH functionality outside of the tests according to security team's guidance
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
   val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
-
-  val commonOverrides = List(
-    nettyBuffer, nettyCodec, nettyCodecDns, nettyCodecHttp, nettyCodecHttp2, nettyCodecSocks,
-    nettyCommon, nettyHandler, nettyHandlerProxy, nettyResolver,
-    nettyResolverDns, nettyResolverDnsNativeMacos, nettyResolverDnsClassesMacos,
-    nettyTransport, nettyTransportNativeEpoll, nettyTransportNativeUnixCommon,
-    nettyTransportNativeKqueue, nettyTransportClassesKqueue
-  )
 
   // BouncyCastle arrived transitively via `io.kubernetes:client-java` and is not used.
   // Can clean up when we remove Kubernetes support (CTM-657)
@@ -273,7 +220,6 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingV,
-    googleRpc,
     workbenchGoogle,
     workbenchGoogle2,
     workbenchServiceTest,
