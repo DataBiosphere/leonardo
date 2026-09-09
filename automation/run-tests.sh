@@ -40,5 +40,8 @@ yes | apt install lsof > /dev/null
 
 echo "Done installing lsof, running tests"
 
+# Instruct git to trust a repo mounted from the runner environment outside the container
+git config --global --add safe.directory "$PWD"
+
 # Run the SBT tests
 sbt -batch -Dheadless=true "project automation" "$SBT_TEST_COMMAND"
