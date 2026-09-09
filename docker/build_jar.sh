@@ -10,7 +10,7 @@ GIT_HASH=$(git log -n 1 --pretty=format:%h)
 
 # make jar.  cache sbt dependencies. capture output and stop db before returning.
 EXIT_CODE=0
-docker run --rm -v $PWD:/working \
+docker run --rm -e GIT_HASH=$GIT_HASH -v $PWD:/working \
   -v sbt-cache:/root/.sbt -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \
   -v coursier-cache:/root/.cache/coursier \
   sbtscala/scala-sbt:eclipse-temurin-17_1.x /working/docker/clean_install.sh /working \
