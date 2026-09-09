@@ -7,7 +7,7 @@ set -e -x
 # Path to leonardo-account.json for the qa domain
 # LEONARDO_ACCOUNT_JSON_PATH
 
-# Install Python 3.11 via uv (Debian Bullseye only ships with 3.9, which is no longer supported by gcloud)
+# No Python preinstalled in current `sbtscala/scala-sbt` images
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 uv python install 3.11
