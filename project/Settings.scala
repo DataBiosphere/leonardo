@@ -90,7 +90,7 @@ object Settings {
     scalaVersion  := "2.13.12",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings,
-    dependencyOverrides ++= Dependencies.commonOverrides,
+    excludeDependencies ++= Dependencies.commonExcludes,
     libraryDependencySchemes += "org.http4s" %% "http4s-core" % "always"
   )
 

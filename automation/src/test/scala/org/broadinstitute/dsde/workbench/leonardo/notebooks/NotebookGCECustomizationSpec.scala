@@ -53,6 +53,8 @@ final class NotebookGCECustomizationSpec
                 // Check the extensions were installed
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
 
+                // We test that the extension is installed, but do not exercise its behavior.
+                // It relies on unauthenticated Google Translate calls and is susceptible to 429s.
                 nbExt.get should include("translate_nbextension/main  enabled")
                 // should be installed by default
                 nbExt.get should include("toc2/main  enabled")
@@ -61,9 +63,6 @@ final class NotebookGCECustomizationSpec
                 serverExt.get should include("jupyterlab  enabled")
                 // should be installed by default
                 serverExt.get should include("jupyter_nbextensions_configurator  enabled")
-
-                // Exercise the translate extensionfailure_screenshots/NotebookGCECustomizationSpec_18-34-37-017.png
-                notebookPage.translateMarkup("Yes") should include("Oui")
               }
             }
           }

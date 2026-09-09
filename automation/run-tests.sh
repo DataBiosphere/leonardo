@@ -7,7 +7,7 @@ set -e -x
 # Path to leonardo-account.json for the qa domain
 # LEONARDO_ACCOUNT_JSON_PATH
 
-# Install Python 3.11 via uv (Debian Bullseye only ships with 3.9, which is no longer supported by gcloud)
+# No Python preinstalled in current `sbtscala/scala-sbt` images
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 uv python install 3.11
@@ -39,6 +39,9 @@ yes | apt update > /dev/null
 yes | apt install lsof > /dev/null
 
 echo "Done installing lsof, running tests"
+
+# Instruct git to trust a repo mounted from the runner environment outside the container
+git config --global --add safe.directory "$PWD"
 
 # Run the SBT tests
 sbt -batch -Dheadless=true "project automation" "$SBT_TEST_COMMAND"
