@@ -1157,9 +1157,14 @@ class GKEInterpreter[F[_]](
         .setTags(Tags.newBuilder().addItems(config.vpcNetworkTag.value).build())
         // Prefer the machine type stored on the app's nodepool (set from the request at creation
         // time); fall back to the configured default.
-        .setMachineType(buildMachineTypeUri(zoneParam,
-          dbCluster.nodepools.find(_.id == app.nodepoolId).map(_.machineType)
-            .getOrElse(config.galaxyVmConfig.machineType)))
+        .setMachineType(
+          buildMachineTypeUri(zoneParam,
+                              dbCluster.nodepools
+                                .find(_.id == app.nodepoolId)
+                                .map(_.machineType)
+                                .getOrElse(config.galaxyVmConfig.machineType)
+          )
+        )
         .addNetworkInterfaces(networkInterface)
         .addAllDisks(List(bootDisk, dataDisk, postgresDisk).asJava)
         .addServiceAccounts(
