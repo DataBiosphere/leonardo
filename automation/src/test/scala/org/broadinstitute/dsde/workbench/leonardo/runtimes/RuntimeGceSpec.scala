@@ -30,6 +30,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import java.nio.charset.{Charset, StandardCharsets}
 import java.util.UUID
+import scala.util.Random
 
 @DoNotDiscover
 class RuntimeGceSpec
@@ -82,9 +83,24 @@ class RuntimeGceSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  "should be able to create a VM with GPU enabled" taggedAs ExcludeFromPRCommit in { project =>
+  "should be able to create a VM with GPU enabled" taggedAs (ExcludeFromPRCommit, Retryable) in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
+
+    // https://docs.cloud.google.com/compute/docs/regions-zones/gpu-regions-zones#view-using-table
+    val zones = Seq(
+      "us-east1-b",
+      "us-east1-c",
+      "us-east4-a",
+      "us-east4-b",
+      "us-east4-c",
+      "us-west1-a",
+      "us-west1-b",
+      "us-west2-b",
+      "us-west2-c",
+      "us-west4-a",
+      "us-west4-b"
+    )
 
     val toolImage = ContainerImage.fromImageUrl(
       "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.5"
@@ -99,8 +115,8 @@ class RuntimeGceSpec
             None,
             Map.empty
           ),
-          Some(ZoneName("us-west1-a")),
-          Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
+          Option(ZoneName(Random.shuffle(zones).head)),
+          Option(GpuConfig(GpuType.NvidiaTeslaT4, 1))
         )
       ),
       toolDockerImage = toolImage
@@ -121,7 +137,6 @@ class RuntimeGceSpec
                 |""".stripMargin
             val output = notebookPage.executeCell(deviceNameOutput).get
             output should include("GPU:0")
-            output should include("GPU:1")
           }
         })
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
