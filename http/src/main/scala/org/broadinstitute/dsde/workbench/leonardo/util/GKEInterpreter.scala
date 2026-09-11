@@ -1288,7 +1288,11 @@ class GKEInterpreter[F[_]](
               s"skipping serviceAccountUser binding — must be configured externally"
           )
 
-      // Grant the Batch SA the project-level roles it needs to run jobs and attach a service account to Batch VMs.
+      // Grant the Batch SA the project-level roles it needs to submit and report on Batch jobs.
+      // roles/iam.serviceAccountUser is intentionally NOT granted at the project level — a
+      // project-scoped binding would let the batch SA impersonate any SA in the project, enabling
+      // cross-user token theft via the metadata server of a secondary Batch VM. Instead we grant
+      // it resource-level serviceAccountUser on itself below so it can only run jobs as itself.
       // See https://github.com/galaxyproject/galaxy-k8s-boot?tab=readme-ov-file#prerequisites
       _ <- {
         val call = F.fromFuture(
@@ -1298,11 +1302,7 @@ class GKEInterpreter[F[_]](
                 googleProject,
                 WorkbenchEmail(gcpBatchSa),
                 IamMemberTypes.ServiceAccount,
-                Set("roles/batch.jobsEditor",
-                    "roles/iam.serviceAccountUser",
-                    "roles/batch.agentReporter",
-                    "roles/logging.logWriter"
-                )
+                Set("roles/batch.jobsEditor", "roles/batch.agentReporter", "roles/logging.logWriter")
               )
               .void
           )
@@ -1310,9 +1310,22 @@ class GKEInterpreter[F[_]](
         val retryConfig = RetryPredicates.retryConfigWithPredicates(when409, whenGroupDoesNotExist)
         tracedRetryF(retryConfig)(
           call,
-          s"googleIamDAO.addRoles(batch.jobsEditor, iam.serviceAccountUser) for Batch SA $gcpBatchSa in project ${googleProject.value}"
+          s"googleIamDAO.addRoles(batch.jobsEditor, batch.agentReporter, logging.logWriter) for Batch SA $gcpBatchSa in project ${googleProject.value}"
         ).compile.lastOrError
       }
+
+      // Grant the Batch SA serviceAccountUser on itself so it can submit sub-jobs running as itself.
+      // Scoped to the SA resource — not the project — to prevent impersonation of other SAs.
+      _ <- F.fromFuture(
+        F.delay(
+          googleIamDAO.addIamPolicyBindingOnServiceAccount(
+            googleProject,
+            WorkbenchEmail(gcpBatchSa),
+            WorkbenchEmail(gcpBatchSa),
+            Set("roles/iam.serviceAccountUser")
+          )
+        )
+      )
 
       // Create an NFS firewall rule so GCP Batch VMs can reach the Galaxy VM's NFS server.
       // Idempotent: skipped if the rule already exists.
