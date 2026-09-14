@@ -17,7 +17,7 @@ object StandardUserInfoDirectives extends UserInfoDirectives {
   // If present, use that value instead of the B2C id for backwards compatibility.
   override def requireUserInfo: Directive1[UserInfo] = {
 
-    // `expires_in` has unexpected behavior from upstream. It actually carries an absolute timestamp ("expires AT").
+    // `expires_in` has unexpected behavior from upstream. It actually carries an absolute timestamp ("expires at").
     // Recalculate by assuming any >24h timestamp is absolute. That is the max B2C token lifetime. (CTM-384)
     // https://learn.microsoft.com/en-us/azure/active-directory-b2c/configure-tokens#token-lifetime-behavior
     def toExpiresIn(expires: Long): Long =
