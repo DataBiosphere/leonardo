@@ -330,7 +330,13 @@ object LeonardoApiClient {
         .use { resp =>
           if (!resp.status.isSuccess) {
             onError(s"Failed to delete runtime ${googleProject.value}/${runtimeName.asString}")(resp)
-              .flatMap(IO.raiseError)
+              .flatMap {
+                // Delete is idempotent, so a 409 is acceptable here.
+                case e: RestError
+                    if e.statusCode == Status.Conflict && e.body.exists(_.contains("in Deleting status")) =>
+                  IO.unit
+                case e => IO.raiseError(e)
+              }
           } else
             IO.unit
         }

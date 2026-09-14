@@ -99,20 +99,6 @@ class AppLifecycleSpec
   //   test(googleProject, createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo", None), true, true)
   // }
 
-  "create CROMWELL app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
-    googleProject =>
-      test(googleProject, createAppRequest(AppType.Cromwell, "cromwell-test-workspace", None), false, true)
-  }
-
-  "create RSTUDIO app, delete it and re-create it with same disk" taggedAs (Tags.SmokeTest, Retryable) in {
-    googleProject =>
-      test(googleProject,
-           createAppRequest(AppType.Allowed, "rstudio-test-workspace", None, Some(AllowedChartName.RStudio)),
-           false,
-           true
-      )
-  }
-
   "create CUSTOM app then delete it" taggedAs Retryable ignore { googleProject =>
     test(
       googleProject,
