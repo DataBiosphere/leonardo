@@ -1149,21 +1149,20 @@ class GKEInterpreter[F[_]](
 
       instanceName = InstanceName(s"galaxy-${app.appName.value}")
 
+      // Prefer the machine type stored on the app's nodepool (set from the request at creation
+      // time); fall back to the configured default. Extracted here so it is available in
+      // error messages if provisioning fails (e.g. ZONE_RESOURCE_POOL_EXHAUSTED).
+      vmMachineType = dbCluster.nodepools
+        .find(_.id == app.nodepoolId)
+        .map(_.machineType)
+        .getOrElse(config.galaxyVmConfig.machineType)
+
       instance = Instance
         .newBuilder()
         .setName(instanceName.value)
         .setDescription("Leonardo Galaxy VM")
         .setTags(Tags.newBuilder().addItems(config.vpcNetworkTag.value).build())
-        // Prefer the machine type stored on the app's nodepool (set from the request at creation
-        // time); fall back to the configured default.
-        .setMachineType(
-          buildMachineTypeUri(zoneParam,
-                              dbCluster.nodepools
-                                .find(_.id == app.nodepoolId)
-                                .map(_.machineType)
-                                .getOrElse(config.galaxyVmConfig.machineType)
-          )
-        )
+        .setMachineType(buildMachineTypeUri(zoneParam, vmMachineType))
         .addNetworkInterfaces(networkInterface)
         .addAllDisks(List(bootDisk, dataDisk, postgresDisk).asJava)
         .addServiceAccounts(
@@ -1240,7 +1239,29 @@ class GKEInterpreter[F[_]](
         .putAllLabels(Map("leonardo" -> "true").asJava)
         .build()
 
-      _ <- computeService.createInstance(googleProject, zoneParam, instance)
+      createOpOpt <- computeService.createInstance(googleProject, zoneParam, instance)
+      // Wait for the GCP operation to complete and surface any provisioning error immediately.
+      // Without this, a failure like ZONE_RESOURCE_POOL_EXHAUSTED goes undetected and Leo
+      // polls for 30 minutes before giving up.
+      _ <- createOpOpt.traverse_ { op =>
+        F.blocking(op.get())
+          .void
+          .recoverWith { case e: java.util.concurrent.ExecutionException =>
+            val cause = Option(e.getCause).getOrElse(e)
+            val gcpMsg = Option(cause.getMessage).getOrElse(cause.getClass.getName)
+            val userMsg =
+              if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED"))
+                s"Galaxy VM ${instanceName.value} failed to provision: no ${vmMachineType.value} capacity available in ${zoneParam.value}. " +
+                  s"Try creating the app with a different machine type."
+              else
+                s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
+            logger.error(ctx.loggingCtx)(
+              s"Galaxy VM ${instanceName.value} GCP create-instance operation failed: $gcpMsg"
+            ) >> F.raiseError[Unit](
+              AppCreationException(userMsg, traceId = Some(ctx.traceId))
+            )
+          }
+      }
 
       // Grant the pet SA permission to submit and monitor GCP Batch jobs in this project.
       // Galaxy uses the VM's attached SA (pet SA) to call the Batch API.
@@ -1352,22 +1373,38 @@ class GKEInterpreter[F[_]](
           )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Galaxy VM instance ${instanceName.value} submitted for project ${googleProject.value}; polling for external IP"
+        s"Galaxy VM instance ${instanceName.value} GCP create operation complete; polling for external IP"
       )
 
       // Poll until the instance has an external IP assigned (needed for both proxy routing and readiness check).
       // We store the external IP because Leo's GKE cluster and the Galaxy VM are in different GCP projects
       // whose VPCs are not peered, making the internal IP unreachable from Leo's pod.
       ipPairOpt <- streamFUntilDone(
-        computeService.getInstance(googleProject, zoneParam, instanceName).map { instanceOpt =>
-          instanceOpt.flatMap { inst =>
-            import scala.jdk.CollectionConverters._
-            for {
-              iface <- Option(inst.getNetworkInterfacesList).flatMap(_.asScala.headOption)
-              internalIp = IP(iface.getNetworkIP)
-              cfg <- Option(iface.getAccessConfigsList).flatMap(_.asScala.headOption)
-              natIp <- Option(cfg.getNatIP).filter(_.nonEmpty)
-            } yield (internalIp, IP(natIp))
+        computeService.getInstance(googleProject, zoneParam, instanceName).flatMap { instanceOpt =>
+          instanceOpt match {
+            case None =>
+              logger
+                .debug(ctx.loggingCtx)(
+                  s"Galaxy VM ${instanceName.value}: not yet visible in GCE API; will retry"
+                )
+                .as(Option.empty[(IP, IP)])
+            case Some(inst) =>
+              import scala.jdk.CollectionConverters._
+              val ipPair = for {
+                iface <- Option(inst.getNetworkInterfacesList).flatMap(_.asScala.headOption)
+                internalIp = IP(iface.getNetworkIP)
+                cfg <- Option(iface.getAccessConfigsList).flatMap(_.asScala.headOption)
+                natIp <- Option(cfg.getNatIP).filter(_.nonEmpty)
+              } yield (internalIp, IP(natIp))
+              ipPair match {
+                case None =>
+                  logger
+                    .debug(ctx.loggingCtx)(
+                      s"Galaxy VM ${instanceName.value}: instance exists but external NAT IP not yet assigned; will retry"
+                    )
+                    .as(Option.empty[(IP, IP)])
+                case some => F.pure(some)
+              }
           }
         },
         config.monitorConfig.createApp.maxAttempts,
