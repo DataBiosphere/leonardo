@@ -950,7 +950,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             .createAndPollNodepool(CreateNodepoolParams(nodepoolId, msg.project))
             .adaptError { case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Nodepool, None, Some(ctx.traceId)),
+                AppError(messageOf(e), ctx.now, ErrorAction.CreateApp, ErrorSource.Nodepool, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 Some(nodepoolId),
@@ -969,7 +969,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                      true
           ).adaptError { case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+              AppError(messageOf(e), ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
               None,
@@ -993,7 +993,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             res <- createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, d.name)
               .adaptError { case e =>
                 PubsubKubernetesError(
-                  AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                  AppError(messageOf(e), ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                   Some(msg.appId),
                   false,
                   None,
@@ -1024,7 +1024,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           }
           .adaptError { case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.App, None, Some(ctx.traceId)),
+              AppError(messageOf(e), ctx.now, ErrorAction.CreateApp, ErrorSource.App, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
               None,
@@ -1064,7 +1064,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
       .adaptError { case e =>
         PubsubKubernetesError(
-          AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
+          AppError(messageOf(e), ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
           Some(msg.appId),
           false,
           // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
@@ -1084,7 +1084,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         .pollCluster(PollClusterParams(clusterId, msg.project, createClusterResult))
         .adaptError { case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
+            AppError(messageOf(e), ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
             Some(msg.appId),
             false,
             // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
@@ -1158,7 +1158,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
           .adaptError { case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.App, None, Some(ctx.traceId)),
+              AppError(messageOf(e), ctx.now, ErrorAction.DeleteApp, ErrorSource.App, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
               None,
@@ -1200,7 +1200,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               )
             } yield ()).adaptError { case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                AppError(messageOf(e), ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -1210,7 +1210,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             }
             deleteDataDisk = deleteDisk(diskId, true).adaptError { case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                AppError(messageOf(e), ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -1229,7 +1229,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                 )
                   .adaptError { case e =>
                     PubsubKubernetesError(
-                      AppError(e.getMessage,
+                      AppError(messageOf(e),
                                ctx.now,
                                ErrorAction.DeleteApp,
                                ErrorSource.PostgresDisk,
@@ -1385,7 +1385,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         .stopAndPollApp(StopAppParams(msg.appId, msg.appName, msg.project))
         .adaptError { case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId)),
+            AppError(messageOf(e), ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId)),
             Some(msg.appId),
             false,
             None,
@@ -1412,7 +1412,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         .startAndPollApp(StartAppParams(msg.appId, msg.appName, msg.project))
         .adaptError { case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.StartApp, ErrorSource.App, None, Some(ctx.traceId)),
+            AppError(messageOf(e), ctx.now, ErrorAction.StartApp, ErrorSource.App, None, Some(ctx.traceId)),
             Some(msg.appId),
             false,
             None,
@@ -1430,6 +1430,12 @@ class LeoPubsubMessageSubscriber[F[_]](
         )
       )
     } yield ()
+
+  // Returns the exception message, falling back to the class name when getMessage is null.
+  // Some JVM exceptions (e.g. NullPointerException, CancellationException) have null messages,
+  // which would store NULL in APP_ERROR.errorMessage and surface as empty errors in the UI.
+  private def messageOf(e: Throwable): String =
+    Option(e.getMessage).getOrElse(s"${e.getClass.getName} (no message)")
 
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>
     e match {

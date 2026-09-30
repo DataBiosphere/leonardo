@@ -58,7 +58,16 @@ class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client:
           headers = Headers(Header.Raw(CIString("X-Request-ID"), traceId.asString))
         )
       )
-      .map(status => status.code < 400)
+      .flatMap { status =>
+        if (status.code < 400) Async[F].pure(true)
+        else
+          // Log non-success codes so we can distinguish "VM not up yet" from "VM up but returning errors".
+          logger
+            .debug(Map("traceId" -> traceId.asString))(
+              s"VM not ready: HTTP ${status.code} from ${ip.asString}:${port}${path}"
+            )
+            .as(false)
+      }
       .handleErrorWith(t =>
         logger.error(Map("traceId" -> traceId.asString), t)("Fail to check if VM is reachable").as(false)
       )

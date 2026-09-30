@@ -1900,7 +1900,13 @@ class GKEInterpreter[F[_]](
                   _ <- appErrorQuery
                     .save(
                       appId,
-                      AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
+                      AppError(Option(e.getMessage).getOrElse(s"${e.getClass.getName} (no message)"),
+                               ctx.now,
+                               ErrorAction.StopApp,
+                               ErrorSource.App,
+                               None,
+                               Some(ctx.traceId)
+                      )
                     )
                     .transaction
                   _ <- appQuery.markAsDeleted(appId, ctx.now).transaction
