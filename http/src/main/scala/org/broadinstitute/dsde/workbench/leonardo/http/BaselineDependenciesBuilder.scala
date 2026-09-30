@@ -62,7 +62,8 @@ import scalacache.caffeine.CaffeineCache
 import java.net.SocketException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
+import java.security.cert.X509Certificate
+import javax.net.ssl.{SSLContext, TrustManager, X509TrustManager}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import fs2.io.net.tls.TLSContext
@@ -144,9 +145,11 @@ class BaselineDependenciesBuilder {
       rstudioDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_rstudio_client"), false).map(client =>
         new HttpRStudioDAO(runtimeDnsCache, client)
       )
-      appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).map(client =>
-        new HttpAppDAO(kubernetesDnsCache, client)
-      )
+      appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).flatMap {
+        appClient =>
+          buildHttpClient(buildTrustAllSslContext, hostToIpMapping, None, false)
+            .map(vmClient => new HttpAppDAO(kubernetesDnsCache, appClient, vmClient))
+      }
       appDescriptorDAO <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
@@ -300,6 +303,19 @@ class BaselineDependenciesBuilder {
       .expireAfterWrite(expiresIn.toSeconds, TimeUnit.SECONDS)
       .recordStats()
       .build[K, V]()
+
+  // SSLContext that accepts any server certificate (opportunistic TLS).
+  // Used for Galaxy VM readiness checks where the VM has a cloud-init-generated self-signed cert.
+  private def buildTrustAllSslContext: SSLContext = {
+    val tm: TrustManager = new X509TrustManager {
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
+      def getAcceptedIssuers: Array[X509Certificate] = Array.empty
+    }
+    val ctx = SSLContext.getInstance("TLS")
+    ctx.init(null, Array(tm), null)
+    ctx
+  }
 
   private def buildHttpClient[F[_]: Async: StructuredLogger: Network: LoggerFactory](
     sslContext: SSLContext,
