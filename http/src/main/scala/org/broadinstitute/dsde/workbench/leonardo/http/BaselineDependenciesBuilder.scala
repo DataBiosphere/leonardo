@@ -145,10 +145,9 @@ class BaselineDependenciesBuilder {
       rstudioDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_rstudio_client"), false).map(client =>
         new HttpRStudioDAO(runtimeDnsCache, client)
       )
-      appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).flatMap {
-        appClient =>
-          buildHttpClient(buildTrustAllSslContext, hostToIpMapping, None, false)
-            .map(vmClient => new HttpAppDAO(kubernetesDnsCache, appClient, vmClient))
+      appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).flatMap { appClient =>
+        buildHttpClient(buildTrustAllSslContext, hostToIpMapping, None, false)
+          .map(vmClient => new HttpAppDAO(kubernetesDnsCache, appClient, vmClient))
       }
       appDescriptorDAO <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
