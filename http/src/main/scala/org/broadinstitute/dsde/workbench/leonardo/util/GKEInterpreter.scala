@@ -775,12 +775,11 @@ class GKEInterpreter[F[_]](
         s"Delete app operation has finished for app ${app.appName.value}"
       )
 
-      _ <-
-        if (!params.errorAfterDelete) {
-          F.unit
-        } else {
-          appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction.void
-        }
+      // Do NOT set Error status here when errorAfterDelete=true. The caller (handleKubernetesError)
+      // writes the APP_ERROR record and then calls markAsErrored in a single pass. Setting Error
+      // here first would cause Terra UI to see Error with no records (terminal state → stops
+      // polling) before the error message is written, producing a deterministic
+      // "No error messages found for app" in the UI.
     } yield ()
 
   override def stopAndPollApp(params: StopAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =

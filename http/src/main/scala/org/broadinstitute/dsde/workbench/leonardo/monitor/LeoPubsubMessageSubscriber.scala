@@ -1442,8 +1442,10 @@ class LeoPubsubMessageSubscriber[F[_]](
       case e: PubsubKubernetesError =>
         for {
           _ <- logger.error(ctx.loggingCtx, e)("top level handler for handleKubernetesError")
-          _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
-          _ <- e.appId.traverse(id => appQuery.markAsErrored(id).transaction)
+          // Write the error record and set Error status in one transaction so Terra UI never
+          // sees Error status without a corresponding APP_ERROR record (which would produce
+          // a deterministic "No error messages found for app" in the UI).
+          _ <- e.appId.traverse(id => (appErrorQuery.save(id, e.dbError) >> appQuery.markAsErrored(id)).transaction)
           _ <- e.clusterId.traverse(clusterId =>
             kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
           )
