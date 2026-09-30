@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.headers.{`Content-Disposition`, Location, OAuth2
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.http.scaladsl.{ClientTransport, ConnectionContext, Http}
+import akka.http.scaladsl.{ClientTransport, ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.IO
 import cats.effect.std.Queue
