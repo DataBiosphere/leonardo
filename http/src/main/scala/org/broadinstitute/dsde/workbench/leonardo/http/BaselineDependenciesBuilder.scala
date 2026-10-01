@@ -331,12 +331,12 @@ class BaselineDependenciesBuilder {
 
     val spi = new SSLContextSpi {
       protected def engineInit(km: Array[KeyManager], tm: Array[TrustManager], sr: SecureRandom): Unit = ()
-      protected def engineGetSocketFactory                   = inner.getSocketFactory
-      protected def engineGetServerSocketFactory             = inner.getServerSocketFactory
-      protected def engineCreateSSLEngine(): SSLEngine       = clearEndpointId(inner.createSSLEngine())
+      protected def engineGetSocketFactory = inner.getSocketFactory
+      protected def engineGetServerSocketFactory = inner.getServerSocketFactory
+      protected def engineCreateSSLEngine(): SSLEngine = clearEndpointId(inner.createSSLEngine())
       protected def engineCreateSSLEngine(h: String, p: Int) = clearEndpointId(inner.createSSLEngine(h, p))
-      protected def engineGetClientSessionContext            = inner.getClientSessionContext
-      protected def engineGetServerSessionContext            = inner.getServerSessionContext
+      protected def engineGetClientSessionContext = inner.getClientSessionContext
+      protected def engineGetServerSessionContext = inner.getServerSessionContext
     }
 
     new SSLContext(spi, inner.getProvider, inner.getProtocol) {}
