@@ -63,7 +63,8 @@ import java.net.SocketException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import java.security.cert.X509Certificate
-import javax.net.ssl.{SSLContext, TrustManager, X509TrustManager}
+import java.security.SecureRandom
+import javax.net.ssl.{KeyManager, SSLContext, SSLContextSpi, SSLEngine, TrustManager, X509TrustManager}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import fs2.io.net.tls.TLSContext
@@ -303,17 +304,42 @@ class BaselineDependenciesBuilder {
       .recordStats()
       .build[K, V]()
 
-  // SSLContext that accepts any server certificate (opportunistic TLS).
+  // SSLContext that accepts any server certificate without hostname verification (opportunistic TLS).
   // Used for Galaxy VM readiness checks where the VM has a cloud-init-generated self-signed cert.
+  //
+  // Two layers of bypass are required:
+  //   1. A trust-all X509TrustManager so the cert chain is not validated.
+  //   2. A custom SSLContextSpi that zeroes endpointIdentificationAlgorithm on every SSLEngine.
+  //      Java's AbstractTrustManagerWrapper wraps custom trust managers and still enforces
+  //      hostname/IP matching when that field is "HTTPS" (the JDK client-mode default), regardless
+  //      of what checkServerTrusted does. Clearing it here prevents that secondary check.
   private def buildTrustAllSslContext: SSLContext = {
     val tm: TrustManager = new X509TrustManager {
       def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
       def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
       def getAcceptedIssuers: Array[X509Certificate] = Array.empty
     }
-    val ctx = SSLContext.getInstance("TLS")
-    ctx.init(null, Array(tm), null)
-    ctx
+    val inner = SSLContext.getInstance("TLS")
+    inner.init(null, Array(tm), null)
+
+    def clearEndpointId(e: SSLEngine): SSLEngine = {
+      val p = e.getSSLParameters
+      p.setEndpointIdentificationAlgorithm("")
+      e.setSSLParameters(p)
+      e
+    }
+
+    val spi = new SSLContextSpi {
+      protected def engineInit(km: Array[KeyManager], tm: Array[TrustManager], sr: SecureRandom): Unit = ()
+      protected def engineGetSocketFactory                   = inner.getSocketFactory
+      protected def engineGetServerSocketFactory             = inner.getServerSocketFactory
+      protected def engineCreateSSLEngine(): SSLEngine       = clearEndpointId(inner.createSSLEngine())
+      protected def engineCreateSSLEngine(h: String, p: Int) = clearEndpointId(inner.createSSLEngine(h, p))
+      protected def engineGetClientSessionContext            = inner.getClientSessionContext
+      protected def engineGetServerSessionContext            = inner.getServerSessionContext
+    }
+
+    new SSLContext(spi, inner.getProvider, inner.getProtocol) {}
   }
 
   private def buildHttpClient[F[_]: Async: StructuredLogger: Network: LoggerFactory](
