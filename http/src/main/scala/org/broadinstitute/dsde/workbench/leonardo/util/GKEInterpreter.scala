@@ -1239,28 +1239,38 @@ class GKEInterpreter[F[_]](
         .putAllLabels(Map("leonardo" -> "true").asJava)
         .build()
 
-      createOpOpt <- computeService.createInstance(googleProject, zoneParam, instance)
       // Wait for the GCP operation to complete and surface any provisioning error immediately.
       // Without this, a failure like ZONE_RESOURCE_POOL_EXHAUSTED goes undetected and Leo
       // polls for 30 minutes before giving up.
-      _ <- createOpOpt.traverse_ { op =>
-        F.blocking(op.get())
-          .void
-          .recoverWith { case e: java.util.concurrent.ExecutionException =>
+      // On zone exhaustion, retry up to 2 times with a 30s delay — capacity can free up quickly.
+      // All other errors fail immediately. Machine type and zone are unchanged across retries
+      // so the user sees no cost or configuration surprise.
+      _ <- {
+        def tryCreate(attemptsLeft: Int): F[Unit] = {
+          val createAndWait: F[Unit] = for {
+            opOpt <- computeService.createInstance(googleProject, zoneParam, instance)
+            _ <- opOpt.traverse_ { op => F.blocking(op.get()).void }
+          } yield ()
+          createAndWait.recoverWith { case e: java.util.concurrent.ExecutionException =>
             val cause = Option(e.getCause).getOrElse(e)
             val gcpMsg = Option(cause.getMessage).getOrElse(cause.getClass.getName)
-            val userMsg =
-              if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED"))
-                s"Galaxy VM ${instanceName.value} failed to provision: no ${vmMachineType.value} capacity available in ${zoneParam.value}. " +
-                  s"Try creating the app with a different machine type."
-              else
-                s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
-            logger.error(ctx.loggingCtx)(
-              s"Galaxy VM ${instanceName.value} GCP create-instance operation failed: $gcpMsg"
-            ) >> F.raiseError[Unit](
-              AppCreationException(userMsg, traceId = Some(ctx.traceId))
-            )
+            if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED") && attemptsLeft > 0)
+              logger.warn(ctx.loggingCtx)(
+                s"Galaxy VM ${instanceName.value}: no ${vmMachineType.value} capacity in ${zoneParam.value} ($attemptsLeft attempt(s) remaining), retrying in 30s"
+              ) >> F.sleep(30.seconds) >> tryCreate(attemptsLeft - 1)
+            else {
+              val userMsg =
+                if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED"))
+                  s"Galaxy VM ${instanceName.value} failed to provision: no ${vmMachineType.value} capacity available in ${zoneParam.value}. Try creating the app with a different machine type."
+                else
+                  s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
+              logger.error(ctx.loggingCtx)(
+                s"Galaxy VM ${instanceName.value} GCP create-instance operation failed: $gcpMsg"
+              ) >> F.raiseError[Unit](AppCreationException(userMsg, traceId = Some(ctx.traceId)))
+            }
           }
+        }
+        tryCreate(2)
       }
 
       // Grant the pet SA permission to submit and monitor GCP Batch jobs in this project.
