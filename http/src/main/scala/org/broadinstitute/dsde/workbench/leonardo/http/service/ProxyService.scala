@@ -40,7 +40,7 @@ import scalacache.Cache
 
 import java.security.cert.X509Certificate
 import java.time.Instant
-import javax.net.ssl.{SSLContext, TrustManager, X509TrustManager}
+import javax.net.ssl.{SSLContext, SSLEngine, X509ExtendedTrustManager}
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 final case class HostContext(status: HostStatus, description: String)
@@ -106,11 +106,19 @@ class ProxyService(
 
   // Opportunistic TLS for Galaxy VM backends: self-signed cert issued by cloud-init,
   // no CA chain to verify. Encrypts in transit without authenticating the server cert.
+  // X509ExtendedTrustManager is required: plain X509TrustManager is wrapped by
+  // AbstractTrustManagerWrapper, which re-checks hostname regardless of checkServerTrusted.
   private val galaxyVmHttpsContext: HttpsConnectionContext = {
-    val tm: TrustManager = new X509TrustManager {
+    val tm = new X509ExtendedTrustManager {
       def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
       def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
       def getAcceptedIssuers: Array[X509Certificate] = Array.empty
+      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
+        ()
+      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
+        ()
+      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
+      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
     }
     val ctx = SSLContext.getInstance("TLS")
     ctx.init(null, Array(tm), null)
