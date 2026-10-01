@@ -1249,7 +1249,7 @@ class GKEInterpreter[F[_]](
         def tryCreate(attemptsLeft: Int): F[Unit] = {
           val createAndWait: F[Unit] = for {
             opOpt <- computeService.createInstance(googleProject, zoneParam, instance)
-            _ <- opOpt.traverse_ { op => F.blocking(op.get()).void }
+            _ <- opOpt.traverse_(op => F.blocking(op.get()).void)
           } yield ()
           createAndWait.recoverWith { case e: java.util.concurrent.ExecutionException =>
             val cause = Option(e.getCause).getOrElse(e)
