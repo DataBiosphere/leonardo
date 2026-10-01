@@ -97,8 +97,6 @@ final case class CustomAppConfig(chartName: ChartName,
 final case class GalaxyVmConfig(
   sourceImage: GceCustomImage,
   machineType: MachineTypeName,
-  // Tried in order when machineType is unavailable due to ZONE_RESOURCE_POOL_EXHAUSTED.
-  machineTypeFallbacks: List[MachineTypeName],
   bootDiskSizeGb: DiskSize,
   postgresDiskSizeGb: DiskSize,
   postgresDiskNameSuffix: String,

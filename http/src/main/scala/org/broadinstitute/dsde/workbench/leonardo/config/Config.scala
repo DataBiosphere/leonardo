@@ -135,7 +135,6 @@ object Config {
     GalaxyVmConfig(
       config.as[GceCustomImage]("sourceImage"),
       config.as[MachineTypeName]("machineType"),
-      config.as[List[MachineTypeName]]("machineTypeFallbacks"),
       config.as[DiskSize]("bootDiskSizeGb"),
       config.as[DiskSize]("postgresDiskSizeGb"),
       config.as[String]("postgresDiskNameSuffix"),

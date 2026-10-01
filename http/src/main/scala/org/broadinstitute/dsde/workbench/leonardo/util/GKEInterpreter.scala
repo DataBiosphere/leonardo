@@ -44,7 +44,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDiskService,
   GoogleResourceService,
   KubernetesClusterNotFoundException,
-  MachineTypeName,
   NetworkName,
   RegionName,
   SubnetworkName,
@@ -1240,42 +1239,28 @@ class GKEInterpreter[F[_]](
         .putAllLabels(Map("leonardo" -> "true").asJava)
         .build()
 
-      // Try creating the VM with the primary machine type, then each fallback in order on
-      // ZONE_RESOURCE_POOL_EXHAUSTED. All other GCP errors fail immediately.
-      // Returns the machine type that was actually provisioned (may differ from vmMachineType).
-      actualMachineType <- {
-        def tryCreate(inst: Instance, machineType: MachineTypeName, remaining: List[MachineTypeName]): F[MachineTypeName] = {
-          val createAndWait: F[Unit] = for {
-            opOpt <- computeService.createInstance(googleProject, zoneParam, inst)
-            _ <- opOpt.traverse_ { op => F.blocking(op.get()).void }
-          } yield ()
-          createAndWait
-            .as(machineType)
-            .recoverWith { case e: java.util.concurrent.ExecutionException =>
-              val cause = Option(e.getCause).getOrElse(e)
-              val gcpMsg = Option(cause.getMessage).getOrElse(cause.getClass.getName)
-              remaining match {
-                case next :: rest if gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED") =>
-                  logger.warn(ctx.loggingCtx)(
-                    s"Galaxy VM ${instanceName.value}: no ${machineType.value} capacity in ${zoneParam.value}, retrying with ${next.value}"
-                  ) >> tryCreate(
-                    inst.toBuilder.setMachineType(buildMachineTypeUri(zoneParam, next)).build(),
-                    next,
-                    rest
-                  )
-                case _ =>
-                  val userMsg =
-                    if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED"))
-                      s"Galaxy VM ${instanceName.value} failed to provision: no capacity for ${machineType.value} in ${zoneParam.value} and no fallback machine types remain. Try creating the app with a different machine type."
-                    else
-                      s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
-                  logger.error(ctx.loggingCtx)(
-                    s"Galaxy VM ${instanceName.value} GCP create-instance failed: $gcpMsg"
-                  ) >> F.raiseError[MachineTypeName](AppCreationException(userMsg, traceId = Some(ctx.traceId)))
-              }
-            }
-        }
-        tryCreate(instance, vmMachineType, config.galaxyVmConfig.machineTypeFallbacks)
+      createOpOpt <- computeService.createInstance(googleProject, zoneParam, instance)
+      // Wait for the GCP operation to complete and surface any provisioning error immediately.
+      // Without this, a failure like ZONE_RESOURCE_POOL_EXHAUSTED goes undetected and Leo
+      // polls for 30 minutes before giving up.
+      _ <- createOpOpt.traverse_ { op =>
+        F.blocking(op.get())
+          .void
+          .recoverWith { case e: java.util.concurrent.ExecutionException =>
+            val cause = Option(e.getCause).getOrElse(e)
+            val gcpMsg = Option(cause.getMessage).getOrElse(cause.getClass.getName)
+            val userMsg =
+              if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED"))
+                s"Galaxy VM ${instanceName.value} failed to provision: no ${vmMachineType.value} capacity available in ${zoneParam.value}. " +
+                  s"Try creating the app with a different machine type."
+              else
+                s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
+            logger.error(ctx.loggingCtx)(
+              s"Galaxy VM ${instanceName.value} GCP create-instance operation failed: $gcpMsg"
+            ) >> F.raiseError[Unit](
+              AppCreationException(userMsg, traceId = Some(ctx.traceId))
+            )
+          }
       }
 
       // Grant the pet SA permission to submit and monitor GCP Batch jobs in this project.
