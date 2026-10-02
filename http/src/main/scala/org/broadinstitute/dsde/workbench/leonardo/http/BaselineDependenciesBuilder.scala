@@ -89,7 +89,7 @@ class BaselineDependenciesBuilder {
     dbRef: DbReference[F],
     openTelemetry: OpenTelemetryMetrics[F]
   ): Resource[F, BaselineDependencies[F]] = {
-    val galaxySslContext = buildGalaxySslContext(galaxyVmConfig.tlsCaCert)
+    val galaxySslContext = buildGalaxySslContext(galaxyVmConfig.tlsCaCert, galaxyVmConfig.tlsAllowTrustAllFallback)
     for {
 
       // Set up DNS caches
@@ -324,7 +324,7 @@ class BaselineDependenciesBuilder {
   // X509ExtendedTrustManager is required in both cases. The JDK wraps plain X509TrustManager
   // in AbstractTrustManagerWrapper which re-checks hostname regardless of checkServerTrusted;
   // the extended variant is called directly and bypasses that wrapper.
-  private[http] def buildGalaxySslContext(caCertPem: Option[String]): SSLContext =
+  private[http] def buildGalaxySslContext(caCertPem: Option[String], allowTrustAllFallback: Boolean): SSLContext =
     caCertPem match {
       case Some(pem) =>
         val caCert = CertificateFactory
@@ -364,8 +364,16 @@ class BaselineDependenciesBuilder {
         ctx.init(null, Array(tm), null)
         ctx
 
+      case None if !allowTrustAllFallback =>
+        throw new IllegalStateException(
+          "Galaxy VM TLS CA cert is not configured (GALAXY_TLS_CA_CERT) and " +
+            "trust-all fallback is disabled. Set the leo-galaxy-tls Secret Manager " +
+            "secret or enable GALAXY_TLS_ALLOW_TRUST_ALL_FALLBACK for BEE environments."
+        )
+
       case None =>
-        // Trust-all fallback: channel is encrypted but server cert is not authenticated.
+        // Trust-all fallback: allowed only when tlsAllowTrustAllFallback=true (BEE envs).
+        // Channel is encrypted but server cert is not authenticated.
         val tm = new X509ExtendedTrustManager {
           def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
           def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
