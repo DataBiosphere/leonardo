@@ -1434,11 +1434,12 @@ class GKEInterpreter[F[_]](
       )
 
       // Store the VM's external IP as the cluster load balancer IP consumed by KubernetesDnsCache.
-      // The proxy will connect to this IP via HTTP on port 80 (Galaxy VM serves HTTP, not HTTPS).
-      // We use the external IP because Leo's GKE cluster is in Leo's GCP project while the Galaxy VM
-      // is in the user's workspace project — the two VPCs are not peered, so the internal IP is
-      // not routable from Leo's pod. The leonardo-allow-http firewall rule (0.0.0.0/0 → port 80,
-      // targeting VMs with the "leonardo" tag) allows Leo to reach the VM on its external IP.
+      // The proxy connects via opportunistic TLS on port 443 (Galaxy VM's nginx serves HTTPS with
+      // a self-signed cert generated at cloud-init time). We use the external IP because Leo's
+      // GKE cluster is in Leo's GCP project while the Galaxy VM is in the user's workspace project
+      // — the two VPCs are not peered, so the internal IP is not routable from Leo's pod. The
+      // leonardo-allow-https firewall rule (port 443, targeting VMs with the "leonardo" tag)
+      // allows Leo to reach the VM on its external IP.
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
           dbCluster.id,
@@ -1452,7 +1453,7 @@ class GKEInterpreter[F[_]](
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Polling Galaxy readiness for app ${app.appName.value} via proxy (backend: ${externalIp.asString}:80)"
+        s"Polling Galaxy readiness for app ${app.appName.value} via proxy (backend: ${externalIp.asString}:443)"
       )
 
       // Poll /api/version rather than the bare prefix path: nginx can return a 301 redirect
@@ -1460,7 +1461,7 @@ class GKEInterpreter[F[_]](
       // which would satisfy < 400 and mark the app Running too early. /api/version requires
       // Galaxy's Python API to be fully initialised and only returns 200 at that point.
       isDone <- streamFUntilDone(
-        appDao.isVmReachable(externalIp, 80, ctx.traceId, s"$galaxyUrlPrefix/api/version"),
+        appDao.isVmReachable(externalIp, 443, ctx.traceId, s"$galaxyUrlPrefix/api/version"),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
       ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError

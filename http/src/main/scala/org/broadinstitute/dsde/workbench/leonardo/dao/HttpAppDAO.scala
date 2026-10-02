@@ -13,9 +13,14 @@ import org.http4s.{Header, Headers, Method, Request, Uri}
 import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
-class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client: Client[F])(implicit
-  logger: StructuredLogger[F]
-) extends AppDAO[F] {
+class HttpAppDAO[F[_]: Async](
+  kubernetesDnsCache: KubernetesDnsCache[F],
+  client: Client[F],
+  // Separate client with a trust-all TLS context for Galaxy VM readiness checks.
+  // Galaxy VMs use opportunistic TLS with a self-signed cert.
+  vmCheckClient: Client[F]
+)(implicit logger: StructuredLogger[F])
+    extends AppDAO[F] {
 
   def isProxyAvailable(googleProject: GoogleProject,
                        appName: AppName,
@@ -50,11 +55,12 @@ class HttpAppDAO[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F], client:
                     traceId: TraceId,
                     path: String = "/"
   ): F[Boolean] =
-    client
+    // vmCheckClient uses a trust-all TLS context; Galaxy VMs have self-signed certs.
+    vmCheckClient
       .status(
         Request[F](
           method = Method.GET,
-          uri = Uri.unsafeFromString(s"http://${ip.asString}:${port}${path}"),
+          uri = Uri.unsafeFromString(s"https://${ip.asString}:${port}${path}"),
           headers = Headers(Header.Raw(CIString("X-Request-ID"), traceId.asString))
         )
       )
