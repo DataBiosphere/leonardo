@@ -1181,8 +1181,8 @@ class GKEInterpreter[F[_]](
             )
             .build()
         )
-        .setMetadata(
-          Metadata
+        .setMetadata {
+          val mb = Metadata
             .newBuilder()
             .addItems(Items.newBuilder().setKey("startup-script").setValue(startupScriptContent).build())
             .addItems(Items.newBuilder().setKey("google-logging-enabled").setValue("true").build())
@@ -1236,8 +1236,18 @@ class GKEInterpreter[F[_]](
                 .setValue(config.leoUrlBase.toString.stripSuffix("/"))
                 .build()
             )
-            .build()
-        )
+          // TLS cert + key injected when cert-pinning is configured (GALAXY_TLS_VM_CERT/KEY).
+          // The startup script writes them to the nginx ingress TLS secret so Leo can validate
+          // the connection against its root CA. Absent when running without a provisioned secret
+          // (BEE fallback: trust-all).
+          config.galaxyVmConfig.tlsVmCert.foreach { cert =>
+            mb.addItems(Items.newBuilder().setKey("galaxy-tls-cert").setValue(cert).build())
+            config.galaxyVmConfig.tlsVmKey.foreach { key =>
+              mb.addItems(Items.newBuilder().setKey("galaxy-tls-key").setValue(key).build())
+            }
+          }
+          mb.build()
+        }
         .putAllLabels(Map("leonardo" -> "true").asJava)
         .build()
 

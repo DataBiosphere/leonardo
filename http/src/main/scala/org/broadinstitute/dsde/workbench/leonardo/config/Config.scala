@@ -141,7 +141,10 @@ object Config {
       config.as[String]("gitRepo"),
       config.as[String]("gitBranch"),
       config.as[String]("orchUrl"),
-      config.as[String]("drsUrl")
+      config.as[String]("drsUrl"),
+      config.getAs[String]("tlsCaCert").filter(_.nonEmpty),
+      config.getAs[String]("tlsVmCert").filter(_.nonEmpty),
+      config.getAs[String]("tlsVmKey").filter(_.nonEmpty)
     )
   }
 

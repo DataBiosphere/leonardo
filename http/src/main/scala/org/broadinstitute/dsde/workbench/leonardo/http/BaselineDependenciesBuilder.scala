@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
   autoFreezeConfig,
   dataprocConfig,
   dateAccessUpdaterConfig,
+  galaxyVmConfig,
   gceConfig,
   gkeClusterConfig,
   httpSamDaoConfig,
@@ -62,8 +63,10 @@ import scalacache.caffeine.CaffeineCache
 import java.net.SocketException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import java.security.cert.X509Certificate
-import javax.net.ssl.{SSLContext, SSLEngine, X509ExtendedTrustManager}
+import java.io.ByteArrayInputStream
+import java.security.KeyStore
+import java.security.cert.{CertificateFactory, X509Certificate}
+import javax.net.ssl.{SSLContext, SSLEngine, TrustManagerFactory, X509ExtendedTrustManager, X509TrustManager}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import fs2.io.net.tls.TLSContext
@@ -85,7 +88,8 @@ class BaselineDependenciesBuilder {
     as: ActorSystem,
     dbRef: DbReference[F],
     openTelemetry: OpenTelemetryMetrics[F]
-  ): Resource[F, BaselineDependencies[F]] =
+  ): Resource[F, BaselineDependencies[F]] = {
+    val galaxySslContext = buildGalaxySslContext(galaxyVmConfig.tlsCaCert)
     for {
 
       // Set up DNS caches
@@ -146,7 +150,7 @@ class BaselineDependenciesBuilder {
         new HttpRStudioDAO(runtimeDnsCache, client)
       )
       appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).flatMap { appClient =>
-        buildHttpClient(buildTrustAllSslContext, hostToIpMapping, None, false)
+        buildHttpClient(galaxySslContext, hostToIpMapping, None, false)
           .map(vmClient => new HttpAppDAO(kubernetesDnsCache, appClient, vmClient))
       }
       appDescriptorDAO <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client =>
@@ -255,6 +259,7 @@ class BaselineDependenciesBuilder {
       )
     } yield BaselineDependencies[F](
       sslContext,
+      galaxySslContext,
       runtimeDnsCache,
       samDao,
       dockerDao,
@@ -282,6 +287,7 @@ class BaselineDependenciesBuilder {
       openTelemetry,
       samService
     )
+  }
 
   private def createCloudSubscriber[F[_]: Parallel](
     subscriberQueue: Queue[F, ReceivedMessage[LeoPubsubMessage]]
@@ -306,26 +312,79 @@ class BaselineDependenciesBuilder {
   // SSLContext that accepts any server certificate without hostname verification (opportunistic TLS).
   // Used for Galaxy VM readiness checks where the VM has a cloud-init-generated self-signed cert.
   //
-  // X509ExtendedTrustManager is required (not plain X509TrustManager). The JDK wraps plain
-  // X509TrustManager in AbstractTrustManagerWrapper, which re-checks hostname regardless of
-  // what checkServerTrusted does. Extending X509ExtendedTrustManager bypasses that wrapper:
-  // the JDK calls the engine-variant directly, so all four overrides below are no-ops.
-  private def buildTrustAllSslContext: SSLContext = {
-    val tm = new X509ExtendedTrustManager {
-      def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-      def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-      def getAcceptedIssuers: Array[X509Certificate] = Array.empty
-      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
-        ()
-      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
-        ()
-      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
-      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
+  // Builds the SSLContext used for all Leo → Galaxy VM connections.
+  //
+  // When a root-CA cert PEM is provided (from Secret Manager via GALAXY_TLS_CA_CERT), the
+  // context pins trust to that CA: only certs it signed are accepted. Hostname verification is
+  // still bypassed because Galaxy VMs are addressed by IP with no matching DNS name.
+  //
+  // Without a CA cert the context is trust-all: the channel is encrypted but the server cert
+  // is not authenticated (acceptable fallback for BEE / dev until secrets are provisioned).
+  //
+  // X509ExtendedTrustManager is required in both cases. The JDK wraps plain X509TrustManager
+  // in AbstractTrustManagerWrapper which re-checks hostname regardless of checkServerTrusted;
+  // the extended variant is called directly and bypasses that wrapper.
+  private[http] def buildGalaxySslContext(caCertPem: Option[String]): SSLContext =
+    caCertPem match {
+      case Some(pem) =>
+        val caCert = CertificateFactory
+          .getInstance("X.509")
+          .generateCertificate(new ByteArrayInputStream(pem.getBytes))
+          .asInstanceOf[X509Certificate]
+        val trustStore = KeyStore.getInstance(KeyStore.getDefaultType)
+        trustStore.load(null, null)
+        trustStore.setCertificateEntry("galaxy-ca", caCert)
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
+        tmf.init(trustStore)
+        val inner = tmf.getTrustManagers.collectFirst { case tm: X509TrustManager => tm }.get
+        // Wrap in X509ExtendedTrustManager so hostname checking is skipped while chain
+        // verification (cert signed by our CA) is still enforced.
+        val tm = new X509ExtendedTrustManager {
+          def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
+            inner.checkClientTrusted(chain, authType)
+          def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
+            inner.checkServerTrusted(chain, authType)
+          def getAcceptedIssuers: Array[X509Certificate] = inner.getAcceptedIssuers
+          override def checkClientTrusted(chain: Array[X509Certificate],
+                                          authType: String,
+                                          socket: java.net.Socket
+          ): Unit =
+            inner.checkClientTrusted(chain, authType)
+          override def checkServerTrusted(chain: Array[X509Certificate],
+                                          authType: String,
+                                          socket: java.net.Socket
+          ): Unit =
+            inner.checkServerTrusted(chain, authType)
+          override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
+            inner.checkClientTrusted(chain, authType)
+          override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
+            inner.checkServerTrusted(chain, authType)
+        }
+        val ctx = SSLContext.getInstance("TLS")
+        ctx.init(null, Array(tm), null)
+        ctx
+
+      case None =>
+        // Trust-all fallback: channel is encrypted but server cert is not authenticated.
+        val tm = new X509ExtendedTrustManager {
+          def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
+          def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
+          def getAcceptedIssuers: Array[X509Certificate] = Array.empty
+          override def checkClientTrusted(chain: Array[X509Certificate],
+                                          authType: String,
+                                          socket: java.net.Socket
+          ): Unit = ()
+          override def checkServerTrusted(chain: Array[X509Certificate],
+                                          authType: String,
+                                          socket: java.net.Socket
+          ): Unit = ()
+          override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
+          override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
+        }
+        val ctx = SSLContext.getInstance("TLS")
+        ctx.init(null, Array(tm), null)
+        ctx
     }
-    val ctx = SSLContext.getInstance("TLS")
-    ctx.init(null, Array(tm), null)
-    ctx
-  }
 
   private def buildHttpClient[F[_]: Async: StructuredLogger: Network: LoggerFactory](
     sslContext: SSLContext,
@@ -434,6 +493,7 @@ object BaselineDependenciesBuilder {
 
 final case class BaselineDependencies[F[_]](
   sslContext: SSLContext,
+  galaxySslContext: SSLContext,
   runtimeDnsCache: RuntimeDnsCache[F],
   samDAO: HttpSamDAO[F],
   dockerDAO: HttpDockerDAO[F],
