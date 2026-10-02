@@ -173,7 +173,7 @@ object Dependencies {
     "com.auth0" % "java-jwt" % "4.4.0",
     // BouncyCastle for per-VM TLS cert generation at Galaxy VM provisioning time.
     // Added explicitly since bcprov/bcpkix were previously excluded as unused transitive deps.
-    "org.bouncycastle" % "bcpkix-jdk18on" % "1.78.1",
+    "org.bouncycastle" % "bcpkix-jdk18on" % "1.86",
     http4sEmberServer % Test,
     scalaTestSelenium,
     scalaTestMockito,
