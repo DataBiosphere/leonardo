@@ -87,7 +87,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
         SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1"), Map.empty)
       )
       .unsafeRunSync()
-    computeService.firewallMap.size shouldBe 5
+    computeService.firewallMap.size shouldBe 4
     vpcConfig.firewallsToAdd.foreach { fwConfig =>
       val fw = computeService.firewallMap.get(FirewallRuleName(s"${fwConfig.namePrefix}-us-central1"))
       fw shouldBe defined
@@ -155,12 +155,6 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     )
     val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubResourceService(Map.empty), computeService)
 
-    val expectedHttpFirewallRules = FirewallRuleConfig(
-      "leonardo-allow-http",
-      None,
-      allSupportedRegions.map(r => r -> List(IpRange("0.0.0.0/0"))).toMap,
-      List(Allowed("tcp", Some("80")))
-    )
     test
       .firewallRulesToAdd(
         Map(
@@ -168,7 +162,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
           "leonardo-allow-https-firewall-name" -> "leonardo-ssl"
         )
       )
-      .toSet shouldBe Set(expectedHttpFirewallRules, expectedSshFirewallRules, expectedIapFirewallRules)
+      .toSet shouldBe Set(expectedSshFirewallRules, expectedIapFirewallRules)
   }
 
   private def stubResourceService(labels: Map[String, String]): FakeGoogleResourceService =
