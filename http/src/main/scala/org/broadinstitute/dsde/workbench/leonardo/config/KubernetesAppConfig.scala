@@ -107,12 +107,13 @@ final case class GalaxyVmConfig(
   // Optional root-CA cert (PEM) used to validate Galaxy VM TLS certs.
   // When absent and tlsAllowTrustAllFallback is true, falls back to trust-all.
   // When absent and tlsAllowTrustAllFallback is false (default), startup fails.
+  // Must be set together with tlsCaKey.
   tlsCaCert: Option[String],
-  // Optional VM TLS cert+key (PEM) injected into the Galaxy VM at provisioning time.
-  // Required alongside tlsCaCert to enable cert-pinned TLS end-to-end.
-  tlsVmCert: Option[String],
-  tlsVmKey: Option[String],
-  // Allow trust-all fallback when tlsCaCert is absent. Enable only in BEE environments.
+  // Optional root-CA private key (PEM). Leo uses it at VM provisioning time to sign a
+  // fresh per-VM TLS cert+key pair injected into the VM via GCE instance metadata.
+  // Must be set together with tlsCaCert.
+  tlsCaKey: Option[String],
+  // Allow trust-all fallback when tlsCaCert/tlsCaKey are absent. Enable only in BEE environments.
   tlsAllowTrustAllFallback: Boolean
 )
 

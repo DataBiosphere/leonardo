@@ -143,8 +143,7 @@ object Config {
       config.as[String]("orchUrl"),
       config.as[String]("drsUrl"),
       config.getAs[String]("tlsCaCert").filter(_.nonEmpty),
-      config.getAs[String]("tlsVmCert").filter(_.nonEmpty),
-      config.getAs[String]("tlsVmKey").filter(_.nonEmpty),
+      config.getAs[String]("tlsCaKey").filter(_.nonEmpty),
       config.as[Boolean]("tlsAllowTrustAllFallback")
     )
   }

@@ -71,8 +71,18 @@ import org.http4s.Uri
 import org.broadinstitute.dsde.workbench.leonardo.Autopilot
 import com.google.api.services.container.model.WorkloadPolicyConfig
 
+import org.bouncycastle.asn1.x500.X500Name
+import org.bouncycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509v3CertificateBuilder}
+import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
+import org.bouncycastle.openssl.jcajce.{JcaPEMKeyConverter, JcaPEMWriter}
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import java.io.{ByteArrayInputStream, StringReader, StringWriter}
+import java.math.BigInteger
 import java.net.URL
-import java.util.Base64
+import java.security.{KeyPairGenerator, SecureRandom}
+import java.security.cert.{CertificateFactory, X509Certificate}
+import java.time.{Duration, Instant}
+import java.util.{Base64, Date}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -1236,15 +1246,16 @@ class GKEInterpreter[F[_]](
                 .setValue(config.leoUrlBase.toString.stripSuffix("/"))
                 .build()
             )
-          // TLS cert + key injected when cert-pinning is configured (GALAXY_TLS_VM_CERT/KEY).
-          // The startup script writes them to the nginx ingress TLS secret so Leo can validate
-          // the connection against its root CA. Absent when running without a provisioned secret
-          // (BEE fallback: trust-all).
-          config.galaxyVmConfig.tlsVmCert.foreach { cert =>
-            mb.addItems(Items.newBuilder().setKey("galaxy-tls-cert").setValue(cert).build())
-            config.galaxyVmConfig.tlsVmKey.foreach { key =>
-              mb.addItems(Items.newBuilder().setKey("galaxy-tls-key").setValue(key).build())
-            }
+          // Generate a per-VM TLS cert+key signed by Leo's root CA and inject into metadata.
+          // The startup script writes them to the nginx ingress TLS secret. Absent in BEE
+          // environments where the leo-galaxy-tls secret is not provisioned (trust-all fallback).
+          for {
+            caCertPem <- config.galaxyVmConfig.tlsCaCert
+            caKeyPem <- config.galaxyVmConfig.tlsCaKey
+          } {
+            val (vmCert, vmKey) = generateVmTlsCert(caCertPem, caKeyPem)
+            mb.addItems(Items.newBuilder().setKey("galaxy-tls-cert").setValue(vmCert).build())
+            mb.addItems(Items.newBuilder().setKey("galaxy-tls-key").setValue(vmKey).build())
           }
           mb.build()
         }
@@ -2016,6 +2027,54 @@ class GKEInterpreter[F[_]](
 
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
+
+  /** Generates a fresh RSA key pair and an X.509 cert signed by Leo's root CA.
+   *  Returns (certPem, keyPem). Called once per Galaxy VM at provisioning time so
+   *  each VM gets a unique key — a user reading their VM's metadata can only
+   *  compromise their own VM, not others.
+   */
+  private[util] def generateVmTlsCert(caCertPem: String, caKeyPem: String): (String, String) = {
+    // Parse CA cert
+    val caCert = CertificateFactory
+      .getInstance("X.509")
+      .generateCertificate(new ByteArrayInputStream(caCertPem.getBytes))
+      .asInstanceOf[X509Certificate]
+
+    // Parse CA private key (PKCS#1 RSA PEM from Terraform tls_private_key)
+    val pemParser = new PEMParser(new StringReader(caKeyPem))
+    val caPrivateKey =
+      new JcaPEMKeyConverter().getKeyPair(pemParser.readObject().asInstanceOf[PEMKeyPair]).getPrivate
+    pemParser.close()
+
+    // Generate per-VM RSA key pair
+    val keyGen = KeyPairGenerator.getInstance("RSA")
+    keyGen.initialize(2048, new SecureRandom())
+    val vmKeyPair = keyGen.generateKeyPair()
+
+    // Build cert signed by CA
+    val now = Instant.now()
+    val certBuilder = new JcaX509v3CertificateBuilder(
+      new X500Name(caCert.getSubjectX500Principal.getName),
+      BigInteger.valueOf(now.toEpochMilli),
+      Date.from(now),
+      Date.from(now.plus(Duration.ofDays(365 * 5))),
+      new X500Name("CN=galaxy-vm.internal"),
+      vmKeyPair.getPublic
+    )
+    val signer = new JcaContentSignerBuilder("SHA256WithRSA").build(caPrivateKey)
+    val vmCert = new JcaX509CertificateConverter().getCertificate(certBuilder.build(signer))
+
+    // Serialize to PEM strings
+    def toPem(obj: Object): String = {
+      val sw = new StringWriter()
+      val w = new JcaPEMWriter(sw)
+      w.writeObject(obj)
+      w.close()
+      sw.toString
+    }
+
+    (toPem(vmCert), toPem(vmKeyPair.getPrivate))
+  }
 }
 
 sealed trait AppProcessingException extends Exception {

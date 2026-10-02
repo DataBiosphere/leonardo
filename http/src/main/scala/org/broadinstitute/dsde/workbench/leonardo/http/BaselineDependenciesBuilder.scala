@@ -89,6 +89,14 @@ class BaselineDependenciesBuilder {
     dbRef: DbReference[F],
     openTelemetry: OpenTelemetryMetrics[F]
   ): Resource[F, BaselineDependencies[F]] = {
+    // tlsCaCert and tlsCaKey must be set together or both absent.
+    (galaxyVmConfig.tlsCaCert.isDefined, galaxyVmConfig.tlsCaKey.isDefined) match {
+      case (true, false) =>
+        throw new IllegalStateException("GALAXY_TLS_CA_CERT is set but GALAXY_TLS_CA_KEY is absent")
+      case (false, true) =>
+        throw new IllegalStateException("GALAXY_TLS_CA_KEY is set but GALAXY_TLS_CA_CERT is absent")
+      case _ => ()
+    }
     val galaxySslContext = buildGalaxySslContext(galaxyVmConfig.tlsCaCert, galaxyVmConfig.tlsAllowTrustAllFallback)
     for {
 
