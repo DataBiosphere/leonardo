@@ -63,10 +63,20 @@ import scalacache.caffeine.CaffeineCache
 import java.net.SocketException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import java.io.ByteArrayInputStream
+import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
+import java.io.{ByteArrayInputStream, StringReader}
 import java.security.KeyStore
 import java.security.cert.{CertificateFactory, X509Certificate}
-import javax.net.ssl.{SSLContext, SSLEngine, TrustManagerFactory, X509ExtendedTrustManager, X509TrustManager}
+import javax.net.ssl.{
+  KeyManager,
+  KeyManagerFactory,
+  SSLContext,
+  SSLEngine,
+  TrustManagerFactory,
+  X509ExtendedTrustManager,
+  X509TrustManager
+}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import fs2.io.net.tls.TLSContext
@@ -89,15 +99,27 @@ class BaselineDependenciesBuilder {
     dbRef: DbReference[F],
     openTelemetry: OpenTelemetryMetrics[F]
   ): Resource[F, BaselineDependencies[F]] = {
-    // tlsCaCert and tlsCaKey must be set together or both absent.
-    (galaxyVmConfig.tlsCaCert.isDefined, galaxyVmConfig.tlsCaKey.isDefined) match {
+    val caCertPem = galaxyVmConfig.tlsCaCert.getOrElse(
+      throw new IllegalStateException(
+        "GALAXY_TLS_CA_CERT is required but not set. Provision the leo-galaxy-tls Secret Manager secret."
+      )
+    )
+    if (galaxyVmConfig.tlsCaKey.isEmpty)
+      throw new IllegalStateException(
+        "GALAXY_TLS_CA_KEY is required but not set. Provision the leo-galaxy-tls Secret Manager secret."
+      )
+    (galaxyVmConfig.tlsLeoClientCert.isDefined, galaxyVmConfig.tlsLeoClientKey.isDefined) match {
       case (true, false) =>
-        throw new IllegalStateException("GALAXY_TLS_CA_CERT is set but GALAXY_TLS_CA_KEY is absent")
+        throw new IllegalStateException("GALAXY_TLS_LEO_CLIENT_CERT is set but GALAXY_TLS_LEO_CLIENT_KEY is absent")
       case (false, true) =>
-        throw new IllegalStateException("GALAXY_TLS_CA_KEY is set but GALAXY_TLS_CA_CERT is absent")
+        throw new IllegalStateException("GALAXY_TLS_LEO_CLIENT_KEY is set but GALAXY_TLS_LEO_CLIENT_CERT is absent")
       case _ => ()
     }
-    val galaxySslContext = buildGalaxySslContext(galaxyVmConfig.tlsCaCert, galaxyVmConfig.tlsAllowTrustAllFallback)
+    val keyManagers = (for {
+      cert <- galaxyVmConfig.tlsLeoClientCert
+      key <- galaxyVmConfig.tlsLeoClientKey
+    } yield buildGalaxyKeyManagers(cert, key)).getOrElse(Array.empty[KeyManager])
+    val galaxySslContext = buildGalaxySslContext(caCertPem, keyManagers)
     for {
 
       // Set up DNS caches
@@ -317,90 +339,62 @@ class BaselineDependenciesBuilder {
       .recordStats()
       .build[K, V]()
 
-  // SSLContext that accepts any server certificate without hostname verification (opportunistic TLS).
-  // Used for Galaxy VM readiness checks where the VM has a cloud-init-generated self-signed cert.
+  // Builds the SSLContext for all Leo → Galaxy VM connections.
   //
-  // Builds the SSLContext used for all Leo → Galaxy VM connections.
+  // Pins server cert trust to Leo's CA. X509ExtendedTrustManager is used so the
+  // JDK's AbstractTrustManagerWrapper hostname re-check is bypassed — Galaxy VMs
+  // are addressed by external IP, which never matches the cert's CN.
   //
-  // When a root-CA cert PEM is provided (from Secret Manager via GALAXY_TLS_CA_CERT), the
-  // context pins trust to that CA: only certs it signed are accepted. Hostname verification is
-  // still bypassed because Galaxy VMs are addressed by IP with no matching DNS name.
-  //
-  // Without a CA cert the context is trust-all: the channel is encrypted but the server cert
-  // is not authenticated (acceptable fallback for BEE / dev until secrets are provisioned).
-  //
-  // X509ExtendedTrustManager is required in both cases. The JDK wraps plain X509TrustManager
-  // in AbstractTrustManagerWrapper which re-checks hostname regardless of checkServerTrusted;
-  // the extended variant is called directly and bypasses that wrapper.
-  private[http] def buildGalaxySslContext(caCertPem: Option[String], allowTrustAllFallback: Boolean): SSLContext =
-    caCertPem match {
-      case Some(pem) =>
-        val caCert = CertificateFactory
-          .getInstance("X.509")
-          .generateCertificate(new ByteArrayInputStream(pem.getBytes))
-          .asInstanceOf[X509Certificate]
-        val trustStore = KeyStore.getInstance(KeyStore.getDefaultType)
-        trustStore.load(null, null)
-        trustStore.setCertificateEntry("galaxy-ca", caCert)
-        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
-        tmf.init(trustStore)
-        val inner = tmf.getTrustManagers.collectFirst { case tm: X509TrustManager => tm }.get
-        // Wrap in X509ExtendedTrustManager so hostname checking is skipped while chain
-        // verification (cert signed by our CA) is still enforced.
-        val tm = new X509ExtendedTrustManager {
-          def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
-            inner.checkClientTrusted(chain, authType)
-          def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
-            inner.checkServerTrusted(chain, authType)
-          def getAcceptedIssuers: Array[X509Certificate] = inner.getAcceptedIssuers
-          override def checkClientTrusted(chain: Array[X509Certificate],
-                                          authType: String,
-                                          socket: java.net.Socket
-          ): Unit =
-            inner.checkClientTrusted(chain, authType)
-          override def checkServerTrusted(chain: Array[X509Certificate],
-                                          authType: String,
-                                          socket: java.net.Socket
-          ): Unit =
-            inner.checkServerTrusted(chain, authType)
-          override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
-            inner.checkClientTrusted(chain, authType)
-          override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
-            inner.checkServerTrusted(chain, authType)
-        }
-        val ctx = SSLContext.getInstance("TLS")
-        ctx.init(null, Array(tm), null)
-        ctx
-
-      case None if !allowTrustAllFallback =>
-        throw new IllegalStateException(
-          "Galaxy VM TLS CA cert is not configured (GALAXY_TLS_CA_CERT) and " +
-            "trust-all fallback is disabled. Set the leo-galaxy-tls Secret Manager " +
-            "secret or enable GALAXY_TLS_ALLOW_TRUST_ALL_FALLBACK for BEE environments."
-        )
-
-      case None =>
-        // Trust-all fallback: allowed only when tlsAllowTrustAllFallback=true (BEE envs).
-        // Channel is encrypted but server cert is not authenticated.
-        val tm = new X509ExtendedTrustManager {
-          def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-          def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-          def getAcceptedIssuers: Array[X509Certificate] = Array.empty
-          override def checkClientTrusted(chain: Array[X509Certificate],
-                                          authType: String,
-                                          socket: java.net.Socket
-          ): Unit = ()
-          override def checkServerTrusted(chain: Array[X509Certificate],
-                                          authType: String,
-                                          socket: java.net.Socket
-          ): Unit = ()
-          override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
-          override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
-        }
-        val ctx = SSLContext.getInstance("TLS")
-        ctx.init(null, Array(tm), null)
-        ctx
+  // keyManagers carries Leo's client cert+key for the mTLS handshake. The Galaxy VM
+  // uses it to verify the connecting client is Leo. Empty when client cert is absent.
+  private[http] def buildGalaxySslContext(caCertPem: String, keyManagers: Array[KeyManager]): SSLContext = {
+    val caCert = CertificateFactory
+      .getInstance("X.509")
+      .generateCertificate(new ByteArrayInputStream(caCertPem.getBytes))
+      .asInstanceOf[X509Certificate]
+    val trustStore = KeyStore.getInstance(KeyStore.getDefaultType)
+    trustStore.load(null, null)
+    trustStore.setCertificateEntry("galaxy-ca", caCert)
+    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
+    tmf.init(trustStore)
+    val inner = tmf.getTrustManagers.collectFirst { case tm: X509TrustManager => tm }.get
+    val tm = new X509ExtendedTrustManager {
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
+        inner.checkClientTrusted(chain, authType)
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
+        inner.checkServerTrusted(chain, authType)
+      def getAcceptedIssuers: Array[X509Certificate] = inner.getAcceptedIssuers
+      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
+        inner.checkClientTrusted(chain, authType)
+      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
+        inner.checkServerTrusted(chain, authType)
+      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
+        inner.checkClientTrusted(chain, authType)
+      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
+        inner.checkServerTrusted(chain, authType)
     }
+    val ctx = SSLContext.getInstance("TLS")
+    ctx.init(keyManagers, Array(tm), null)
+    ctx
+  }
+
+  // Loads Leo's client cert+key into a KeyManager array for the mTLS handshake.
+  private[http] def buildGalaxyKeyManagers(clientCertPem: String, clientKeyPem: String): Array[KeyManager] = {
+    val cert = CertificateFactory
+      .getInstance("X.509")
+      .generateCertificate(new ByteArrayInputStream(clientCertPem.getBytes))
+      .asInstanceOf[X509Certificate]
+    val pemParser = new PEMParser(new StringReader(clientKeyPem))
+    val privateKey =
+      new JcaPEMKeyConverter().getKeyPair(pemParser.readObject().asInstanceOf[PEMKeyPair]).getPrivate
+    pemParser.close()
+    val ks = KeyStore.getInstance(KeyStore.getDefaultType)
+    ks.load(null, null)
+    ks.setKeyEntry("leo-client", privateKey, Array.emptyCharArray, Array(cert))
+    val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
+    kmf.init(ks, Array.emptyCharArray)
+    kmf.getKeyManagers
+  }
 
   private def buildHttpClient[F[_]: Async: StructuredLogger: Network: LoggerFactory](
     sslContext: SSLContext,

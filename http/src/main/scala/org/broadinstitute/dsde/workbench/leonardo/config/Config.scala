@@ -144,7 +144,8 @@ object Config {
       config.as[String]("drsUrl"),
       config.getAs[String]("tlsCaCert").filter(_.nonEmpty),
       config.getAs[String]("tlsCaKey").filter(_.nonEmpty),
-      config.as[Boolean]("tlsAllowTrustAllFallback")
+      config.getAs[String]("tlsLeoClientCert").filter(_.nonEmpty),
+      config.getAs[String]("tlsLeoClientKey").filter(_.nonEmpty)
     )
   }
 

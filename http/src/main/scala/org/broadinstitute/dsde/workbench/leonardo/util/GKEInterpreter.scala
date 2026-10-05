@@ -1246,16 +1246,17 @@ class GKEInterpreter[F[_]](
                 .setValue(config.leoUrlBase.toString.stripSuffix("/"))
                 .build()
             )
-          // Generate a per-VM TLS cert+key signed by Leo's root CA and inject into metadata.
-          // The startup script writes them to the nginx ingress TLS secret. Absent in BEE
-          // environments where the leo-galaxy-tls secret is not provisioned (trust-all fallback).
+          // Inject TLS material for nginx. galaxy-k8s-boot fails the play on GCE when
+          // galaxy_tls_cert/galaxy_tls_key are absent, so these are always expected to be set.
           for {
             caCertPem <- config.galaxyVmConfig.tlsCaCert
             caKeyPem <- config.galaxyVmConfig.tlsCaKey
           } {
             val (vmCert, vmKey) = generateVmTlsCert(caCertPem, caKeyPem)
-            mb.addItems(Items.newBuilder().setKey("galaxy-tls-cert").setValue(vmCert).build())
-            mb.addItems(Items.newBuilder().setKey("galaxy-tls-key").setValue(vmKey).build())
+            mb.addItems(Items.newBuilder().setKey("galaxy_tls_cert").setValue(vmCert).build())
+            mb.addItems(Items.newBuilder().setKey("galaxy_tls_key").setValue(vmKey).build())
+            // nginx uses this to verify Leo's client cert in the mTLS handshake.
+            mb.addItems(Items.newBuilder().setKey("galaxy_tls_client_ca").setValue(caCertPem).build())
           }
           mb.build()
         }

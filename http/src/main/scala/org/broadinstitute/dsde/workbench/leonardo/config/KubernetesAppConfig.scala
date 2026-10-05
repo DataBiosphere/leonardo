@@ -104,17 +104,19 @@ final case class GalaxyVmConfig(
   gitBranch: String,
   orchUrl: String,
   drsUrl: String,
-  // Optional root-CA cert (PEM) used to validate Galaxy VM TLS certs.
-  // When absent and tlsAllowTrustAllFallback is true, falls back to trust-all.
-  // When absent and tlsAllowTrustAllFallback is false (default), startup fails.
-  // Must be set together with tlsCaKey.
+  // Root-CA cert (PEM). Added to Leo's trust store for Galaxy VM connection validation.
+  // Also injected into each VM as galaxy_tls_client_ca so nginx can verify Leo's client cert.
+  // Must be set together with tlsCaKey. Required; startup fails if absent.
   tlsCaCert: Option[String],
-  // Optional root-CA private key (PEM). Leo uses it at VM provisioning time to sign a
-  // fresh per-VM TLS cert+key pair injected into the VM via GCE instance metadata.
+  // Root-CA private key (PEM). Leo uses it at VM provisioning time to sign a fresh per-VM
+  // TLS cert+key pair injected into the VM via GCE instance metadata.
   // Must be set together with tlsCaCert.
   tlsCaKey: Option[String],
-  // Allow trust-all fallback when tlsCaCert/tlsCaKey are absent. Enable only in BEE environments.
-  tlsAllowTrustAllFallback: Boolean
+  // Leo's client cert (PEM) presented during mTLS handshake with Galaxy VMs.
+  // Must be set together with tlsLeoClientKey.
+  tlsLeoClientCert: Option[String],
+  // Leo's client private key (PEM) for mTLS. Must be set together with tlsLeoClientCert.
+  tlsLeoClientKey: Option[String]
 )
 
 final case class ContainerRegistryUsername(asString: String) extends AnyVal
