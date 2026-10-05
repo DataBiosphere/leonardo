@@ -99,15 +99,13 @@ class BaselineDependenciesBuilder {
     dbRef: DbReference[F],
     openTelemetry: OpenTelemetryMetrics[F]
   ): Resource[F, BaselineDependencies[F]] = {
-    val caCertPem = galaxyVmConfig.tlsCaCert.getOrElse(
-      throw new IllegalStateException(
-        "GALAXY_TLS_CA_CERT is required but not set. Provision the leo-galaxy-tls Secret Manager secret."
-      )
-    )
-    if (galaxyVmConfig.tlsCaKey.isEmpty)
-      throw new IllegalStateException(
-        "GALAXY_TLS_CA_KEY is required but not set. Provision the leo-galaxy-tls Secret Manager secret."
-      )
+    if (galaxyVmConfig.tlsCaCert.isEmpty)
+      org.slf4j.LoggerFactory
+        .getLogger(getClass)
+        .warn(
+          "GALAXY_TLS_CA_CERT is not set. Galaxy VM TLS will use the JVM default trust store — " +
+            "connections to Galaxy VMs will fail until the leo-galaxy-tls Secret Manager secret is provisioned."
+        )
     (galaxyVmConfig.tlsLeoClientCert.isDefined, galaxyVmConfig.tlsLeoClientKey.isDefined) match {
       case (true, false) =>
         throw new IllegalStateException("GALAXY_TLS_LEO_CLIENT_CERT is set but GALAXY_TLS_LEO_CLIENT_KEY is absent")
@@ -119,7 +117,13 @@ class BaselineDependenciesBuilder {
       cert <- galaxyVmConfig.tlsLeoClientCert
       key <- galaxyVmConfig.tlsLeoClientKey
     } yield buildGalaxyKeyManagers(cert, key)).getOrElse(Array.empty[KeyManager])
-    val galaxySslContext = buildGalaxySslContext(caCertPem, keyManagers)
+    // Use the Galaxy CA cert when available; fall back to the JVM default trust store so Leo can
+    // start in environments where the secret hasn't been provisioned yet (e.g. BEEs before
+    // the Terraform GA TLS secret is deployed). Galaxy VM connections will fail at handshake
+    // in that case, but that is caught per-request rather than blocking startup.
+    val galaxySslContext = galaxyVmConfig.tlsCaCert
+      .map(ca => buildGalaxySslContext(ca, keyManagers))
+      .getOrElse(SSLContext.getDefault)
     for {
 
       // Set up DNS caches
