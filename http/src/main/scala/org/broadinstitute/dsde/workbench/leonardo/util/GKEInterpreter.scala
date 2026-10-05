@@ -1254,19 +1254,19 @@ class GKEInterpreter[F[_]](
           createAndWait.recoverWith { case e: java.util.concurrent.ExecutionException =>
             val cause = Option(e.getCause).getOrElse(e)
             val gcpMsg = Option(cause.getMessage).getOrElse(cause.getClass.getName)
-            // Both ZONE_RESOURCE_POOL_EXHAUSTED and UNAVAILABLE indicate the zone cannot fulfil
-            // the request for this machine type. UNAVAILABLE is what GCP reports for t2d in
-            // us-central1-a when capacity is exhausted (consistent 503 since the zone ran out).
-            val isCapacityError =
-              gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED") || gcpMsg.contains("UNAVAILABLE")
-            if (isCapacityError && attemptsLeft > 0)
+            val isExhausted = gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED")
+            // UNAVAILABLE is a generic GCP 503 — could be transient or zone capacity; retry either way.
+            val isRetriable = isExhausted || gcpMsg.contains("UNAVAILABLE")
+            if (isRetriable && attemptsLeft > 0)
               logger.warn(ctx.loggingCtx)(
-                s"Galaxy VM ${instanceName.value}: no ${vmMachineType.value} capacity in ${zoneParam.value} ($attemptsLeft attempt(s) remaining), retrying in 30s"
+                s"Galaxy VM ${instanceName.value}: ${vmMachineType.value} in ${zoneParam.value} returned $gcpMsg ($attemptsLeft attempt(s) remaining), retrying in 30s"
               ) >> F.sleep(30.seconds) >> tryCreate(attemptsLeft - 1)
             else {
               val userMsg =
-                if (isCapacityError)
+                if (isExhausted)
                   s"Galaxy VM ${instanceName.value} failed to provision: no ${vmMachineType.value} capacity available in ${zoneParam.value}. Try creating the app with a different machine type."
+                else if (gcpMsg.contains("UNAVAILABLE"))
+                  s"Galaxy VM ${instanceName.value} failed to provision: GCP was unavailable after retries. If this persists, try a different machine type or try again later."
                 else
                   s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
               logger.error(ctx.loggingCtx)(
