@@ -775,12 +775,11 @@ class GKEInterpreter[F[_]](
         s"Delete app operation has finished for app ${app.appName.value}"
       )
 
-      _ <-
-        if (!params.errorAfterDelete) {
-          F.unit
-        } else {
-          appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction.void
-        }
+      // Do NOT set Error status here when errorAfterDelete=true. The caller (handleKubernetesError)
+      // writes the APP_ERROR record and then calls markAsErrored in a single pass. Setting Error
+      // here first would cause Terra UI to see Error with no records (terminal state → stops
+      // polling) before the error message is written, producing a deterministic
+      // "No error messages found for app" in the UI.
     } yield ()
 
   override def stopAndPollApp(params: StopAppParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -1150,21 +1149,20 @@ class GKEInterpreter[F[_]](
 
       instanceName = InstanceName(s"galaxy-${app.appName.value}")
 
+      // Prefer the machine type stored on the app's nodepool (set from the request at creation
+      // time); fall back to the configured default. Extracted here so it is available in
+      // error messages if provisioning fails (e.g. ZONE_RESOURCE_POOL_EXHAUSTED).
+      vmMachineType = dbCluster.nodepools
+        .find(_.id == app.nodepoolId)
+        .map(_.machineType)
+        .getOrElse(config.galaxyVmConfig.machineType)
+
       instance = Instance
         .newBuilder()
         .setName(instanceName.value)
         .setDescription("Leonardo Galaxy VM")
         .setTags(Tags.newBuilder().addItems(config.vpcNetworkTag.value).build())
-        // Prefer the machine type stored on the app's nodepool (set from the request at creation
-        // time); fall back to the configured default.
-        .setMachineType(
-          buildMachineTypeUri(zoneParam,
-                              dbCluster.nodepools
-                                .find(_.id == app.nodepoolId)
-                                .map(_.machineType)
-                                .getOrElse(config.galaxyVmConfig.machineType)
-          )
-        )
+        .setMachineType(buildMachineTypeUri(zoneParam, vmMachineType))
         .addNetworkInterfaces(networkInterface)
         .addAllDisks(List(bootDisk, dataDisk, postgresDisk).asJava)
         .addServiceAccounts(
@@ -1241,21 +1239,39 @@ class GKEInterpreter[F[_]](
         .putAllLabels(Map("leonardo" -> "true").asJava)
         .build()
 
-      _ <- computeService
-        .createInstance(googleProject, zoneParam, instance)
-        .recoverWith {
-          case e: com.google.api.gax.rpc.ApiException
-              if e.getStatusCode.getCode == com.google.api.gax.rpc.StatusCode.Code.UNAVAILABLE =>
-            // GCE returns UNAVAILABLE when the requested machine type has no capacity in the zone.
-            // Translate to a user-facing message so the caller knows to retry with a different machine type.
-            F.raiseError(
-              AppCreationException(
-                s"The selected machine type is not available in this zone. " +
-                  s"Please try a different machine type or try again later.",
-                traceId = Some(ctx.traceId)
-              )
-            )
+      // Wait for the GCP operation to complete and surface any provisioning error immediately.
+      // Without this, a failure like ZONE_RESOURCE_POOL_EXHAUSTED goes undetected and Leo
+      // polls for 30 minutes before giving up.
+      // On zone exhaustion, retry up to 2 times with a 30s delay — capacity can free up quickly.
+      // All other errors fail immediately. Machine type and zone are unchanged across retries
+      // so the user sees no cost or configuration surprise.
+      _ <- {
+        def tryCreate(attemptsLeft: Int): F[Unit] = {
+          val createAndWait: F[Unit] = for {
+            opOpt <- computeService.createInstance(googleProject, zoneParam, instance)
+            _ <- opOpt.traverse_(op => F.blocking(op.get()).void)
+          } yield ()
+          createAndWait.recoverWith { case e: java.util.concurrent.ExecutionException =>
+            val cause = Option(e.getCause).getOrElse(e)
+            val gcpMsg = Option(cause.getMessage).getOrElse(cause.getClass.getName)
+            if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED") && attemptsLeft > 0)
+              logger.warn(ctx.loggingCtx)(
+                s"Galaxy VM ${instanceName.value}: no ${vmMachineType.value} capacity in ${zoneParam.value} ($attemptsLeft attempt(s) remaining), retrying in 30s"
+              ) >> F.sleep(30.seconds) >> tryCreate(attemptsLeft - 1)
+            else {
+              val userMsg =
+                if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED"))
+                  s"Galaxy VM ${instanceName.value} failed to provision: no ${vmMachineType.value} capacity available in ${zoneParam.value}. Try creating the app with a different machine type."
+                else
+                  s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
+              logger.error(ctx.loggingCtx)(
+                s"Galaxy VM ${instanceName.value} GCP create-instance operation failed: $gcpMsg"
+              ) >> F.raiseError[Unit](AppCreationException(userMsg, traceId = Some(ctx.traceId)))
+            }
+          }
         }
+        tryCreate(2)
+      }
 
       // Grant the pet SA permission to submit and monitor GCP Batch jobs in this project.
       // Galaxy uses the VM's attached SA (pet SA) to call the Batch API.
@@ -1367,22 +1383,38 @@ class GKEInterpreter[F[_]](
           )
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Galaxy VM instance ${instanceName.value} submitted for project ${googleProject.value}; polling for external IP"
+        s"Galaxy VM instance ${instanceName.value} GCP create operation complete; polling for external IP"
       )
 
       // Poll until the instance has an external IP assigned (needed for both proxy routing and readiness check).
       // We store the external IP because Leo's GKE cluster and the Galaxy VM are in different GCP projects
       // whose VPCs are not peered, making the internal IP unreachable from Leo's pod.
       ipPairOpt <- streamFUntilDone(
-        computeService.getInstance(googleProject, zoneParam, instanceName).map { instanceOpt =>
-          instanceOpt.flatMap { inst =>
-            import scala.jdk.CollectionConverters._
-            for {
-              iface <- Option(inst.getNetworkInterfacesList).flatMap(_.asScala.headOption)
-              internalIp = IP(iface.getNetworkIP)
-              cfg <- Option(iface.getAccessConfigsList).flatMap(_.asScala.headOption)
-              natIp <- Option(cfg.getNatIP).filter(_.nonEmpty)
-            } yield (internalIp, IP(natIp))
+        computeService.getInstance(googleProject, zoneParam, instanceName).flatMap { instanceOpt =>
+          instanceOpt match {
+            case None =>
+              logger
+                .debug(ctx.loggingCtx)(
+                  s"Galaxy VM ${instanceName.value}: not yet visible in GCE API; will retry"
+                )
+                .as(Option.empty[(IP, IP)])
+            case Some(inst) =>
+              import scala.jdk.CollectionConverters._
+              val ipPair = for {
+                iface <- Option(inst.getNetworkInterfacesList).flatMap(_.asScala.headOption)
+                internalIp = IP(iface.getNetworkIP)
+                cfg <- Option(iface.getAccessConfigsList).flatMap(_.asScala.headOption)
+                natIp <- Option(cfg.getNatIP).filter(_.nonEmpty)
+              } yield (internalIp, IP(natIp))
+              ipPair match {
+                case None =>
+                  logger
+                    .debug(ctx.loggingCtx)(
+                      s"Galaxy VM ${instanceName.value}: instance exists but external NAT IP not yet assigned; will retry"
+                    )
+                    .as(Option.empty[(IP, IP)])
+                case some => F.pure(some)
+              }
           }
         },
         config.monitorConfig.createApp.maxAttempts,
@@ -1915,7 +1947,13 @@ class GKEInterpreter[F[_]](
                   _ <- appErrorQuery
                     .save(
                       appId,
-                      AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId))
+                      AppError(Option(e.getMessage).getOrElse(s"${e.getClass.getName} (no message)"),
+                               ctx.now,
+                               ErrorAction.StopApp,
+                               ErrorSource.App,
+                               None,
+                               Some(ctx.traceId)
+                      )
                     )
                     .transaction
                   _ <- appQuery.markAsDeleted(appId, ctx.now).transaction
