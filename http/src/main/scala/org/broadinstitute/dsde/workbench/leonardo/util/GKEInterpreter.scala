@@ -1241,7 +1241,21 @@ class GKEInterpreter[F[_]](
         .putAllLabels(Map("leonardo" -> "true").asJava)
         .build()
 
-      _ <- computeService.createInstance(googleProject, zoneParam, instance)
+      _ <- computeService
+        .createInstance(googleProject, zoneParam, instance)
+        .recoverWith {
+          case e: com.google.api.gax.rpc.ApiException
+              if e.getStatusCode.getCode == com.google.api.gax.rpc.StatusCode.Code.UNAVAILABLE =>
+            // GCE returns UNAVAILABLE when the requested machine type has no capacity in the zone.
+            // Translate to a user-facing message so the caller knows to retry with a different machine type.
+            F.raiseError(
+              AppCreationException(
+                s"The selected machine type is not available in this zone. " +
+                  s"Please try a different machine type or try again later.",
+                traceId = Some(ctx.traceId)
+              )
+            )
+        }
 
       // Grant the pet SA permission to submit and monitor GCP Batch jobs in this project.
       // Galaxy uses the VM's attached SA (pet SA) to call the Batch API.
