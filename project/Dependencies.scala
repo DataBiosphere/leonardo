@@ -185,10 +185,6 @@ object Dependencies {
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
   val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
 
-  // Previously excluded BouncyCastle (arrived transitively via io.kubernetes:client-java)
-  // but it is now explicitly depended on for per-VM Galaxy TLS cert generation.
-  val commonExcludes = List.empty[ExclusionRule]
-
   val automationOverrides = List(
     guava,
     // semconv version to satisfy selenium:

@@ -99,30 +99,23 @@ class BaselineDependenciesBuilder {
     dbRef: DbReference[F],
     openTelemetry: OpenTelemetryMetrics[F]
   ): Resource[F, BaselineDependencies[F]] = {
-    if (galaxyVmConfig.tlsCaCert.isEmpty)
+    if (galaxyVmConfig.tls.isEmpty)
       org.slf4j.LoggerFactory
         .getLogger(getClass)
         .warn(
-          "GALAXY_TLS_CA_CERT is not set. Galaxy VM TLS will use the JVM default trust store — " +
+          "Galaxy TLS secrets (GALAXY_TLS_CA_CERT / GALAXY_TLS_CA_KEY / GALAXY_TLS_LEO_CLIENT_CERT / " +
+            "GALAXY_TLS_LEO_CLIENT_KEY) are not set. Galaxy VM TLS will use the JVM default trust store — " +
             "connections to Galaxy VMs will fail until the leo-galaxy-tls Secret Manager secret is provisioned."
         )
-    (galaxyVmConfig.tlsLeoClientCert.isDefined, galaxyVmConfig.tlsLeoClientKey.isDefined) match {
-      case (true, false) =>
-        throw new IllegalStateException("GALAXY_TLS_LEO_CLIENT_CERT is set but GALAXY_TLS_LEO_CLIENT_KEY is absent")
-      case (false, true) =>
-        throw new IllegalStateException("GALAXY_TLS_LEO_CLIENT_KEY is set but GALAXY_TLS_LEO_CLIENT_CERT is absent")
-      case _ => ()
-    }
-    val keyManagers = (for {
-      cert <- galaxyVmConfig.tlsLeoClientCert
-      key <- galaxyVmConfig.tlsLeoClientKey
-    } yield buildGalaxyKeyManagers(cert, key)).getOrElse(Array.empty[KeyManager])
+    val keyManagers = galaxyVmConfig.tls
+      .map(t => buildGalaxyKeyManagers(t.leoClientCert, t.leoClientKey))
+      .getOrElse(Array.empty[KeyManager])
     // Use the Galaxy CA cert when available; fall back to the JVM default trust store so Leo can
     // start in environments where the secret hasn't been provisioned yet (e.g. BEEs before
     // the Terraform GA TLS secret is deployed). Galaxy VM connections will fail at handshake
     // in that case, but that is caught per-request rather than blocking startup.
-    val galaxySslContext = galaxyVmConfig.tlsCaCert
-      .map(ca => buildGalaxySslContext(ca, keyManagers))
+    val galaxySslContext = galaxyVmConfig.tls
+      .map(t => buildGalaxySslContext(t.caCert, keyManagers))
       .getOrElse(SSLContext.getDefault)
     for {
 

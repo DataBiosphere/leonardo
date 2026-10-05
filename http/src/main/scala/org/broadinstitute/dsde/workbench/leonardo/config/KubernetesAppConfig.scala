@@ -94,6 +94,22 @@ final case class CustomAppConfig(chartName: ChartName,
   val appType: AppType = AppType.Custom
 }
 
+// All four TLS secrets must be provisioned together: absent in BEEs (no Secret Manager
+// secret yet), fully present in staging/prod. The reader yields None when any field is
+// missing, so callers see all-or-nothing rather than partial state.
+final case class GalaxyTlsConfig(
+  // Root-CA cert (PEM). Added to Leo's trust store for Galaxy VM TLS validation and
+  // injected into each VM as galaxy_tls_client_ca so nginx can verify Leo's client cert.
+  caCert: String,
+  // Root-CA private key (PEM). Used to sign a fresh per-VM cert+key pair at provisioning
+  // time; the pair is injected via GCE instance metadata so the VM presents it on port 443.
+  caKey: String,
+  // Leo's client cert (PEM) presented during the mTLS handshake with Galaxy VMs.
+  leoClientCert: String,
+  // Leo's client private key (PEM) for the mTLS handshake.
+  leoClientKey: String
+)
+
 final case class GalaxyVmConfig(
   sourceImage: GceCustomImage,
   machineType: MachineTypeName,
@@ -104,19 +120,7 @@ final case class GalaxyVmConfig(
   gitBranch: String,
   orchUrl: String,
   drsUrl: String,
-  // Root-CA cert (PEM). Added to Leo's trust store for Galaxy VM connection validation.
-  // Also injected into each VM as galaxy_tls_client_ca so nginx can verify Leo's client cert.
-  // Must be set together with tlsCaKey. Required; startup fails if absent.
-  tlsCaCert: Option[String],
-  // Root-CA private key (PEM). Leo uses it at VM provisioning time to sign a fresh per-VM
-  // TLS cert+key pair injected into the VM via GCE instance metadata.
-  // Must be set together with tlsCaCert.
-  tlsCaKey: Option[String],
-  // Leo's client cert (PEM) presented during mTLS handshake with Galaxy VMs.
-  // Must be set together with tlsLeoClientKey.
-  tlsLeoClientCert: Option[String],
-  // Leo's client private key (PEM) for mTLS. Must be set together with tlsLeoClientCert.
-  tlsLeoClientKey: Option[String]
+  tls: Option[GalaxyTlsConfig]
 )
 
 final case class ContainerRegistryUsername(asString: String) extends AnyVal

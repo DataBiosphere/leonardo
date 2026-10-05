@@ -142,10 +142,12 @@ object Config {
       config.as[String]("gitBranch"),
       config.as[String]("orchUrl"),
       config.as[String]("drsUrl"),
-      config.getAs[String]("tlsCaCert").filter(_.nonEmpty),
-      config.getAs[String]("tlsCaKey").filter(_.nonEmpty),
-      config.getAs[String]("tlsLeoClientCert").filter(_.nonEmpty),
-      config.getAs[String]("tlsLeoClientKey").filter(_.nonEmpty)
+      for {
+        caCert <- config.getAs[String]("tlsCaCert").filter(_.nonEmpty)
+        caKey <- config.getAs[String]("tlsCaKey").filter(_.nonEmpty)
+        leoClientCert <- config.getAs[String]("tlsLeoClientCert").filter(_.nonEmpty)
+        leoClientKey <- config.getAs[String]("tlsLeoClientKey").filter(_.nonEmpty)
+      } yield GalaxyTlsConfig(caCert, caKey, leoClientCert, leoClientKey)
     )
   }
 
