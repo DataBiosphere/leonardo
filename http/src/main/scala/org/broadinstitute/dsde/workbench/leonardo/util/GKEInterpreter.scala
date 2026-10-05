@@ -1254,13 +1254,18 @@ class GKEInterpreter[F[_]](
           createAndWait.recoverWith { case e: java.util.concurrent.ExecutionException =>
             val cause = Option(e.getCause).getOrElse(e)
             val gcpMsg = Option(cause.getMessage).getOrElse(cause.getClass.getName)
-            if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED") && attemptsLeft > 0)
+            // Both ZONE_RESOURCE_POOL_EXHAUSTED and UNAVAILABLE indicate the zone cannot fulfil
+            // the request for this machine type. UNAVAILABLE is what GCP reports for t2d in
+            // us-central1-a when capacity is exhausted (consistent 503 since the zone ran out).
+            val isCapacityError =
+              gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED") || gcpMsg.contains("UNAVAILABLE")
+            if (isCapacityError && attemptsLeft > 0)
               logger.warn(ctx.loggingCtx)(
                 s"Galaxy VM ${instanceName.value}: no ${vmMachineType.value} capacity in ${zoneParam.value} ($attemptsLeft attempt(s) remaining), retrying in 30s"
               ) >> F.sleep(30.seconds) >> tryCreate(attemptsLeft - 1)
             else {
               val userMsg =
-                if (gcpMsg.contains("ZONE_RESOURCE_POOL_EXHAUSTED"))
+                if (isCapacityError)
                   s"Galaxy VM ${instanceName.value} failed to provision: no ${vmMachineType.value} capacity available in ${zoneParam.value}. Try creating the app with a different machine type."
                 else
                   s"Galaxy VM ${instanceName.value} failed to provision: $gcpMsg"
