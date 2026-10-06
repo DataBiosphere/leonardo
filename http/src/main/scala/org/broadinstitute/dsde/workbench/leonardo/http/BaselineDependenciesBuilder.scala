@@ -63,6 +63,7 @@ import scalacache.caffeine.CaffeineCache
 import java.net.SocketException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
 import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
 import java.io.{ByteArrayInputStream, StringReader}
@@ -382,8 +383,14 @@ class BaselineDependenciesBuilder {
       .generateCertificate(new ByteArrayInputStream(clientCertPem.getBytes))
       .asInstanceOf[X509Certificate]
     val pemParser = new PEMParser(new StringReader(clientKeyPem))
-    val privateKey =
-      new JcaPEMKeyConverter().getKeyPair(pemParser.readObject().asInstanceOf[PEMKeyPair]).getPrivate
+    val converter = new JcaPEMKeyConverter()
+    // PEMParser yields PEMKeyPair for traditional RSA keys ("BEGIN RSA PRIVATE KEY")
+    // and PrivateKeyInfo for PKCS#8 keys ("BEGIN PRIVATE KEY"). Handle both.
+    val privateKey = pemParser.readObject() match {
+      case kp: PEMKeyPair    => converter.getKeyPair(kp).getPrivate
+      case pi: PrivateKeyInfo => converter.getPrivateKey(pi)
+      case obj               => throw new IllegalArgumentException(s"Unexpected PEM object: ${obj.getClass.getName}")
+    }
     pemParser.close()
     val ks = KeyStore.getInstance(KeyStore.getDefaultType)
     ks.load(null, null)
