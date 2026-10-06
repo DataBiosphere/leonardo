@@ -1143,7 +1143,8 @@ class LeoPubsubMessageSubscriber[F[_]](
 
         // we record the last disk detach timestamp here, before it is removed from galaxy
         // this is needed before we can delete disks
-        postgresOriginalDetachTimestampOpt = postgresDiskOpt.map(_.getLastDetachTimestamp)
+        // Option(ts) converts null (disk never attached) to None, which skips the detach wait below.
+        postgresOriginalDetachTimestampOpt = postgresDiskOpt.flatMap(d => Option(d.getLastDetachTimestamp))
 
         dataDiskOriginalDetachTimestampOpt <- dbApp.app.appResources.disk.flatTraverse { d =>
           getGoogleDiskServiceFromRegistry()
@@ -1152,7 +1153,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               zone,
               d.name
             )
-            .map(_.map(_.getLastDetachTimestamp))
+            // Option(ts) converts null (disk never attached) to None, which skips the detach wait below.
+            .map(_.flatMap(d => Option(d.getLastDetachTimestamp)))
         }
         _ <- getGkeAlgFromRegistry()
           .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
@@ -1314,7 +1316,11 @@ class LeoPubsubMessageSubscriber[F[_]](
     } yield DiskDetachStatus(disk, originalDetachTimestampOpt)
 
   implicit val diskDetachDone: DoneCheckable[DiskDetachStatus] = x =>
-    x.disk.map(_.getLastDetachTimestamp) != x.originalDetachTimestampOpt
+    // A None original means the disk was never attached (GCP returns null for getLastDetachTimestamp
+    // on a disk that has never been attached, and we normalise that to None in the callers above).
+    // No wait is needed: the disk is already safe to delete.
+    x.originalDetachTimestampOpt.isEmpty ||
+      x.disk.flatMap(d => Option(d.getLastDetachTimestamp)) != x.originalDetachTimestampOpt
 
   private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(implicit
     ev: Ask[F, AppContext]
