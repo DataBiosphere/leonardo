@@ -717,7 +717,7 @@ class RuntimeServiceInterpTest
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(250),
+        bootDiskSize = DiskSize(100),
         zone = ZoneName("us-central1-a"),
         None
       ) // TODO: this is a problem in terms of inconsistency
@@ -744,7 +744,7 @@ class RuntimeServiceInterpTest
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
             runtimeConfig.machineType,
             disk.id,
-            bootDiskSize = DiskSize(250),
+            bootDiskSize = DiskSize(100),
             zone = ZoneName("us-central1-a"),
             None
           )

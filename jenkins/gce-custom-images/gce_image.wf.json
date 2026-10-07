@@ -28,7 +28,7 @@
                     "Name": "boot-disk",
                     "SourceImage": "${base_image}",
                     "Type": "hyperdisk-balanced",
-                    "SizeGb": "180",
+                    "SizeGb": "100",
                     "provisionedIops": "3200",
                     "provisionedThroughput": "800"
                 }
