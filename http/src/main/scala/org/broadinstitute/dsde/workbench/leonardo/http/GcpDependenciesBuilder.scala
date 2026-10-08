@@ -257,6 +257,7 @@ class GcpDependencyBuilder extends CloudDependenciesBuilder {
     // Services used by the HTTP routes (Front-End)
     val proxyService = new ProxyService(
       baselineDependencies.sslContext,
+      baselineDependencies.galaxySslContext,
       proxyConfig,
       baselineDependencies.jupyterDAO,
       baselineDependencies.runtimeDnsCache,

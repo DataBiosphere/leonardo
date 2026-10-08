@@ -171,6 +171,9 @@ object Dependencies {
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
     "com.auth0" % "java-jwt" % "4.4.0",
+    // BouncyCastle for per-VM TLS cert generation at Galaxy VM provisioning time.
+    // Added explicitly since bcprov/bcpkix were previously excluded as unused transitive deps.
+    "org.bouncycastle" % "bcpkix-jdk18on" % "1.86",
     http4sEmberServer % Test,
     scalaTestSelenium,
     scalaTestMockito,
@@ -181,12 +184,6 @@ object Dependencies {
   // You should not be using SSH functionality outside of the tests according to security team's guidance
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
   val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
-
-  // BouncyCastle arrived transitively via `io.kubernetes:client-java` and is not used.
-  // Can clean up when we remove Kubernetes support (CTM-657)
-  val commonExcludes = List(
-    ExclusionRule("org.bouncycastle")
-  )
 
   val automationOverrides = List(
     guava,

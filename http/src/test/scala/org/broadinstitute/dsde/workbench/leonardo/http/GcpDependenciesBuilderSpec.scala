@@ -114,6 +114,7 @@ class GcpDependenciesBuilderSpec
   private def createBaselineDependenciesWithMocks: BaselineDependencies[IO] =
     BaselineDependencies[IO](
       mock[SSLContext],
+      mock[SSLContext],
       mock[RuntimeDnsCache[IO]],
       mock[HttpSamDAO[IO]],
       mock[HttpDockerDAO[IO]],
