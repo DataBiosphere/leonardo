@@ -72,7 +72,7 @@ import org.broadinstitute.dsde.workbench.leonardo.Autopilot
 import com.google.api.services.container.model.WorkloadPolicyConfig
 
 import org.bouncycastle.asn1.x500.X500Name
-import org.bouncycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509v3CertificateBuilder}
+import org.bouncycastle.cert.jcajce.{JcaX509CertificateConverter, JcaX509CertificateHolder, JcaX509v3CertificateBuilder}
 import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
 import org.bouncycastle.openssl.jcajce.{JcaPEMKeyConverter, JcaPEMWriter}
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
@@ -2105,10 +2105,13 @@ class GKEInterpreter[F[_]](
     keyGen.initialize(2048, new SecureRandom())
     val vmKeyPair = keyGen.generateKeyPair()
 
-    // Build cert signed by CA
+    // Build cert signed by CA.
+    // Use the CA cert's subject field verbatim (via JcaX509CertificateHolder) so the issuer DER
+    // byte sequence in the VM cert matches the CA subject exactly. X500Name(String) re-encodes
+    // from RFC 2253, which can reorder attributes and break PKIX issuer/subject matching.
     val now = Instant.now()
     val certBuilder = new JcaX509v3CertificateBuilder(
-      new X500Name(caCert.getSubjectX500Principal.getName),
+      new JcaX509CertificateHolder(caCert).getSubject,
       BigInteger.valueOf(now.toEpochMilli),
       Date.from(now),
       Date.from(now.plus(Duration.ofDays(365 * 5))),
