@@ -387,9 +387,9 @@ class BaselineDependenciesBuilder {
     // PEMParser yields PEMKeyPair for traditional RSA keys ("BEGIN RSA PRIVATE KEY")
     // and PrivateKeyInfo for PKCS#8 keys ("BEGIN PRIVATE KEY"). Handle both.
     val privateKey = pemParser.readObject() match {
-      case kp: PEMKeyPair    => converter.getKeyPair(kp).getPrivate
+      case kp: PEMKeyPair     => converter.getKeyPair(kp).getPrivate
       case pi: PrivateKeyInfo => converter.getPrivateKey(pi)
-      case obj               => throw new IllegalArgumentException(s"Unexpected PEM object: ${obj.getClass.getName}")
+      case obj                => throw new IllegalArgumentException(s"Unexpected PEM object: ${obj.getClass.getName}")
     }
     pemParser.close()
     val ks = KeyStore.getInstance(KeyStore.getDefaultType)
