@@ -44,6 +44,7 @@ class MockProxyService(
   metrics: OpenTelemetryMetrics[IO]
 ) extends ProxyService(
       TestUtils.sslContext(system),
+      TestUtils.sslContext(system),
       proxyConfig,
       jupyterDAO,
       runtimeDnsCache,

@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config.{
   autoFreezeConfig,
   dataprocConfig,
   dateAccessUpdaterConfig,
+  galaxyVmConfig,
   gceConfig,
   gkeClusterConfig,
   httpSamDaoConfig,
@@ -62,8 +63,21 @@ import scalacache.caffeine.CaffeineCache
 import java.net.SocketException
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import java.security.cert.X509Certificate
-import javax.net.ssl.{SSLContext, SSLEngine, X509ExtendedTrustManager}
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
+import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
+import java.io.{ByteArrayInputStream, StringReader}
+import java.security.KeyStore
+import java.security.cert.{CertificateFactory, X509Certificate}
+import javax.net.ssl.{
+  KeyManager,
+  KeyManagerFactory,
+  SSLContext,
+  SSLEngine,
+  TrustManagerFactory,
+  X509ExtendedTrustManager,
+  X509TrustManager
+}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import fs2.io.net.tls.TLSContext
@@ -85,7 +99,25 @@ class BaselineDependenciesBuilder {
     as: ActorSystem,
     dbRef: DbReference[F],
     openTelemetry: OpenTelemetryMetrics[F]
-  ): Resource[F, BaselineDependencies[F]] =
+  ): Resource[F, BaselineDependencies[F]] = {
+    if (galaxyVmConfig.tls.isEmpty)
+      org.slf4j.LoggerFactory
+        .getLogger(getClass)
+        .warn(
+          "Galaxy TLS secrets (GALAXY_TLS_CA_CERT / GALAXY_TLS_CA_KEY / GALAXY_TLS_LEO_CLIENT_CERT / " +
+            "GALAXY_TLS_LEO_CLIENT_KEY) are not set. Galaxy VM TLS will use the JVM default trust store — " +
+            "connections to Galaxy VMs will fail until the leo-galaxy-tls Secret Manager secret is provisioned."
+        )
+    val keyManagers = galaxyVmConfig.tls
+      .map(t => buildGalaxyKeyManagers(t.leoClientCert, t.leoClientKey))
+      .getOrElse(Array.empty[KeyManager])
+    // Use the Galaxy CA cert when available; fall back to the JVM default trust store so Leo can
+    // start in environments where the secret hasn't been provisioned yet (e.g. BEEs before
+    // the Terraform GA TLS secret is deployed). Galaxy VM connections will fail at handshake
+    // in that case, but that is caught per-request rather than blocking startup.
+    val galaxySslContext = galaxyVmConfig.tls
+      .map(t => buildGalaxySslContext(t.caCert, keyManagers))
+      .getOrElse(SSLContext.getDefault)
     for {
 
       // Set up DNS caches
@@ -146,7 +178,7 @@ class BaselineDependenciesBuilder {
         new HttpRStudioDAO(runtimeDnsCache, client)
       )
       appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).flatMap { appClient =>
-        buildHttpClient(buildTrustAllSslContext, hostToIpMapping, None, false)
+        buildHttpClient(galaxySslContext, hostToIpMapping, None, false)
           .map(vmClient => new HttpAppDAO(kubernetesDnsCache, appClient, vmClient))
       }
       appDescriptorDAO <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client =>
@@ -255,6 +287,7 @@ class BaselineDependenciesBuilder {
       )
     } yield BaselineDependencies[F](
       sslContext,
+      galaxySslContext,
       runtimeDnsCache,
       samDao,
       dockerDao,
@@ -282,6 +315,7 @@ class BaselineDependenciesBuilder {
       openTelemetry,
       samService
     )
+  }
 
   private def createCloudSubscriber[F[_]: Parallel](
     subscriberQueue: Queue[F, ReceivedMessage[LeoPubsubMessage]]
@@ -303,28 +337,67 @@ class BaselineDependenciesBuilder {
       .recordStats()
       .build[K, V]()
 
-  // SSLContext that accepts any server certificate without hostname verification (opportunistic TLS).
-  // Used for Galaxy VM readiness checks where the VM has a cloud-init-generated self-signed cert.
+  // Builds the SSLContext for all Leo → Galaxy VM connections.
   //
-  // X509ExtendedTrustManager is required (not plain X509TrustManager). The JDK wraps plain
-  // X509TrustManager in AbstractTrustManagerWrapper, which re-checks hostname regardless of
-  // what checkServerTrusted does. Extending X509ExtendedTrustManager bypasses that wrapper:
-  // the JDK calls the engine-variant directly, so all four overrides below are no-ops.
-  private def buildTrustAllSslContext: SSLContext = {
+  // Pins server cert trust to Leo's CA. X509ExtendedTrustManager is used so the
+  // JDK's AbstractTrustManagerWrapper hostname re-check is bypassed — Galaxy VMs
+  // are addressed by external IP, which never matches the cert's CN.
+  //
+  // keyManagers carries Leo's client cert+key for the mTLS handshake. The Galaxy VM
+  // uses it to verify the connecting client is Leo. Empty when client cert is absent.
+  private[http] def buildGalaxySslContext(caCertPem: String, keyManagers: Array[KeyManager]): SSLContext = {
+    val caCert = CertificateFactory
+      .getInstance("X.509")
+      .generateCertificate(new ByteArrayInputStream(caCertPem.getBytes))
+      .asInstanceOf[X509Certificate]
+    val trustStore = KeyStore.getInstance(KeyStore.getDefaultType)
+    trustStore.load(null, null)
+    trustStore.setCertificateEntry("galaxy-ca", caCert)
+    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
+    tmf.init(trustStore)
+    val inner = tmf.getTrustManagers.collectFirst { case tm: X509TrustManager => tm }.get
     val tm = new X509ExtendedTrustManager {
-      def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-      def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-      def getAcceptedIssuers: Array[X509Certificate] = Array.empty
+      def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
+        inner.checkClientTrusted(chain, authType)
+      def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
+        inner.checkServerTrusted(chain, authType)
+      def getAcceptedIssuers: Array[X509Certificate] = inner.getAcceptedIssuers
       override def checkClientTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
-        ()
+        inner.checkClientTrusted(chain, authType)
       override def checkServerTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
-        ()
-      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
-      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
+        inner.checkServerTrusted(chain, authType)
+      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
+        inner.checkClientTrusted(chain, authType)
+      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit =
+        inner.checkServerTrusted(chain, authType)
     }
     val ctx = SSLContext.getInstance("TLS")
-    ctx.init(null, Array(tm), null)
+    ctx.init(keyManagers, Array(tm), null)
     ctx
+  }
+
+  // Loads Leo's client cert+key into a KeyManager array for the mTLS handshake.
+  private[http] def buildGalaxyKeyManagers(clientCertPem: String, clientKeyPem: String): Array[KeyManager] = {
+    val cert = CertificateFactory
+      .getInstance("X.509")
+      .generateCertificate(new ByteArrayInputStream(clientCertPem.getBytes))
+      .asInstanceOf[X509Certificate]
+    val pemParser = new PEMParser(new StringReader(clientKeyPem))
+    val converter = new JcaPEMKeyConverter()
+    // PEMParser yields PEMKeyPair for traditional RSA keys ("BEGIN RSA PRIVATE KEY")
+    // and PrivateKeyInfo for PKCS#8 keys ("BEGIN PRIVATE KEY"). Handle both.
+    val privateKey = pemParser.readObject() match {
+      case kp: PEMKeyPair     => converter.getKeyPair(kp).getPrivate
+      case pi: PrivateKeyInfo => converter.getPrivateKey(pi)
+      case obj                => throw new IllegalArgumentException(s"Unexpected PEM object: ${obj.getClass.getName}")
+    }
+    pemParser.close()
+    val ks = KeyStore.getInstance(KeyStore.getDefaultType)
+    ks.load(null, null)
+    ks.setKeyEntry("leo-client", privateKey, Array.emptyCharArray, Array(cert))
+    val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
+    kmf.init(ks, Array.emptyCharArray)
+    kmf.getKeyManagers
   }
 
   private def buildHttpClient[F[_]: Async: StructuredLogger: Network: LoggerFactory](
@@ -434,6 +507,7 @@ object BaselineDependenciesBuilder {
 
 final case class BaselineDependencies[F[_]](
   sslContext: SSLContext,
+  galaxySslContext: SSLContext,
   runtimeDnsCache: RuntimeDnsCache[F],
   samDAO: HttpSamDAO[F],
   dockerDAO: HttpDockerDAO[F],

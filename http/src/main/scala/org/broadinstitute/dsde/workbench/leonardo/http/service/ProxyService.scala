@@ -38,9 +38,8 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 
-import java.security.cert.X509Certificate
 import java.time.Instant
-import javax.net.ssl.{SSLContext, SSLEngine, X509ExtendedTrustManager}
+import javax.net.ssl.SSLContext
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 final case class HostContext(status: HostStatus, description: String)
@@ -83,6 +82,7 @@ final case object AccessTokenExpiredException
 
 class ProxyService(
   sslContext: SSLContext,
+  galaxySslContext: SSLContext,
   proxyConfig: ProxyConfig,
   jupyterDAO: JupyterDAO[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
@@ -104,26 +104,11 @@ class ProxyService(
 ) extends LazyLogging {
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
 
-  // Opportunistic TLS for Galaxy VM backends: self-signed cert issued by cloud-init,
-  // no CA chain to verify. Encrypts in transit without authenticating the server cert.
-  // X509ExtendedTrustManager is required: plain X509TrustManager is wrapped by
-  // AbstractTrustManagerWrapper, which re-checks hostname regardless of checkServerTrusted.
-  private val galaxyVmHttpsContext: HttpsConnectionContext = {
-    val tm = new X509ExtendedTrustManager {
-      def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-      def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = ()
-      def getAcceptedIssuers: Array[X509Certificate] = Array.empty
-      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
-        ()
-      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, socket: java.net.Socket): Unit =
-        ()
-      override def checkClientTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
-      override def checkServerTrusted(chain: Array[X509Certificate], authType: String, engine: SSLEngine): Unit = ()
-    }
-    val ctx = SSLContext.getInstance("TLS")
-    ctx.init(null, Array(tm), null)
-    ConnectionContext.httpsClient(ctx)
-  }
+  // Galaxy VM TLS connection context. Uses cert-pinning when the root CA is configured
+  // (GALAXY_TLS_CA_CERT), otherwise falls back to trust-all. Built once from galaxySslContext,
+  // which is shared with the vm-reachability http client in BaselineDependenciesBuilder.
+  private val galaxyVmHttpsContext: HttpsConnectionContext =
+    ConnectionContext.httpsClient(galaxySslContext)
 
   val clientConnectionSettings =
     ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
