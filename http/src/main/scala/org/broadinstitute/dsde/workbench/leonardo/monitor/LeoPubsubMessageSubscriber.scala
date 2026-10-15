@@ -767,14 +767,26 @@ class LeoPubsubMessageSubscriber[F[_]](
       }
     } yield ()
 
-    create.onError { case e =>
-      for {
-        ctx <- ev.ask
-        _ <- logger.error(ctx.loggingCtx, e)(
-          s"Failed to create Galaxy postgres disk in Google project ${project.value}, AppName: ${appName.value}"
-        )
-      } yield ()
-    }
+    create
+      .recoverWith {
+        // Disk already exists (e.g. leftover from a previous failed app creation) — safe to continue.
+        case e: java.util.concurrent.ExecutionException
+            if e.getCause.isInstanceOf[com.google.api.gax.rpc.AbortedException] &&
+              e.getCause
+                .asInstanceOf[com.google.api.gax.rpc.AbortedException]
+                .getStatusCode
+                .getCode
+                .getHttpStatusCode == 409 =>
+          F.unit
+      }
+      .onError { case e =>
+        for {
+          ctx <- ev.ask
+          _ <- logger.error(ctx.loggingCtx, e)(
+            s"Failed to create Galaxy postgres disk in Google project ${project.value}, AppName: ${appName.value}"
+          )
+        } yield ()
+      }
   }
 
   private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(implicit
