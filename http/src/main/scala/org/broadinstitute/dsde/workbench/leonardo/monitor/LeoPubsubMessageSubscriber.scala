@@ -769,14 +769,15 @@ class LeoPubsubMessageSubscriber[F[_]](
 
     create
       .recoverWith {
-        // Disk already exists (e.g. leftover from a previous failed app creation) — safe to continue.
+        // The postgres disk already exists (e.g. leftover from a previous failed app creation) — safe to continue.
         case e: java.util.concurrent.ExecutionException
             if e.getCause.isInstanceOf[com.google.api.gax.rpc.AbortedException] &&
               e.getCause
                 .asInstanceOf[com.google.api.gax.rpc.AbortedException]
                 .getStatusCode
                 .getCode
-                .getHttpStatusCode == 409 =>
+                .getHttpStatusCode == 409 &&
+              Option(e.getCause.getCause).exists(_.getMessage.contains("already exists")) =>
           F.unit
       }
       .onError { case e =>
