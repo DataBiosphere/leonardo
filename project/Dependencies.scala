@@ -7,18 +7,18 @@ object Dependencies {
   val akkaHttpV = "10.2.10"
   val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.17"
-  val http4sVersion = "1.0.0-M45"
+  val http4sVersion = "1.0.0-M49"
   val slickV = "3.4.1"
   val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
 
-  private val workbenchLibsHash = "21b215b"
+  private val workbenchLibsHash = "b3c715c"
   val serviceTestV = s"6.2-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
   val workbenchGoogleV = s"0.36-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.43-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.44-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.10-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.11-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.12-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.9.1"
 
@@ -106,7 +106,7 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.127.7" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.15.1"
-  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % "1.0.0-M38"
+  val http4sPrometheus =  "org.http4s" %% "http4s-prometheus-metrics"   % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val http4sEmberClient = "org.http4s"        %% "http4s-ember-client"  % http4sVersion
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
