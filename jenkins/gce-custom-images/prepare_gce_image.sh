@@ -16,10 +16,10 @@ set -e -x
 # Constants and Global Vars
 #
 terra_base="us.gcr.io/broad-dsp-gcr-public/terra-base:1.0.0"
-terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.1.6"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.2.7"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.2.7"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.9"
+terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:2.0.0"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:3.0.0"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:3.0.0"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:3.0.1"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:3944358"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.21.0"
