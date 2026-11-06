@@ -492,13 +492,19 @@ class ProxyService(
     // data between client, proxy, and server. However Jupyter is doing something strange and the proxy only
     // works when toStrict is used. Luckily, it's only needed for HTTP requests (which are fairly small) and not
     // WebSocket requests (which could potentially be large).
+    // SSE responses (text/event-stream) are intentionally infinite — skip toStrict and stream them through.
     Source
       .single(newRequest)
       .via(flow)
       .map(if (useHttp) fixLocationScheme else identity)
       .map(fixContentDisposition)
       .runWith(Sink.head)
-      .flatMap(_.toStrict(requestTimeout))
+      .flatMap { response =>
+        if (response.entity.contentType.mediaType == MediaTypes.`text/event-stream`)
+          Future.successful(response)
+        else
+          response.toStrict(requestTimeout)
+      }
   }
 
   // Galaxy VM backends now speak HTTPS to Leo via opportunistic TLS. Absolute URLs they
