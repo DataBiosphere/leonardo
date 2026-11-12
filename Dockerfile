@@ -15,6 +15,7 @@ RUN mkdir /helm-go-lib-build && \
 
 # Use this graalvm image if we need to use jstack etc
 # FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.0.0.2
+# 2026-11-02: this comment forces a full rebuild on the latest blessed base image (CTM-739).
 FROM us.gcr.io/broad-dsp-gcr-public/base/jre:17-debian
 
 EXPOSE 8080
