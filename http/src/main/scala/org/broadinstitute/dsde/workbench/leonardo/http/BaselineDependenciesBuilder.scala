@@ -8,12 +8,11 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import fs2.Stream
-import fs2.io.net.{Network, Socket => Fs2Socket, SocketGroup, SocketOption}
+import fs2.io.net.{AddressRewritingNetwork, Network}
 import com.comcast.ip4s.{
-  Host => Ip4sHost,
+  GenSocketAddress,
   Hostname => Ip4sHostname,
   IpAddress => Ip4sIpAddress,
-  Port => Ip4sPort,
   SocketAddress => Ip4sSocketAddress
 }
 import io.kubernetes.client.openapi.ApiClient
@@ -122,6 +121,7 @@ class BaselineDependenciesBuilder {
 
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[String, IP]))
+      proxyNetwork = mappedDnsNetwork(network, hostToIpMapping)
       proxyResolver <- Dispatcher.parallel[F].map(d => ProxyResolver(hostToIpMapping, d))
 
       underlyingRuntimeDnsCache = buildCache[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]](
@@ -160,7 +160,7 @@ class BaselineDependenciesBuilder {
       )
       samService = new SamServiceInterp(samClientProvider, cloudAuthTokenProvider)
 
-      samDao <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_sam_client"), true).map(client =>
+      samDao <- buildHttpClient(sslContext, proxyNetwork, Some("leo_sam_client"), true).map(client =>
         HttpSamDAO[F](
           client,
           httpSamDaoConfig,
@@ -168,23 +168,23 @@ class BaselineDependenciesBuilder {
           cloudAuthTokenProvider
         )
       )
-      jupyterDao <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_jupyter_client"), false).map(client =>
+      jupyterDao <- buildHttpClient(sslContext, proxyNetwork, Some("leo_jupyter_client"), false).map(client =>
         new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
-      welderDao <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_welder_client"), false).map(client =>
+      welderDao <- buildHttpClient(sslContext, proxyNetwork, Some("leo_welder_client"), false).map(client =>
         new HttpWelderDAO[F](runtimeDnsCache, client, samDao)
       )
-      rstudioDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_rstudio_client"), false).map(client =>
+      rstudioDAO <- buildHttpClient(sslContext, proxyNetwork, Some("leo_rstudio_client"), false).map(client =>
         new HttpRStudioDAO(runtimeDnsCache, client)
       )
-      appDAO <- buildHttpClient(sslContext, hostToIpMapping, Some("leo_app_client"), false).flatMap { appClient =>
-        buildHttpClient(galaxySslContext, hostToIpMapping, None, false)
+      appDAO <- buildHttpClient(sslContext, proxyNetwork, Some("leo_app_client"), false).flatMap { appClient =>
+        buildHttpClient(galaxySslContext, proxyNetwork, None, false)
           .map(vmClient => new HttpAppDAO(kubernetesDnsCache, appClient, vmClient))
       }
-      appDescriptorDAO <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client =>
+      appDescriptorDAO <- buildHttpClient(sslContext, proxyNetwork, None, true).map(client =>
         new HttpAppDescriptorDAO(client)
       )
-      dockerDao <- buildHttpClient(sslContext, hostToIpMapping, None, true).map(client => HttpDockerDAO[F](client))
+      dockerDao <- buildHttpClient(sslContext, proxyNetwork, None, true).map(client => HttpDockerDAO[F](client))
 
       // Set up identity providers
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
@@ -400,9 +400,9 @@ class BaselineDependenciesBuilder {
     kmf.getKeyManagers
   }
 
-  private def buildHttpClient[F[_]: Async: StructuredLogger: Network: LoggerFactory](
+  private def buildHttpClient[F[_]: Async: StructuredLogger: LoggerFactory](
     sslContext: SSLContext,
-    hostToIpMapping: Ref[F, Map[String, IP]],
+    network: Network[F],
     metricsPrefix: Option[String],
     withRetry: Boolean
   ): Resource[F, org.http4s.client.Client[F]] = {
@@ -418,13 +418,13 @@ class BaselineDependenciesBuilder {
     val tlsContext = TLSContext.Builder.forAsync[F].fromSSLContext(sslContext)
 
     for {
-      httpClient <- org.http4s.ember.client.EmberClientBuilder.default
+      httpClient <- org.http4s.ember.client.EmberClientBuilder
+        .default[F](Async[F], network, LoggerFactory[F])
         .withTLSContext(tlsContext)
         .withTimeout(60 seconds)
         .withMaxTotal(100)
         .withIdleConnectionTime(30 seconds)
         .withMaxResponseHeaderSize(16384)
-        .withSocketGroup(new MappedDnsSocketGroup[F](Network[F], hostToIpMapping))
         .build
 
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
@@ -449,52 +449,30 @@ class BaselineDependenciesBuilder {
     } yield finalClient
   }
 
-  /** A SocketGroup[F] wrapper that intercepts TCP connections to mapped proxy hostnames and
-    * redirects them to the corresponding VM IP, without modifying the request URI.
+  /** A Network[F] that redirects TCP connections to mapped proxy hostnames to the corresponding
+    * VM IP, without modifying the request URI.
     *
-    * This preserves the original hostname in the URI so Ember's TLS layer uses it for SNI,
-    * allowing TLS certificate validation to succeed against the VM's hostname-based certificate.
-    * Only the TCP connection itself is redirected to the resolved IP.
-    *
-    * This replicates the behavior of Blaze's withCustomDnsResolver at the socket layer.
+    * Ember takes SNI and endpoint identification from the address it connects to, so keeping the
+    * hostname lets TLS validation succeed against the VM's hostname-based certificate. This replicates
+    * Blaze's withCustomDnsResolver; see AddressRewritingNetwork for why it is a Network.
     */
-  private class MappedDnsSocketGroup[F[_]: Async](
-    underlying: SocketGroup[F],
+  private def mappedDnsNetwork[F[_]: Async](
+    underlying: Network[F],
     hostToIpMapping: Ref[F, Map[String, IP]]
-  ) extends SocketGroup[F] {
-
-    override def client(
-      to: Ip4sSocketAddress[Ip4sHost],
-      options: List[SocketOption] = List.empty
-    ): Resource[F, Fs2Socket[F]] =
-      Resource.eval(resolveHost(to)).flatMap(underlying.client(_, options))
-
-    override def server(
-      address: Option[Ip4sHost] = None,
-      port: Option[Ip4sPort] = None,
-      options: List[SocketOption] = List.empty
-    ): Stream[F, Fs2Socket[F]] =
-      underlying.server(address, port, options)
-
-    override def serverResource(
-      address: Option[Ip4sHost] = None,
-      port: Option[Ip4sPort] = None,
-      options: List[SocketOption] = List.empty
-    ): Resource[F, (Ip4sSocketAddress[Ip4sIpAddress], Stream[F, Fs2Socket[F]])] =
-      underlying.serverResource(address, port, options)
-
-    private def resolveHost(to: Ip4sSocketAddress[Ip4sHost]): F[Ip4sSocketAddress[Ip4sHost]] =
-      to.host match {
-        case hostname: Ip4sHostname =>
+  ): Network[F] =
+    new AddressRewritingNetwork(
+      underlying,
+      {
+        case sa @ Ip4sSocketAddress(hostname: Ip4sHostname, port) =>
           Async[F].map(hostToIpMapping.get) { mapping =>
-            mapping.get(hostname.toString).flatMap(ip => Ip4sIpAddress.fromString(ip.asString)) match {
-              case Some(ipAddr) => Ip4sSocketAddress[Ip4sHost](ipAddr, to.port)
-              case None         => to
-            }
+            mapping
+              .get(hostname.toString)
+              .flatMap(ip => Ip4sIpAddress.fromString(ip.asString))
+              .fold[GenSocketAddress](sa)(Ip4sSocketAddress(_, port))
           }
-        case _ => Async[F].pure(to)
+        case other => Async[F].pure(other)
       }
-  }
+    )
 
   private def logAction[F[_]: Monad: StructuredLogger](s: String): F[Unit] =
     StructuredLogger[F].info(s)
