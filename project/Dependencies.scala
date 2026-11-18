@@ -10,6 +10,7 @@ object Dependencies {
   val http4sVersion = "1.0.0-M49"
   val slickV = "3.4.1"
   val guavaV = "32.1.3-jre"
+  val bouncyCastleV = "1.87"
   val monocleV = "3.2.0"
 
   private val workbenchLibsHash = "b3c715c"
@@ -112,6 +113,9 @@ object Dependencies {
   val http4sEmberServer = "org.http4s"        %% "http4s-ember-server"  % http4sVersion
 
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
+  val bcprov: ModuleID  = "org.bouncycastle" % "bcprov-jdk18on" % bouncyCastleV
+  val bcpkix: ModuleID  = "org.bouncycastle" % "bcpkix-jdk18on" % bouncyCastleV
+  val bcutil: ModuleID  = "org.bouncycastle" % "bcutil-jdk18on" % bouncyCastleV
   val okHttp =            "com.squareup.okhttp3"  % "okhttp"            % "4.12.0"
 
   val samV = "v0.0.448"
@@ -173,7 +177,7 @@ object Dependencies {
     "com.auth0" % "java-jwt" % "4.4.0",
     // BouncyCastle for per-VM TLS cert generation at Galaxy VM provisioning time.
     // Added explicitly since bcprov/bcpkix were previously excluded as unused transitive deps.
-    "org.bouncycastle" % "bcpkix-jdk18on" % "1.86",
+    bcpkix,
     http4sEmberServer % Test,
     scalaTestSelenium,
     scalaTestMockito,
@@ -184,6 +188,9 @@ object Dependencies {
   // You should not be using SSH functionality outside of the tests according to security team's guidance
   val ssh: ModuleID = "com.hierynomus" % "sshj" % "0.37.0" % "test"
   val googleCloudOSLogin = "com.google.cloud" % "google-cloud-os-login" % "2.2.7" % "test"
+
+  // Pin all BouncyCastle artifacts to one version, including bcprov/bcutil that arrive transitively.
+  val commonOverrides = List(bcprov, bcpkix, bcutil)
 
   val automationOverrides = List(
     guava,
