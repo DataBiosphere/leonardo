@@ -12,7 +12,7 @@ object Dependencies {
   val guavaV = "32.1.3-jre"
   val monocleV = "3.2.0"
 
-  private val workbenchLibsHash = "b3c715c"
+  private val workbenchLibsHash = "242a83f"
   val serviceTestV = s"6.2-$workbenchLibsHash"
   val workbenchModelV = s"0.21-$workbenchLibsHash"
   val workbenchGoogleV = s"0.36-$workbenchLibsHash"
