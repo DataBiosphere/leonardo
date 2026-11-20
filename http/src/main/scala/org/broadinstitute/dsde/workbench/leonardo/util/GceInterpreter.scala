@@ -136,6 +136,7 @@ class GceInterpreter[F[_]](
             .setDescription("Leonardo Managed Boot Disk")
             .setSourceImage(config.gceConfig.sourceImage.asString)
             .setDiskSizeGb(bootDiskSize.gb)
+            .setDiskType(config.gceConfig.bootDiskType.googleString(googleProject, zoneParam))
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
