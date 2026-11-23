@@ -1303,7 +1303,7 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
-      savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Stopped).save())
+      savedApp <- IO(makeApp(1, savedNodepool.id, appType = AppType.Cromwell).copy(status = AppStatus.Stopped).save())
 
       gcpContext = savedCluster.cloudContext match {
         case g @ CloudContext.Gcp(_) => g
@@ -1328,6 +1328,40 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
         }
       }
     } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "reject stop and start for Galaxy apps" in isolatedDbTest {
+    val res = for {
+      publisherQueue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      kubeServiceInterp = makeInterp(publisherQueue)
+
+      savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
+      runningApp <- IO(
+        makeApp(1, savedNodepool.id, appType = AppType.Galaxy).copy(status = AppStatus.Running).save()
+      )
+      stoppedApp <- IO(
+        makeApp(2, savedNodepool.id, appType = AppType.Galaxy).copy(status = AppStatus.Stopped).save()
+      )
+      gcpContext = savedCluster.cloudContext match {
+        case g @ CloudContext.Gcp(_) => g
+        case _                       => fail("expected GCP context")
+      }
+
+      stopRes <- kubeServiceInterp.stopApp(userInfo, gcpContext, runningApp.appName).attempt
+      startRes <- kubeServiceInterp.startApp(userInfo, gcpContext, stoppedApp.appName).attempt
+      runningAfter <- KubernetesServiceDbQueries.getActiveFullAppByName(gcpContext, runningApp.appName).transaction
+      stoppedAfter <- KubernetesServiceDbQueries.getActiveFullAppByName(gcpContext, stoppedApp.appName).transaction
+      msg <- publisherQueue.tryTake
+    } yield {
+      stopRes.swap.toOption.get shouldBe a[AppStopStartNotSupportedException]
+      startRes.swap.toOption.get shouldBe a[AppStopStartNotSupportedException]
+      runningAfter.map(_.app.status) shouldBe Some(AppStatus.Running)
+      stoppedAfter.map(_.app.status) shouldBe Some(AppStatus.Stopped)
+      msg shouldBe None
+    }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
