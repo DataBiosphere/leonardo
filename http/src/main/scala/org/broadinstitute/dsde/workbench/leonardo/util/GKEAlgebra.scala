@@ -1,15 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.Ask
-import com.google.cloud.compute.v1.Disk
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{
   KubernetesNetwork,
   KubernetesOperationId,
   KubernetesSubNetwork
 }
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   AppId,
@@ -74,26 +71,6 @@ trait GKEAlgebra[F[_]] {
 }
 
 object GKEAlgebra {
-  import scala.jdk.CollectionConverters._
-
-  private[leonardo] def getOldStyleGalaxyPostgresDiskName(namespaceName: NamespaceName, suffix: String): DiskName =
-    DiskName(s"${namespaceName.value}-${suffix}")
-
-  private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName, suffix: String): DiskName =
-    DiskName(s"${dataDiskName.value}-${suffix}")
-
-  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName,
-                                                dataDiskName: DiskName,
-                                                galaxyDiskConfig: GalaxyDiskConfig
-  ): Disk =
-    Disk
-      .newBuilder()
-      .setName(getGalaxyPostgresDiskName(dataDiskName, galaxyDiskConfig.postgresDiskNameSuffix).value)
-      .setZone(zone.value)
-      .setSizeGb(galaxyDiskConfig.postgresDiskSizeGB.gb)
-      .setPhysicalBlockSizeBytes(galaxyDiskConfig.postgresDiskBlockSize.bytes)
-      .putAllLabels(Map("leonardo" -> "true").asJava)
-      .build()
 
   // Utility for building staging bucket name for apps.
   // Staging bucket is used for storing state files for welder.
