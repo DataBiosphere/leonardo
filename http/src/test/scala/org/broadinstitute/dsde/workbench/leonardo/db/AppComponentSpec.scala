@@ -10,6 +10,8 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.AppToAutoDelete
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.time.Instant
@@ -44,6 +46,43 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
 
     val appType = dbFutureValue(appQuery.getAppType(app1.appName))
     appType shouldBe Some(AppType.Galaxy)
+  }
+
+  it should "write the cluster's cloud context to the app row on save" in isolatedDbTest {
+    val savedCluster = makeKubeCluster(1).save()
+    val savedNodepool = makeNodepool(1, savedCluster.id).save()
+    val savedApp = makeApp(1, savedNodepool.id).save()
+
+    val cols = dbFutureValue(
+      appQuery.getByIdQuery(savedApp.id).map(a => (a.cloudProvider, a.cloudContextDb)).result.head
+    )
+    cols shouldBe ((Some(savedCluster.cloudContext.cloudProvider), Some(savedCluster.cloudContext.asCloudContextDb)))
+  }
+
+  it should "backfill the app cloud context from the cluster" in isolatedDbTest {
+    val savedCluster = makeKubeCluster(1).save()
+    val savedNodepool = makeNodepool(1, savedCluster.id).save()
+    val savedApp = makeApp(1, savedNodepool.id).save()
+    dbFutureValue(
+      appQuery
+        .getByIdQuery(savedApp.id)
+        .map(a => (a.cloudProvider, a.cloudContextDb))
+        .update((Option.empty[CloudProvider], Option.empty[CloudContextDb]))
+    )
+
+    // Same statement as the lbaldo_20261123_backfill_app_cloud_context changeset.
+    dbFutureValue(sqlu"""
+      UPDATE APP a
+      JOIN NODEPOOL np ON a.nodepoolId = np.id
+      JOIN KUBERNETES_CLUSTER kc ON np.clusterId = kc.id
+      SET a.cloudProvider = kc.cloudProvider, a.cloudContext = kc.cloudContext
+      WHERE a.cloudContext IS NULL
+    """)
+
+    val cols = dbFutureValue(
+      appQuery.getByIdQuery(savedApp.id).map(a => (a.cloudProvider, a.cloudContextDb)).result.head
+    )
+    cols shouldBe ((Some(savedCluster.cloudContext.cloudProvider), Some(savedCluster.cloudContext.asCloudContextDb)))
   }
 
   it should "save complex app" in isolatedDbTest {
