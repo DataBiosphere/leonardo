@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="lbaldo" id="lbaldo_20261123_backfill_app_cloud_context_again">
+        <!-- Same backfill as lbaldo_20261123_backfill_app_cloud_context. Catches apps created by pods
+             that did not write the columns yet, before app lookups start filtering on them. -->
+        <sql>
+            UPDATE APP a
+            JOIN NODEPOOL np ON a.nodepoolId = np.id
+            JOIN KUBERNETES_CLUSTER kc ON np.clusterId = kc.id
+            SET a.cloudProvider = kc.cloudProvider, a.cloudContext = kc.cloudContext
+            WHERE a.cloudContext IS NULL
+        </sql>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="lbaldo" id="lbaldo_20261123_index_app_cloud_context">
+        <createIndex tableName="APP" indexName="IDX_APP_CLOUD_CONTEXT">
+            <column name="cloudContext"/>
+            <column name="cloudProvider"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

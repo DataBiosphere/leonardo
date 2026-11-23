@@ -8,7 +8,11 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundExcept
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{filterByWorkspaceIdAndCreator, nonDeletedAppQuery}
+import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.{
+  filterByCloudContext,
+  filterByWorkspaceIdAndCreator,
+  nonDeletedAppQuery
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
@@ -36,11 +40,14 @@ object KubernetesServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
-      listClustersByCloudContext(cloudContext),
+      kubernetesClusterQuery,
       nodepoolQuery,
-      filterByWorkspaceIdAndCreator(query = if (includeDeleted) appQuery else nonDeletedAppQuery,
-                                    workspaceId = None,
-                                    creatorOnly = creatorOnly
+      filterByCloudContext(
+        filterByWorkspaceIdAndCreator(query = if (includeDeleted) appQuery else nonDeletedAppQuery,
+                                      workspaceId = None,
+                                      creatorOnly = creatorOnly
+        ),
+        cloudContext
       ),
       labelFilter
     )
@@ -135,9 +142,9 @@ object KubernetesServiceDbQueries {
   def getActiveFullAppByName(cloudContext: CloudContext, appName: AppName, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
+    getActiveFullApp(kubernetesClusterQuery,
                      nodepoolQuery,
-                     appQuery.findActiveByNameQuery(appName),
+                     filterByCloudContext(appQuery.findActiveByNameQuery(appName), Some(cloudContext)),
                      labelFilter
     )
 
@@ -149,9 +156,9 @@ object KubernetesServiceDbQueries {
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
     getActiveFullApp(
-      listClustersByCloudContext(Some(cloudContext)),
+      kubernetesClusterQuery,
       nodepoolQuery,
-      appQuery.findByNameQuery(appName),
+      filterByCloudContext(appQuery.findByNameQuery(appName), Some(cloudContext)),
       labelFilter
     )
 
@@ -181,9 +188,9 @@ object KubernetesServiceDbQueries {
   def getFullAppById(cloudContext: CloudContext, appId: AppId, labelFilter: LabelMap = Map())(implicit
     ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByCloudContext(Some(cloudContext)),
+    getActiveFullApp(kubernetesClusterQuery,
                      nodepoolQuery,
-                     appQuery.getByIdQuery(appId),
+                     filterByCloudContext(appQuery.getByIdQuery(appId), Some(cloudContext)),
                      labelFilter
     )
 
@@ -280,17 +287,6 @@ object KubernetesServiceDbQueries {
       _ <- appQuery.markPendingDeletion(appId)
       _ <- diskId.fold[DBIO[Int]](DBIO.successful(0))(diskId => persistentDiskQuery.markPendingDeletion(diskId, now))
     } yield ()
-
-  private[db] def listClustersByCloudContext(
-    cloudContext: Option[CloudContext]
-  ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
-    cloudContext match {
-      case Some(context) =>
-        kubernetesClusterQuery
-          .filter(_.cloudProvider === context.cloudProvider)
-          .filter(_.cloudContextDb === context.asCloudContextDb)
-      case None => kubernetesClusterQuery
-    }
 
   private[db] def joinFullAppAndUnmarshal(
     baseQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],

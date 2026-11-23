@@ -368,11 +368,10 @@ object appQuery extends TableQuery(new AppTable(_)) {
   def updateDateAccessed(appName: AppName, cloudContext: CloudContext, now: Instant): DBIO[Int] =
     sql"""
             UPDATE APP
-            JOIN NODEPOOL ON APP.nodepoolId = NODEPOOL.id
-            JOIN KUBERNETES_CLUSTER ON KUBERNETES_CLUSTER.id = NODEPOOL.clusterId
             SET APP.dateAccessed = ${now}
             where APP.appName = ${appName.value} AND
-                  KUBERNETES_CLUSTER.cloudContext = ${cloudContext.asCloudContextDb.value} AND
+                  APP.cloudProvider = ${cloudContext.cloudProvider.asString} AND
+                  APP.cloudContext = ${cloudContext.asCloudContextDb.value} AND
                   APP.destroyedDate = ${dummyDate} AND
                   APP.status != 'DELETED'
          """.asUpdate
@@ -465,6 +464,17 @@ object appQuery extends TableQuery(new AppTable(_)) {
     appQuery
       .filter(_.status =!= (AppStatus.Deleted: AppStatus))
       .filter(_.destroyedDate === dummyDate)
+
+  private[db] def filterByCloudContext(query: Query[AppTable, AppRecord, Seq],
+                                       cloudContext: Option[CloudContext]
+  ): Query[AppTable, AppRecord, Seq] =
+    cloudContext match {
+      case Some(context) =>
+        query
+          .filter(_.cloudProvider === (context.cloudProvider: CloudProvider))
+          .filter(_.cloudContextDb === context.asCloudContextDb)
+      case None => query
+    }
 
   private[db] def filterByWorkspaceIdAndCreator(query: Query[AppTable, AppRecord, Seq],
                                                 workspaceId: Option[WorkspaceId],
