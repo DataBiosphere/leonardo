@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundExcept
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
-import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{
+import org.broadinstitute.dsde.workbench.leonardo.util.GalaxyVmInterpreter.{
   getGalaxyPostgresDiskName,
   getOldStyleGalaxyPostgresDiskName
 }
@@ -753,7 +753,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       operationFutureOpt <- getGoogleDiskServiceFromRegistry().createDisk(
         project,
         zone,
-        GKEAlgebra.buildGalaxyPostgresDisk(zone, dataDiskName, config.galaxyDiskConfig)
+        GalaxyVmInterpreter.buildGalaxyPostgresDisk(zone, dataDiskName, config.galaxyDiskConfig)
       )
       _ <- operationFutureOpt match {
         case None => F.unit
@@ -1609,7 +1609,9 @@ class LeoPubsubMessageSubscriber[F[_]](
           } yield operation.some
         case None =>
           val diskName =
-            GKEAlgebra.getOldStyleGalaxyPostgresDiskName(namespaceName, config.galaxyDiskConfig.postgresDiskNameSuffix)
+            GalaxyVmInterpreter.getOldStyleGalaxyPostgresDiskName(namespaceName,
+                                                                  config.galaxyDiskConfig.postgresDiskNameSuffix
+            )
           for {
             operationFutureOpt <- getGoogleDiskServiceFromRegistry()
               .deleteDisk(
