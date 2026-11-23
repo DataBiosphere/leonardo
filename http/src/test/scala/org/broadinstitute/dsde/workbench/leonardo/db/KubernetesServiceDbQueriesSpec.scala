@@ -8,6 +8,8 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 import java.time.Instant
@@ -45,6 +47,31 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     listWithProject2.length shouldEqual 1
     listWithProject2.flatMap(_.nodepools).length shouldEqual 1
     listWithProject2.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
+  }
+
+  it should "find apps by the app's cloud context, not the cluster's" in isolatedDbTest {
+    val cluster = makeKubeCluster(1).save()
+    val nodepool = makeNodepool(1, cluster.id).save()
+    val app = makeApp(1, nodepool.id).save()
+    val otherContext = CloudContext.Gcp(GoogleProject("some-other-project"))
+    dbFutureValue(
+      kubernetesClusterQuery.filter(_.id === cluster.id).map(_.cloudContextDb).update(otherContext.asCloudContextDb)
+    )
+
+    dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster.cloudContext)))
+      .flatMap(_.nodepools)
+      .flatMap(_.apps)
+      .map(_.id) shouldBe List(app.id)
+    dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(otherContext))) shouldBe empty
+    dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(cluster.cloudContext, app.appName))
+      .map(_.app.id) shouldBe Some(app.id)
+    dbFutureValue(KubernetesServiceDbQueries.getFullAppByName(cluster.cloudContext, app.appName))
+      .map(_.app.id) shouldBe Some(app.id)
+    dbFutureValue(KubernetesServiceDbQueries.getFullAppById(cluster.cloudContext, app.id))
+      .map(_.app.id) shouldBe Some(app.id)
+    dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(otherContext, app.appName)) shouldBe None
+    dbFutureValue(appQuery.updateDateAccessed(app.appName, cluster.cloudContext, Instant.now())) shouldBe 1
+    dbFutureValue(appQuery.updateDateAccessed(app.appName, otherContext, Instant.now())) shouldBe 0
   }
 
   it should "list apps belonging to self only, if creator specified" in isolatedDbTest {

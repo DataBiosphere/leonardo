@@ -127,4 +127,5 @@
     <include file="changesets/20251024_delete_update_app_log_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20260730_allow_multiple_galaxy_vm_clusters.xml" relativeToChangelogFile="true" />
     <include file="changesets/20261123_add_app_cloud_context.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20261123_app_cloud_context_lookups.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

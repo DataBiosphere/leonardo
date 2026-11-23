@@ -2031,7 +2031,8 @@ class AppServiceInterpTest extends AnyFlatSpec with AppServiceInterpSpec with Le
     val messages = publisherQueue.tryTakeN(Some(2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     messages.map(_.messageType) shouldBe List(LeoPubsubMessageType.DeleteApp, LeoPubsubMessageType.DeleteApp)
     val deleteAppMessages = messages.map(_.asInstanceOf[DeleteAppMessage])
-    deleteAppMessages.map(_.appId) shouldBe apps.map(_.id)
+    // listFullApps does not guarantee an order.
+    deleteAppMessages.map(_.appId) should contain theSameElementsAs apps.map(_.id)
     deleteAppMessages.map(_.project) shouldBe List(project, project)
     deleteAppMessages.map(_.diskId) shouldBe List(None, None)
   }
