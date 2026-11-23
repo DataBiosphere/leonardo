@@ -80,6 +80,9 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def memory = column[Option[Int]]("memory")
   def ephemeralStorage = column[Option[Int]]("ephemeralStorage")
   def bucketNameToMount = column[Option[GcsBucketName]]("bucketNameToMount")
+  // Not part of AppRecord (its tuple is at the 22-element limit); written by save and read by queries directly.
+  def cloudProvider = column[Option[CloudProvider]]("cloudProvider", O.Length(50))
+  def cloudContextDb = column[Option[CloudContextDb]]("cloudContext", O.Length(254))
 
   def * =
     (
@@ -316,6 +319,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.bucketNameToMount
       )
       appId <- appQuery returning appQuery.map(_.id) += record
+      _ <- getByIdQuery(appId)
+        .map(a => (a.cloudProvider, a.cloudContextDb))
+        .update((Some(cluster.cloudContext.cloudProvider), Some(cluster.cloudContext.asCloudContextDb)))
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
       services <- serviceQuery.saveAllForApp(appId, saveApp.app.appResources.services)
     } yield saveApp.app.copy(id = appId, appResources = AppResources(namespaceName, diskOpt, services, ksaOpt))

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="lbaldo" id="lbaldo_20261123_add_app_cloud_context">
+        <!-- Nullable for now: rows written by Leo versions that predate this column stay NULL until backfilled. -->
+        <addColumn tableName="APP">
+            <column name="cloudProvider" type="VARCHAR(50)"/>
+            <column name="cloudContext" type="VARCHAR(254)"/>
+        </addColumn>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="lbaldo" id="lbaldo_20261123_backfill_app_cloud_context">
+        <sql>
+            UPDATE APP a
+            JOIN NODEPOOL np ON a.nodepoolId = np.id
+            JOIN KUBERNETES_CLUSTER kc ON np.clusterId = kc.id
+            SET a.cloudProvider = kc.cloudProvider, a.cloudContext = kc.cloudContext
+            WHERE a.cloudContext IS NULL
+        </sql>
+    </changeSet>
+</databaseChangeLog>
