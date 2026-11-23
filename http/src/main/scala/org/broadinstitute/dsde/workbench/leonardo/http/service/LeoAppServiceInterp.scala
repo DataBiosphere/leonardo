@@ -598,6 +598,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
       _ <- if (hasStopStartPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
 
+      _ <- F.raiseWhen(appResult.app.appType == AppType.Galaxy)(
+        AppStopStartNotSupportedException(cloudContext, appName, appResult.app.appType, ctx.traceId)
+      )
+
       canStop = AppStatus.stoppableStatuses.contains(appResult.app.status)
       _ <-
         if (canStop) F.unit
@@ -646,6 +650,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
       // throw 403 if no StopStartApp permission
       hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
       _ <- if (hasStopStartPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+
+      _ <- F.raiseWhen(appResult.app.appType == AppType.Galaxy)(
+        AppStopStartNotSupportedException(cloudContext, appName, appResult.app.appType, ctx.traceId)
+      )
 
       canStop = AppStatus.startableStatuses.contains(appResult.app.status)
       _ <-
@@ -1452,6 +1460,17 @@ case class AppCannotBeStartedException(cloudContext: CloudContext,
 ) extends LeoException(
       s"App ${cloudContext.asStringWithProvider}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict,
+      traceId = Some(traceId)
+    )
+
+// Galaxy runs on a GCE VM, and Leo has no stop/start path for that VM.
+case class AppStopStartNotSupportedException(cloudContext: CloudContext,
+                                             appName: AppName,
+                                             appType: AppType,
+                                             traceId: TraceId
+) extends LeoException(
+      s"App ${cloudContext.asStringWithProvider}/${appName.value} of type ${appType} does not support stop or start. Trace ID: ${traceId.asString}",
+      StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
 
