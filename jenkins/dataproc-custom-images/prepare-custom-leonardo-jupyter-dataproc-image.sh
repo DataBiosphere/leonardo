@@ -27,7 +27,7 @@ terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.2.16"
 
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:6fd7221"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
-anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-bioconductor:3.21.0"
+anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-r46:3.23.1"
 
 # If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"

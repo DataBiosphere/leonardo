@@ -52,6 +52,7 @@ class RuntimePatchSpec extends BillingProjectFixtureSpec with ParallelTestExecut
                                                       Set.empty
       )
       val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+        toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage),
         runtimeConfig = Some(
           RuntimeConfigRequest.GceWithPdConfig(
             Some(MachineTypeName("n1-standard-4")),

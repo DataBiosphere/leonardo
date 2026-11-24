@@ -178,7 +178,7 @@ pipeline {
                     customDataprocImageBaseName = "${OUTPUT_BASE_NAME}-image-dataproc"
                     customGceImageBaseName = "${OUTPUT_BASE_NAME}-gce-cos-image"
                     ArrayList<String> nonTerraDockerImages = [
-                        'welder-server', 'openidc-proxy', 'anvil-rstudio-bioconductor'
+                        'welder-server', 'openidc-proxy', 'anvil-rstudio-r46'
                     ]
 
                     String selectBuildableTerraDockerImagesQuery = "cat config/conf.json | jq -r '.image_data | .[] | select(.automated_flags.build == true)"
