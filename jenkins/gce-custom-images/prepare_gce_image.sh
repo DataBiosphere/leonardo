@@ -22,7 +22,7 @@ terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-biocond
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.3.9"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:6fd7221"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
-anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-r46:3.23.0"
+anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-r46:3.23.1"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.7.5"
 google_cloud_toolbox="us.gcr.io/cos-cloud/toolbox:v20260310"
